@@ -71,11 +71,11 @@ public:
             // construct a camera client from an existing remote
     static  sp<Camera>  create(const sp<ICamera>& camera);
     static  sp<Camera>  connect(int cameraId,
-                                const String16& clientPackageName,
+                                const String16& opPackageName,
                                 int clientUid);
 
     static  status_t  connectLegacy(int cameraId, int halVersion,
-                                     const String16& clientPackageName,
+                                     const String16& opPackageName,
                                      int clientUid, sp<Camera>& camera);
 
             virtual     ~Camera();

@@ -118,7 +118,7 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
 
     ALOGI("Closed Camera %d. Client was: %s (PID %d, UID %u)",
             TClientBase::mCameraId,
-            String8(TClientBase::mClientPackageName).string(),
+            String8(TClientBase::mOpPackageName).string(),
             mInitialClientPid, TClientBase::mClientUid);
 }
 
