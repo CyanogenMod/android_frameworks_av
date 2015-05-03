@@ -20,6 +20,7 @@
 
 #include "PlaylistFetcher.h"
 
+#include "LiveDataSource.h"
 #include "LiveSession.h"
 #include "M3UParser.h"
 
@@ -39,8 +40,6 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
-#include "include/ExtendedUtils.h"
-
 #include <ctype.h>
 #include <inttypes.h>
 #include <openssl/aes.h>
@@ -59,8 +58,7 @@ PlaylistFetcher::PlaylistFetcher(
         const sp<AMessage> &notify,
         const sp<LiveSession> &session,
         const char *uri,
-        int32_t subtitleGeneration,
-        bool downloadFirstTs)
+        int32_t subtitleGeneration)
     : mNotify(notify),
       mStartTimeUsNotify(notify->dup()),
       mSession(session),
@@ -72,25 +70,17 @@ PlaylistFetcher::PlaylistFetcher(
       mStartTimeUsRelative(false),
       mLastPlaylistFetchTimeUs(-1ll),
       mSeqNumber(-1),
-      mLastSeqNumber(-1),
       mNumRetries(0),
       mStartup(true),
-      mAdaptive(LiveSession::kNoSwitch),
-      mFrameDeltaUs(-1ll),
+      mAdaptive(false),
       mPrepared(false),
       mNextPTSTimeUs(-1ll),
       mMonitorQueueGeneration(0),
       mSubtitleGeneration(subtitleGeneration),
       mRefreshState(INITIAL_MINIMUM_RELOAD_DELAY),
       mFirstPTSValid(false),
-      mIsFirstTSDownload(downloadFirstTs),
       mAbsoluteTimeAnchorUs(0ll),
-      mVideoBuffer(new AnotherPacketSource(NULL)),
-      mTargetDurationUs(10000000ll),
-      mRangeOffset(0),
-      mRangeLength(0),
-      mDownloadOffset(0),
-      mQueueFCBuffer(0) {
+      mVideoBuffer(new AnotherPacketSource(NULL)) {
     memset(mPlaylistHash, 0, sizeof(mPlaylistHash));
     mStartTimeUsNotify->setInt32("what", kWhatStartedAt);
     mStartTimeUsNotify->setInt32("streamMask", 0);
@@ -237,10 +227,7 @@ status_t PlaylistFetcher::decryptBuffer(
     } else {
         ssize_t err = mSession->fetchFile(keyURI.c_str(), &key);
 
-        if (err == INFO_WOULD_BLOCK) {
-            ALOGE("Connection already in use");
-            return err;
-        } else if (err < 0) {
+        if (err < 0) {
             ALOGE("failed to fetch cipher key from '%s'.", keyURI.c_str());
             return ERROR_IO;
         } else if (key->size() != 16) {
@@ -305,7 +292,6 @@ status_t PlaylistFetcher::decryptBuffer(
 }
 
 status_t PlaylistFetcher::checkDecryptPadding(const sp<ABuffer> &buffer) {
-    status_t err;
     AString method;
     CHECK(buffer->meta()->findString("cipher-method", &method));
     if (method == "NONE") {
@@ -356,9 +342,7 @@ void PlaylistFetcher::startAsync(
         int64_t startTimeUs,
         int64_t segmentStartTimeUs,
         int32_t startDiscontinuitySeq,
-        int32_t adaptive,
-        int32_t lastSeq,
-        int64_t frameDeltaUs) {
+        bool adaptive) {
     sp<AMessage> msg = new AMessage(kWhatStart, id());
 
     uint32_t streamTypeMask = 0ul;
@@ -383,8 +367,6 @@ void PlaylistFetcher::startAsync(
     msg->setInt64("segmentStartTimeUs", segmentStartTimeUs);
     msg->setInt32("startDiscontinuitySeq", startDiscontinuitySeq);
     msg->setInt32("adaptive", adaptive);
-    msg->setInt32("sequenceNumber", lastSeq);
-    msg->setInt64("frameDeltaUs", frameDeltaUs);
     msg->post();
 }
 
@@ -433,14 +415,12 @@ void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
 
             sp<AMessage> notify = mNotify->dup();
             notify->setInt32("what", kWhatStopped);
-            notify->setString("segmentURI", mSegmentURI);
             notify->post();
             break;
         }
 
         case kWhatMonitorQueue:
         case kWhatDownloadNext:
-        case kWhatDownloadBlock:
         {
             int32_t generation;
             CHECK(msg->findInt32("generation", &generation));
@@ -452,10 +432,8 @@ void PlaylistFetcher::onMessageReceived(const sp<AMessage> &msg) {
 
             if (msg->what() == kWhatMonitorQueue) {
                 onMonitorQueue();
-            } else if (msg->what() == kWhatDownloadNext) {
-                onDownloadNext();
             } else {
-                onDownloadBlock();
+                onDownloadNext();
             }
             break;
         }
@@ -481,14 +459,10 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
     int64_t segmentStartTimeUs;
     int32_t startDiscontinuitySeq;
     int32_t adaptive;
-    int32_t lastSeq;
-    int64_t frameDeltaUs;
     CHECK(msg->findInt64("startTimeUs", &startTimeUs));
     CHECK(msg->findInt64("segmentStartTimeUs", &segmentStartTimeUs));
     CHECK(msg->findInt32("startDiscontinuitySeq", &startDiscontinuitySeq));
     CHECK(msg->findInt32("adaptive", &adaptive));
-    CHECK(msg->findInt32("sequenceNumber", &lastSeq));
-    CHECK(msg->findInt64("frameDeltaUs", &frameDeltaUs));
 
     if (streamTypeMask & LiveSession::STREAMTYPE_AUDIO) {
         void *ptr;
@@ -521,7 +495,6 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
 
     mSegmentStartTimeUs = segmentStartTimeUs;
     mDiscontinuitySeq = startDiscontinuitySeq;
-    mLastSeqNumber = lastSeq;
 
     if (startTimeUs >= 0) {
         mStartTimeUs = startTimeUs;
@@ -529,7 +502,6 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
         mStartup = true;
         mPrepared = false;
         mAdaptive = adaptive;
-        mFrameDeltaUs = frameDeltaUs;
     }
 
     postMonitorQueue();
@@ -539,7 +511,6 @@ status_t PlaylistFetcher::onStart(const sp<AMessage> &msg) {
 
 void PlaylistFetcher::onPause() {
     cancelMonitorQueue();
-    mSource = NULL;
 }
 
 void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
@@ -556,9 +527,6 @@ void PlaylistFetcher::onStop(const sp<AMessage> &msg) {
 
     mPacketSources.clear();
     mStreamTypeMask = 0;
-    mSource = NULL;
-    mDownloadBuffer = NULL;
-    mTsBuffer = NULL;
 }
 
 // Resume until we have reached the boundary timestamps listed in `msg`; when
@@ -569,15 +537,7 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
     CHECK(msg->findMessage("params", &params));
 
     bool stop = false;
-    int32_t switchType;
-    if (params->findInt32("switchType", &switchType)) {
-        if (switchType == (int32_t)LiveSession::kSwitchDown) {
-            ALOGI("onResumeUntil: Switching down, stop now.. ");
-            stop = true;
-        }
-    }
-
-    for (size_t i = 0; (i < mPacketSources.size()) && (!stop); i++) {
+    for (size_t i = 0; i < mPacketSources.size(); i++) {
         sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
 
         const char *stopKey;
@@ -613,10 +573,6 @@ status_t PlaylistFetcher::onResumeUntil(const sp<AMessage> &msg) {
         }
     }
 
-    if (mQueueFCBuffer) {
-        mQueueFCBuffer = false;
-        stop = true;
-    }
     if (stop) {
         for (size_t i = 0; i < mPacketSources.size(); i++) {
             mPacketSources.valueAt(i)->queueAccessUnit(mSession->createFormatChangeBuffer());
@@ -650,15 +606,7 @@ void PlaylistFetcher::queueDiscontinuity(
 
 void PlaylistFetcher::onMonitorQueue() {
     bool downloadMore = false;
-    status_t err = refreshPlaylist();
-    if (err == INFO_WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatMonitorQueue, id());
-        msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post(100000);
-        return;
-    } else if (err != OK) {
-        return;
-    }
+    refreshPlaylist();
 
     int32_t targetDurationSecs;
     int64_t targetDurationUs = kMinBufferedDurationUs;
@@ -676,9 +624,6 @@ void PlaylistFetcher::onMonitorQueue() {
     int64_t durationToBufferUs = targetDurationUs * 3;
     if (durationToBufferUs > kMinBufferedDurationUs)  {
         durationToBufferUs = kMinBufferedDurationUs;
-    }
-    if (ExtendedUtils::ShellProp::isCustomHLSEnabled()) {
-        durationToBufferUs = mTargetDurationUs;
     }
 
     int64_t bufferedDurationUs = 0ll;
@@ -729,19 +674,8 @@ void PlaylistFetcher::onMonitorQueue() {
         // onDownloadNext();
         sp<AMessage> msg = new AMessage(kWhatDownloadNext, id());
         msg->setInt32("generation", mMonitorQueueGeneration);
-
-        if (mStopParams != NULL) {
-            // If resuming start download without any delay
-            msg->post();
-        } else {
-            msg->post(1000l);
-        }
-
+        msg->post(1000l);
     } else {
-        if (ExtendedUtils::ShellProp::isCustomHLSEnabled() && mTargetDurationUs == 10000000ll) {
-            mTargetDurationUs = 25000000ll;
-        }
-
         // Nothing to do yet, try again in a second.
 
         sp<AMessage> msg = mNotify->dup();
@@ -760,13 +694,8 @@ void PlaylistFetcher::onMonitorQueue() {
 status_t PlaylistFetcher::refreshPlaylist() {
     if (delayUsToRefreshPlaylist() <= 0) {
         bool unchanged;
-        ssize_t bytesRead;
         sp<M3UParser> playlist = mSession->fetchPlaylist(
-                mURI.c_str(), mPlaylistHash, &unchanged, &bytesRead);
-
-        if (bytesRead == INFO_WOULD_BLOCK) {
-            return INFO_WOULD_BLOCK;
-        }
+                mURI.c_str(), mPlaylistHash, &unchanged);
 
         if (playlist == NULL) {
             if (unchanged) {
@@ -796,21 +725,11 @@ status_t PlaylistFetcher::refreshPlaylist() {
 
 // static
 bool PlaylistFetcher::bufferStartsWithTsSyncByte(const sp<ABuffer>& buffer) {
-    return buffer != NULL && buffer->size() > 0 && buffer->data()[0] == 0x47;
+    return buffer->size() > 0 && buffer->data()[0] == 0x47;
 }
 
 void PlaylistFetcher::onDownloadNext() {
     status_t err = refreshPlaylist();
-    if (err == INFO_WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatDownloadNext, id());
-        msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post(100000);
-        return;
-    } else if (err != OK) {
-        return;
-    }
-
-    mDiscontinuity = false;
     int32_t firstSeqNumberInPlaylist = 0;
     int32_t lastSeqNumberInPlaylist = 0;
     bool discontinuity = false;
@@ -850,13 +769,12 @@ void PlaylistFetcher::onDownloadNext() {
                     mStartTimeUs, mSeqNumber, firstSeqNumberInPlaylist,
                     lastSeqNumberInPlaylist);
         } else {
-            if (mLastSeqNumber > 0) {
-                mSeqNumber = mLastSeqNumber;
-            } else {
-                mSeqNumber = getSeqNumberForTime(mSegmentStartTimeUs);
-            }
-
-            if (mAdaptive != LiveSession::kSwitchDown) {
+            // When adapting or track switching, mSegmentStartTimeUs (relative
+            // to media time 0) is used to determine the start segment; mStartTimeUs (absolute
+            // timestamps coming from the media container) is used to determine the position
+            // inside a segments.
+            mSeqNumber = getSeqNumberForTime(mSegmentStartTimeUs);
+            if (mAdaptive) {
                 // avoid double fetch/decode
                 mSeqNumber += 1;
             }
@@ -937,11 +855,7 @@ void PlaylistFetcher::onDownloadNext() {
             if (mSeqNumber < firstSeqNumberInPlaylist) {
                 mSeqNumber = firstSeqNumberInPlaylist;
             }
-            mDiscontinuity = true;
-
-            // Since we are starting from a new sequence number
-            // treat this as seek
-            mSegmentStartTimeUs = -1;
+            discontinuity = true;
 
             // fall through
         } else {
@@ -957,18 +871,33 @@ void PlaylistFetcher::onDownloadNext() {
 
     mNumRetries = 0;
 
-    mSegmentURI.clear();
-    mItemMeta = NULL;
+    AString uri;
+    sp<AMessage> itemMeta;
     CHECK(mPlaylist->itemAt(
                 mSeqNumber - firstSeqNumberInPlaylist,
-                &mSegmentURI,
-                &mItemMeta));
+                &uri,
+                &itemMeta));
+
+    int32_t val;
+    if (itemMeta->findInt32("discontinuity", &val) && val != 0) {
+        mDiscontinuitySeq++;
+        discontinuity = true;
+    }
+
+    int64_t range_offset, range_length;
+    if (!itemMeta->findInt64("range-offset", &range_offset)
+            || !itemMeta->findInt64("range-length", &range_length)) {
+        range_offset = 0;
+        range_length = -1;
+    }
 
     ALOGV("fetching segment %d from (%d .. %d)",
           mSeqNumber, firstSeqNumberInPlaylist, lastSeqNumberInPlaylist);
 
-    ALOGV("fetching '%s'", mSegmentURI.c_str());
+    ALOGI("fetching '%s'", uri.c_str());
 
+    sp<DataSource> source;
+    sp<ABuffer> buffer, tsBuffer;
     // decrypt a junk buffer to prefetch key; since a session uses only one http connection,
     // this avoids interleaved connections to the key and segment file.
     {
@@ -976,183 +905,105 @@ void PlaylistFetcher::onDownloadNext() {
         junk->setRange(0, 16);
         status_t err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist, junk,
                 true /* first */);
-        if (err == INFO_WOULD_BLOCK) {
-            sp<AMessage> msg = new AMessage(kWhatDownloadNext, id());
-            msg->setInt32("generation", mMonitorQueueGeneration);
-            msg->post(100000);
-            return;
-        } else if (err != OK) {
+        if (err != OK) {
             notifyError(err);
             return;
         }
     }
 
-    mBlockStartup = mStartup;
-
-    if (!mItemMeta->findInt64("range-offset", &mRangeOffset)
-            || !mItemMeta->findInt64("range-length", &mRangeLength)) {
-        mRangeOffset = 0;
-        mRangeLength = -1;
-    }
-
-    // If resuming, update length & offset based on what is already downloaded.
-    mDownloadOffset = 0;
-    if (mDownloadBuffer != NULL) {
-        if (mTsBuffer != NULL) {
-            mDownloadOffset = (int64_t)mDownloadBuffer->offset() +
-                    mDownloadBuffer->size();
-            mDownloadBuffer->setRange(mDownloadOffset, 0);
-            ALOGV("%lld bytes of data already downloaded", mDownloadOffset);
-
-            mRangeOffset += mDownloadOffset;
-            if (mRangeLength > 0) {
-                mRangeLength -= mDownloadOffset;
-                if (mRangeLength < 0) {
-                    mRangeLength = 0;
-                }
-            }
-        } else {
-            mDownloadBuffer = NULL;
-        }
-    }
-
-    sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());
-    msg->setInt32("generation", mMonitorQueueGeneration);
-    msg->post();
-}
-
-void PlaylistFetcher::onDownloadBlock() {
-    int32_t firstSeqNumberInPlaylist;
-    if (mPlaylist->meta() == NULL || !mPlaylist->meta()->findInt32(
-                "media-sequence", &firstSeqNumberInPlaylist)) {
-        firstSeqNumberInPlaylist = 0;
-    }
-
-    int32_t val;
-    if (mItemMeta->findInt32("discontinuity", &val) && val != 0) {
-        mDiscontinuitySeq++;
-        mDiscontinuity = true;
-    }
-
     // block-wise download
-    ssize_t bytesRead = mSession->fetchFile(
-            mSegmentURI.c_str(), &mDownloadBuffer, mRangeOffset, mRangeLength,
-            kDownloadBlockSize, &mSource);
+    bool startup = mStartup;
+    ssize_t bytesRead;
+    do {
+        bytesRead = mSession->fetchFile(
+                uri.c_str(), &buffer, range_offset, range_length, kDownloadBlockSize, &source);
 
-    if (bytesRead == INFO_WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());
-        msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post(100000);
-        return;
-    } else if (bytesRead < 0) {
-        status_t err = bytesRead;
-        ALOGE("failed to fetch .ts segment at url '%s'", mSegmentURI.c_str());
-        notifyError(err);
-        return;
-    }
-
-    CHECK(mDownloadBuffer != NULL);
-
-    size_t size = mDownloadBuffer->size();
-    // Set decryption range.
-    mDownloadBuffer->setRange(mDownloadOffset + size - bytesRead, bytesRead);
-    status_t err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist,
-            mDownloadBuffer, mDownloadBuffer->offset() - mDownloadOffset == 0 /* first */);
-    // Unset decryption range.
-    mDownloadBuffer->setRange(mDownloadOffset, size);
-
-    if (err == INFO_WOULD_BLOCK) {
-        sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());
-        msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post(100000);
-        return;
-    } else if (err != OK) {
-        ALOGE("decryptBuffer failed w/ error %d", err);
-
-        notifyError(err);
-        return;
-    }
-
-    if (mBlockStartup || mDiscontinuity) {
-        // Signal discontinuity.
-
-        if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
-            // If this was a live event this made no sense since
-            // we don't have access to all the segment before the current
-            // one.
-            mNextPTSTimeUs = getSegmentStartTimeUs(mSeqNumber);
+        if (bytesRead < 0) {
+            status_t err = bytesRead;
+            ALOGE("failed to fetch .ts segment at url '%s'", uri.c_str());
+            notifyError(err);
+            return;
         }
 
-        if (mDiscontinuity) {
-            ALOGI("queueing discontinuity (explicit=%d)", mDiscontinuity);
+        CHECK(buffer != NULL);
 
-            queueDiscontinuity(
-                    ATSParser::DISCONTINUITY_FORMATCHANGE,
-                    NULL /* extra */);
+        size_t size = buffer->size();
+        // Set decryption range.
+        buffer->setRange(size - bytesRead, bytesRead);
+        status_t err = decryptBuffer(mSeqNumber - firstSeqNumberInPlaylist, buffer,
+                buffer->offset() == 0 /* first */);
+        // Unset decryption range.
+        buffer->setRange(0, size);
 
-            mDiscontinuity = false;
+        if (err != OK) {
+            ALOGE("decryptBuffer failed w/ error %d", err);
+
+            notifyError(err);
+            return;
         }
 
-        mBlockStartup = false;
-    }
+        if (startup || discontinuity) {
+            // Signal discontinuity.
 
-    err = OK;
-    if (bufferStartsWithTsSyncByte(mTsBuffer) ||
-            bufferStartsWithTsSyncByte(mDownloadBuffer)) {
-        // Incremental extraction is only supported for MPEG2 transport streams.
-        if (mTsBuffer == NULL) {
-            mTsBuffer = new ABuffer(
-                    mDownloadBuffer->data(), mDownloadBuffer->capacity());
-            mTsBuffer->setRange(0, 0);
-        } else if (mTsBuffer->capacity() != mDownloadBuffer->capacity()) {
-            size_t tsOff = mTsBuffer->offset(), tsSize = mTsBuffer->size();
-            mTsBuffer = new ABuffer(
-                    (uint8_t*)mDownloadBuffer->data() - mDownloadOffset,
-                    mDownloadBuffer->capacity());
-            mTsBuffer->setRange(tsOff, tsSize);
+            if (mPlaylist->isComplete() || mPlaylist->isEvent()) {
+                // If this was a live event this made no sense since
+                // we don't have access to all the segment before the current
+                // one.
+                mNextPTSTimeUs = getSegmentStartTimeUs(mSeqNumber);
+            }
+
+            if (discontinuity) {
+                ALOGI("queueing discontinuity (explicit=%d)", discontinuity);
+
+                queueDiscontinuity(
+                        ATSParser::DISCONTINUITY_FORMATCHANGE,
+                        NULL /* extra */);
+
+                discontinuity = false;
+            }
+
+            startup = false;
         }
-        mTsBuffer->setRange(mTsBuffer->offset(), mTsBuffer->size() + bytesRead);
 
-        err = extractAndQueueAccessUnitsFromTs(mTsBuffer);
-    }
+        err = OK;
+        if (bufferStartsWithTsSyncByte(buffer)) {
+            // Incremental extraction is only supported for MPEG2 transport streams.
+            if (tsBuffer == NULL) {
+                tsBuffer = new ABuffer(buffer->data(), buffer->capacity());
+                tsBuffer->setRange(0, 0);
+            } else if (tsBuffer->capacity() != buffer->capacity()) {
+                size_t tsOff = tsBuffer->offset(), tsSize = tsBuffer->size();
+                tsBuffer = new ABuffer(buffer->data(), buffer->capacity());
+                tsBuffer->setRange(tsOff, tsSize);
+            }
+            tsBuffer->setRange(tsBuffer->offset(), tsBuffer->size() + bytesRead);
 
-    if (err == -EAGAIN) {
-        // starting sequence number too low/high
-        sp<AMessage> msg = mNotify->dup();
-        msg->setInt32("what", kWhatFetchCancelled);
-        msg->setString("segmentURI", mSegmentURI);
-        msg->post();
+            err = extractAndQueueAccessUnitsFromTs(tsBuffer);
+        }
 
-        mTSParser.clear();
-        mSource = NULL;
-        mDownloadBuffer = NULL;
-        mTsBuffer = NULL;
-        postMonitorQueue();
-        return;
-    } else if (err == ERROR_OUT_OF_RANGE) {
-        // reached stopping point
-        stopAsync(/* clear = */ false);
-        return;
-    } else if (err != OK) {
-        notifyError(err);
-        return;
-    }
+        if (err == -EAGAIN) {
+            // starting sequence number too low/high
+            mTSParser.clear();
+            for (size_t i = 0; i < mPacketSources.size(); i++) {
+                sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
+                packetSource->clear();
+            }
+            postMonitorQueue();
+            return;
+        } else if (err == ERROR_OUT_OF_RANGE) {
+            // reached stopping point
+            stopAsync(/* clear = */ false);
+            return;
+        } else if (err != OK) {
+            notifyError(err);
+            return;
+        }
 
-    if (bytesRead == 0 || bytesRead < kDownloadBlockSize) {
-        onSegmentComplete();
-    } else {
-        sp<AMessage> msg = new AMessage(kWhatDownloadBlock, id());
-        msg->setInt32("generation", mMonitorQueueGeneration);
-        msg->post();
-    }
-}
+    } while (bytesRead != 0);
 
-void PlaylistFetcher::onSegmentComplete() {
-    ALOGV("Fetcher for %s finished download of segment %d", mURI.c_str(), mSeqNumber);
-    mDownloadBuffer->setRange(0, mDownloadOffset + mDownloadBuffer->size());
-    if (bufferStartsWithTsSyncByte(mDownloadBuffer)) {
-        // If we still don't see a stream after fetching a full ts segment mark it as
-        // nonexistent.
+    if (bufferStartsWithTsSyncByte(buffer)) {
+        // If we don't see a stream in the program table after fetching a full ts segment
+        // mark it as nonexistent.
         const size_t kNumTypes = ATSParser::NUM_SOURCE_TYPES;
         ATSParser::SourceType srcTypes[kNumTypes] =
                 { ATSParser::VIDEO, ATSParser::AUDIO };
@@ -1178,18 +1029,18 @@ void PlaylistFetcher::onSegmentComplete() {
 
     }
 
-    if (checkDecryptPadding(mDownloadBuffer) != OK) {
+    if (checkDecryptPadding(buffer) != OK) {
         ALOGE("Incorrect padding bytes after decryption.");
         notifyError(ERROR_MALFORMED);
         return;
     }
 
-    status_t err = OK;
-    if (mTsBuffer != NULL) {
+    err = OK;
+    if (tsBuffer != NULL) {
         AString method;
-        CHECK(mDownloadBuffer->meta()->findString("cipher-method", &method));
-        if ((mTsBuffer->size() > 0 && method == "NONE")
-                || mTsBuffer->size() > 16) {
+        CHECK(buffer->meta()->findString("cipher-method", &method));
+        if ((tsBuffer->size() > 0 && method == "NONE")
+                || tsBuffer->size() > 16) {
             ALOGE("MPEG2 transport stream is not an even multiple of 188 "
                     "bytes in length.");
             notifyError(ERROR_MALFORMED);
@@ -1198,13 +1049,10 @@ void PlaylistFetcher::onSegmentComplete() {
     }
 
     // bulk extract non-ts files
-    if (mTsBuffer == NULL) {
-        err = extractAndQueueAccessUnits(mDownloadBuffer, mItemMeta);
+    if (tsBuffer == NULL) {
+        err = extractAndQueueAccessUnits(buffer, itemMeta);
         if (err == -EAGAIN) {
             // starting sequence number too low/high
-            mSource = NULL;
-            mDownloadBuffer = NULL;
-            mTsBuffer = NULL;
             postMonitorQueue();
             return;
         } else if (err == ERROR_OUT_OF_RANGE) {
@@ -1219,21 +1067,7 @@ void PlaylistFetcher::onSegmentComplete() {
         return;
     }
 
-    if (mIsFirstTSDownload) {
-        mIsFirstTSDownload = false;
-        if (mSession->switchToRealBandwidth()) {
-            for (size_t i = 0; i < mPacketSources.size(); i++) {
-                mPacketSources.valueAt(i)->eraseBuffer();
-            }
-            mQueueFCBuffer = true;
-            ALOGV("change the bandwidth at the start of first playback, don't download ts anymore");
-            return;
-        }
-    }
     ++mSeqNumber;
-    mSource = NULL;
-    mDownloadBuffer = NULL;
-    mTsBuffer = NULL;
 
     postMonitorQueue();
 }
@@ -1307,7 +1141,6 @@ int32_t PlaylistFetcher::getSeqNumberForTime(int64_t timeUs) const {
 
     size_t index = 0;
     int64_t segmentStartUs = 0;
-    int64_t frameDeltaUs = mFrameDeltaUs > 0 ? mFrameDeltaUs : 0;
     while (index < mPlaylist->size()) {
         sp<AMessage> itemMeta;
         CHECK(mPlaylist->itemAt(
@@ -1316,10 +1149,7 @@ int32_t PlaylistFetcher::getSeqNumberForTime(int64_t timeUs) const {
         int64_t itemDurationUs;
         CHECK(itemMeta->findInt64("durationUs", &itemDurationUs));
 
-        // frameDeltaUs helps ensure that we don't re-fetch the same segment if
-        // the last frame was already queued as its timestamps may be less than
-        // the next segment's start time
-        if (timeUs < segmentStartUs + itemDurationUs - frameDeltaUs) {
+        if (timeUs < segmentStartUs + itemDurationUs) {
             break;
         }
 
@@ -1353,7 +1183,6 @@ const sp<ABuffer> &PlaylistFetcher::setAccessUnitProperties(
 
     accessUnit->meta()->setInt32("discontinuitySeq", mDiscontinuitySeq);
     accessUnit->meta()->setInt64("segmentStartTimeUs", getSegmentStartTimeUs(mSeqNumber));
-    accessUnit->meta()->setInt32("sequenceNumber", mSeqNumber);
     return accessUnit;
 }
 
@@ -1534,7 +1363,6 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
                     if (streamMask == mStreamTypeMask) {
                         mStartup = false;
-                        mStartTimeUsNotify->setInt32("switchType", mAdaptive);
                         mStartTimeUsNotify->post();
                         mStartTimeUsNotify.clear();
                     }
@@ -1724,7 +1552,7 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
 
         CHECK_EQ(bits.getBits(12), 0xfffu);
         bits.skipBits(3);  // ID, layer
-        bool protection_absent = bits.getBits(1) != 0;
+        bool protection_absent __unused = bits.getBits(1) != 0;
 
         unsigned profile = bits.getBits(2);
         CHECK_NE(profile, 3u);
@@ -1814,7 +1642,6 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
                 mStartTimeUsNotify->setInt64("timeUsAudio", timeUs);
                 mStartTimeUsNotify->setInt32("discontinuitySeq", mDiscontinuitySeq);
                 mStartTimeUsNotify->setInt32("streamMask", LiveSession::STREAMTYPE_AUDIO);
-                mStartTimeUsNotify->setInt32("switchType", mAdaptive);
                 mStartTimeUsNotify->post();
                 mStartTimeUsNotify.clear();
                 mStartup = false;

@@ -895,16 +895,6 @@ void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
     ALOGV("rtp port_start = %u, port_end = %u", *start, *end);
 }
 
-bool ExtendedUtils::ShellProp::isCustomHLSEnabled() {
-    bool retVal = false;
-    char customHLS[PROPERTY_VALUE_MAX];
-    property_get("persist.sys.media.hls-custom", customHLS, "0");
-    if (atoi(customHLS)) {
-        retVal = true;
-    }
-    return retVal;
-}
-
 void ExtendedUtils::setBFrames(
         OMX_VIDEO_PARAM_MPEG4TYPE &mpeg4type, const char* componentName) {
     //ignore non QC components
@@ -2108,10 +2098,6 @@ bool ExtendedUtils::ShellProp::isSmoothStreamingEnabled() {
 void ExtendedUtils::ShellProp::getRtpPortRange(unsigned *start, unsigned *end) {
     *start = kDefaultRtpPortRangeStart;
     *end = kDefaultRtpPortRangeEnd;
-}
-
-bool ExtendedUtils::ShellProp::isCustomHLSEnabled() {
-    return false; 
 }
 
 void ExtendedUtils::setBFrames(

@@ -169,8 +169,6 @@ struct ExtendedUtils {
         static void getRtpPortRange(unsigned *start, unsigned *end);
 
         static bool isVideoRenderingDisabled();
-
-        static bool isCustomHLSEnabled();
     };
 
     struct RTSPStream {

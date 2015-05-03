@@ -286,15 +286,6 @@ void AnotherPacketSource::queueDiscontinuity(
     mCondition.signal();
 }
 
-void AnotherPacketSource::eraseBuffer() {
-    Mutex::Autolock autoLock(mLock);
-    List<sp<ABuffer> >::iterator it = mBuffers.begin();
-    it++;
-    while (it != mBuffers.end()) {
-        it = mBuffers.erase(it);
-    }
-}
-
 void AnotherPacketSource::signalEOS(status_t result) {
     CHECK(result != OK);
 

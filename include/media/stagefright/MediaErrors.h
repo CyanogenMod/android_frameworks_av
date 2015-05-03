@@ -76,7 +76,6 @@ enum {
     INFO_DOLBY_PROCESSED_AUDIO_START = MEDIA_ERROR_BASE - 15,
     INFO_DOLBY_PROCESSED_AUDIO_STOP = MEDIA_ERROR_BASE - 16,
 #endif // DOLBY_END
-    INFO_WOULD_BLOCK       = MEDIA_ERROR_BASE - 17,
 
     // The following constant values should be in sync with
     // drm/drm_framework_common.h
