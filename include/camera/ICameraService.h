@@ -109,7 +109,7 @@ public:
      */
     virtual status_t connect(const sp<ICameraClient>& cameraClient,
             int cameraId,
-            const String16& clientPackageName,
+            const String16& opPackageName,
             int clientUid,
             /*out*/
             sp<ICamera>& device) = 0;
@@ -117,7 +117,7 @@ public:
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
-            const String16& clientPackageName,
+            const String16& opPackageName,
             int clientUid,
             /*out*/
             sp<ICameraDeviceUser>& device) = 0;
@@ -141,7 +141,7 @@ public:
      */
     virtual status_t connectLegacy(const sp<ICameraClient>& cameraClient,
             int cameraId, int halVersion,
-            const String16& clientPackageName,
+            const String16& opPackageName,
             int clientUid,
             /*out*/
             sp<ICamera>& device) = 0;
