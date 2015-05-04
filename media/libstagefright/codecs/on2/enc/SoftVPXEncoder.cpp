@@ -670,7 +670,8 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
         BufferInfo *outputBufferInfo = *outputBufferInfoQueue.begin();
         OMX_BUFFERHEADERTYPE *outputBufferHeader = outputBufferInfo->mHeader;
 
-        if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+        if ((inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS) &&
+                inputBufferHeader->nFilledLen == 0) {
             inputBufferInfoQueue.erase(inputBufferInfoQueue.begin());
             inputBufferInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inputBufferHeader);
@@ -771,6 +772,9 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                        encoded_packet->data.frame.sz);
                 outputBufferInfo->mOwnedByUs = false;
                 outputBufferInfoQueue.erase(outputBufferInfoQueue.begin());
+                if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+                    outputBufferHeader->nFlags |= OMX_BUFFERFLAG_EOS;
+                }
                 notifyFillBufferDone(outputBufferHeader);
             }
         }
