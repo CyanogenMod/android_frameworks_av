@@ -79,17 +79,17 @@ MediaSync::~MediaSync() {
     }
 }
 
-status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
+status_t MediaSync::setSurface(const sp<IGraphicBufferProducer> &output) {
     Mutex::Autolock lock(mMutex);
 
     // TODO: support suface change.
     if (mOutput != NULL) {
-        ALOGE("configureSurface: output surface has already been configured.");
+        ALOGE("setSurface: output surface has already been configured.");
         return INVALID_OPERATION;
     }
 
     if (output == NULL && mSyncSettings.mSource == AVSYNC_SOURCE_VSYNC) {
-        ALOGE("configureSurface: output surface is used as sync source and cannot be removed.");
+        ALOGE("setSurface: output surface is used as sync source and cannot be removed.");
         return INVALID_OPERATION;
     }
 
@@ -103,7 +103,7 @@ status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
                             true /* producerControlledByApp */,
                             &queueBufferOutput);
         if (status != NO_ERROR) {
-            ALOGE("configureSurface: failed to connect (%d)", status);
+            ALOGE("setSurface: failed to connect (%d)", status);
             return status;
         }
 
@@ -114,17 +114,17 @@ status_t MediaSync::configureSurface(const sp<IGraphicBufferProducer> &output) {
 }
 
 // |audioTrack| is used only for querying information.
-status_t MediaSync::configureAudioTrack(const sp<AudioTrack> &audioTrack) {
+status_t MediaSync::setAudioTrack(const sp<AudioTrack> &audioTrack) {
     Mutex::Autolock lock(mMutex);
 
     // TODO: support audio track change.
     if (mAudioTrack != NULL) {
-        ALOGE("configureAudioTrack: audioTrack has already been configured.");
+        ALOGE("setAudioTrack: audioTrack has already been configured.");
         return INVALID_OPERATION;
     }
 
     if (audioTrack == NULL && mSyncSettings.mSource == AVSYNC_SOURCE_AUDIO) {
-        ALOGE("configureAudioTrack: audioTrack is used as sync source and cannot be removed.");
+        ALOGE("setAudioTrack: audioTrack is used as sync source and cannot be removed.");
         return INVALID_OPERATION;
     }
 
@@ -137,7 +137,7 @@ status_t MediaSync::configureAudioTrack(const sp<AudioTrack> &audioTrack) {
         }
         uint32_t nativeSampleRateInHz = audioTrack->getOriginalSampleRate();
         if (nativeSampleRateInHz <= 0) {
-            ALOGE("configureAudioTrack: native sample rate should be positive.");
+            ALOGE("setAudioTrack: native sample rate should be positive.");
             return BAD_VALUE;
         }
         mAudioTrack = audioTrack;

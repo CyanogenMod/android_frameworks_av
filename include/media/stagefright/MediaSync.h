@@ -75,11 +75,11 @@ public:
 
     // Called when MediaSync is used to render video. It should be called
     // before createInputSurface().
-    status_t configureSurface(const sp<IGraphicBufferProducer> &output);
+    status_t setSurface(const sp<IGraphicBufferProducer> &output);
 
     // Called when audio track is used as media clock source. It should be
     // called before updateQueuedAudioData().
-    status_t configureAudioTrack(const sp<AudioTrack> &audioTrack);
+    status_t setAudioTrack(const sp<AudioTrack> &audioTrack);
 
     // Create a surface for client to render video frames. This is the surface
     // on which the client should render video frames. Those video frames will
