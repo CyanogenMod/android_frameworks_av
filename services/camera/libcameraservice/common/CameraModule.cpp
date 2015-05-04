@@ -36,12 +36,47 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         chars.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE, &data, /*count*/1);
         data = ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE;
         chars.update(ANDROID_CONTROL_AWB_LOCK_AVAILABLE, &data, /*count*/1);
-        controlModes.push(ANDROID_CONTROL_MODE_OFF);
         controlModes.push(ANDROID_CONTROL_MODE_AUTO);
         camera_metadata_entry entry = chars.find(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
         if (entry.count > 1 || entry.data.u8[0] != ANDROID_CONTROL_SCENE_MODE_DISABLED) {
             controlModes.push(ANDROID_CONTROL_MODE_USE_SCENE_MODE);
         }
+
+        // Only advertise CONTROL_OFF mode if 3A manual controls are supported.
+        bool isManualAeSupported = false;
+        bool isManualAfSupported = false;
+        bool isManualAwbSupported = false;
+        entry = chars.find(ANDROID_CONTROL_AE_AVAILABLE_MODES);
+        if (entry.count > 0) {
+            for (size_t i = 0; i < entry.count; i++) {
+                if (entry.data.u8[i] == ANDROID_CONTROL_AE_MODE_OFF) {
+                    isManualAeSupported = true;
+                    break;
+                }
+            }
+        }
+        entry = chars.find(ANDROID_CONTROL_AF_AVAILABLE_MODES);
+        if (entry.count > 0) {
+            for (size_t i = 0; i < entry.count; i++) {
+                if (entry.data.u8[i] == ANDROID_CONTROL_AF_MODE_OFF) {
+                    isManualAfSupported = true;
+                    break;
+                }
+            }
+        }
+        entry = chars.find(ANDROID_CONTROL_AWB_AVAILABLE_MODES);
+        if (entry.count > 0) {
+            for (size_t i = 0; i < entry.count; i++) {
+                if (entry.data.u8[i] == ANDROID_CONTROL_AWB_MODE_OFF) {
+                    isManualAwbSupported = true;
+                    break;
+                }
+            }
+        }
+        if (isManualAeSupported && isManualAfSupported && isManualAwbSupported) {
+            controlModes.push(ANDROID_CONTROL_MODE_OFF);
+        }
+
         chars.update(ANDROID_CONTROL_AVAILABLE_MODES, controlModes);
     }
     return;
@@ -86,7 +121,7 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         if (ret != 0) {
             return ret;
         }
-        int deviceVersion = cameraInfo.device_version;
+        int deviceVersion = rawInfo.device_version;
         if (deviceVersion < CAMERA_DEVICE_API_VERSION_2_0) {
             // static_camera_characteristics is invalid
             *info = rawInfo;
