@@ -1863,6 +1863,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return ERROR_IO;
                 }
                 const int kSkipBytesOfDataBox = 16;
+                if (chunk_data_size <= kSkipBytesOfDataBox) {
+                    return ERROR_MALFORMED;
+                }
+
                 mFileMetaData->setData(
                     kKeyAlbumArt, MetaData::TYPE_NONE,
                     buffer->data() + kSkipBytesOfDataBox, chunk_data_size - kSkipBytesOfDataBox);
