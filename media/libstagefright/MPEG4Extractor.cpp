@@ -2630,11 +2630,11 @@ status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
 }
 
 status_t MPEG4Extractor::parse3GPPMetaData(off64_t offset, size_t size, int depth) {
-    if (size < 4) {
+    if (size < 4 || size == SIZE_MAX) {
         return ERROR_MALFORMED;
     }
 
-    uint8_t *buffer = new (std::nothrow) uint8_t[size];
+    uint8_t *buffer = new (std::nothrow) uint8_t[size + 1];
     if (buffer == NULL) {
         return ERROR_MALFORMED;
     }
@@ -2730,6 +2730,7 @@ status_t MPEG4Extractor::parse3GPPMetaData(off64_t offset, size_t size, int dept
         }
 
         if (isUTF8) {
+            buffer[size] = 0;
             mFileMetaData->setCString(metadataKey, (const char *)buffer + 6);
         } else {
             // Convert from UTF-16 string to UTF-8 string.
