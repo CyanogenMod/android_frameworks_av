@@ -1853,6 +1853,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             if (mFileMetaData != NULL) {
                 ALOGV("chunk_data_size = %lld and data_offset = %lld",
                         chunk_data_size, data_offset);
+
+                if (chunk_data_size >= SIZE_MAX - 1) {
+                    return ERROR_MALFORMED;
+                }
                 sp<ABuffer> buffer = new ABuffer(chunk_data_size + 1);
                 if (mDataSource->readAt(
                     data_offset, buffer->data(), chunk_data_size) != (ssize_t)chunk_data_size) {
