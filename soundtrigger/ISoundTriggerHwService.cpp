@@ -40,6 +40,8 @@ enum {
     SET_CAPTURE_STATE,
 };
 
+#define MAX_ITEMS_PER_LIST 1024
+
 class BpSoundTriggerHwService: public BpInterface<ISoundTriggerHwService>
 {
 public:
@@ -116,10 +118,18 @@ status_t BnSoundTriggerHwService::onTransact(
         case LIST_MODULES: {
             CHECK_INTERFACE(ISoundTriggerHwService, data, reply);
             unsigned int numModulesReq = data.readInt32();
+            if (numModulesReq > MAX_ITEMS_PER_LIST) {
+                numModulesReq = MAX_ITEMS_PER_LIST;
+            }
             unsigned int numModules = numModulesReq;
             struct sound_trigger_module_descriptor *modules =
                     (struct sound_trigger_module_descriptor *)calloc(numModulesReq,
                                                    sizeof(struct sound_trigger_module_descriptor));
+            if (modules == NULL) {
+                reply->writeInt32(NO_MEMORY);
+                reply->writeInt32(0);
+                return NO_ERROR;
+            }
             status_t status = listModules(modules, &numModules);
             reply->writeInt32(status);
             reply->writeInt32(numModules);
