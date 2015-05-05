@@ -640,7 +640,7 @@ status_t NuPlayer::GenericSource::feedMoreTSData() {
 void NuPlayer::GenericSource::schedulePollBuffering() {
     sp<AMessage> msg = new AMessage(kWhatPollBuffering, id());
     msg->setInt32("generation", mPollBufferingGeneration);
-    msg->post(1000000ll);
+    msg->post((mBuffering || mPrepareBuffering) ? 100000ll : 1000000ll);
 }
 
 void NuPlayer::GenericSource::cancelPollBuffering() {
