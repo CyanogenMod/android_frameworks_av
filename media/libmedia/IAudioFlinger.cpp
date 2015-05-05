@@ -178,6 +178,7 @@ public:
                                 size_t *pFrameCount,
                                 track_flags_t *flags,
                                 pid_t tid,
+                                int clientUid,
                                 int *sessionId,
                                 size_t *notificationFrames,
                                 sp<IMemory>& cblk,
@@ -197,6 +198,7 @@ public:
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
         data.writeInt32((int32_t) tid);
+        data.writeInt32((int32_t) clientUid);
         int lSessionId = AUDIO_SESSION_ALLOCATE;
         if (sessionId != NULL) {
             lSessionId = *sessionId;
@@ -958,6 +960,7 @@ status_t BnAudioFlinger::onTransact(
             size_t frameCount = data.readInt64();
             track_flags_t flags = (track_flags_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
+            int clientUid = data.readInt32();
             int sessionId = data.readInt32();
             size_t notificationFrames = data.readInt64();
             sp<IMemory> cblk;
@@ -965,7 +968,7 @@ status_t BnAudioFlinger::onTransact(
             status_t status;
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, opPackageName, &frameCount, &flags, tid,
-                    &sessionId, &notificationFrames, cblk, buffers, &status);
+                    clientUid, &sessionId, &notificationFrames, cblk, buffers, &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt64(frameCount);
             reply->writeInt32(flags);
