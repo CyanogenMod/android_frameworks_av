@@ -94,6 +94,7 @@ public:
     void addChunkOffset(off64_t offset);
     int32_t getTrackId() const { return mTrackId; }
     status_t dump(int fd, const Vector<String16>& args) const;
+    static const char *getFourCCForMime(const char *mime);
 
 private:
     enum {
@@ -426,6 +427,33 @@ status_t MPEG4Writer::Track::dump(
     return OK;
 }
 
+// static
+const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
+    if (mime == NULL) {
+        return NULL;
+    }
+    if (!strncasecmp(mime, "audio/", 6)) {
+        if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)) {
+            return "samr";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)) {
+            return "sawb";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
+            return "mp4a";
+        }
+    } else if (!strncasecmp(mime, "video/", 6)) {
+        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
+            return "mp4v";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
+            return "s263";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
+            return "avc1";
+        }
+    } else {
+        ALOGE("Track (%s) other than video or audio is not supported", mime);
+    }
+    return NULL;
+}
+
 status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
     Mutex::Autolock l(mLock);
     if (mStarted) {
@@ -441,14 +469,11 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
 
     CHECK(source.get() != NULL);
 
-    // A track of type other than video or audio is not supported.
     const char *mime;
     source->getFormat()->findCString(kKeyMIMEType, &mime);
     bool isAudio = !strncasecmp(mime, "audio/", 6);
-    bool isVideo = !strncasecmp(mime, "video/", 6);
-    if (!isAudio && !isVideo) {
-        ALOGE("Track (%s) other than video or audio is not supported",
-            mime);
+    if (Track::getFourCCForMime(mime) == NULL) {
+        ALOGE("Unsupported mime '%s'", mime);
         return ERROR_UNSUPPORTED;
     }
 
@@ -2730,17 +2755,13 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
     const char *mime;
     bool success = mMeta->findCString(kKeyMIMEType, &mime);
     CHECK(success);
-    if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
-        mOwner->beginBox("mp4v");
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime)) {
-        mOwner->beginBox("s263");
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
-        mOwner->beginBox("avc1");
-    } else {
+    const char *fourcc = getFourCCForMime(mime);
+    if (fourcc == NULL) {
         ALOGE("Unknown mime type '%s'.", mime);
         CHECK(!"should not be here, unknown mime type.");
     }
 
+    mOwner->beginBox(fourcc);        // video format
     mOwner->writeInt32(0);           // reserved
     mOwner->writeInt16(0);           // reserved
     mOwner->writeInt16(1);           // data ref index
@@ -2784,14 +2805,8 @@ void MPEG4Writer::Track::writeAudioFourCCBox() {
     const char *mime;
     bool success = mMeta->findCString(kKeyMIMEType, &mime);
     CHECK(success);
-    const char *fourcc = NULL;
-    if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)) {
-        fourcc = "samr";
-    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)) {
-        fourcc = "sawb";
-    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
-        fourcc = "mp4a";
-    } else {
+    const char *fourcc = getFourCCForMime(mime);
+    if (fourcc == NULL) {
         ALOGE("Unknown mime type '%s'.", mime);
         CHECK(!"should not be here, unknown mime type.");
     }
