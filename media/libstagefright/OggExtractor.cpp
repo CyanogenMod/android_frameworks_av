@@ -753,7 +753,9 @@ status_t MyVorbisExtractor::verifyHeader(
     oggpack_buffer bits;
     oggpack_readinit(&bits, &ref);
 
-    CHECK_EQ(oggpack_read(&bits, 8), type);
+    if (oggpack_read(&bits, 8) != type) {
+        return ERROR_MALFORMED;
+    }
     for (size_t i = 0; i < 6; ++i) {
         oggpack_read(&bits, 8);  // skip 'vorbis'
     }
@@ -761,7 +763,9 @@ status_t MyVorbisExtractor::verifyHeader(
     switch (type) {
         case 1:
         {
-            CHECK_EQ(0, _vorbis_unpack_info(&mVi, &bits));
+            if (0 != _vorbis_unpack_info(&mVi, &bits)) {
+                return ERROR_MALFORMED;
+            }
 
             mMeta->setData(kKeyVorbisInfo, 0, data, size);
             mMeta->setInt32(kKeySampleRate, mVi.rate);
