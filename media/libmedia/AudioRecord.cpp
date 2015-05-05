@@ -85,6 +85,8 @@ AudioRecord::AudioRecord(
         int sessionId,
         transfer_type transferType,
         audio_input_flags_t flags,
+        int uid,
+        pid_t pid,
         const audio_attributes_t* pAttributes)
     : mStatus(NO_INIT),
       mOpPackageName(opPackageName),
@@ -96,7 +98,7 @@ AudioRecord::AudioRecord(
 {
     mStatus = set(inputSource, sampleRate, format, channelMask, frameCount, cbf, user,
             notificationFrames, false /*threadCanCallJava*/, sessionId, transferType, flags,
-            pAttributes);
+            uid, pid, pAttributes);
 }
 
 AudioRecord::~AudioRecord()
@@ -136,12 +138,15 @@ status_t AudioRecord::set(
         int sessionId,
         transfer_type transferType,
         audio_input_flags_t flags,
+        int uid,
+        pid_t pid,
         const audio_attributes_t* pAttributes)
 {
     ALOGV("set(): inputSource %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
-          "notificationFrames %u, sessionId %d, transferType %d, flags %#x, opPackageName %s",
+          "notificationFrames %u, sessionId %d, transferType %d, flags %#x, opPackageName %s "
+          "uid %d, pid %d",
           inputSource, sampleRate, format, channelMask, frameCount, notificationFrames,
-          sessionId, transferType, flags, String8(mOpPackageName).string());
+          sessionId, transferType, flags, String8(mOpPackageName).string(), uid, pid);
 
     switch (transferType) {
     case TRANSFER_DEFAULT:
@@ -227,6 +232,19 @@ status_t AudioRecord::set(
         mSessionId = sessionId;
     }
     ALOGV("set(): mSessionId %d", mSessionId);
+
+    int callingpid = IPCThreadState::self()->getCallingPid();
+    int mypid = getpid();
+    if (uid == -1 || (callingpid != mypid)) {
+        mClientUid = IPCThreadState::self()->getCallingUid();
+    } else {
+        mClientUid = uid;
+    }
+    if (pid == -1 || (callingpid != mypid)) {
+        mClientPid = callingpid;
+    } else {
+        mClientPid = pid;
+    }
 
     mFlags = flags;
     mCbf = cbf;
@@ -513,6 +531,7 @@ status_t AudioRecord::openRecord_l(size_t epoch, const String16& opPackageName)
                                                        &temp,
                                                        &trackFlags,
                                                        tid,
+                                                       mClientUid,
                                                        &mSessionId,
                                                        &notificationFrames,
                                                        iMem,
