@@ -60,7 +60,7 @@ static inline bool is_state_in_call(int state)
  *
  * @return true if the device is a virtual one, false otherwise.
  */
-static bool is_virtual_input_device(audio_devices_t device)
+static inline bool is_virtual_input_device(audio_devices_t device)
 {
     if ((device & AUDIO_DEVICE_BIT_IN) != 0) {
         device &= ~AUDIO_DEVICE_BIT_IN;
@@ -78,7 +78,7 @@ static bool is_virtual_input_device(audio_devices_t device)
  *
  * @return true if the device needs distinguish on address, false otherwise..
  */
-static bool device_distinguishes_on_address(audio_devices_t device)
+static inline bool device_distinguishes_on_address(audio_devices_t device)
 {
     return ((device & APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL & ~AUDIO_DEVICE_BIT_IN) != 0);
 }
