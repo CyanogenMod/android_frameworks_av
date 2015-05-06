@@ -142,8 +142,13 @@ static int muxing(
         CHECK_EQ(err, (status_t)OK);
 
         ssize_t newTrackIndex = muxer->addTrack(format);
-        CHECK_GE(newTrackIndex, 0);
-        trackIndexMap.add(i, newTrackIndex);
+        if (newTrackIndex < 0) {
+            fprintf(stderr, "%s track (%d) unsupported by muxer\n",
+                    isAudio ? "audio" : "video",
+                    i);
+        } else {
+            trackIndexMap.add(i, newTrackIndex);
+        }
     }
 
     int64_t muxerStartTimeUs = ALooper::GetNowUs();
@@ -162,7 +167,12 @@ static int muxing(
             ALOGV("saw input eos, err %d", err);
             sawInputEOS = true;
             break;
+        } else if (trackIndexMap.indexOfKey(trackIndex) < 0) {
+            // ALOGV("skipping input from unsupported track %zu", trackIndex);
+            extractor->advance();
+            continue;
         } else {
+            // ALOGV("reading sample from track index %zu\n", trackIndex);
             err = extractor->readSampleData(newBuffer);
             CHECK_EQ(err, (status_t)OK);
 
