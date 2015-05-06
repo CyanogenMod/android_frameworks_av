@@ -142,7 +142,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
 
         ssize_t result = reply.readInt32();
 
-        if (result >= ERROR_DRM_VENDOR_MIN && result <= ERROR_DRM_VENDOR_MAX) {
+        if (isCryptoError(result)) {
             errorDetailMsg->setTo(reply.readCString());
         }
 
@@ -319,8 +319,7 @@ status_t BnCrypto::onTransact(
 
             reply->writeInt32(result);
 
-            if (result >= ERROR_DRM_VENDOR_MIN
-                && result <= ERROR_DRM_VENDOR_MAX) {
+            if (isCryptoError(result)) {
                 reply->writeCString(errorDetailMsg.c_str());
             }
 
