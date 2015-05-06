@@ -708,11 +708,10 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
                 // FIXME this is flawed for dynamic sample rates, as we choose the resampler
                 // quality level based on the initial ratio, but that could change later.
                 // Should have a way to distinguish tracks with static ratios vs. dynamic ratios.
-                if (!((trackSampleRate == 44100 && devSampleRate == 48000) ||
-                      (trackSampleRate == 48000 && devSampleRate == 44100))) {
-                    quality = AudioResampler::DYN_LOW_QUALITY;
-                } else {
+                if (isMusicRate(trackSampleRate)) {
                     quality = AudioResampler::DEFAULT_QUALITY;
+                } else {
+                    quality = AudioResampler::DYN_LOW_QUALITY;
                 }
 
                 // TODO: Remove MONO_HACK. Resampler sees #channels after the downmixer

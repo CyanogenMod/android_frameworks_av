@@ -20,7 +20,7 @@
 
 // For mixed output and inputs, the policy will use max mixer sampling rates.
 // Do not limit sampling rate otherwise
-#define MAX_MIXER_SAMPLING_RATE 48000
+#define MAX_MIXER_SAMPLING_RATE 192000
 
 // For mixed output and inputs, the policy will use max mixer channel count.
 // Do not limit channel count otherwise

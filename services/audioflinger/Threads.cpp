@@ -5328,11 +5328,11 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
         }
         initFastCapture =
                 // either capture sample rate is same as (a reasonable) primary output sample rate
-                (((primaryOutputSampleRate == 44100 || primaryOutputSampleRate == 48000) &&
+                ((isMusicRate(primaryOutputSampleRate) &&
                     (mSampleRate == primaryOutputSampleRate)) ||
                 // or primary output sample rate is unknown, and capture sample rate is reasonable
                 ((primaryOutputSampleRate == 0) &&
-                    ((mSampleRate == 44100 || mSampleRate == 48000)))) &&
+                        isMusicRate(mSampleRate))) &&
                 // and the buffer size is < 12 ms
                 (mFrameCount * 1000) / mSampleRate < 12;
         break;
@@ -6435,6 +6435,9 @@ status_t AudioFlinger::RecordThread::RecordBufferConverter::updateParameters(
         return NO_ERROR;
     }
 
+    ALOGV("RecordBufferConverter updateParameters srcMask:%#x dstMask:%#x"
+            "  srcFormat:%#x dstFormat:%#x  srcRate:%u dstRate:%u",
+            srcChannelMask, dstChannelMask, srcFormat, dstFormat, srcSampleRate, dstSampleRate);
     const bool valid =
             audio_is_input_channel(srcChannelMask)
             && audio_is_input_channel(dstChannelMask)
