@@ -423,7 +423,19 @@ void NuPlayer::writeTrackInfo(
     CHECK(format->findInt32("type", &trackType));
 
     AString mime;
-    CHECK(format->findString("mime", &mime));
+    if (!format->findString("mime", &mime)) {
+        // Java MediaPlayer only uses mimetype for subtitle and timedtext tracks.
+        // If we can't find the mimetype here it means that we wouldn't be needing
+        // the mimetype on the Java end. We still write a placeholder mime to keep the
+        // (de)serialization logic simple.
+        if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
+            mime = "audio/";
+        } else if (trackType == MEDIA_TRACK_TYPE_VIDEO) {
+            mime = "video/";
+        } else {
+            TRESPASS();
+        }
+    }
 
     AString lang;
     CHECK(format->findString("language", &lang));
