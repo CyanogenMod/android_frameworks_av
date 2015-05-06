@@ -422,6 +422,7 @@ ACodec::ACodec()
       mChannelMask(0),
       mDequeueCounter(0),
       mStoreMetaDataInOutputBuffers(false),
+      mLegacyAdaptiveExperiment(false),
       mMetaDataBuffersToSubmit(0),
       mRepeatFrameDelayUs(-1ll),
       mMaxPtsGapUs(-1ll),
@@ -619,6 +620,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         const BufferInfo &info = buffers[i];
         // skip undequeued buffers for meta data mode
         if (mStoreMetaDataInOutputBuffers
+                && !mLegacyAdaptiveExperiment
                 && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
             ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
             continue;
@@ -635,7 +637,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     // cancel undequeued buffers to new surface
-    if (!mStoreMetaDataInOutputBuffers) {
+    if (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment) {
         for (size_t i = 0; i < buffers.size(); ++i) {
             const BufferInfo &info = buffers[i];
             if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
@@ -970,6 +972,44 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
 
+    if (mLegacyAdaptiveExperiment) {
+        // preallocate buffers
+        static_cast<Surface *>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(true);
+
+        ALOGV("[%s] Allocating %u buffers from a native window of size %u on "
+             "output port",
+             mComponentName.c_str(), bufferCount, bufferSize);
+
+        // Dequeue buffers then cancel them all
+        for (OMX_U32 i = 0; i < bufferCount; i++) {
+            ANativeWindowBuffer *buf;
+            err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+            if (err != 0) {
+                ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
+                break;
+            }
+
+            sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
+            BufferInfo info;
+            info.mStatus = BufferInfo::OWNED_BY_US;
+            info.mGraphicBuffer = graphicBuffer;
+            mBuffers[kPortIndexOutput].push(info);
+        }
+
+        for (OMX_U32 i = 0; i < mBuffers[kPortIndexOutput].size(); i++) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+            status_t error = cancelBufferToNativeWindow(info);
+            if (err == OK) {
+                err = error;
+            }
+        }
+
+        mBuffers[kPortIndexOutput].clear();
+        static_cast<Surface*>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(false);
+    }
+
     ALOGV("[%s] Allocating %u meta buffers on output port",
          mComponentName.c_str(), bufferCount);
 
@@ -1085,7 +1125,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         // same is possible in meta mode, in which case, it will be treated
         // as a normal buffer, which is not desirable.
         // TODO: fix this.
-        if (!stale && !mStoreMetaDataInOutputBuffers) {
+        if (!stale && (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment)) {
             ALOGI("dequeued unrecognized (stale) buffer %p. discarding", buf);
             stale = true;
         }
@@ -1418,6 +1458,7 @@ status_t ACodec::configureCodec(
     bool haveNativeWindow = msg->findObject("native-window", &obj)
             && obj != NULL && video && !encoder;
     mStoreMetaDataInOutputBuffers = false;
+    mLegacyAdaptiveExperiment = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
 
@@ -1555,6 +1596,9 @@ status_t ACodec::configureCodec(
                 ALOGV("[%s] storeMetaDataInBuffers succeeded",
                         mComponentName.c_str());
                 mStoreMetaDataInOutputBuffers = true;
+                mLegacyAdaptiveExperiment = ADebug::isExperimentEnabled(
+                        "legacy-adaptive", !msg->contains("no-experiments"));
+
                 inputFormat->setInt32("adaptive-playback", true);
             }
 
@@ -4169,7 +4213,9 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             sp<RefBase> obj;
             CHECK(msg->findObject("surface", &obj));
 
-            status_t err = mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
+            status_t err =
+                ADebug::isExperimentEnabled("legacy-setsurface") ? BAD_VALUE :
+                        mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
