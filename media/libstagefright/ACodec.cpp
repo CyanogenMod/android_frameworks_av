@@ -651,6 +651,11 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         (void)surface->getIGraphicBufferProducer()->allowAllocation(false);
     }
 
+    // push blank buffers to previous window if requested
+    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown) {
+        pushBlankBuffersToNativeWindow(mNativeWindow.get());
+    }
+
     mNativeWindow = nativeWindow;
     return OK;
 }
