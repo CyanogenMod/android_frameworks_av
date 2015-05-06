@@ -202,6 +202,9 @@ private:
     // still become true, when we pause internally due to buffering.
     bool mPausedByClient;
 
+    // Pause state as requested by source (internally) due to buffering
+    bool mPausedForBuffering;
+
     inline const sp<DecoderBase> &getDecoder(bool audio) {
         return audio ? mAudioDecoder : mVideoDecoder;
     }

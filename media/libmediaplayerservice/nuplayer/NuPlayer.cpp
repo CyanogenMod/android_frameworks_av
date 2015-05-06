@@ -189,7 +189,8 @@ NuPlayer::NuPlayer()
       mVideoFpsHint(-1.f),
       mStarted(false),
       mPaused(false),
-      mPausedByClient(false) {
+      mPausedByClient(false),
+      mPausedForBuffering(false) {
     clearFlushComplete();
 }
 
@@ -671,7 +672,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             ALOGV("kWhatStart");
             if (mStarted) {
-                onResume();
+                // do not resume yet if the source is still buffering
+                if (!mPausedForBuffering) {
+                    onResume();
+                }
             } else {
                 onStart();
             }
@@ -1977,9 +1981,10 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         case Source::kWhatPauseOnBufferingStart:
         {
             // ignore if not playing
-            if (mStarted && !mPausedByClient) {
+            if (mStarted) {
                 ALOGI("buffer low, pausing...");
 
+                mPausedForBuffering = true;
                 onPause();
             }
             // fall-thru
@@ -1994,10 +1999,15 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
         case Source::kWhatResumeOnBufferingEnd:
         {
             // ignore if not playing
-            if (mStarted && !mPausedByClient) {
+            if (mStarted) {
                 ALOGI("buffer ready, resuming...");
 
-                onResume();
+                mPausedForBuffering = false;
+
+                // do not resume yet if client didn't unpause
+                if (!mPausedByClient) {
+                    onResume();
+                }
             }
             // fall-thru
         }
