@@ -4156,6 +4156,9 @@ status_t ACodec::pushBlankBuffersToNativeWindow() {
         goto error;
     }
 
+    static_cast<Surface*>(mNativeWindow.get())
+            ->getIGraphicBufferProducer()->allowAllocation(true);
+
     err = mNativeWindow->query(mNativeWindow.get(),
             NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBufs);
     if (err != NO_ERROR) {
