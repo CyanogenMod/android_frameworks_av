@@ -610,6 +610,9 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         return err;
     }
 
+    // need to enable allocation when attaching
+    surface->getIGraphicBufferProducer()->allowAllocation(true);
+
     // for meta data mode, we move dequeud buffers to the new surface.
     // for non-meta mode, we must move all registered buffers
     for (size_t i = 0; i < buffers.size(); ++i) {
@@ -1046,26 +1049,57 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         return NULL;
     }
 
-    if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
-        ALOGE("dequeueBuffer failed.");
-        return NULL;
-    }
+    do {
+        if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
+            ALOGE("dequeueBuffer failed.");
+            return NULL;
+        }
 
+        bool stale = false;
+        for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+
+            if (info->mGraphicBuffer != NULL &&
+                info->mGraphicBuffer->handle == buf->handle) {
+                // Since consumers can attach buffers to BufferQueues, it is possible
+                // that a known yet stale buffer can return from a surface that we
+                // once used.  We can simply ignore this as we have already dequeued
+                // this buffer properly.  NOTE: this does not eliminate all cases,
+                // e.g. it is possible that we have queued the valid buffer to the
+                // NW, and a stale copy of the same buffer gets dequeued - which will
+                // be treated as the valid buffer by ACodec.
+                if (info->mStatus != BufferInfo::OWNED_BY_NATIVE_WINDOW) {
+                    ALOGI("dequeued stale buffer %p. discarding", buf);
+                    stale = true;
+                    break;
+                }
+                ALOGV("dequeued buffer %p", info->mGraphicBuffer->getNativeBuffer());
+                info->mStatus = BufferInfo::OWNED_BY_US;
+
+                return info;
+            }
+        }
+
+        // It is also possible to receive a previously unregistered buffer
+        // in non-meta mode. These should be treated as stale buffers. The
+        // same is possible in meta mode, in which case, it will be treated
+        // as a normal buffer, which is not desirable.
+        // TODO: fix this.
+        if (!stale && !mStoreMetaDataInOutputBuffers) {
+            ALOGI("dequeued unrecognized (stale) buffer %p. discarding", buf);
+            stale = true;
+        }
+        if (stale) {
+            // TODO: detach stale buffer, but there is no API yet to do it.
+            buf = NULL;
+        }
+    } while (buf == NULL);
+
+    // get oldest undequeued buffer
     BufferInfo *oldest = NULL;
     for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
-
-        if (info->mGraphicBuffer != NULL &&
-            info->mGraphicBuffer->handle == buf->handle) {
-            CHECK_EQ((int)info->mStatus,
-                     (int)BufferInfo::OWNED_BY_NATIVE_WINDOW);
-
-            info->mStatus = BufferInfo::OWNED_BY_US;
-
-            return info;
-        }
-
         if (info->mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW &&
             (oldest == NULL ||
              // avoid potential issues from counter rolling over
