@@ -33,12 +33,31 @@ enum audio_io_config_event {
 class AudioIoDescriptor : public RefBase {
 public:
     AudioIoDescriptor() :
+        mIoHandle(AUDIO_IO_HANDLE_NONE),
         mSamplingRate(0), mFormat(AUDIO_FORMAT_DEFAULT), mChannelMask(AUDIO_CHANNEL_NONE),
-        mFrameCount(0), mLatency(0) {}
+        mFrameCount(0), mLatency(0)
+    {
+        memset(&mPatch, 0, sizeof(struct audio_patch));
+    }
 
     virtual ~AudioIoDescriptor() {}
 
+    audio_port_handle_t getDeviceId() {
+        if (mPatch.num_sources != 0 && mPatch.num_sinks != 0) {
+            if (mPatch.sources[0].type == AUDIO_PORT_TYPE_MIX) {
+                // this is an output mix
+                // FIXME: the API only returns the first device in case of multiple device selection
+                return mPatch.sinks[0].id;
+            } else {
+                // this is an input mix
+                return mPatch.sources[0].id;
+            }
+        }
+        return AUDIO_PORT_HANDLE_NONE;
+    }
+
     audio_io_handle_t mIoHandle;
+    struct audio_patch mPatch;
     uint32_t mSamplingRate;
     audio_format_t mFormat;
     audio_channel_mask_t mChannelMask;

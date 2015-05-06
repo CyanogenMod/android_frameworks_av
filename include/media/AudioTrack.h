@@ -510,13 +510,22 @@ public:
      */
             status_t    setOutputDevice(audio_port_handle_t deviceId);
 
-    /* Returns the ID of the audio device used for output of this AudioTrack.
+    /* Returns the ID of the audio device selected for this AudioTrack.
      * A value of AUDIO_PORT_HANDLE_NONE indicates default (AudioPolicyManager) routing.
      *
      * Parameters:
      *  none.
      */
      audio_port_handle_t getOutputDevice();
+
+     /* Returns the ID of the audio device actually used by the output to which this AudioTrack is
+      * attached.
+      * A value of AUDIO_PORT_HANDLE_NONE indicates the audio track is not attached to any output.
+      *
+      * Parameters:
+      *  none.
+      */
+     audio_port_handle_t getRoutedDeviceId();
 
     /* Returns the unique session ID associated with this track.
      *
@@ -663,6 +672,28 @@ public:
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.
      */
             status_t    getTimestamp(AudioTimestamp& timestamp);
+
+    /* Add an AudioDeviceCallback. The caller will be notified when the audio device to which this
+     * AudioTrack is routed is updated.
+     * Replaces any previously installed callback.
+     * Parameters:
+     *  callback:  The callback interface
+     * Returns NO_ERROR if successful.
+     *         INVALID_OPERATION if the same callback is already installed.
+     *         NO_INIT or PREMISSION_DENIED if AudioFlinger service is not reachable
+     *         BAD_VALUE if the callback is NULL
+     */
+            status_t addAudioDeviceCallback(const sp<AudioSystem::AudioDeviceCallback>& callback);
+
+    /* remove an AudioDeviceCallback.
+     * Parameters:
+     *  callback:  The callback interface
+     * Returns NO_ERROR if successful.
+     *         INVALID_OPERATION if the callback is not installed
+     *         BAD_VALUE if the callback is NULL
+     */
+            status_t removeAudioDeviceCallback(
+                    const sp<AudioSystem::AudioDeviceCallback>& callback);
 
 protected:
     /* copying audio tracks is not allowed */
@@ -885,6 +916,8 @@ private:
     uint32_t                mSequence;              // incremented for each new IAudioTrack attempt
     int                     mClientUid;
     pid_t                   mClientPid;
+
+    sp<AudioSystem::AudioDeviceCallback> mDeviceCallback;
 };
 
 class TimedAudioTrack : public AudioTrack
