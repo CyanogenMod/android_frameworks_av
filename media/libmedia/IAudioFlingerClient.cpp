@@ -45,6 +45,7 @@ public:
         data.writeInterfaceToken(IAudioFlingerClient::getInterfaceDescriptor());
         data.writeInt32(event);
         data.writeInt32((int32_t)ioDesc->mIoHandle);
+        data.write(&ioDesc->mPatch, sizeof(struct audio_patch));
         data.writeInt32(ioDesc->mSamplingRate);
         data.writeInt32(ioDesc->mFormat);
         data.writeInt32(ioDesc->mChannelMask);
@@ -67,6 +68,7 @@ status_t BnAudioFlingerClient::onTransact(
             audio_io_config_event event = (audio_io_config_event)data.readInt32();
             sp<AudioIoDescriptor> ioDesc = new AudioIoDescriptor();
             ioDesc->mIoHandle = (audio_io_handle_t) data.readInt32();
+            data.read(&ioDesc->mPatch, sizeof(struct audio_patch));
             ioDesc->mSamplingRate = data.readInt32();
             ioDesc->mFormat = (audio_format_t) data.readInt32();
             ioDesc->mChannelMask = (audio_channel_mask_t) data.readInt32();

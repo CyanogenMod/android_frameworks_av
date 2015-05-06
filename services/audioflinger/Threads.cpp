@@ -500,6 +500,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this))
 {
+    memset(&mPatch, 0, sizeof(struct audio_patch));
 }
 
 AudioFlinger::ThreadBase::~ThreadBase()
@@ -1930,6 +1931,7 @@ void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event) 
     switch (event) {
     case AUDIO_OUTPUT_OPENED:
     case AUDIO_OUTPUT_CONFIG_CHANGED:
+        desc->mPatch = mPatch;
         desc->mChannelMask = mChannelMask;
         desc->mSamplingRate = mSampleRate;
         desc->mFormat = mFormat;
@@ -3002,6 +3004,7 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
         mEffectChains[i]->setDevice_l(type);
     }
     mOutDevice = type;
+    mPatch = *patch;
 
     if (mOutput->audioHwDev->version() >= AUDIO_DEVICE_API_VERSION_3_0) {
         audio_hw_device_t *hwDevice = mOutput->audioHwDev->hwDevice();
@@ -3028,6 +3031,7 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
                 param.toString().string());
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
+    sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
     return status;
 }
 
@@ -6727,6 +6731,7 @@ void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event) {
     switch (event) {
     case AUDIO_INPUT_OPENED:
     case AUDIO_INPUT_CONFIG_CHANGED:
+        desc->mPatch = mPatch;
         desc->mChannelMask = mChannelMask;
         desc->mSamplingRate = mSampleRate;
         desc->mFormat = mFormat;
@@ -6884,6 +6889,7 @@ status_t AudioFlinger::RecordThread::createAudioPatch_l(const struct audio_patch
 
     // store new device and send to effects
     mInDevice = patch->sources[0].ext.device.type;
+    mPatch = *patch;
     for (size_t i = 0; i < mEffectChains.size(); i++) {
         mEffectChains[i]->setDevice_l(mInDevice);
     }
@@ -6935,6 +6941,8 @@ status_t AudioFlinger::RecordThread::createAudioPatch_l(const struct audio_patch
                 param.toString().string());
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
+
+    sendIoConfigEvent_l(AUDIO_INPUT_CONFIG_CHANGED);
 
     return status;
 }

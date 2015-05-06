@@ -114,6 +114,10 @@ AudioRecord::~AudioRecord()
             mAudioRecordThread->requestExitAndWait();
             mAudioRecordThread.clear();
         }
+        // No lock here: worst case we remove a NULL callback which will be a nop
+        if (mDeviceCallback != 0 && mInput != AUDIO_IO_HANDLE_NONE) {
+            AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
+        }
         IInterface::asBinder(mAudioRecord)->unlinkToDeath(mDeathNotifier, this);
         mAudioRecord.clear();
         mCblkMemory.clear();
@@ -304,6 +308,8 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     mNewPosition = mProxy->getPosition() + mUpdatePeriod;
     int32_t flags = android_atomic_acquire_load(&mCblk->mFlags);
 
+    mActive = true;
+
     status_t status = NO_ERROR;
     if (!(flags & CBLK_INVALID)) {
         status = mAudioRecord->start(event, triggerSession);
@@ -316,9 +322,9 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     }
 
     if (status != NO_ERROR) {
+        mActive = false;
         ALOGE("start() status %d", status);
     } else {
-        mActive = true;
         sp<AudioRecordThread> t = mAudioRecordThread;
         if (t != 0) {
             t->resume();
@@ -443,6 +449,11 @@ status_t AudioRecord::setInputDevice(audio_port_handle_t deviceId) {
     AutoMutex lock(mLock);
     if (mSelectedDeviceId != deviceId) {
         mSelectedDeviceId = deviceId;
+        // stop capture so that audio policy manager does not reject the new instance start request
+        // as only one capture can be active at a time.
+        if (mAudioRecord != 0 && mActive) {
+            mAudioRecord->stop();
+        }
         android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
     }
     return NO_ERROR;
@@ -451,6 +462,14 @@ status_t AudioRecord::setInputDevice(audio_port_handle_t deviceId) {
 audio_port_handle_t AudioRecord::getInputDevice() {
     AutoMutex lock(mLock);
     return mSelectedDeviceId;
+}
+
+audio_port_handle_t AudioRecord::getRoutedDeviceId() {
+    AutoMutex lock(mLock);
+    if (mInput == AUDIO_IO_HANDLE_NONE) {
+        return AUDIO_PORT_HANDLE_NONE;
+    }
+    return AudioSystem::getDeviceIdForIo(mInput);
 }
 
 // -------------------------------------------------------------------------
@@ -494,6 +513,10 @@ status_t AudioRecord::openRecord_l(size_t epoch, const String16& opPackageName)
         if (mAudioRecordThread != 0) {
             tid = mAudioRecordThread->getTid();
         }
+    }
+
+    if (mDeviceCallback != 0 && mInput != AUDIO_IO_HANDLE_NONE) {
+        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
     }
 
     audio_io_handle_t input;
@@ -627,6 +650,10 @@ status_t AudioRecord::openRecord_l(size_t epoch, const String16& opPackageName)
 
     mDeathNotifier = new DeathNotifier(this);
     IInterface::asBinder(mAudioRecord)->linkToDeath(mDeathNotifier, this);
+
+    if (mDeviceCallback != 0) {
+        AudioSystem::addAudioDeviceCallback(mDeviceCallback, mInput);
+    }
 
     return NO_ERROR;
     }
@@ -1071,6 +1098,48 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     }
 
     return result;
+}
+
+status_t AudioRecord::addAudioDeviceCallback(const sp<AudioSystem::AudioDeviceCallback>& callback)
+{
+    if (callback == 0) {
+        ALOGW("%s adding NULL callback!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mDeviceCallback == callback) {
+        ALOGW("%s adding same callback!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    status_t status = NO_ERROR;
+    if (mInput != AUDIO_IO_HANDLE_NONE) {
+        if (mDeviceCallback != 0) {
+            ALOGW("%s callback already present!", __FUNCTION__);
+            AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
+        }
+        status = AudioSystem::addAudioDeviceCallback(callback, mInput);
+    }
+    mDeviceCallback = callback;
+    return status;
+}
+
+status_t AudioRecord::removeAudioDeviceCallback(
+        const sp<AudioSystem::AudioDeviceCallback>& callback)
+{
+    if (callback == 0) {
+        ALOGW("%s removing NULL callback!", __FUNCTION__);
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mDeviceCallback != callback) {
+        ALOGW("%s removing different callback!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    if (mInput != AUDIO_IO_HANDLE_NONE) {
+        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
+    }
+    mDeviceCallback = 0;
+    return NO_ERROR;
 }
 
 // =========================================================================
