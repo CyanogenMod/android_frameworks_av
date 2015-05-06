@@ -934,17 +934,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 closeAudioSink();
-                if (!mOffloadDecodedPCM) {
-                    mAudioDecoder.clear();
-                    ++mAudioDecoderGeneration;
-                } else {
-                    ALOGV("Decoded PCM offload flushing mFLushingAudio %d", mFlushingAudio);
-                    if (mAudioDecoder != NULL && mFlushingAudio == NONE) {
-                        mDeferredActions.push_back(
-                                new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
-                                                       FLUSH_CMD_NONE /* video */));
-                    }
+
+                if (mAudioDecoder != NULL && mFlushingAudio == NONE) {
+                    mDeferredActions.push_back(
+                        new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
+                                               FLUSH_CMD_NONE /* video */));
                 }
+
                 mRenderer->flush(
                         true /* audio */, false /* notifyComplete */);
                 if (mVideoDecoder != NULL) {
@@ -1527,6 +1523,18 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     if (decoder == NULL) {
         ALOGI("flushDecoder %s without decoder present",
              audio ? "audio" : "video");
+        return;
+    }
+
+    FlushStatus *state = audio ? &mFlushingAudio : &mFlushingVideo;
+
+    bool inShutdown = *state != NONE &&
+                      *state != FLUSHING_DECODER &&
+                      *state != FLUSHED;
+
+    // Reject flush if the decoder state is not one of the above
+    if (inShutdown) {
+        ALOGI("flush %s called while in shutdown", audio ? "audio" : "video");
         return;
     }
 
