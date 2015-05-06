@@ -332,8 +332,26 @@ public:
 
     };
 
-    static status_t addAudioPortCallback(const sp<AudioPortCallback>& callBack);
-    static status_t removeAudioPortCallback(const sp<AudioPortCallback>& callBack);
+    static status_t addAudioPortCallback(const sp<AudioPortCallback>& callback);
+    static status_t removeAudioPortCallback(const sp<AudioPortCallback>& callback);
+
+    class AudioDeviceCallback : public RefBase
+    {
+    public:
+
+                AudioDeviceCallback() {}
+        virtual ~AudioDeviceCallback() {}
+
+        virtual void onAudioDeviceUpdate(audio_io_handle_t audioIo,
+                                         audio_port_handle_t deviceId) = 0;
+    };
+
+    static status_t addAudioDeviceCallback(const sp<AudioDeviceCallback>& callback,
+                                           audio_io_handle_t audioIo);
+    static status_t removeAudioDeviceCallback(const sp<AudioDeviceCallback>& callback,
+                                              audio_io_handle_t audioIo);
+
+    static audio_port_handle_t getDeviceIdForIo(audio_io_handle_t audioIo);
 
 private:
 
@@ -359,10 +377,20 @@ private:
         // values for output/input parameters up-to-date in client process
         virtual void ioConfigChanged(audio_io_config_event event,
                                      const sp<AudioIoDescriptor>& ioDesc);
+
+
+        status_t addAudioDeviceCallback(const sp<AudioDeviceCallback>& callback,
+                                               audio_io_handle_t audioIo);
+        status_t removeAudioDeviceCallback(const sp<AudioDeviceCallback>& callback,
+                                           audio_io_handle_t audioIo);
+
+        audio_port_handle_t getDeviceIdForIo(audio_io_handle_t audioIo);
+
     private:
         Mutex                               mLock;
-        DefaultKeyedVector<audio_io_handle_t, sp<AudioIoDescriptor> > mIoDescriptors;
-
+        DefaultKeyedVector<audio_io_handle_t, sp<AudioIoDescriptor> >   mIoDescriptors;
+        DefaultKeyedVector<audio_io_handle_t, Vector < sp<AudioDeviceCallback> > >
+                                                                        mAudioDeviceCallbacks;
         // cached values for recording getInputBufferSize() queries
         size_t                              mInBuffSize;    // zero indicates cache is invalid
         uint32_t                            mInSamplingRate;
@@ -377,8 +405,8 @@ private:
         AudioPolicyServiceClient() {
         }
 
-        status_t addAudioPortCallback(const sp<AudioPortCallback>& callBack);
-        status_t removeAudioPortCallback(const sp<AudioPortCallback>& callBack);
+        status_t addAudioPortCallback(const sp<AudioPortCallback>& callback);
+        status_t removeAudioPortCallback(const sp<AudioPortCallback>& callback);
 
         // DeathRecipient
         virtual void binderDied(const wp<IBinder>& who);
@@ -392,6 +420,9 @@ private:
         Mutex                               mLock;
         Vector <sp <AudioPortCallback> >    mAudioPortCallbacks;
     };
+
+    static const sp<AudioFlingerClient> getAudioFlingerClient();
+    static sp<AudioIoDescriptor> getIoDescriptor(audio_io_handle_t ioHandle);
 
     static sp<AudioFlingerClient> gAudioFlingerClient;
     static sp<AudioPolicyServiceClient> gAudioPolicyServiceClient;
