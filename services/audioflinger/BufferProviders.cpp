@@ -292,46 +292,8 @@ RemixBufferProvider::RemixBufferProvider(audio_channel_mask_t inputChannelMask,
     ALOGV("RemixBufferProvider(%p)(%#x, %#x, %#x) %zu %zu",
             this, format, inputChannelMask, outputChannelMask,
             mInputChannels, mOutputChannels);
-
-    const audio_channel_representation_t inputRepresentation =
-            audio_channel_mask_get_representation(inputChannelMask);
-    const audio_channel_representation_t outputRepresentation =
-            audio_channel_mask_get_representation(outputChannelMask);
-    const uint32_t inputBits = audio_channel_mask_get_bits(inputChannelMask);
-    const uint32_t outputBits = audio_channel_mask_get_bits(outputChannelMask);
-
-    switch (inputRepresentation) {
-    case AUDIO_CHANNEL_REPRESENTATION_POSITION:
-        switch (outputRepresentation) {
-        case AUDIO_CHANNEL_REPRESENTATION_POSITION:
-            memcpy_by_index_array_initialization(mIdxAry, ARRAY_SIZE(mIdxAry),
-                    outputBits, inputBits);
-            return;
-        case AUDIO_CHANNEL_REPRESENTATION_INDEX:
-            // TODO: output channel index mask not currently allowed
-            // fall through
-        default:
-            break;
-        }
-        break;
-    case AUDIO_CHANNEL_REPRESENTATION_INDEX:
-        switch (outputRepresentation) {
-        case AUDIO_CHANNEL_REPRESENTATION_POSITION:
-            memcpy_by_index_array_initialization_src_index(mIdxAry, ARRAY_SIZE(mIdxAry),
-                    outputBits, inputBits);
-            return;
-        case AUDIO_CHANNEL_REPRESENTATION_INDEX:
-            // TODO: output channel index mask not currently allowed
-            // fall through
-        default:
-            break;
-        }
-        break;
-    default:
-        break;
-    }
-    LOG_ALWAYS_FATAL("invalid channel mask conversion from %#x to %#x",
-            inputChannelMask, outputChannelMask);
+    (void) memcpy_by_index_array_initialization_from_channel_mask(
+            mIdxAry, ARRAY_SIZE(mIdxAry), outputChannelMask, inputChannelMask);
 }
 
 void RemixBufferProvider::copyFrames(void *dst, const void *src, size_t frames)
