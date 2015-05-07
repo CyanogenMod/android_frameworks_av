@@ -1673,21 +1673,11 @@ private:
         }
 
         size_t n = strlen(baseURL);
-        if (baseURL[n - 1] == '/') {
-            out->setTo(baseURL);
-            out->append(url);
-        } else {
-            const char *slashPos = strrchr(baseURL, '/');
-
-            if (slashPos > &baseURL[6]) {
-                out->setTo(baseURL, slashPos - baseURL);
-            } else {
-                out->setTo(baseURL);
-            }
-
+        out->setTo(baseURL);
+        if (baseURL[n - 1] != '/') {
             out->append("/");
-            out->append(url);
         }
+        out->append(url);
 
         return true;
     }
