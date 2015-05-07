@@ -143,7 +143,7 @@ static int muxing(
 
         ssize_t newTrackIndex = muxer->addTrack(format);
         if (newTrackIndex < 0) {
-            fprintf(stderr, "%s track (%d) unsupported by muxer\n",
+            fprintf(stderr, "%s track (%zu) unsupported by muxer\n",
                     isAudio ? "audio" : "video",
                     i);
         } else {
