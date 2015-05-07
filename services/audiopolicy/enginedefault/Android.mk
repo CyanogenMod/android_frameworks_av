@@ -43,6 +43,4 @@ LOCAL_SHARED_LIBRARIES += \
     libutils \
     libaudioutils \
 
-include external/stlport/libstlport.mk
-
 include $(BUILD_SHARED_LIBRARY)
