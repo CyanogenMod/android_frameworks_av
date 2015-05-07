@@ -44,6 +44,7 @@ struct BpMediaHTTPService : public BpInterface<IMediaHTTPService> {
         status_t err = reply.readInt32();
 
         if (err != OK) {
+            ALOGE("Unable to make HTTP connection (err = %d)", err);
             return NULL;
         }
 
