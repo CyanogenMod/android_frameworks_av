@@ -1503,11 +1503,10 @@ void LiveSession::changeConfiguration(
             ALOGV("discarding fetcher-%d", fetcher->getFetcherID());
             fetcher->stopAsync();
         } else {
-            float threshold = -1.0f; // always finish fetching by default
+            float threshold = 0.0f; // default to pause after current block (47Kbytes)
             bool disconnect = false;
             if (timeUs >= 0ll) {
                 // seeking, no need to finish fetching
-                threshold = 0.0f;
                 disconnect = true;
             } else if (delayRemoval) {
                 // adapting, abort if remaining of current segment is over threshold
