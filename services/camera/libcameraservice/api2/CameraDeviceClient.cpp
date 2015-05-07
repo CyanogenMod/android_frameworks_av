@@ -128,7 +128,6 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
     List<const CameraMetadata> metadataRequestList;
     int32_t requestId = mRequestIdCounter;
     uint32_t loopCounter = 0;
-    bool isReprocess = false;
 
     for (List<sp<CaptureRequest> >::iterator it = requests.begin(); it != requests.end(); ++it) {
         sp<CaptureRequest> request = *it;
@@ -136,18 +135,15 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
             ALOGE("%s: Camera %d: Sent null request.",
                     __FUNCTION__, mCameraId);
             return BAD_VALUE;
-        } else if (it == requests.begin()) {
-            isReprocess = request->mIsReprocess;
-            if (isReprocess && !mInputStream.configured) {
-                ALOGE("%s: Camera %d: no input stream is configured.");
+        } else if (request->mIsReprocess) {
+            if (!mInputStream.configured) {
+                ALOGE("%s: Camera %d: no input stream is configured.", __FUNCTION__, mCameraId);
                 return BAD_VALUE;
-            } else if (isReprocess && streaming) {
-                ALOGE("%s: Camera %d: streaming reprocess requests not supported.");
+            } else if (streaming) {
+                ALOGE("%s: Camera %d: streaming reprocess requests not supported.", __FUNCTION__,
+                        mCameraId);
                 return BAD_VALUE;
             }
-        } else if (isReprocess != request->mIsReprocess) {
-            ALOGE("%s: Camera %d: Sent regular and reprocess requests.");
-            return BAD_VALUE;
         }
 
         CameraMetadata metadata(request->mMetadata);
@@ -196,7 +192,7 @@ status_t CameraDeviceClient::submitRequestList(List<sp<CaptureRequest> > request
         metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS, &outputStreamIds[0],
                         outputStreamIds.size());
 
-        if (isReprocess) {
+        if (request->mIsReprocess) {
             metadata.update(ANDROID_REQUEST_INPUT_STREAMS, &mInputStream.id, 1);
         }
 
