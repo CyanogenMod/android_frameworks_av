@@ -58,7 +58,7 @@ status_t HwModule::loadInput(cnode *root)
         } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
             profile->loadInChannels((char *)node->value);
         } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
+            profile->mSupportedDevices.loadDevicesFromTag((char *)node->value,
                                                            mDeclaredDevices);
         } else if (strcmp(node->name, FLAGS_TAG) == 0) {
             profile->mFlags = ConfigParsingUtils::parseInputFlagNames((char *)node->value);
@@ -105,7 +105,7 @@ status_t HwModule::loadOutput(cnode *root)
         } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
             profile->loadOutChannels((char *)node->value);
         } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromName((char *)node->value,
+            profile->mSupportedDevices.loadDevicesFromTag((char *)node->value,
                                                            mDeclaredDevices);
         } else if (strcmp(node->name, FLAGS_TAG) == 0) {
             profile->mFlags = ConfigParsingUtils::parseOutputFlagNames((char *)node->value);
@@ -154,7 +154,8 @@ status_t HwModule::loadDevice(cnode *root)
         ALOGW("loadDevice() bad type %08x", type);
         return BAD_VALUE;
     }
-    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(String8(root->name), type);
+    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(type);
+    deviceDesc->mTag = String8(root->name);
 
     node = root->first_child;
     while (node) {
@@ -172,8 +173,8 @@ status_t HwModule::loadDevice(cnode *root)
         node = node->next;
     }
 
-    ALOGV("loadDevice() adding device name %s type %08x address %s",
-          deviceDesc->mName.string(), type, deviceDesc->mAddress.string());
+    ALOGV("loadDevice() adding device tag %s type %08x address %s",
+          deviceDesc->mTag.string(), type, deviceDesc->mAddress.string());
 
     mDeclaredDevices.add(deviceDesc);
 
@@ -189,7 +190,7 @@ status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
     profile->mChannelMasks.add(config->channel_mask);
     profile->mFormats.add(config->format);
 
-    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(name, device);
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
     profile->mSupportedDevices.add(devDesc);
 
@@ -220,7 +221,7 @@ status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
     profile->mChannelMasks.add(config->channel_mask);
     profile->mFormats.add(config->format);
 
-    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(name, device);
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
     profile->mSupportedDevices.add(devDesc);
 
@@ -350,7 +351,8 @@ sp<DeviceDescriptor>  HwModuleCollection::getDeviceDescriptor(const audio_device
     }
 
     sp<DeviceDescriptor> devDesc =
-            new DeviceDescriptor(String8(device_name != NULL ? device_name : ""), device);
+            new DeviceDescriptor(device);
+    devDesc->mName = device_name;
     devDesc->mAddress = address;
     return devDesc;
 }

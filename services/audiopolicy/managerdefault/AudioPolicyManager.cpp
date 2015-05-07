@@ -2648,7 +2648,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mUidCached = getuid();
     mpClientInterface = clientInterface;
 
-    mDefaultOutputDevice = new DeviceDescriptor(String8("Speaker"), AUDIO_DEVICE_OUT_SPEAKER);
+    mDefaultOutputDevice = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
     if (ConfigParsingUtils::loadAudioPolicyConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE,
                  mHwModules, mAvailableInputDevices, mAvailableOutputDevices,
                  mDefaultOutputDevice, mSpeakerDrcEnabled) != NO_ERROR) {
@@ -4738,7 +4738,7 @@ void AudioPolicyManager::defaultAudioPolicyConfig(void)
     sp<HwModule> module;
     sp<IOProfile> profile;
     sp<DeviceDescriptor> defaultInputDevice =
-                    new DeviceDescriptor(String8("builtin-mic"), AUDIO_DEVICE_IN_BUILTIN_MIC);
+                    new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
     mAvailableOutputDevices.add(mDefaultOutputDevice);
     mAvailableInputDevices.add(defaultInputDevice);
 
