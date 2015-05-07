@@ -30,12 +30,11 @@
 namespace android {
 
 MediaHTTP::MediaHTTP(const sp<IMediaHTTPConnection> &conn)
-    : mInitCheck(NO_INIT),
+    : mInitCheck((conn != NULL) ? OK : NO_INIT),
       mHTTPConnection(conn),
       mCachedSizeValid(false),
       mCachedSize(0ll),
       mDrmManagerClient(NULL) {
-    mInitCheck = OK;
 }
 
 MediaHTTP::~MediaHTTP() {
@@ -171,6 +170,10 @@ void MediaHTTP::getDrmInfo(
 }
 
 String8 MediaHTTP::getUri() {
+    if (mInitCheck != OK) {
+        return String8::empty();
+    }
+
     String8 uri;
     if (OK == mHTTPConnection->getUri(&uri)) {
         return uri;
