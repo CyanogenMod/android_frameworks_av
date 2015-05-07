@@ -24,13 +24,11 @@
 
 namespace android {
 
-String8 DeviceDescriptor::emptyNameStr = String8("");
-
-DeviceDescriptor::DeviceDescriptor(const String8& name, audio_devices_t type) :
-    AudioPort(name, AUDIO_PORT_TYPE_DEVICE,
+DeviceDescriptor::DeviceDescriptor(audio_devices_t type) :
+    AudioPort(String8(""), AUDIO_PORT_TYPE_DEVICE,
               audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
                                              AUDIO_PORT_ROLE_SOURCE),
-    mAddress(""), mDeviceType(type), mId(0)
+    mTag(""), mAddress(""), mDeviceType(type), mId(0)
 {
 
 }
@@ -142,24 +140,21 @@ void DeviceVector::loadDevicesFromType(audio_devices_t types)
         uint32_t i = 31 - __builtin_clz(types);
         uint32_t type = 1 << i;
         types &= ~type;
-        add(new DeviceDescriptor(String8("device_type"), type | role_bit));
+        add(new DeviceDescriptor(type | role_bit));
     }
 }
 
-void DeviceVector::loadDevicesFromName(char *name,
+void DeviceVector::loadDevicesFromTag(char *tag,
                                        const DeviceVector& declaredDevices)
 {
-    char *devName = strtok(name, "|");
-    while (devName != NULL) {
-        if (strlen(devName) != 0) {
+    char *devTag = strtok(tag, "|");
+    while (devTag != NULL) {
+        if (strlen(devTag) != 0) {
             audio_devices_t type = ConfigParsingUtils::stringToEnum(sDeviceTypeToEnumTable,
                                  ARRAY_SIZE(sDeviceTypeToEnumTable),
-                                 devName);
+                                 devTag);
             if (type != AUDIO_DEVICE_NONE) {
-                devName = (char *)ConfigParsingUtils::enumToString(sDeviceNameToEnumTable,
-                                                           ARRAY_SIZE(sDeviceNameToEnumTable),
-                                                           type);
-                sp<DeviceDescriptor> dev = new DeviceDescriptor(String8(devName), type);
+                sp<DeviceDescriptor> dev = new DeviceDescriptor(type);
                 if (type == AUDIO_DEVICE_IN_REMOTE_SUBMIX ||
                         type == AUDIO_DEVICE_OUT_REMOTE_SUBMIX ) {
                     dev->mAddress = String8("0");
@@ -167,13 +162,13 @@ void DeviceVector::loadDevicesFromName(char *name,
                 add(dev);
             } else {
                 sp<DeviceDescriptor> deviceDesc =
-                        declaredDevices.getDeviceFromName(String8(devName));
+                        declaredDevices.getDeviceFromTag(String8(devTag));
                 if (deviceDesc != 0) {
                     add(deviceDesc);
                 }
             }
          }
-         devName = strtok(NULL, "|");
+         devTag = strtok(NULL, "|");
      }
 }
 
@@ -239,11 +234,11 @@ DeviceVector DeviceVector::getDevicesFromTypeAddr(
     return devices;
 }
 
-sp<DeviceDescriptor> DeviceVector::getDeviceFromName(const String8& name) const
+sp<DeviceDescriptor> DeviceVector::getDeviceFromTag(const String8& tag) const
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->mName == name) {
+        if (itemAt(i)->mTag == tag) {
             device = itemAt(i);
             break;
         }
