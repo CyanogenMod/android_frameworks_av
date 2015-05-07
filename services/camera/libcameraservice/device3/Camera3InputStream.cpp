@@ -187,6 +187,8 @@ status_t Camera3InputStream::disconnectLocked() {
 
     assert(mBuffersInFlight.size() == 0);
 
+    mConsumer->abandon();
+
     /**
      *  no-op since we can't disconnect the producer from the consumer-side
      */
