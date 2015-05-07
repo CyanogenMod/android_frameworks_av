@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include "ResourceManagerService.h"
+#include "ServiceLog.h"
 
 namespace android {
 
@@ -88,7 +89,7 @@ static ResourceInfo& getResourceInfoForEdit(
     return infos.editItemAt(infos.size() - 1);
 }
 
-status_t ResourceManagerService::dump(int fd, const Vector<String16>& args) {
+status_t ResourceManagerService::dump(int fd, const Vector<String16>& /* args */) {
     Mutex::Autolock lock(mLock);
 
     String8 result;
@@ -103,16 +104,14 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& args) {
     snprintf(buffer, SIZE, "    SupportsSecureWithNonSecureCodec: %d\n", mSupportsSecureWithNonSecureCodec);
     result.append(buffer);
 
-    snprintf(buffer, SIZE, "  Processes:\n");
-    result.append(buffer);
+    result.append("  Processes:\n");
     for (size_t i = 0; i < mMap.size(); ++i) {
         snprintf(buffer, SIZE, "    Pid: %d\n", mMap.keyAt(i));
         result.append(buffer);
 
         const ResourceInfos &infos = mMap.valueAt(i);
         for (size_t j = 0; j < infos.size(); ++j) {
-            snprintf(buffer, SIZE, "      Client:\n");
-            result.append(buffer);
+            result.append("      Client:\n");
             snprintf(buffer, SIZE, "        Id: %lld\n", (long long)infos[j].clientId);
             result.append(buffer);
 
@@ -120,14 +119,15 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& args) {
             result.append(buffer);
 
             Vector<MediaResource> resources = infos[j].resources;
-            snprintf(buffer, SIZE, "        Resources:\n");
-            result.append(buffer);
+            result.append("        Resources:\n");
             for (size_t k = 0; k < resources.size(); ++k) {
                 snprintf(buffer, SIZE, "          %s\n", resources[k].toString().string());
                 result.append(buffer);
             }
         }
     }
+    result.append("  Logs:\n");
+    result.append(mServiceLog->toString());
 
     write(fd, result.string(), result.size());
     return OK;
@@ -135,18 +135,21 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& args) {
 
 ResourceManagerService::ResourceManagerService()
     : mProcessInfo(new ProcessInfo()),
+      mServiceLog(new ServiceLog()),
       mSupportsMultipleSecureCodecs(true),
       mSupportsSecureWithNonSecureCodec(true) {}
 
 ResourceManagerService::ResourceManagerService(sp<ProcessInfoInterface> processInfo)
     : mProcessInfo(processInfo),
+      mServiceLog(new ServiceLog()),
       mSupportsMultipleSecureCodecs(true),
       mSupportsSecureWithNonSecureCodec(true) {}
 
 ResourceManagerService::~ResourceManagerService() {}
 
 void ResourceManagerService::config(const Vector<MediaResourcePolicy> &policies) {
-    ALOGV("config(%s)", getString(policies).string());
+    String8 log = String8::format("config(%s)", getString(policies).string());
+    mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
     for (size_t i = 0; i < policies.size(); ++i) {
@@ -165,8 +168,9 @@ void ResourceManagerService::addResource(
         int64_t clientId,
         const sp<IResourceManagerClient> client,
         const Vector<MediaResource> &resources) {
-    ALOGV("addResource(pid %d, clientId %lld, resources %s)",
+    String8 log = String8::format("addResource(pid %d, clientId %lld, resources %s)",
             pid, (long long) clientId, getString(resources).string());
+    mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
     ResourceInfos& infos = getResourceInfosForEdit(pid, mMap);
@@ -176,7 +180,8 @@ void ResourceManagerService::addResource(
 }
 
 void ResourceManagerService::removeResource(int64_t clientId) {
-    ALOGV("removeResource(%lld)", (long long) clientId);
+    String8 log = String8::format("removeResource(%lld)", (long long) clientId);
+    mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
     bool found = false;
@@ -201,8 +206,9 @@ void ResourceManagerService::removeResource(int64_t clientId) {
 
 bool ResourceManagerService::reclaimResource(
         int callingPid, const Vector<MediaResource> &resources) {
-    ALOGV("reclaimResource(callingPid %d, resources %s)",
+    String8 log = String8::format("reclaimResource(callingPid %d, resources %s)",
             callingPid, getString(resources).string());
+    mServiceLog->add(log);
 
     Vector<sp<IResourceManagerClient>> clients;
     {
@@ -265,7 +271,8 @@ bool ResourceManagerService::reclaimResource(
 
     sp<IResourceManagerClient> failedClient;
     for (size_t i = 0; i < clients.size(); ++i) {
-        ALOGV("reclaimResource from client %p", clients[i].get());
+        log = String8::format("reclaimResource from client %p", clients[i].get());
+        mServiceLog->add(log);
         if (!clients[i]->reclaimResource()) {
             failedClient = clients[i];
             break;

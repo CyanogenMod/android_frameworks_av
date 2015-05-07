@@ -30,6 +30,7 @@
 
 namespace android {
 
+class ServiceLog;
 struct ProcessInfoInterface;
 
 struct ResourceInfo {
@@ -96,6 +97,7 @@ private:
 
     mutable Mutex mLock;
     sp<ProcessInfoInterface> mProcessInfo;
+    sp<ServiceLog> mServiceLog;
     PidResourceInfosMap mMap;
     bool mSupportsMultipleSecureCodecs;
     bool mSupportsSecureWithNonSecureCodec;
