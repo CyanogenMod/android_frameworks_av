@@ -29,7 +29,7 @@ namespace android {
 class DeviceDescriptor : public AudioPort, public AudioPortConfig
 {
 public:
-    DeviceDescriptor(const String8& name, audio_devices_t type);
+    DeviceDescriptor(audio_devices_t type);
 
     virtual ~DeviceDescriptor() {}
 
@@ -50,9 +50,8 @@ public:
     status_t dump(int fd, int spaces, int index) const;
     void log() const;
 
+    String8 mTag;
     String8 mAddress;
-
-    static String8  emptyNameStr;
 
 private:
     audio_devices_t     mDeviceType;
@@ -73,12 +72,12 @@ public:
     audio_devices_t types() const { return mDeviceTypes; }
 
     void loadDevicesFromType(audio_devices_t types);
-    void loadDevicesFromName(char *name, const DeviceVector& declaredDevices);
+    void loadDevicesFromTag(char *tag, const DeviceVector& declaredDevices);
 
     sp<DeviceDescriptor> getDevice(audio_devices_t type, String8 address) const;
     DeviceVector getDevicesFromType(audio_devices_t types) const;
     sp<DeviceDescriptor> getDeviceFromId(audio_port_handle_t id) const;
-    sp<DeviceDescriptor> getDeviceFromName(const String8& name) const;
+    sp<DeviceDescriptor> getDeviceFromTag(const String8& tag) const;
     DeviceVector getDevicesFromTypeAddr(audio_devices_t type, String8 address) const;
 
     audio_devices_t getDevicesFromHwModule(audio_module_handle_t moduleHandle) const;

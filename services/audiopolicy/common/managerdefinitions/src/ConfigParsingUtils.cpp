@@ -218,7 +218,7 @@ void ConfigParsingUtils::loadGlobalConfig(cnode *root, const sp<HwModule>& modul
     node = node->first_child;
     while (node) {
         if (strcmp(ATTACHED_OUTPUT_DEVICES_TAG, node->name) == 0) {
-            availableOutputDevices.loadDevicesFromName((char *)node->value,
+            availableOutputDevices.loadDevicesFromTag((char *)node->value,
                                                         declaredDevices);
             ALOGV("loadGlobalConfig() Attached Output Devices %08x",
                   availableOutputDevices.types());
@@ -228,13 +228,13 @@ void ConfigParsingUtils::loadGlobalConfig(cnode *root, const sp<HwModule>& modul
                     ARRAY_SIZE(sDeviceTypeToEnumTable),
                     (char *)node->value);
             if (device != AUDIO_DEVICE_NONE) {
-                defaultOutputDevice = new DeviceDescriptor(String8("default-output"), device);
+                defaultOutputDevice = new DeviceDescriptor(device);
             } else {
                 ALOGW("loadGlobalConfig() default device not specified");
             }
             ALOGV("loadGlobalConfig() mDefaultOutputDevice %08x", defaultOutputDevice->type());
         } else if (strcmp(ATTACHED_INPUT_DEVICES_TAG, node->name) == 0) {
-            availableInputDevices.loadDevicesFromName((char *)node->value,
+            availableInputDevices.loadDevicesFromTag((char *)node->value,
                                                        declaredDevices);
             ALOGV("loadGlobalConfig() Available InputDevices %08x", availableInputDevices.types());
         } else if (strcmp(SPEAKER_DRC_ENABLED_TAG, node->name) == 0) {
