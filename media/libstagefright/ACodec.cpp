@@ -42,6 +42,7 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
+#include <media/stagefright/SurfaceUtils.h>
 #include <media/hardware/HardwareAPI.h>
 
 #include <OMX_AudioExt.h>
@@ -650,6 +651,11 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         (void)surface->getIGraphicBufferProducer()->allowAllocation(false);
     }
 
+    // push blank buffers to previous window if requested
+    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown) {
+        pushBlankBuffersToNativeWindow(mNativeWindow.get());
+    }
+
     mNativeWindow = nativeWindow;
     return OK;
 }
@@ -748,82 +754,6 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     return OK;
 }
 
-status_t ACodec::setNativeWindowSizeFormatAndUsage(
-        ANativeWindow *nativeWindow /* nonnull */,
-        int width, int height, int format, int rotation, int usage) {
-    status_t err = native_window_set_buffers_dimensions(nativeWindow, width, height);
-    if (err != 0) {
-        ALOGE("native_window_set_buffers_dimensions failed: %s (%d)", strerror(-err), -err);
-        return err;
-    }
-
-    err = native_window_set_buffers_format(nativeWindow, format);
-    if (err != 0) {
-        ALOGE("native_window_set_buffers_format failed: %s (%d)", strerror(-err), -err);
-        return err;
-    }
-
-    int transform = 0;
-    if ((rotation % 90) == 0) {
-        switch ((rotation / 90) & 3) {
-            case 1:  transform = HAL_TRANSFORM_ROT_90;  break;
-            case 2:  transform = HAL_TRANSFORM_ROT_180; break;
-            case 3:  transform = HAL_TRANSFORM_ROT_270; break;
-            default: transform = 0;                     break;
-        }
-    }
-
-    err = native_window_set_buffers_transform(nativeWindow, transform);
-    if (err != 0) {
-        ALOGE("native_window_set_buffers_transform failed: %s (%d)", strerror(-err), -err);
-        return err;
-    }
-
-    // Make sure to check whether either Stagefright or the video decoder
-    // requested protected buffers.
-    if (usage & GRALLOC_USAGE_PROTECTED) {
-        // Verify that the ANativeWindow sends images directly to
-        // SurfaceFlinger.
-        int queuesToNativeWindow = 0;
-        err = nativeWindow->query(
-                nativeWindow, NATIVE_WINDOW_QUEUES_TO_WINDOW_COMPOSER, &queuesToNativeWindow);
-        if (err != 0) {
-            ALOGE("error authenticating native window: %s (%d)", strerror(-err), -err);
-            return err;
-        }
-        if (queuesToNativeWindow != 1) {
-            ALOGE("native window could not be authenticated");
-            return PERMISSION_DENIED;
-        }
-    }
-
-    int consumerUsage = 0;
-    err = nativeWindow->query(nativeWindow, NATIVE_WINDOW_CONSUMER_USAGE_BITS, &consumerUsage);
-    if (err != 0) {
-        ALOGW("failed to get consumer usage bits. ignoring");
-        err = 0;
-    }
-
-    int finalUsage = usage | consumerUsage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP;
-    ALOGV("gralloc usage: %#x(ACodec) + %#x(Consumer) = %#x", usage, consumerUsage, finalUsage);
-    err = native_window_set_usage(nativeWindow, finalUsage);
-    if (err != 0) {
-        ALOGE("native_window_set_usage failed: %s (%d)", strerror(-err), -err);
-        return err;
-    }
-
-    err = native_window_set_scaling_mode(
-            nativeWindow, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-    if (err != 0) {
-        ALOGE("native_window_set_scaling_mode failed: %s (%d)", strerror(-err), -err);
-        return err;
-    }
-
-    ALOGD("set up nativeWindow %p for %dx%d, color %#x, rotation %d, usage %#x",
-            nativeWindow, width, height, format, rotation, finalUsage);
-    return OK;
-}
-
 status_t ACodec::setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
@@ -848,6 +778,8 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow
     if (mFlags & kFlagIsGrallocUsageProtected) {
         usage |= GRALLOC_USAGE_PROTECTED;
     }
+
+    usage |= GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP;
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
     return setNativeWindowSizeFormatAndUsage(
@@ -4123,137 +4055,6 @@ void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
     notify->post();
 }
 
-status_t ACodec::pushBlankBuffersToNativeWindow() {
-    status_t err = NO_ERROR;
-    ANativeWindowBuffer* anb = NULL;
-    int numBufs = 0;
-    int minUndequeuedBufs = 0;
-
-    // We need to reconnect to the ANativeWindow as a CPU client to ensure that
-    // no frames get dropped by SurfaceFlinger assuming that these are video
-    // frames.
-    err = native_window_api_disconnect(mNativeWindow.get(),
-            NATIVE_WINDOW_API_MEDIA);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: api_disconnect failed: %s (%d)",
-                strerror(-err), -err);
-        return err;
-    }
-
-    err = native_window_api_connect(mNativeWindow.get(),
-            NATIVE_WINDOW_API_CPU);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: api_connect failed: %s (%d)",
-                strerror(-err), -err);
-        return err;
-    }
-
-    err = setNativeWindowSizeFormatAndUsage(
-            mNativeWindow.get(), 1, 1, HAL_PIXEL_FORMAT_RGBX_8888, 0, GRALLOC_USAGE_SW_WRITE_OFTEN);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set format failed: %s (%d)",
-                strerror(-err), -err);
-        goto error;
-    }
-
-    static_cast<Surface*>(mNativeWindow.get())
-            ->getIGraphicBufferProducer()->allowAllocation(true);
-
-    err = mNativeWindow->query(mNativeWindow.get(),
-            NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBufs);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: MIN_UNDEQUEUED_BUFFERS query "
-                "failed: %s (%d)", strerror(-err), -err);
-        goto error;
-    }
-
-    numBufs = minUndequeuedBufs + 1;
-    err = native_window_set_buffer_count(mNativeWindow.get(), numBufs);
-    if (err != NO_ERROR) {
-        ALOGE("error pushing blank frames: set_buffer_count failed: %s (%d)",
-                strerror(-err), -err);
-        goto error;
-    }
-
-    // We  push numBufs + 1 buffers to ensure that we've drawn into the same
-    // buffer twice.  This should guarantee that the buffer has been displayed
-    // on the screen and then been replaced, so an previous video frames are
-    // guaranteed NOT to be currently displayed.
-    for (int i = 0; i < numBufs + 1; i++) {
-        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &anb);
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: dequeueBuffer failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
-
-        sp<GraphicBuffer> buf(new GraphicBuffer(anb, false));
-
-        // Fill the buffer with the a 1x1 checkerboard pattern ;)
-        uint32_t* img = NULL;
-        err = buf->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: lock failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
-
-        *img = 0;
-
-        err = buf->unlock();
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: unlock failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
-
-        err = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                buf->getNativeBuffer(), -1);
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: queueBuffer failed: %s (%d)",
-                    strerror(-err), -err);
-            goto error;
-        }
-
-        anb = NULL;
-    }
-
-error:
-
-    if (err != NO_ERROR) {
-        // Clean up after an error.
-        if (anb != NULL) {
-            mNativeWindow->cancelBuffer(mNativeWindow.get(), anb, -1);
-        }
-
-        native_window_api_disconnect(mNativeWindow.get(),
-                NATIVE_WINDOW_API_CPU);
-        native_window_api_connect(mNativeWindow.get(),
-                NATIVE_WINDOW_API_MEDIA);
-
-        return err;
-    } else {
-        // Clean up after success.
-        err = native_window_api_disconnect(mNativeWindow.get(),
-                NATIVE_WINDOW_API_CPU);
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: api_disconnect failed: %s (%d)",
-                    strerror(-err), -err);
-            return err;
-        }
-
-        err = native_window_api_connect(mNativeWindow.get(),
-                NATIVE_WINDOW_API_MEDIA);
-        if (err != NO_ERROR) {
-            ALOGE("error pushing blank frames: api_connect failed: %s (%d)",
-                    strerror(-err), -err);
-            return err;
-        }
-
-        return NO_ERROR;
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 ACodec::PortDescription::PortDescription() {
@@ -6148,7 +5949,7 @@ void ACodec::ExecutingToIdleState::changeStateIfWeOwnAllBuffers() {
             // them has made it to the display.  This allows the OMX
             // component teardown to zero out any protected buffers
             // without the risk of scanning out one of those buffers.
-            mCodec->pushBlankBuffersToNativeWindow();
+            pushBlankBuffersToNativeWindow(mCodec->mNativeWindow.get());
         }
 
         mCodec->changeState(mCodec->mIdleToLoadedState);

@@ -236,9 +236,6 @@ private:
     status_t freeBuffer(OMX_U32 portIndex, size_t i);
 
     status_t handleSetSurface(const sp<Surface> &surface);
-    status_t setNativeWindowSizeFormatAndUsage(
-            ANativeWindow *nativeWindow /* nonnull */,
-            int width, int height, int format, int rotation, int usage);
     status_t setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */);
 
     status_t configureOutputBuffersFromNativeWindow(
@@ -331,8 +328,6 @@ private:
     status_t setupErrorCorrectionParameters();
 
     status_t initNativeWindow();
-
-    status_t pushBlankBuffersToNativeWindow();
 
     // Returns true iff all buffers on the given port have status
     // OWNED_BY_US or OWNED_BY_NATIVE_WINDOW.

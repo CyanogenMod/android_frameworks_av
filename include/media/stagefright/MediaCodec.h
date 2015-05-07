@@ -224,6 +224,7 @@ private:
         kFlagGatherCodecSpecificData    = 512,
         kFlagIsAsync                    = 1024,
         kFlagIsComponentAllocated       = 2048,
+        kFlagPushBlankBuffersOnShutdown = 4096,
     };
 
     struct BufferInfo {
