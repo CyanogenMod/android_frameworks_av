@@ -364,7 +364,7 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
         } else {
             numFrames = vorbis_dsp_pcmout(
                     mState, (int16_t *)outHeader->pBuffer,
-                    kMaxNumSamplesPerBuffer);
+                    (kMaxNumSamplesPerBuffer / mVi->channels));
 
             if (numFrames < 0) {
                 ALOGE("vorbis_dsp_pcmout returned %d", numFrames);
