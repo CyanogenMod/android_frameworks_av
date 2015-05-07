@@ -46,6 +46,7 @@
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
+#include <media/stagefright/SurfaceUtils.h>
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
@@ -1659,6 +1660,11 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             sp<AMessage> format;
             CHECK(msg->findMessage("format", &format));
 
+            int32_t push;
+            if (msg->findInt32("push-blank-buffers-on-shutdown", &push) && push != 0) {
+                mFlags |= kFlagPushBlankBuffersOnShutdown;
+            }
+
             if (obj != NULL) {
                 format->setObject("native-window", obj);
                 status_t err = handleSetSurface(static_cast<Surface *>(obj.get()));
@@ -1725,6 +1731,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         } else {
                             if (err == OK) {
                                 if (mFlags & kFlagUsesSoftwareRenderer) {
+                                    if (mSoftRenderer != NULL
+                                            && (mFlags & kFlagPushBlankBuffersOnShutdown)) {
+                                        pushBlankBuffersToNativeWindow(mSurface.get());
+                                    }
                                     mSoftRenderer = new SoftwareRenderer(surface);
                                     // TODO: check if this was successful
                                 } else {
@@ -1848,6 +1858,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     msg->what() == kWhatStop /* keepComponentAllocated */);
 
             returnBuffersToCodec();
+
+            if (mSoftRenderer != NULL && (mFlags & kFlagPushBlankBuffersOnShutdown)) {
+                pushBlankBuffersToNativeWindow(mSurface.get());
+            }
             break;
         }
 
