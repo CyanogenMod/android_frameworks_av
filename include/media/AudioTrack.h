@@ -687,6 +687,9 @@ protected:
             // increment mPosition by the delta of mServer, and return new value of mPosition
             uint32_t updateAndGetPosition_l();
 
+            static bool decideTrackOffloadFromStreamType(const audio_stream_type_t sType);
+
+            static bool decideTrackOffloadfromAttributes(const audio_attributes_t *pAttributes);
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
 #ifdef QCOM_DIRECTTRACK
     sp<IDirectTrack>        mDirectTrack;
