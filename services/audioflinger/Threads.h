@@ -230,6 +230,8 @@ public:
 
                 // static externally-visible
                 type_t      type() const { return mType; }
+                bool isDuplicating() const { return (mType == DUPLICATING); }
+
                 audio_io_handle_t id() const { return mId;}
 
                 // dynamic externally-visible
