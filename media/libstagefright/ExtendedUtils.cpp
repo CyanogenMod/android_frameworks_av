@@ -1045,6 +1045,19 @@ bool ExtendedUtils::is16bitPCMOffloadEnabled() {
         return false;
 }
 
+bool ExtendedUtils::isTrackOffloadEnabled() {
+    char propTrackOffload[PROPERTY_VALUE_MAX] = {0};
+
+    //track offload will work only if 16 bit PCM offloading is enabled
+    if (is16bitPCMOffloadEnabled()) {
+        property_get("audio.offload.track.enabled", propTrackOffload, "0");
+        if (!strncmp(propTrackOffload, "true", 4) || atoi(propTrackOffload))
+            return true;
+    }
+
+    return false;
+}
+
 bool ExtendedUtils::isRAWFormat(const sp<MetaData> &meta) {
     const char *mime = {0};
     if (meta == NULL) {
@@ -2145,6 +2158,10 @@ bool ExtendedUtils::is24bitPCMOffloadEnabled() {
 }
 
 bool ExtendedUtils::is16bitPCMOffloadEnabled() {
+    return false;
+}
+
+bool ExtendedUtils::isTrackOffloadEnabled() {
     return false;
 }
 
