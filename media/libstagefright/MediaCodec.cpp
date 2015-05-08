@@ -62,7 +62,7 @@ static int64_t getId(sp<IResourceManagerClient> client) {
 }
 
 static bool isResourceError(status_t err) {
-    return (err == OMX_ErrorInsufficientResources);
+    return (err == NO_MEMORY);
 }
 
 static const int kMaxRetry = 2;
@@ -76,7 +76,7 @@ struct ResourceManagerClient : public BnResourceManagerClient {
             // codec is already gone.
             return true;
         }
-        status_t err = codec->release();
+        status_t err = codec->reclaim();
         if (err != OK) {
             ALOGW("ResourceManagerClient failed to release codec with err %d", err);
         }
@@ -336,6 +336,7 @@ sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
 
 MediaCodec::MediaCodec(const sp<ALooper> &looper)
     : mState(UNINITIALIZED),
+      mReleasedByResourceManager(false),
       mLooper(looper),
       mCodec(NULL),
       mReplyID(0),
@@ -377,10 +378,15 @@ status_t MediaCodec::PostAndAwaitResponse(
     return err;
 }
 
-// static
 void MediaCodec::PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err) {
+    int32_t finalErr = err;
+    if (mReleasedByResourceManager) {
+        // override the err code if MediaCodec has been released by ResourceManager.
+        finalErr = DEAD_OBJECT;
+    }
+
     sp<AMessage> response = new AMessage;
-    response->setInt32("err", err);
+    response->setInt32("err", finalErr);
     response->postReply(replyID);
 }
 
@@ -654,6 +660,14 @@ status_t MediaCodec::stop() {
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::reclaim() {
+    sp<AMessage> msg = new AMessage(kWhatRelease, this);
+    msg->setInt32("reclaimed", 1);
+
+    sp<AMessage> response;
+    return PostAndAwaitResponse(msg, &response);
+}
+
 status_t MediaCodec::release() {
     sp<AMessage> msg = new AMessage(kWhatRelease, this);
 
@@ -920,6 +934,10 @@ status_t MediaCodec::getBufferAndFormat(
         sp<ABuffer> *buffer, sp<AMessage> *format) {
     // use mutex instead of a context switch
 
+    if (mReleasedByResourceManager) {
+        return DEAD_OBJECT;
+    }
+
     buffer->clear();
     format->clear();
     if (!isExecuting()) {
@@ -1009,20 +1027,19 @@ bool MediaCodec::handleDequeueInputBuffer(const sp<AReplyToken> &replyID, bool n
 }
 
 bool MediaCodec::handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool newRequest) {
-    sp<AMessage> response = new AMessage;
-
     if (!isExecuting() || (mFlags & kFlagIsAsync)
             || (newRequest && (mFlags & kFlagDequeueOutputPending))) {
-        response->setInt32("err", INVALID_OPERATION);
+        PostReplyWithError(replyID, INVALID_OPERATION);
     } else if (mFlags & kFlagStickyError) {
-        response->setInt32("err", getStickyError());
+        PostReplyWithError(replyID, getStickyError());
     } else if (mFlags & kFlagOutputBuffersChanged) {
-        response->setInt32("err", INFO_OUTPUT_BUFFERS_CHANGED);
+        PostReplyWithError(replyID, INFO_OUTPUT_BUFFERS_CHANGED);
         mFlags &= ~kFlagOutputBuffersChanged;
     } else if (mFlags & kFlagOutputFormatChanged) {
-        response->setInt32("err", INFO_FORMAT_CHANGED);
+        PostReplyWithError(replyID, INFO_FORMAT_CHANGED);
         mFlags &= ~kFlagOutputFormatChanged;
     } else {
+        sp<AMessage> response = new AMessage;
         ssize_t index = dequeuePortBuffer(kPortIndexOutput);
 
         if (index < 0) {
@@ -1057,9 +1074,8 @@ bool MediaCodec::handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool 
         }
 
         response->setInt32("flags", flags);
+        response->postReply(replyID);
     }
-
-    response->postReply(replyID);
 
     return true;
 }
@@ -1818,6 +1834,20 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
 
+            // already stopped/released
+            if (mState == UNINITIALIZED && mReleasedByResourceManager) {
+                sp<AMessage> response = new AMessage;
+                response->setInt32("err", OK);
+                response->postReply(replyID);
+                break;
+            }
+
+            int32_t reclaimed = 0;
+            msg->findInt32("reclaimed", &reclaimed);
+            if (reclaimed) {
+                mReleasedByResourceManager = true;
+            }
+
             if (!((mFlags & kFlagIsComponentAllocated) && targetState == UNINITIALIZED) // See 1
                     && mState != INITIALIZED
                     && mState != CONFIGURED && !isExecuting()) {
@@ -1831,6 +1861,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 // and it should be in this case, no harm to allow a release()
                 // if we're already uninitialized.
                 sp<AMessage> response = new AMessage;
+                // TODO: we shouldn't throw an exception for stop/release. Change this to wait until
+                // the previous stop/release completes and then reply with OK.
                 status_t err = mState == targetState ? OK : INVALID_OPERATION;
                 response->setInt32("err", err);
                 if (err == OK && targetState == UNINITIALIZED) {
