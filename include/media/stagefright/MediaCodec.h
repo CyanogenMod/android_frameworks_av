@@ -164,6 +164,11 @@ protected:
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
 private:
+    // used by ResourceManagerClient
+    status_t reclaim();
+    friend struct ResourceManagerClient;
+
+private:
     enum State {
         UNINITIALIZED,
         INITIALIZING,
@@ -262,6 +267,7 @@ private:
     };
 
     State mState;
+    bool mReleasedByResourceManager;
     sp<ALooper> mLooper;
     sp<ALooper> mCodecLooper;
     sp<CodecBase> mCodec;
@@ -321,7 +327,7 @@ private:
     static status_t PostAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
 
-    static void PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err);
+    void PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err);
 
     status_t init(const AString &name, bool nameIsType, bool encoder);
 
