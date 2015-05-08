@@ -66,9 +66,9 @@
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 #endif
 
-// Set kUseNewMixer to true to use the new mixer engine always. Otherwise the
-// original code will be used for stereo sinks, the new mixer for multichannel.
-static const bool kUseNewMixer = true;
+// Set kUseNewMixer to true to use the new mixer engine. Otherwise the
+// original code will be used.  This is false for now.
+static const bool kUseNewMixer = false;
 
 // Set kUseFloat to true to allow floating input into the mixer engine.
 // If kUseNewMixer is false, this is ignored or may be overridden internally
