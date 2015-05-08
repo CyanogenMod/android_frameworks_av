@@ -44,8 +44,6 @@ static Mutex sInitMutex;
 
 static MediaCodecList *gCodecList = NULL;
 
-static const char *kProfilingResults = "/data/misc/media/media_codecs_profiling_results.xml";
-
 static bool parseBoolean(const char *s) {
     if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
         return true;
@@ -61,7 +59,6 @@ sp<IMediaCodecList> MediaCodecList::sCodecList;
 // static
 sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
     bool profilingNeeded = false;
-    KeyedVector<AString, CodecSettings> updates;
     Vector<sp<MediaCodecInfo>> infos;
 
     {
@@ -89,13 +86,13 @@ sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
     }
 
     if (profilingNeeded) {
-        profileCodecs(infos, &updates);
+        profileCodecs(infos);
     }
 
     {
         Mutex::Autolock autoLock(sInitMutex);
-        if (updates.size() > 0) {
-            gCodecList->updateDetailsForMultipleCodecs(updates);
+        if (profilingNeeded) {
+            gCodecList->parseTopLevelXMLFile(kProfilingResults, true /* ignore_errors */);
         }
 
         return sCodecList;
@@ -143,19 +140,6 @@ MediaCodecList::MediaCodecList()
       mGlobalSettings(new AMessage()) {
     parseTopLevelXMLFile("/etc/media_codecs.xml");
     parseTopLevelXMLFile(kProfilingResults, true/* ignore_errors */);
-}
-
-void MediaCodecList::updateDetailsForMultipleCodecs(
-        const KeyedVector<AString, CodecSettings>& updates) {
-    if (updates.size() == 0) {
-        return;
-    }
-
-    exportResultsToXML(kProfilingResults, updates);
-
-    for (size_t i = 0; i < updates.size(); ++i) {
-        applyCodecSettings(updates.keyAt(i), updates.valueAt(i), &mCodecInfos);
-    }
 }
 
 void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_errors) {
