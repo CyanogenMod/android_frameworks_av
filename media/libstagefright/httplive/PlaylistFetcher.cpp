@@ -1424,11 +1424,17 @@ bool PlaylistFetcher::adjustSeqNumberWithAnchorTime(int64_t anchorTimeUs) {
 
     int64_t minDiffUs, maxDiffUs;
     if (mSeekMode == LiveSession::kSeekModeNextSample) {
+        // if the previous fetcher paused in the middle of a segment, we
+        // want to start at a segment that overlaps the last sample
         minDiffUs = -mPlaylist->getTargetDuration();
         maxDiffUs = 0ll;
     } else {
+        // if the previous fetcher paused at the end of a segment, ideally
+        // we want to start at the segment that's roughly aligned with its
+        // next segment, but if the two variants are not well aligned we
+        // adjust the diff to within (-T/2, T/2)
         minDiffUs = -mPlaylist->getTargetDuration() / 2;
-        maxDiffUs = mPlaylist->getTargetDuration();
+        maxDiffUs = mPlaylist->getTargetDuration() / 2;
     }
 
     int32_t oldSeqNumber = mSeqNumber;
@@ -1610,6 +1616,9 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
             if (stream == LiveSession::STREAMTYPE_SUBTITLES) {
                 ALOGE("MPEG2 Transport streams do not contain subtitles.");
                 return ERROR_MALFORMED;
+            }
+            if (stream == LiveSession::STREAMTYPE_METADATA) {
+                continue;
             }
             ATSParser::SourceType type =LiveSession::getSourceTypeForStream(stream);
             sp<AnotherPacketSource> source =
