@@ -4720,10 +4720,13 @@ void AudioFlinger::DuplicatingThread::removeOutputTrack(MixerThread *thread)
             mOutputTracks[i]->destroy();
             mOutputTracks.removeAt(i);
             updateWaitTime_l();
+            if (thread->getOutput() == mOutput) {
+                mOutput = NULL;
+            }
             return;
         }
     }
-    ALOGV("removeOutputTrack(): unkonwn thread: %p", thread);
+    ALOGV("removeOutputTrack(): unknown thread: %p", thread);
 }
 
 // caller must hold mLock
