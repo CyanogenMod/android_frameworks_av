@@ -1618,6 +1618,11 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         uint32_t pcmFlags = flags;
         pcmFlags &= ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
 
+        if (ExtendedUtils::isTrackOffloadEnabled()) {
+            ALOGV("TrackOffload: Enabled, setting deep buffer flag");
+            pcmFlags |= AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+        }
+
         const PcmInfo info = {
                 (audio_channel_mask_t)channelMask,
                 (audio_output_flags_t)pcmFlags,

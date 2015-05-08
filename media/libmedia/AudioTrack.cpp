@@ -269,8 +269,7 @@ bool AudioTrack::canOffloadTrack(
        // Track offload only if the following criterion
        // 1. Track offload info structure should NOT have been provided
        // 2. Format is 16 bit
-       // 3. Track is NOT fast track (to prevent tones, and low latency from
-       //     being offloaded
+       // 3. Track should not have any flags other NONE
        // 4. Client uses write interface to provide data
 
 
@@ -279,7 +278,7 @@ bool AudioTrack::canOffloadTrack(
         if (!offloadInfo &&
              (format == AUDIO_FORMAT_PCM_16_BIT) &&
              (streamType == AUDIO_STREAM_MUSIC) &&
-             (!(flags & AUDIO_OUTPUT_FLAG_FAST)) &&
+             (flags == AUDIO_OUTPUT_FLAG_NONE) &&
              (transferType != TRANSFER_CALLBACK))
         {
 
