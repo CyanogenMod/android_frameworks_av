@@ -400,7 +400,7 @@ status_t AudioTrack::set(
         memcpy(&mAttributes, pAttributes, sizeof(audio_attributes_t));
         ALOGV("Building AudioTrack with attributes: usage=%d content=%d flags=0x%x tags=[%s]",
                 mAttributes.usage, mAttributes.content_type, mAttributes.flags, mAttributes.tags);
-        mStreamType = audio_attributes_to_stream_type(&mAttributes);
+        mStreamType = AUDIO_STREAM_DEFAULT;
     }
 
     // these below should probably come from the audioFlinger too...
