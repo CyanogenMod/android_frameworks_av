@@ -108,6 +108,26 @@ struct ADebug {
     // remove redundant segments of a codec name, and return a newly allocated
     // string suitable for debugging
     static char *GetDebugName(const char *name);
+
+    inline static bool isExperimentEnabled(
+            const char *name __unused /* nonnull */, bool allow __unused = true) {
+#ifdef ENABLE_STAGEFRIGHT_EXPERIMENTS
+        if (!strcmp(name, "legacy-adaptive")) {
+            return getExperimentFlag(allow, name, 2, 1); // every other day
+        } else if (!strcmp(name, "legacy-setsurface")) {
+            return getExperimentFlag(allow, name, 3, 1); // every third day
+        } else {
+            ALOGE("unknown experiment '%s' (disabled)", name);
+        }
+#endif
+        return false;
+    }
+
+private:
+    // pass in allow, so we can print in the log if the experiment is disabled
+    static bool getExperimentFlag(
+            bool allow, const char *name, uint64_t modulo, uint64_t limit,
+            uint64_t plus = 0, uint64_t timeDivisor = 24 * 60 * 60 /* 1 day */);
 };
 
 }  // namespace android

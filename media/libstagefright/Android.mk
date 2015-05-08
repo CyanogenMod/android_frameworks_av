@@ -124,7 +124,7 @@ LOCAL_SHARED_LIBRARIES += \
         libdl \
         libRScpp \
 
-LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wall -DENABLE_STAGEFRIGHT_EXPERIMENTS
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright

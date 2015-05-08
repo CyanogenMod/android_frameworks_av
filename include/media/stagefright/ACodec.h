@@ -216,6 +216,7 @@ private:
     int32_t mChannelMask;
     unsigned mDequeueCounter;
     bool mStoreMetaDataInOutputBuffers;
+    bool mLegacyAdaptiveExperiment;
     int32_t mMetaDataBuffersToSubmit;
     size_t mNumUndequeuedBuffers;
 

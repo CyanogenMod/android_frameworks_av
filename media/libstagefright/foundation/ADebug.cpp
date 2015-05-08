@@ -19,6 +19,7 @@
 #include <ctype.h>
 
 #define LOG_TAG "ADebug"
+#include <cutils/atomic.h>
 #include <utils/Log.h>
 #include <utils/misc.h>
 
@@ -111,6 +112,44 @@ char *ADebug::GetDebugName(const char *name) {
     }
 
     return debugName;
+}
+
+//static
+bool ADebug::getExperimentFlag(
+        bool allow, const char *name, uint64_t modulo,
+        uint64_t limit, uint64_t plus, uint64_t timeDivisor) {
+    static volatile int32_t haveSerial = 0;
+    static uint64_t serialNum;
+    if (!android_atomic_acquire_load(&haveSerial)) {
+        // calculate initial counter value based on serial number
+        static char serial[PROPERTY_VALUE_MAX];
+        property_get("ro.serialno", serial, "0");
+        uint64_t num = 0; // it is okay for this number to overflow
+        for (size_t i = 0; i < NELEM(serial) && serial[i] != '\0'; ++i) {
+            const char &c = serial[i];
+            // try to use most letters of serialno
+            if (isdigit(c)) {
+                num = num * 10 + (c - '0');
+            } else if (islower(c)) {
+                num = num * 26 + (c - 'a');
+            } else if (isupper(c)) {
+                num = num * 26 + (c - 'A');
+            } else {
+                num = num * 256 + c;
+            }
+        }
+        ALOGI("got serial");
+        serialNum = num;
+        android_atomic_release_store(1, &haveSerial);
+    }
+    ALOGI("serial: %llu, time: %llu", (long long)serialNum, (long long)time(NULL));
+    // MINOR: use modulo for counter and time, so that their sum does not
+    // roll over, and mess up the correlation between related experiments.
+    // e.g. keep (a mod 2N) = 0 impl (a mod N) = 0
+    time_t counter = (time(NULL) / timeDivisor) % modulo + plus + serialNum % modulo;
+    bool enable = allow && (counter % modulo < limit);
+    ALOGI("experiment '%s': %s", name, enable ? "ENABLED" : "disabled");
+    return enable;
 }
 
 }  // namespace android

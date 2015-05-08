@@ -422,6 +422,7 @@ ACodec::ACodec()
       mChannelMask(0),
       mDequeueCounter(0),
       mStoreMetaDataInOutputBuffers(false),
+      mLegacyAdaptiveExperiment(false),
       mMetaDataBuffersToSubmit(0),
       mRepeatFrameDelayUs(-1ll),
       mMaxPtsGapUs(-1ll),
@@ -610,12 +611,16 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         return err;
     }
 
+    // need to enable allocation when attaching
+    surface->getIGraphicBufferProducer()->allowAllocation(true);
+
     // for meta data mode, we move dequeud buffers to the new surface.
     // for non-meta mode, we must move all registered buffers
     for (size_t i = 0; i < buffers.size(); ++i) {
         const BufferInfo &info = buffers[i];
         // skip undequeued buffers for meta data mode
         if (mStoreMetaDataInOutputBuffers
+                && !mLegacyAdaptiveExperiment
                 && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
             ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
             continue;
@@ -632,7 +637,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     // cancel undequeued buffers to new surface
-    if (!mStoreMetaDataInOutputBuffers) {
+    if (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment) {
         for (size_t i = 0; i < buffers.size(); ++i) {
             const BufferInfo &info = buffers[i];
             if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
@@ -967,6 +972,44 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
 
+    if (mLegacyAdaptiveExperiment) {
+        // preallocate buffers
+        static_cast<Surface *>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(true);
+
+        ALOGV("[%s] Allocating %u buffers from a native window of size %u on "
+             "output port",
+             mComponentName.c_str(), bufferCount, bufferSize);
+
+        // Dequeue buffers then cancel them all
+        for (OMX_U32 i = 0; i < bufferCount; i++) {
+            ANativeWindowBuffer *buf;
+            err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+            if (err != 0) {
+                ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
+                break;
+            }
+
+            sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
+            BufferInfo info;
+            info.mStatus = BufferInfo::OWNED_BY_US;
+            info.mGraphicBuffer = graphicBuffer;
+            mBuffers[kPortIndexOutput].push(info);
+        }
+
+        for (OMX_U32 i = 0; i < mBuffers[kPortIndexOutput].size(); i++) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+            status_t error = cancelBufferToNativeWindow(info);
+            if (err == OK) {
+                err = error;
+            }
+        }
+
+        mBuffers[kPortIndexOutput].clear();
+        static_cast<Surface*>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(false);
+    }
+
     ALOGV("[%s] Allocating %u meta buffers on output port",
          mComponentName.c_str(), bufferCount);
 
@@ -1046,26 +1089,57 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         return NULL;
     }
 
-    if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
-        ALOGE("dequeueBuffer failed.");
-        return NULL;
-    }
+    do {
+        if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
+            ALOGE("dequeueBuffer failed.");
+            return NULL;
+        }
 
+        bool stale = false;
+        for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+
+            if (info->mGraphicBuffer != NULL &&
+                info->mGraphicBuffer->handle == buf->handle) {
+                // Since consumers can attach buffers to BufferQueues, it is possible
+                // that a known yet stale buffer can return from a surface that we
+                // once used.  We can simply ignore this as we have already dequeued
+                // this buffer properly.  NOTE: this does not eliminate all cases,
+                // e.g. it is possible that we have queued the valid buffer to the
+                // NW, and a stale copy of the same buffer gets dequeued - which will
+                // be treated as the valid buffer by ACodec.
+                if (info->mStatus != BufferInfo::OWNED_BY_NATIVE_WINDOW) {
+                    ALOGI("dequeued stale buffer %p. discarding", buf);
+                    stale = true;
+                    break;
+                }
+                ALOGV("dequeued buffer %p", info->mGraphicBuffer->getNativeBuffer());
+                info->mStatus = BufferInfo::OWNED_BY_US;
+
+                return info;
+            }
+        }
+
+        // It is also possible to receive a previously unregistered buffer
+        // in non-meta mode. These should be treated as stale buffers. The
+        // same is possible in meta mode, in which case, it will be treated
+        // as a normal buffer, which is not desirable.
+        // TODO: fix this.
+        if (!stale && (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment)) {
+            ALOGI("dequeued unrecognized (stale) buffer %p. discarding", buf);
+            stale = true;
+        }
+        if (stale) {
+            // TODO: detach stale buffer, but there is no API yet to do it.
+            buf = NULL;
+        }
+    } while (buf == NULL);
+
+    // get oldest undequeued buffer
     BufferInfo *oldest = NULL;
     for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
-
-        if (info->mGraphicBuffer != NULL &&
-            info->mGraphicBuffer->handle == buf->handle) {
-            CHECK_EQ((int)info->mStatus,
-                     (int)BufferInfo::OWNED_BY_NATIVE_WINDOW);
-
-            info->mStatus = BufferInfo::OWNED_BY_US;
-
-            return info;
-        }
-
         if (info->mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW &&
             (oldest == NULL ||
              // avoid potential issues from counter rolling over
@@ -1384,6 +1458,7 @@ status_t ACodec::configureCodec(
     bool haveNativeWindow = msg->findObject("native-window", &obj)
             && obj != NULL && video && !encoder;
     mStoreMetaDataInOutputBuffers = false;
+    mLegacyAdaptiveExperiment = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
 
@@ -1521,6 +1596,9 @@ status_t ACodec::configureCodec(
                 ALOGV("[%s] storeMetaDataInBuffers succeeded",
                         mComponentName.c_str());
                 mStoreMetaDataInOutputBuffers = true;
+                mLegacyAdaptiveExperiment = ADebug::isExperimentEnabled(
+                        "legacy-adaptive", !msg->contains("no-experiments"));
+
                 inputFormat->setInt32("adaptive-playback", true);
             }
 
@@ -4135,7 +4213,9 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             sp<RefBase> obj;
             CHECK(msg->findObject("surface", &obj));
 
-            status_t err = mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
+            status_t err =
+                ADebug::isExperimentEnabled("legacy-setsurface") ? BAD_VALUE :
+                        mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
