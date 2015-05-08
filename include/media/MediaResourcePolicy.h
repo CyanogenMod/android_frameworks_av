@@ -29,7 +29,7 @@ extern const char kPolicySupportsSecureWithNonSecureCodec[];
 class MediaResourcePolicy {
 public:
     MediaResourcePolicy();
-    MediaResourcePolicy(String8 type, uint64_t value);
+    MediaResourcePolicy(String8 type, String8 value);
 
     void readFromParcel(const Parcel &parcel);
     void writeToParcel(Parcel *parcel) const;
@@ -37,7 +37,7 @@ public:
     String8 toString() const;
 
     String8 mType;
-    uint64_t mValue;
+    String8 mValue;
 };
 
 }; // namespace android

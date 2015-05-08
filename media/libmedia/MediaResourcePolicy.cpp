@@ -24,25 +24,25 @@ namespace android {
 const char kPolicySupportsMultipleSecureCodecs[] = "supports-multiple-secure-codecs";
 const char kPolicySupportsSecureWithNonSecureCodec[] = "supports-secure-with-non-secure-codec";
 
-MediaResourcePolicy::MediaResourcePolicy() : mValue(0) {}
+MediaResourcePolicy::MediaResourcePolicy() {}
 
-MediaResourcePolicy::MediaResourcePolicy(String8 type, uint64_t value)
+MediaResourcePolicy::MediaResourcePolicy(String8 type, String8 value)
         : mType(type),
           mValue(value) {}
 
 void MediaResourcePolicy::readFromParcel(const Parcel &parcel) {
     mType = parcel.readString8();
-    mValue = parcel.readUint64();
+    mValue = parcel.readString8();
 }
 
 void MediaResourcePolicy::writeToParcel(Parcel *parcel) const {
     parcel->writeString8(mType);
-    parcel->writeUint64(mValue);
+    parcel->writeString8(mValue);
 }
 
 String8 MediaResourcePolicy::toString() const {
     String8 str;
-    str.appendFormat("%s:%llu", mType.string(), (unsigned long long)mValue);
+    str.appendFormat("%s:%s", mType.string(), mValue.string());
     return str;
 }
 

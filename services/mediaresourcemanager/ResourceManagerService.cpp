@@ -154,11 +154,11 @@ void ResourceManagerService::config(const Vector<MediaResourcePolicy> &policies)
     Mutex::Autolock lock(mLock);
     for (size_t i = 0; i < policies.size(); ++i) {
         String8 type = policies[i].mType;
-        uint64_t value = policies[i].mValue;
+        String8 value = policies[i].mValue;
         if (type == kPolicySupportsMultipleSecureCodecs) {
-            mSupportsMultipleSecureCodecs = (value != 0);
+            mSupportsMultipleSecureCodecs = (value == "true");
         } else if (type == kPolicySupportsSecureWithNonSecureCodec) {
-            mSupportsSecureWithNonSecureCodec = (value != 0);
+            mSupportsSecureWithNonSecureCodec = (value == "true");
         }
     }
 }
