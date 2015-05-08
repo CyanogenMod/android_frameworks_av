@@ -24,7 +24,9 @@
 
 #include <media/IMediaCodecList.h>
 #include <media/IMediaPlayerService.h>
+#include <media/IResourceManagerService.h>
 #include <media/MediaCodecInfo.h>
+#include <media/MediaResourcePolicy.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -169,6 +171,25 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_er
         }
         mCodecInfos.clear();
         return;
+    }
+
+    Vector<MediaResourcePolicy> policies;
+    AString value;
+    if (mGlobalSettings->findString(kPolicySupportsMultipleSecureCodecs, &value)) {
+        policies.push_back(
+                MediaResourcePolicy(
+                        String8(kPolicySupportsMultipleSecureCodecs),
+                        String8(value.c_str())));
+    }
+    if (policies.size() > 0) {
+        sp<IServiceManager> sm = defaultServiceManager();
+        sp<IBinder> binder = sm->getService(String16("media.resource_manager"));
+        sp<IResourceManagerService> service = interface_cast<IResourceManagerService>(binder);
+        if (service == NULL) {
+            ALOGE("MediaCodecList: failed to get ResourceManagerService");
+        } else {
+            service->config(policies);
+        }
     }
 
     for (size_t i = mCodecInfos.size(); i-- > 0;) {

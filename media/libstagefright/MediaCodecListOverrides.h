@@ -35,9 +35,10 @@ bool splitString(const AString &s, const AString &delimiter, AString *s1, AStrin
 // profile codecs and save the result to xml file named kProfilingResults.
 void profileCodecs(const Vector<sp<MediaCodecInfo>> &infos);
 
-// profile codecs and save the result to encoder_results and decoder_results.
+// profile codecs and save the result to global_results, encoder_results and decoder_results.
 void profileCodecs(
         const Vector<sp<MediaCodecInfo>> &infos,
+        CodecSettings *global_results,
         KeyedVector<AString, CodecSettings> *encoder_results,
         KeyedVector<AString, CodecSettings> *decoder_results,
         bool forceToMeasure = false);
