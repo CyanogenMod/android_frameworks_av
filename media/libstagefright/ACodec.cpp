@@ -972,44 +972,6 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
 
-    if (mLegacyAdaptiveExperiment) {
-        // preallocate buffers
-        static_cast<Surface *>(mNativeWindow.get())
-                ->getIGraphicBufferProducer()->allowAllocation(true);
-
-        ALOGV("[%s] Allocating %u buffers from a native window of size %u on "
-             "output port",
-             mComponentName.c_str(), bufferCount, bufferSize);
-
-        // Dequeue buffers then cancel them all
-        for (OMX_U32 i = 0; i < bufferCount; i++) {
-            ANativeWindowBuffer *buf;
-            err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
-            if (err != 0) {
-                ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
-                break;
-            }
-
-            sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
-            BufferInfo info;
-            info.mStatus = BufferInfo::OWNED_BY_US;
-            info.mGraphicBuffer = graphicBuffer;
-            mBuffers[kPortIndexOutput].push(info);
-        }
-
-        for (OMX_U32 i = 0; i < mBuffers[kPortIndexOutput].size(); i++) {
-            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
-            status_t error = cancelBufferToNativeWindow(info);
-            if (err == OK) {
-                err = error;
-            }
-        }
-
-        mBuffers[kPortIndexOutput].clear();
-        static_cast<Surface*>(mNativeWindow.get())
-                ->getIGraphicBufferProducer()->allowAllocation(false);
-    }
-
     ALOGV("[%s] Allocating %u meta buffers on output port",
          mComponentName.c_str(), bufferCount);
 
@@ -1036,6 +998,45 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
 
         ALOGV("[%s] allocated meta buffer with ID %u (pointer = %p)",
              mComponentName.c_str(), info.mBufferID, mem->pointer());
+    }
+
+    if (mLegacyAdaptiveExperiment) {
+        // preallocate and preregister buffers
+        static_cast<Surface *>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(true);
+
+        ALOGV("[%s] Allocating %u buffers from a native window of size %u on "
+             "output port",
+             mComponentName.c_str(), bufferCount, bufferSize);
+
+        // Dequeue buffers then cancel them all
+        for (OMX_U32 i = 0; i < bufferCount; i++) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+
+            ANativeWindowBuffer *buf;
+            err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+            if (err != 0) {
+                ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
+                break;
+            }
+
+            sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
+            mOMX->updateGraphicBufferInMeta(
+                    mNode, kPortIndexOutput, graphicBuffer, info->mBufferID);
+            info->mStatus = BufferInfo::OWNED_BY_US;
+            info->mGraphicBuffer = graphicBuffer;
+        }
+
+        for (OMX_U32 i = 0; i < mBuffers[kPortIndexOutput].size(); i++) {
+            BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
+            status_t error = cancelBufferToNativeWindow(info);
+            if (err == OK) {
+                err = error;
+            }
+        }
+
+        static_cast<Surface*>(mNativeWindow.get())
+                ->getIGraphicBufferProducer()->allowAllocation(false);
     }
 
     mMetaDataBuffersToSubmit = bufferCount - minUndequeuedBuffers;
