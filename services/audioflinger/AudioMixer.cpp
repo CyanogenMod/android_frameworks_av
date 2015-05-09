@@ -775,7 +775,8 @@ inline void AudioMixer::track_t::adjustVolumeRamp(bool aux, bool useFloat)
 {
     if (useFloat) {
         for (uint32_t i = 0; i < MAX_NUM_VOLUMES; i++) {
-            if (mVolumeInc[i] != 0 && fabs(mVolume[i] - mPrevVolume[i]) <= fabs(mVolumeInc[i])) {
+            if ((mVolumeInc[i] > 0 && mPrevVolume[i] + mVolumeInc[i] >= mVolume[i]) ||
+                     (mVolumeInc[i] < 0 && mPrevVolume[i] + mVolumeInc[i] <= mVolume[i])) {
                 volumeInc[i] = 0;
                 prevVolume[i] = volume[i] << 16;
                 mVolumeInc[i] = 0.;
