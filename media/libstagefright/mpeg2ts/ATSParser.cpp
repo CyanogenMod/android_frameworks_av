@@ -746,6 +746,7 @@ void ATSParser::Stream::signalDiscontinuity(
     }
 
     mPayloadStarted = false;
+    mEOSReached = false;
     mBuffer->setRange(0, 0);
 
     bool clearFormat = false;
