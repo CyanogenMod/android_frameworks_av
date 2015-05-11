@@ -27,28 +27,37 @@ static const size_t kDefaultMaxNum = 100;
 
 namespace android {
 
-ServiceLog::ServiceLog() : mMaxNum(kDefaultMaxNum) {}
-ServiceLog::ServiceLog(size_t maxNum) : mMaxNum(maxNum) {}
+ServiceLog::ServiceLog() : mMaxNum(kDefaultMaxNum), mLogs(mMaxNum) {}
+ServiceLog::ServiceLog(size_t maxNum) : mMaxNum(maxNum), mLogs(mMaxNum) {}
 
 void ServiceLog::add(const String8 &log) {
     Mutex::Autolock lock(mLock);
     time_t now = time(0);
     char buf[64];
     strftime(buf, sizeof(buf), "%m-%d %T", localtime(&now));
-    String8 formattedLog = String8::format("%s %s", buf, log.string());
-    if (mLogs.add(formattedLog) == mMaxNum) {
-        mLogs.removeAt(0);
-    }
+    mLogs.add(String8::format("%s %s", buf, log.string()));
 }
 
-String8 ServiceLog::toString() const {
+String8 ServiceLog::toString(const char *linePrefix) const {
     Mutex::Autolock lock(mLock);
     String8 result;
-    for (size_t i = 0; i < mLogs.size(); ++i) {
-        result.append(mLogs[i]);
-        result.append("\n");
+    for (const auto& log : mLogs) {
+        addLine(log.string(), linePrefix, &result);
+    }
+    if (mLogs.size() == mMaxNum) {
+        addLine("...", linePrefix, &result);
+    } else if (mLogs.size() == 0) {
+        addLine("[no events yet]", linePrefix, &result);
     }
     return result;
+}
+
+void ServiceLog::addLine(const char *log, const char *prefix, String8 *result) const {
+    if (prefix != NULL) {
+        result->append(prefix);
+    }
+    result->append(log);
+    result->append("\n");
 }
 
 } // namespace android
