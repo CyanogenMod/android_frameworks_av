@@ -56,6 +56,8 @@ void ElementaryStreamQueue::clear(bool clearFormat) {
     if (clearFormat) {
         mFormat.clear();
     }
+
+    mEOSReached = false;
 }
 
 // Parse AC3 header assuming the current ptr is start position of syncframe,

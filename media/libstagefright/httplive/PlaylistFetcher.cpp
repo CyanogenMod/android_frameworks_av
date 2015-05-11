@@ -1082,6 +1082,16 @@ bool PlaylistFetcher::initDownloadState(
                      mSeqNumber, firstSeqNumberInPlaylist,
                       firstSeqNumberInPlaylist + (int32_t)mPlaylist->size() - 1);
 
+                if (mTSParser != NULL) {
+                    mTSParser->signalEOS(ERROR_END_OF_STREAM);
+                    // Use an empty buffer; we don't have any new data, just want to extract
+                    // potential new access units after flush.  Reset mSeqNumber to
+                    // lastSeqNumberInPlaylist such that we set the correct access unit
+                    // properties in extractAndQueueAccessUnitsFromTs.
+                    sp<ABuffer> buffer = new ABuffer(0);
+                    mSeqNumber = lastSeqNumberInPlaylist;
+                    extractAndQueueAccessUnitsFromTs(buffer);
+                }
                 notifyError(ERROR_END_OF_STREAM);
             } else {
                 // It's possible that we were never able to download the playlist.
