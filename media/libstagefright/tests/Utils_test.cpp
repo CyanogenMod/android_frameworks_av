@@ -192,6 +192,87 @@ TEST_F(UtilsTest, TestMathTemplates) {
     ASSERT_EQ(max(-4.3, 8.6), 8.6);
     ASSERT_EQ(max(8.6, -4.3), 8.6);
 
+    ASSERT_FALSE(isInRange(-43, 86u, -44));
+    ASSERT_TRUE(isInRange(-43, 87u, -43));
+    ASSERT_TRUE(isInRange(-43, 88u, -1));
+    ASSERT_TRUE(isInRange(-43, 89u, 0));
+    ASSERT_TRUE(isInRange(-43, 90u, 46));
+    ASSERT_FALSE(isInRange(-43, 91u, 48));
+    ASSERT_FALSE(isInRange(-43, 92u, 50));
+
+    ASSERT_FALSE(isInRange(43, 86u, 42));
+    ASSERT_TRUE(isInRange(43, 87u, 43));
+    ASSERT_TRUE(isInRange(43, 88u, 44));
+    ASSERT_TRUE(isInRange(43, 89u, 131));
+    ASSERT_FALSE(isInRange(43, 90u, 133));
+    ASSERT_FALSE(isInRange(43, 91u, 135));
+
+    ASSERT_FALSE(isInRange(43u, 86u, 42u));
+    ASSERT_TRUE(isInRange(43u, 85u, 43u));
+    ASSERT_TRUE(isInRange(43u, 84u, 44u));
+    ASSERT_TRUE(isInRange(43u, 83u, 125u));
+    ASSERT_FALSE(isInRange(43u, 82u, 125u));
+    ASSERT_FALSE(isInRange(43u, 81u, 125u));
+
+    ASSERT_FALSE(isInRange(-43, ~0u, 43));
+    ASSERT_FALSE(isInRange(-43, ~0u, 44));
+    ASSERT_FALSE(isInRange(-43, ~0u, ~0));
+    ASSERT_FALSE(isInRange(-43, ~0u, 41));
+    ASSERT_FALSE(isInRange(-43, ~0u, 40));
+
+    ASSERT_FALSE(isInRange(43u, ~0u, 43u));
+    ASSERT_FALSE(isInRange(43u, ~0u, 41u));
+    ASSERT_FALSE(isInRange(43u, ~0u, 40u));
+    ASSERT_FALSE(isInRange(43u, ~0u, ~0u));
+
+    ASSERT_FALSE(isInRange(-43, 86u, -44, 0u));
+    ASSERT_FALSE(isInRange(-43, 86u, -44, 1u));
+    ASSERT_FALSE(isInRange(-43, 86u, -44, 2u));
+    ASSERT_FALSE(isInRange(-43, 86u, -44, ~0u));
+    ASSERT_TRUE(isInRange(-43, 87u, -43, 0u));
+    ASSERT_TRUE(isInRange(-43, 87u, -43, 1u));
+    ASSERT_TRUE(isInRange(-43, 87u, -43, 86u));
+    ASSERT_TRUE(isInRange(-43, 87u, -43, 87u));
+    ASSERT_FALSE(isInRange(-43, 87u, -43, 88u));
+    ASSERT_FALSE(isInRange(-43, 87u, -43, ~0u));
+    ASSERT_TRUE(isInRange(-43, 88u, -1, 0u));
+    ASSERT_TRUE(isInRange(-43, 88u, -1, 45u));
+    ASSERT_TRUE(isInRange(-43, 88u, -1, 46u));
+    ASSERT_FALSE(isInRange(-43, 88u, -1, 47u));
+    ASSERT_FALSE(isInRange(-43, 88u, -1, ~3u));
+    ASSERT_TRUE(isInRange(-43, 90u, 46, 0u));
+    ASSERT_TRUE(isInRange(-43, 90u, 46, 1u));
+    ASSERT_FALSE(isInRange(-43, 90u, 46, 2u));
+    ASSERT_FALSE(isInRange(-43, 91u, 48, 0u));
+    ASSERT_FALSE(isInRange(-43, 91u, 48, 2u));
+    ASSERT_FALSE(isInRange(-43, 91u, 48, ~6u));
+    ASSERT_FALSE(isInRange(-43, 92u, 50, 0u));
+    ASSERT_FALSE(isInRange(-43, 92u, 50, 1u));
+
+    ASSERT_FALSE(isInRange(43u, 86u, 42u, 0u));
+    ASSERT_FALSE(isInRange(43u, 86u, 42u, 1u));
+    ASSERT_FALSE(isInRange(43u, 86u, 42u, 2u));
+    ASSERT_FALSE(isInRange(43u, 86u, 42u, ~0u));
+    ASSERT_TRUE(isInRange(43u, 87u, 43u, 0u));
+    ASSERT_TRUE(isInRange(43u, 87u, 43u, 1u));
+    ASSERT_TRUE(isInRange(43u, 87u, 43u, 86u));
+    ASSERT_TRUE(isInRange(43u, 87u, 43u, 87u));
+    ASSERT_FALSE(isInRange(43u, 87u, 43u, 88u));
+    ASSERT_FALSE(isInRange(43u, 87u, 43u, ~0u));
+    ASSERT_TRUE(isInRange(43u, 88u, 60u, 0u));
+    ASSERT_TRUE(isInRange(43u, 88u, 60u, 70u));
+    ASSERT_TRUE(isInRange(43u, 88u, 60u, 71u));
+    ASSERT_FALSE(isInRange(43u, 88u, 60u, 72u));
+    ASSERT_FALSE(isInRange(43u, 88u, 60u, ~3u));
+    ASSERT_TRUE(isInRange(43u, 90u, 132u, 0u));
+    ASSERT_TRUE(isInRange(43u, 90u, 132u, 1u));
+    ASSERT_FALSE(isInRange(43u, 90u, 132u, 2u));
+    ASSERT_FALSE(isInRange(43u, 91u, 134u, 0u));
+    ASSERT_FALSE(isInRange(43u, 91u, 134u, 2u));
+    ASSERT_FALSE(isInRange(43u, 91u, 134u, ~6u));
+    ASSERT_FALSE(isInRange(43u, 92u, 136u, 0u));
+    ASSERT_FALSE(isInRange(43u, 92u, 136u, 1u));
+
     ASSERT_EQ(periodicError(124, 100), 24);
     ASSERT_EQ(periodicError(288, 100), 12);
     ASSERT_EQ(periodicError(-345, 100), 45);
