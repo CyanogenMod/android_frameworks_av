@@ -18,6 +18,11 @@ else
 endif
 endif
 
+ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+    LOCAL_C_INCLUDES += \
+        $(TOP)/hardware/mediatek/media/include
+endif
+
 LOCAL_MODULE:= libstagefright_color_conversion
 
 include $(BUILD_STATIC_LIBRARY)

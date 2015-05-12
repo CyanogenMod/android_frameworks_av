@@ -30,6 +30,11 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaErrors.h>
 
+#ifdef MTK_HARDWARE
+#include <bufferallocator/OMXNodeInstanceBufferHandler.h>
+#endif
+
+
 static const OMX_U32 kPortIndexInput = 0;
 
 namespace android {
@@ -98,10 +103,18 @@ OMXNodeInstance::OMXNodeInstance(
       mHandle(NULL),
       mObserver(observer),
       mDying(false) {
+#ifdef MTK_HARDWARE
+    mMtkBufferHandler = new OMXNodeInstanceBufferHandler(this);
+#endif
 }
 
 OMXNodeInstance::~OMXNodeInstance() {
     CHECK(mHandle == NULL);
+
+#ifdef MTK_HARDWARE
+    delete mMtkBufferHandler;
+    mMtkBufferHandler = NULL;
+#endif
 }
 
 void OMXNodeInstance::setHandle(OMX::node_id node_id, OMX_HANDLETYPE handle) {
@@ -497,6 +510,35 @@ status_t OMXNodeInstance::useBuffer(
     return OK;
 }
 
+#ifdef MTK_HARDWARE
+status_t OMXNodeInstance::useBuffer(
+         OMX_U32 portIndex, unsigned char* virAddr, size_t size,
+        OMX::buffer_id *buffer) {
+    return mMtkBufferHandler->useBuffer(portIndex, virAddr, size, buffer);
+ }
+
+ status_t OMXNodeInstance::useBuffer(
+        OMX_U32 portIndex, unsigned char* virAddr, size_t size, OMX_U32 offset,
+        OMX::buffer_id *buffer) {
+    return mMtkBufferHandler->useBuffer(portIndex, virAddr, size, offset, buffer);
+ }
+
+status_t OMXNodeInstance::registerBuffer(
+        OMX_U32 portIndex, const sp<IMemoryHeap> &heap) {
+    return mMtkBufferHandler->registerBuffer(portIndex, heap);
+}
+
+status_t OMXNodeInstance::registerBuffer2(
+        OMX_U32 portIndex, const sp<IMemoryHeap> &HeapBase) {
+    return mMtkBufferHandler->registerBuffer2(portIndex, HeapBase);
+}
+
+status_t OMXNodeInstance::useIonBuffer(
+            OMX_U32 portIndex, unsigned char* virAddr, OMX_S32 fd, size_t size, OMX::buffer_id *buffer) {
+    return mMtkBufferHandler->useIonBuffer(portIndex, virAddr, fd, size, buffer);
+}
+#endif
+
 status_t OMXNodeInstance::useGraphicBuffer2_l(
         OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
         OMX::buffer_id *buffer) {
@@ -558,12 +600,15 @@ status_t OMXNodeInstance::useGraphicBuffer(
 
     // See if the newer version of the extension is present.
     OMX_INDEXTYPE index;
+
+#ifndef MTK_HARDWARE
     if (OMX_GetExtensionIndex(
             mHandle,
             const_cast<OMX_STRING>("OMX.google.android.index.useAndroidNativeBuffer2"),
             &index) == OMX_ErrorNone) {
         return useGraphicBuffer2_l(portIndex, graphicBuffer, buffer);
     }
+#endif
 
     OMX_STRING name = const_cast<OMX_STRING>(
         "OMX.google.android.index.useAndroidNativeBuffer");

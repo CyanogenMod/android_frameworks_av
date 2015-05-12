@@ -82,6 +82,12 @@ LOCAL_STATIC_LIBRARIES := \
     libcpustats \
     libmedia_helper
 
+ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+    LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
+    LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
+    LOCAL_SHARED_LIBRARIES += libblisrc
+endif
+
 LOCAL_MODULE:= libaudioflinger
 
 LOCAL_SRC_FILES += FastMixer.cpp FastMixerState.cpp AudioWatchdog.cpp
@@ -132,6 +138,12 @@ LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libutils \
     liblog
+
+ifeq ($(BOARD_HAS_MTK_HARDWARE),true)
+    LOCAL_STATIC_LIBRARIES += libstagefright_audioresamplermtk
+    LOCAL_C_INCLUDES += $(TOP)/hardware/mediatek/media/include
+    LOCAL_SHARED_LIBRARIES += libblisrc
+endif
 
 LOCAL_MODULE:= test-resample
 

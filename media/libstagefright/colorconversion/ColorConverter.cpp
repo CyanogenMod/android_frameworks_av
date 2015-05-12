@@ -22,6 +22,10 @@
 #include <media/stagefright/ColorConverter.h>
 #include <media/stagefright/MediaErrors.h>
 
+#ifdef MTK_HARDWARE
+#include <mtkcolorconverter/MtkColorConverter.h>
+#endif
+
 namespace android {
 
 ColorConverter::ColorConverter(
@@ -29,11 +33,18 @@ ColorConverter::ColorConverter(
     : mSrcFormat(from),
       mDstFormat(to),
       mClip(NULL) {
+#ifdef MTK_HARDWARE
+    mMtkColorConverter = new MtkColorConverter(this);
+#endif
 }
 
 ColorConverter::~ColorConverter() {
     delete[] mClip;
     mClip = NULL;
+#ifdef MTK_HARDWARE
+    delete mMtkColorConverter;
+    mMtkColorConverter = NULL;
+#endif
 }
 
 bool ColorConverter::isValid() const {
@@ -47,6 +58,11 @@ bool ColorConverter::isValid() const {
         case OMX_QCOM_COLOR_FormatYVU420SemiPlanar:
         case OMX_COLOR_FormatYUV420SemiPlanar:
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
+#ifdef MTK_HARDWARE
+        case OMX_MTK_COLOR_FormatYV12:
+        case OMX_COLOR_FormatVendorMTKYUV:
+        case OMX_COLOR_FormatVendorMTKYUV_FCM:
+#endif
             return true;
 
         default:
@@ -103,7 +119,11 @@ status_t ColorConverter::convert(
 
     switch (mSrcFormat) {
         case OMX_COLOR_FormatYUV420Planar:
+#ifdef MTK_HARDWARE
+            err = mMtkColorConverter->convertYUVToRGBHW(src, dst);
+#else
             err = convertYUV420Planar(src, dst);
+#endif
             break;
 
         case OMX_COLOR_FormatCbYCrY:
@@ -121,6 +141,14 @@ status_t ColorConverter::convert(
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
             err = convertTIYUV420PackedSemiPlanar(src, dst);
             break;
+
+#ifdef MTK_HARDWARE
+        case OMX_MTK_COLOR_FormatYV12:
+        case OMX_COLOR_FormatVendorMTKYUV:
+        case OMX_COLOR_FormatVendorMTKYUV_FCM:
+            err = mMtkColorConverter->convertYUVToRGBHW(src, dst);
+            break;
+#endif
 
         default:
         {

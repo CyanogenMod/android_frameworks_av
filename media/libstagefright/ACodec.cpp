@@ -53,6 +53,13 @@
 #include "include/ExtendedUtils.h"
 #endif
 
+#ifdef MTK_HARDWARE
+#define ENABLE_MTK_BUF_ADDR_ALIGNMENT
+#define MTK_BUF_ADDR_ALIGNMENT_VALUE 512
+
+#define ROUND_16(X)     ((X + 0xF) & (~0xF))
+#endif
+
 namespace android {
 
 template<class T>
@@ -502,12 +509,18 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
         if (err == OK) {
+#if defined(MTK_HARDWARE) && defined(ENABLE_MTK_BUF_ADDR_ALIGNMENT)
+            def.nBufferSize = ((def.nBufferSize + MTK_BUF_ADDR_ALIGNMENT_VALUE-1) & ~(MTK_BUF_ADDR_ALIGNMENT_VALUE-1));
+#endif
             ALOGV("[%s] Allocating %lu buffers of size %lu on %s port",
                     mComponentName.c_str(),
                     def.nBufferCountActual, def.nBufferSize,
                     portIndex == kPortIndexInput ? "input" : "output");
 
             size_t totalSize = def.nBufferCountActual * def.nBufferSize;
+#if defined(MTK_HARDWARE) && defined(ENABLE_MTK_BUF_ADDR_ALIGNMENT)
+            totalSize = def.nBufferCountActual * (((def.nBufferSize + MTK_BUF_ADDR_ALIGNMENT_VALUE-1) & ~(MTK_BUF_ADDR_ALIGNMENT_VALUE-1)) + MTK_BUF_ADDR_ALIGNMENT_VALUE);
+#endif
             mDealer[portIndex] = new MemoryDealer(totalSize, "ACodec");
 
             for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
@@ -543,7 +556,14 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 }
 
                 if (mem != NULL) {
+#if defined(MTK_HARDWARE) && defined(ENABLE_MTK_BUF_ADDR_ALIGNMENT)
+                    OMX_U8 *ptr = static_cast<OMX_U8 *>(mem->pointer());
+                    OMX_U32 pBuffer = ((reinterpret_cast<OMX_U32>(ptr)+(MTK_BUF_ADDR_ALIGNMENT_VALUE-1))&~(MTK_BUF_ADDR_ALIGNMENT_VALUE-1));
+                    info.mData = new ABuffer((void*)pBuffer, def.nBufferSize);
+                    ALOGD("@debug: Buffer[%d], %p(%p)", i, info.mData->data(), ptr);
+#else
                     info.mData = new ABuffer(mem->pointer(), def.nBufferSize);
+#endif
                 }
 
                 mBuffers[portIndex].push(info);
@@ -597,6 +617,39 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     def.format.video.nFrameWidth,
     def.format.video.nFrameHeight,
     eNativeColorFormat);
+#elif defined(MTK_HARDWARE)
+    uint32_t eHalWidth       = def.format.video.nFrameWidth;
+    uint32_t eHalHeight      = def.format.video.nFrameHeight;
+    uint32_t eHalColorFormat = def.format.video.eColorFormat;
+    if (!strncmp("OMX.MTK.", mComponentName.c_str(), 8)) {
+        // FIXME: we are always passing the clearmotion variants
+        // should we go with other formats?
+        eHalWidth = def.format.video.nStride;
+        eHalHeight = def.format.video.nSliceHeight;
+#ifdef MTK_OMX_USES_PRIVATE_YUV
+       eHalColorFormat = HAL_PIXEL_FORMAT_YUV_PRIVATE;
+#else
+       switch (def.format.video.eColorFormat) {
+           case OMX_COLOR_FormatYUV420Planar:
+               eHalColorFormat = HAL_PIXEL_FORMAT_I420;
+               break;
+           case OMX_COLOR_FormatVendorMTKYUV:
+               eHalColorFormat = HAL_PIXEL_FORMAT_NV12_BLK;
+               break;
+           case OMX_MTK_COLOR_FormatYV12:
+               eHalColorFormat = HAL_PIXEL_FORMAT_YV12;
+               break;
+           default:
+               eHalColorFormat = HAL_PIXEL_FORMAT_I420;
+               break;
+       }
+#endif
+    }
+    err = native_window_set_buffers_geometry(
+            mNativeWindow.get(),
+            eHalWidth,
+            eHalHeight,
+            eHalColorFormat);
 #else
     err = native_window_set_buffers_geometry(
             mNativeWindow.get(),
@@ -623,6 +676,28 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
     if (mFlags & kFlagIsSecure) {
         usage |= GRALLOC_USAGE_PROTECTED;
     }
+
+#if 0  // TODO: defer fix DRM
+#ifndef ANDROID_DEFAULT_CODE
+
+    if (mFlags & kFlagIsProtect) {
+        usage |= GRALLOC_USAGE_PROTECTED;
+        ALOGD("mFlags & kFlagIsProtect: %d, usage %x", kFlagIsProtect, usage);
+    }
+
+#ifdef MTK_SEC_VIDEO_PATH_SUPPORT
+    /* 
+        use secure buffer for secure video path
+        Note:
+            1. GTS1.3 and WVL3 case, kFlagIsSecure will not use.
+    */
+	if (mFlags & kFlagIsSecure) {
+		usage |=  GRALLOC_USAGE_SECURE;
+        ALOGW("ACODEC: use GRALLOC_USAGE_SECURE\n");				
+	}
+#endif	
+#endif
+#endif
 
     // Make sure to check whether either Stagefright or the video decoder
     // requested protected buffers.
@@ -663,7 +738,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
         return err;
     }
 
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) || defined(MTK_HARDWARE)
     //add an extra buffer to display queue to get around dequeue+wait
     //blocking too long (more than 1 Vsync) in case BufferQeuue is in
     //sync-mode and advertizes only 1 buffer
@@ -1951,16 +2026,35 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
         stride = width;
     }
 
+#ifdef MTK_HARDWARE
+    video_def->nStride = ROUND_16(stride);
+#else
     video_def->nStride = stride;
+#endif
 
     int32_t sliceHeight;
     if (!msg->findInt32("slice-height", &sliceHeight)) {
         sliceHeight = height;
     }
 
+#ifdef MTK_HARDWARE
+    video_def->nSliceHeight = ROUND_16(sliceHeight);
+#else
     video_def->nSliceHeight = sliceHeight;
+#endif
 
+#ifdef MTK_HARDWARE
+    if( colorFormat == OMX_COLOR_Format16bitRGB565 )
+        def.nBufferSize = (video_def->nStride * video_def->nSliceHeight * 2);
+    else if( colorFormat == OMX_COLOR_Format24bitRGB888 )
+        def.nBufferSize = (video_def->nStride * video_def->nSliceHeight * 3);
+    else if( colorFormat == OMX_COLOR_Format32bitARGB8888 )
+        def.nBufferSize = (video_def->nStride * video_def->nSliceHeight * 4);
+    else
+        def.nBufferSize = (video_def->nStride * video_def->nSliceHeight * 3) / 2;
+#else
     def.nBufferSize = (video_def->nStride * video_def->nSliceHeight * 3) / 2;
+#endif
 
     float frameRate;
     if (!msg->findFloat("frame-rate", &frameRate)) {

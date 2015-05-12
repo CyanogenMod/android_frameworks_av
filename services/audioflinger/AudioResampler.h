@@ -44,6 +44,9 @@ public:
 #ifdef QTI_RESAMPLER
         QTI_QUALITY=5,
 #endif
+#ifdef MTK_HARDWARE
+        MTK_QUALITY=5,
+#endif
     };
 
     static AudioResampler* create(int bitDepth, int inChannelCount,

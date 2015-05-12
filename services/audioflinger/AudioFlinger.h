@@ -107,6 +107,11 @@ class AudioFlinger :
 public:
     static const char* getServiceName() ANDROID_API { return "media.audio_flinger"; }
 
+#ifdef MTK_HARDWARE
+    virtual status_t SetAudioData(int par1,size_t len, void *ptr);
+    virtual status_t GetAudioData(int par1,size_t len, void *ptr);
+#endif
+
     virtual     status_t    dump(int fd, const Vector<String16>& args);
 
     // IAudioFlinger interface, in binder opcode order

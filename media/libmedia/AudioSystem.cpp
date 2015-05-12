@@ -827,6 +827,29 @@ bool AudioSystem::isOffloadSupported(const audio_offload_info_t& info)
     return aps->isOffloadSupported(info);
 }
 
+#ifdef MTK_HARDWARE
+status_t AudioSystem::SetAudioData(int par1,size_t byte_len,void *ptr) {
+     ALOGD("SetAudioData");
+     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+     if (af == 0)
+     {
+         ALOGE("AudioSystem::SetAAudioData Error!! PERMISSION_DENIED");
+         return PERMISSION_DENIED;
+     }
+     return af->SetAudioData(par1,byte_len,ptr);
+}
+
+status_t AudioSystem::GetAudioData(int par1,size_t byte_len,void *ptr) {
+     ALOGD("GetAudioData");
+     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+     if (af == 0) {
+         ALOGE("AudioSystem::GetAAudioData Error!! PERMISSION_DENIED");
+         return PERMISSION_DENIED;
+     }
+     return af->GetAudioData(par1,byte_len,ptr);
+}
+#endif
+
 // ---------------------------------------------------------------------------
 
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who) {

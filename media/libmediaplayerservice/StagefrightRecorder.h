@@ -39,6 +39,10 @@ class MediaProfiles;
 class IGraphicBufferProducer;
 class SurfaceMediaSource;
 
+#ifdef MTK_HARDWARE
+struct StagefrightRecorderMemoryHandler;
+#endif
+
 struct StagefrightRecorder : public MediaRecorderBase {
     StagefrightRecorder();
     virtual ~StagefrightRecorder();
@@ -130,6 +134,9 @@ private:
     // will be sent to the client side using which the
     // frame buffers will be queued and dequeued
     sp<SurfaceMediaSource> mSurfaceMediaSource;
+#ifdef MTK_HARDWARE
+    StagefrightRecorderMemoryHandler *mMtkMemoryHandler;
+#endif
 
     status_t setupMPEG4Recording(
         int outputFd,

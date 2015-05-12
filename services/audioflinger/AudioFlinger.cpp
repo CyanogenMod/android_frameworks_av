@@ -127,6 +127,29 @@ size_t AudioFlinger::mTeeSinkTrackFrames = kTeeSinkTrackFramesDefault;
 static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
 
 // ----------------------------------------------------------------------------
+#ifdef MTK_HARDWARE
+status_t AudioFlinger::SetAudioData(int par1,size_t len,void *ptr)
+{
+    ALOGV("SetAudioData par1 = %d,len = %d ",par1,len);
+    AutoMutex lock(mHardwareLock);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+    mHardwareStatus = AUDIO_HW_SET_PARAMETER;
+    dev->SetAudioData(dev,par1,len,ptr);
+    mHardwareStatus = AUDIO_HW_IDLE;
+    return NO_ERROR;
+}
+
+status_t AudioFlinger::GetAudioData(int par1,size_t len,void *ptr)
+{
+    ALOGV("GetAudioData par1 = %d,len = %d ",par1,len);
+    AutoMutex lock(mHardwareLock);
+    audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+    mHardwareStatus = AUDIO_HW_SET_PARAMETER;
+    dev->GetAudioData(dev,par1,len,ptr);
+    mHardwareStatus = AUDIO_HW_IDLE;
+    return NO_ERROR;
+}
+#endif
 
 static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
 {
@@ -1028,6 +1051,15 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
     } else {
         thread->setStreamVolume(stream, value);
     }
+
+#ifdef MTK_HARDWARE
+    // FM Volume is controlled by hardware, we want to keep it in sync with
+    // the music stream.
+    if (stream == AUDIO_STREAM_MUSIC) {
+        audio_hw_device_t *dev = mPrimaryHardwareDev->hwDevice();
+        dev->set_parameters(dev, String8::format("SetFmVolume=%f", value));
+    }
+#endif
 
     return NO_ERROR;
 }
@@ -2176,7 +2208,9 @@ audio_io_handle_t AudioFlinger::openInput(audio_module_handle_t module,
     // resample the input and do mono to stereo or stereo to mono conversions on 16 bit PCM inputs.
     if (status == BAD_VALUE &&
         reqFormat == config.format && config.format == AUDIO_FORMAT_PCM_16_BIT &&
+#ifndef MTK_HARDWARE
         (config.sample_rate <= 2 * reqSamplingRate) &&
+#endif
         (getInputChannelCount(config.channel_mask) <= FCC_2) && (getInputChannelCount(reqChannels) <= FCC_2)) {
         ALOGV("openInput() reopening with proposed sampling rate and channel mask");
         inStream = NULL;

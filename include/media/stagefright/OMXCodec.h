@@ -37,6 +37,10 @@ struct OMXCodecObserver;
 struct CodecProfileLevel;
 class SkipCutBuffer;
 
+#ifdef MTK_HARDWARE
+struct OMXCodecBufferAllocator;
+#endif
+
 struct OMXCodec : public MediaSource,
                   public MediaBufferObserver {
     enum CreationFlags {
@@ -103,6 +107,9 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
+#ifdef MTK_HARDWARE
+        kAvoidMemcopyInputRecordingFrames     = 8192,
+#endif
 #if defined(OMAP_ENHANCEMENT)
         kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
@@ -136,6 +143,10 @@ private:
 
     // Make sure mLock is accessible to OMXCodecObserver
     friend class OMXCodecObserver;
+
+#ifdef MTK_HARDWARE
+    friend struct OMXCodecBufferAllocator;
+#endif
 
     // Call this with mLock hold
     void on_message(const omx_message &msg);
@@ -230,7 +241,6 @@ private:
     Condition mAsyncCompletion;
 
     bool mPaused;
-
     sp<ANativeWindow> mNativeWindow;
 
     // The index in each of the mPortBuffers arrays of the buffer that will be
@@ -245,6 +255,11 @@ private:
     // Used to record the decoding time for an output picture from
     // a video encoder.
     List<int64_t> mDecodingTimeList;
+
+#ifdef MTK_HARDWARE
+    OMXCodecBufferAllocator *mMtkBufferAllocator;
+#endif
+
 
     OMXCodec(const sp<IOMX> &omx, IOMX::node_id node,
              uint32_t quirks, uint32_t flags,
@@ -380,7 +395,7 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
-#if defined(OMAP_ENHANCEMENT)
+#if defined(OMAP_ENHANCEMENT) || defined(MTK_HARDWARE)
     void restorePatchedDataPointer(BufferInfo *info);
 #endif
 
@@ -455,7 +470,6 @@ status_t QueryCodec(
         CodecCapabilities *caps);
 
 status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
-
 }  // namespace android
 
 #endif  // OMX_CODEC_H_

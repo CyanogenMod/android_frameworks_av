@@ -1,3 +1,4 @@
+
 /*
  * Copyright (C) 2009 The Android Open Source Project
  *
@@ -82,6 +83,26 @@ struct MuxOMX : public IOMX {
     virtual status_t useBuffer(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
             buffer_id *buffer);
+
+#ifdef MTK_HARDWARE
+    virtual status_t useBuffer(
+            node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size,
+            buffer_id *buffer);
+
+    virtual status_t useBuffer(
+            node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size, OMX_U32 offset,
+            buffer_id *buffer);
+
+    virtual status_t registerBuffer(
+            node_id node, OMX_U32 port_index, const sp<IMemoryHeap> &heap);
+
+    virtual status_t registerBuffer2(
+        node_id node, OMX_U32 port_index,  const sp<IMemoryHeap> &HeapBase);
+
+    virtual status_t useIonBuffer(
+            node_id node, OMX_U32 port_index,
+            unsigned char* virAddr, OMX_S32 fd, size_t size, buffer_id *buffer);
+#endif
 
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
@@ -294,6 +315,35 @@ status_t MuxOMX::useBuffer(
         buffer_id *buffer) {
     return getOMX(node)->useBuffer(node, port_index, params, buffer);
 }
+
+#ifdef MTK_HARDWARE
+status_t MuxOMX::useBuffer(
+        node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size,
+        buffer_id *buffer) {
+    return getOMX(node)->useBuffer(node, port_index, virAddr, size, buffer);
+}
+
+status_t MuxOMX::useBuffer(
+        node_id node, OMX_U32 port_index, unsigned char* virAddr, size_t size, OMX_U32 offset,
+        buffer_id *buffer) {
+    return getOMX(node)->useBuffer(node, port_index, virAddr, size, offset, buffer);
+}
+
+status_t MuxOMX::registerBuffer(
+        node_id node, OMX_U32 port_index, const sp<IMemoryHeap> &heap) {
+    return getOMX(node)->registerBuffer(node, port_index, heap);
+}
+
+status_t MuxOMX::registerBuffer2(
+        node_id node, OMX_U32 port_index,  const sp<IMemoryHeap> &HeapBase) {
+    return getOMX(node)->registerBuffer2(node, port_index, HeapBase);
+}
+
+status_t MuxOMX::useIonBuffer(
+            node_id node, OMX_U32 port_index, unsigned char* virAddr, OMX_S32 fd, size_t size, buffer_id *buffer) {
+    return getOMX(node)->useIonBuffer(node, port_index, virAddr, fd, size, buffer);
+}
+#endif
 
 status_t MuxOMX::useGraphicBuffer(
         node_id node, OMX_U32 port_index,
