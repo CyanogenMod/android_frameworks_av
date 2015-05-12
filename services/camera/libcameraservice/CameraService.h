@@ -38,9 +38,9 @@
 #include "CameraFlashlight.h"
 
 #include "common/CameraModule.h"
+#include "media/RingBuffer.h"
 #include "utils/AutoConditionLock.h"
 #include "utils/ClientManager.h"
-#include "utils/RingBuffer.h"
 
 #include <set>
 #include <string>

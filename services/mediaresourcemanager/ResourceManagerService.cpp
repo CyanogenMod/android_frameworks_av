@@ -126,8 +126,8 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& /* args */
             }
         }
     }
-    result.append("  Logs:\n");
-    result.append(mServiceLog->toString());
+    result.append("  Events logs (most recent at top):\n");
+    result.append(mServiceLog->toString("    " /* linePrefix */));
 
     write(fd, result.string(), result.size());
     return OK;

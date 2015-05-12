@@ -23,6 +23,8 @@
 #include <utils/threads.h>
 #include <utils/Vector.h>
 
+#include "media/RingBuffer.h"
+
 namespace android {
 
 class ServiceLog : public RefBase {
@@ -31,12 +33,14 @@ public:
     ServiceLog(size_t maxNum);
 
     void add(const String8 &log);
-    String8 toString() const;
+    String8 toString(const char *linePrefix = NULL) const;
 
 private:
-    int mMaxNum;
+    size_t mMaxNum;
     mutable Mutex mLock;
-    Vector<String8> mLogs;
+    RingBuffer<String8> mLogs;
+
+    void addLine(const char *log, const char *prefix, String8 *result) const;
 };
 
 // ----------------------------------------------------------------------------
