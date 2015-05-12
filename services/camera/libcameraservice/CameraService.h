@@ -126,19 +126,19 @@ public:
     virtual status_t    getCameraVendorTagDescriptor(/*out*/ sp<VendorTagDescriptor>& desc);
 
     virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
-            const String16& opPackageName, int clientUid,
+            const String16& clientPackageName, int clientUid,
             /*out*/
             sp<ICamera>& device);
 
     virtual status_t connectLegacy(const sp<ICameraClient>& cameraClient, int cameraId,
-            int halVersion, const String16& opPackageName, int clientUid,
+            int halVersion, const String16& clientPackageName, int clientUid,
             /*out*/
             sp<ICamera>& device);
 
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
-            const String16& opPackageName,
+            const String16& clientPackageName,
             int clientUid,
             /*out*/
             sp<ICameraDeviceUser>& device);
@@ -223,7 +223,7 @@ public:
     protected:
         BasicClient(const sp<CameraService>& cameraService,
                 const sp<IBinder>& remoteCallback,
-                const String16& opPackageName,
+                const String16& clientPackageName,
                 int cameraId,
                 int cameraFacing,
                 int clientPid,
@@ -242,7 +242,7 @@ public:
         sp<CameraService>               mCameraService;  // immutable after constructor
         int                             mCameraId;       // immutable after constructor
         int                             mCameraFacing;   // immutable after constructor
-        const String16                  mOpPackageName;
+        const String16                  mClientPackageName;
         pid_t                           mClientPid;
         uid_t                           mClientUid;      // immutable after constructor
         pid_t                           mServicePid;     // immutable after constructor
@@ -309,7 +309,7 @@ public:
         // Interface used by CameraService
         Client(const sp<CameraService>& cameraService,
                 const sp<ICameraClient>& cameraClient,
-                const String16& opPackageName,
+                const String16& clientPackageName,
                 int cameraId,
                 int cameraFacing,
                 int clientPid,
@@ -480,7 +480,7 @@ private:
     // Single implementation shared between the various connect calls
     template<class CALLBACK, class CLIENT>
     status_t connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId, int halVersion,
-            const String16& opPackageName, int clientUid, apiLevel effectiveApiLevel,
+            const String16& clientPackageName, int clientUid, apiLevel effectiveApiLevel,
             bool legacyMode, bool shimUpdateOnly, /*out*/sp<CLIENT>& device);
 
 
@@ -713,8 +713,6 @@ private:
             int facing, int clientPid, uid_t clientUid, int servicePid, bool legacyMode,
             int halVersion, int deviceVersion, apiLevel effectiveApiLevel,
             /*out*/sp<BasicClient>* client);
-
-    status_t checkCameraAccess(const String16& opPackageName);
 };
 
 template<class Func>
@@ -763,11 +761,11 @@ void CameraService::CameraState::updateStatus(ICameraServiceListener::Status sta
 
 template<class CALLBACK, class CLIENT>
 status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId,
-        int halVersion, const String16& opPackageName, int clientUid,
+        int halVersion, const String16& clientPackageName, int clientUid,
         apiLevel effectiveApiLevel, bool legacyMode, bool shimUpdateOnly,
         /*out*/sp<CLIENT>& device) {
     status_t ret = NO_ERROR;
-    String8 clientName8(opPackageName);
+    String8 clientName8(clientPackageName);
     int clientPid = getCallingPid();
 
     ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
@@ -838,7 +836,7 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
         int facing = -1;
         int deviceVersion = getDeviceVersion(id, /*out*/&facing);
         sp<BasicClient> tmp = nullptr;
-        if((ret = makeClient(this, cameraCb, opPackageName, cameraId, facing, clientPid,
+        if((ret = makeClient(this, cameraCb, clientPackageName, cameraId, facing, clientPid,
                 clientUid, getpid(), legacyMode, halVersion, deviceVersion, effectiveApiLevel,
                 /*out*/&tmp)) != NO_ERROR) {
             return ret;

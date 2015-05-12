@@ -71,13 +71,14 @@ Camera::~Camera()
     // deadlock if we call any method of ICamera here.
 }
 
-sp<Camera> Camera::connect(int cameraId, const String16& opPackageName, int clientUid)
+sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
+        int clientUid)
 {
-    return CameraBaseT::connect(cameraId, opPackageName, clientUid);
+    return CameraBaseT::connect(cameraId, clientPackageName, clientUid);
 }
 
 status_t Camera::connectLegacy(int cameraId, int halVersion,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int clientUid,
         sp<Camera>& camera)
 {
@@ -88,7 +89,7 @@ status_t Camera::connectLegacy(int cameraId, int halVersion,
     const sp<ICameraService>& cs = CameraBaseT::getCameraService();
 
     if (cs != 0) {
-        status = cs.get()->connectLegacy(cl, cameraId, halVersion, opPackageName,
+        status = cs.get()->connectLegacy(cl, cameraId, halVersion, clientPackageName,
                                         clientUid, /*out*/c->mCamera);
     }
     if (status == OK && c->mCamera != 0) {

@@ -164,7 +164,7 @@ public:
 
     // connect to camera service (android.hardware.Camera)
     virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
-                             const String16& opPackageName, int clientUid,
+                             const String16 &clientPackageName, int clientUid,
                              /*out*/
                              sp<ICamera>& device)
     {
@@ -172,7 +172,7 @@ public:
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(cameraClient));
         data.writeInt32(cameraId);
-        data.writeString16(opPackageName);
+        data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT, data, &reply);
 
@@ -187,7 +187,7 @@ public:
     // connect to camera service (android.hardware.Camera)
     virtual status_t connectLegacy(const sp<ICameraClient>& cameraClient, int cameraId,
                              int halVersion,
-                             const String16& opPackageName, int clientUid,
+                             const String16 &clientPackageName, int clientUid,
                              /*out*/sp<ICamera>& device)
     {
         Parcel data, reply;
@@ -195,7 +195,7 @@ public:
         data.writeStrongBinder(IInterface::asBinder(cameraClient));
         data.writeInt32(cameraId);
         data.writeInt32(halVersion);
-        data.writeString16(opPackageName);
+        data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT_LEGACY, data, &reply);
 
@@ -225,7 +225,7 @@ public:
     virtual status_t connectDevice(
             const sp<ICameraDeviceCallbacks>& cameraCb,
             int cameraId,
-            const String16& opPackageName,
+            const String16& clientPackageName,
             int clientUid,
             /*out*/
             sp<ICameraDeviceUser>& device)
@@ -234,7 +234,7 @@ public:
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(cameraCb));
         data.writeInt32(cameraId);
-        data.writeString16(opPackageName);
+        data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
         remote()->transact(BnCameraService::CONNECT_DEVICE, data, &reply);
 
@@ -374,11 +374,11 @@ status_t BnCameraService::onTransact(
             sp<ICameraClient> cameraClient =
                     interface_cast<ICameraClient>(data.readStrongBinder());
             int32_t cameraId = data.readInt32();
-            const String16 opPackageName = data.readString16();
+            const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
             sp<ICamera> camera;
             status_t status = connect(cameraClient, cameraId,
-                    opPackageName, clientUid, /*out*/camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {
@@ -394,11 +394,11 @@ status_t BnCameraService::onTransact(
             sp<ICameraDeviceCallbacks> cameraClient =
                 interface_cast<ICameraDeviceCallbacks>(data.readStrongBinder());
             int32_t cameraId = data.readInt32();
-            const String16 opPackageName = data.readString16();
+            const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
             sp<ICameraDeviceUser> camera;
             status_t status = connectDevice(cameraClient, cameraId,
-                    opPackageName, clientUid, /*out*/camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {
@@ -454,11 +454,11 @@ status_t BnCameraService::onTransact(
                     interface_cast<ICameraClient>(data.readStrongBinder());
             int32_t cameraId = data.readInt32();
             int32_t halVersion = data.readInt32();
-            const String16 opPackageName = data.readString16();
+            const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
             sp<ICamera> camera;
             status_t status = connectLegacy(cameraClient, cameraId, halVersion,
-                    opPackageName, clientUid, /*out*/camera);
+                    clientName, clientUid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {
