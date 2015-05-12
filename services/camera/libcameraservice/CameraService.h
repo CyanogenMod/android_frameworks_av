@@ -71,22 +71,8 @@ public:
         API_2 = 2
     };
 
-    // Process States (mirrors frameworks/base/core/java/android/app/ActivityManager.java)
+    // Process state (mirrors frameworks/base/core/java/android/app/ActivityManager.java)
     static const int PROCESS_STATE_NONEXISTENT = -1;
-    static const int PROCESS_STATE_PERSISTENT = 0;
-    static const int PROCESS_STATE_PERSISTENT_UI = 1;
-    static const int PROCESS_STATE_TOP = 2;
-    static const int PROCESS_STATE_IMPORTANT_FOREGROUND = 3;
-    static const int PROCESS_STATE_IMPORTANT_BACKGROUND = 4;
-    static const int PROCESS_STATE_BACKUP = 5;
-    static const int PROCESS_STATE_HEAVY_WEIGHT = 6;
-    static const int PROCESS_STATE_SERVICE = 7;
-    static const int PROCESS_STATE_RECEIVER = 8;
-    static const int PROCESS_STATE_HOME = 9;
-    static const int PROCESS_STATE_LAST_ACTIVITY = 10;
-    static const int PROCESS_STATE_CACHED_ACTIVITY = 11;
-    static const int PROCESS_STATE_CACHED_ACTIVITY_CLIENT = 12;
-    static const int PROCESS_STATE_CACHED_EMPTY = 13;
 
     // 3 second busy timeout when other clients are connecting
     static const nsecs_t DEFAULT_CONNECT_TIMEOUT_NS = 3000000000;
