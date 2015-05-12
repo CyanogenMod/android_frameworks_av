@@ -1057,24 +1057,19 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
 status_t CameraService::connect(
         const sp<ICameraClient>& cameraClient,
         int cameraId,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int clientUid,
         /*out*/
         sp<ICamera>& device) {
-
-    const status_t result = checkCameraAccess(opPackageName);
-    if (result != NO_ERROR) {
-        return result;
-    }
 
     status_t ret = NO_ERROR;
     String8 id = String8::format("%d", cameraId);
     sp<Client> client = nullptr;
     ret = connectHelper<ICameraClient,Client>(cameraClient, id, CAMERA_HAL_API_VERSION_UNSPECIFIED,
-            opPackageName, clientUid, API_1, false, false, /*out*/client);
+            clientPackageName, clientUid, API_1, false, false, /*out*/client);
 
     if(ret != NO_ERROR) {
-        logRejected(id, getCallingPid(), String8(opPackageName),
+        logRejected(id, getCallingPid(), String8(clientPackageName),
                 String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
@@ -1086,15 +1081,10 @@ status_t CameraService::connect(
 status_t CameraService::connectLegacy(
         const sp<ICameraClient>& cameraClient,
         int cameraId, int halVersion,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int clientUid,
         /*out*/
         sp<ICamera>& device) {
-
-    const status_t result = checkCameraAccess(opPackageName);
-    if (result != NO_ERROR) {
-        return result;
-    }
 
     String8 id = String8::format("%d", cameraId);
     int apiVersion = mModule->getModuleApiVersion();
@@ -1108,18 +1098,18 @@ status_t CameraService::connectLegacy(
          */
         ALOGE("%s: camera HAL module version %x doesn't support connecting to legacy HAL devices!",
                 __FUNCTION__, apiVersion);
-        logRejected(id, getCallingPid(), String8(opPackageName),
+        logRejected(id, getCallingPid(), String8(clientPackageName),
                 String8("HAL module version doesn't support legacy HAL connections"));
         return INVALID_OPERATION;
     }
 
     status_t ret = NO_ERROR;
     sp<Client> client = nullptr;
-    ret = connectHelper<ICameraClient,Client>(cameraClient, id, halVersion, opPackageName,
+    ret = connectHelper<ICameraClient,Client>(cameraClient, id, halVersion, clientPackageName,
             clientUid, API_1, true, false, /*out*/client);
 
     if(ret != NO_ERROR) {
-        logRejected(id, getCallingPid(), String8(opPackageName),
+        logRejected(id, getCallingPid(), String8(clientPackageName),
                 String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
@@ -1131,25 +1121,20 @@ status_t CameraService::connectLegacy(
 status_t CameraService::connectDevice(
         const sp<ICameraDeviceCallbacks>& cameraCb,
         int cameraId,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int clientUid,
         /*out*/
         sp<ICameraDeviceUser>& device) {
-
-    const status_t result = checkCameraAccess(opPackageName);
-    if (result != NO_ERROR) {
-        return result;
-    }
 
     status_t ret = NO_ERROR;
     String8 id = String8::format("%d", cameraId);
     sp<CameraDeviceClient> client = nullptr;
     ret = connectHelper<ICameraDeviceCallbacks,CameraDeviceClient>(cameraCb, id,
-            CAMERA_HAL_API_VERSION_UNSPECIFIED, opPackageName, clientUid, API_2, false, false,
+            CAMERA_HAL_API_VERSION_UNSPECIFIED, clientPackageName, clientUid, API_2, false, false,
             /*out*/client);
 
     if(ret != NO_ERROR) {
-        logRejected(id, getCallingPid(), String8(opPackageName),
+        logRejected(id, getCallingPid(), String8(clientPackageName),
                 String8::format("%s (%d)", strerror(-ret), ret));
         return ret;
     }
@@ -1544,24 +1529,24 @@ void CameraService::logEvent(const char* event) {
 }
 
 void CameraService::logDisconnected(const char* cameraId, int clientPid,
-        const char* opPackageName) {
+        const char* clientPackage) {
     // Log the clients evicted
     logEvent(String8::format("DISCONNECT device %s client for package %s (PID %d)", cameraId,
-            opPackageName, clientPid));
+            clientPackage, clientPid));
 }
 
 void CameraService::logConnected(const char* cameraId, int clientPid,
-        const char* opPackageName) {
+        const char* clientPackage) {
     // Log the clients evicted
     logEvent(String8::format("CONNECT device %s client for package %s (PID %d)", cameraId,
-            opPackageName, clientPid));
+            clientPackage, clientPid));
 }
 
 void CameraService::logRejected(const char* cameraId, int clientPid,
-        const char* opPackageName, const char* reason) {
+        const char* clientPackage, const char* reason) {
     // Log the client rejected
     logEvent(String8::format("REJECT device %s client for package %s (PID %d), reason: (%s)",
-            cameraId, opPackageName, clientPid, reason));
+            cameraId, clientPackage, clientPid, reason));
 }
 
 void CameraService::logUserSwitch(int oldUserId, int newUserId) {
@@ -1598,6 +1583,21 @@ status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* re
 
     // Permission checks
     switch (code) {
+        case BnCameraService::CONNECT:
+        case BnCameraService::CONNECT_DEVICE:
+        case BnCameraService::CONNECT_LEGACY: {
+            if (pid != selfPid) {
+                // we're called from a different process, do the real check
+                if (!checkCallingPermission(
+                        String16("android.permission.CAMERA"))) {
+                    const int uid = getCallingUid();
+                    ALOGE("Permission Denial: "
+                         "can't use the camera pid=%d, uid=%d", pid, uid);
+                    return PERMISSION_DENIED;
+                }
+            }
+            break;
+        }
         case BnCameraService::NOTIFY_SYSTEM_EVENT: {
             if (pid != selfPid) {
                 // Ensure we're being called by system_server, or similar process with
@@ -1615,38 +1615,6 @@ status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* re
     }
 
     return BnCameraService::onTransact(code, data, reply, flags);
-}
-
-status_t CameraService::checkCameraAccess(const String16& opPackageName) {
-    const int pid = getCallingPid();
-
-    if (pid == getpid()) {
-        return NO_ERROR;
-    }
-
-    const int uid = getCallingUid();
-
-    if (!checkCallingPermission(String16("android.permission.CAMERA"))) {
-        ALOGE("Permission Denial: can't use the camera pid=%d, uid=%d", pid, uid);
-        return PERMISSION_DENIED;
-    }
-
-    AppOpsManager appOps;
-    const int32_t result = appOps.noteOp(AppOpsManager::OP_CAMERA, uid, opPackageName);
-
-    switch (result) {
-        case AppOpsManager::MODE_ERRORED: {
-            ALOGE("App op OP_CAMERA errored: can't use the camera pid=%d, uid=%d", pid, uid);
-            return PERMISSION_DENIED;
-        } break;
-
-        case AppOpsManager::MODE_IGNORED: {
-             ALOGE("App op OP_CAMERA ignored: can't use the camera pid=%d, uid=%d", pid, uid);
-             return INVALID_OPERATION;
-        } break;
-    }
-
-    return NO_ERROR;
 }
 
 // We share the media players for shutter and recording sound for all clients.
@@ -1701,13 +1669,13 @@ void CameraService::playSound(sound_kind kind) {
 
 CameraService::Client::Client(const sp<CameraService>& cameraService,
         const sp<ICameraClient>& cameraClient,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int cameraId, int cameraFacing,
         int clientPid, uid_t clientUid,
         int servicePid) :
         CameraService::BasicClient(cameraService,
                 IInterface::asBinder(cameraClient),
-                opPackageName,
+                clientPackageName,
                 cameraId, cameraFacing,
                 clientPid, clientUid,
                 servicePid)
@@ -1734,11 +1702,11 @@ CameraService::Client::~Client() {
 
 CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
         const sp<IBinder>& remoteCallback,
-        const String16& opPackageName,
+        const String16& clientPackageName,
         int cameraId, int cameraFacing,
         int clientPid, uid_t clientUid,
         int servicePid):
-        mOpPackageName(opPackageName), mDisconnected(false)
+        mClientPackageName(clientPackageName), mDisconnected(false)
 {
     mCameraService = cameraService;
     mRemoteBinder = remoteCallback;
@@ -1766,7 +1734,7 @@ void CameraService::BasicClient::disconnect() {
 
     mCameraService->removeByClient(this);
     mCameraService->logDisconnected(String8::format("%d", mCameraId), mClientPid,
-            String8(mOpPackageName));
+            String8(mClientPackageName));
 
     sp<IBinder> remote = getRemote();
     if (remote != nullptr) {
@@ -1781,7 +1749,7 @@ void CameraService::BasicClient::disconnect() {
 }
 
 String16 CameraService::BasicClient::getPackageName() const {
-    return mOpPackageName;
+    return mClientPackageName;
 }
 
 
@@ -1801,17 +1769,17 @@ status_t CameraService::BasicClient::startCameraOps() {
 
     {
         ALOGV("%s: Start camera ops, package name = %s, client UID = %d",
-              __FUNCTION__, String8(mOpPackageName).string(), mClientUid);
+              __FUNCTION__, String8(mClientPackageName).string(), mClientUid);
     }
 
     mAppOpsManager.startWatchingMode(AppOpsManager::OP_CAMERA,
-            mOpPackageName, mOpsCallback);
+            mClientPackageName, mOpsCallback);
     res = mAppOpsManager.startOp(AppOpsManager::OP_CAMERA,
-            mClientUid, mOpPackageName);
+            mClientUid, mClientPackageName);
 
     if (res != AppOpsManager::MODE_ALLOWED) {
         ALOGI("Camera %d: Access for \"%s\" has been revoked",
-                mCameraId, String8(mOpPackageName).string());
+                mCameraId, String8(mClientPackageName).string());
         return PERMISSION_DENIED;
     }
 
@@ -1829,7 +1797,7 @@ status_t CameraService::BasicClient::finishCameraOps() {
     if (mOpsActive) {
         // Notify app ops that the camera is available again
         mAppOpsManager.finishOp(AppOpsManager::OP_CAMERA, mClientUid,
-                mOpPackageName);
+                mClientPackageName);
         mOpsActive = false;
 
         auto rejected = {ICameraServiceListener::STATUS_NOT_PRESENT,
@@ -1854,7 +1822,7 @@ status_t CameraService::BasicClient::finishCameraOps() {
 
 void CameraService::BasicClient::opChanged(int32_t op, const String16& packageName) {
     String8 name(packageName);
-    String8 myName(mOpPackageName);
+    String8 myName(mClientPackageName);
 
     if (op != AppOpsManager::OP_CAMERA) {
         ALOGW("Unexpected app ops notification received: %d", op);
@@ -1863,7 +1831,7 @@ void CameraService::BasicClient::opChanged(int32_t op, const String16& packageNa
 
     int32_t res;
     res = mAppOpsManager.checkOp(AppOpsManager::OP_CAMERA,
-            mClientUid, mOpPackageName);
+            mClientUid, mClientPackageName);
     ALOGV("checkOp returns: %d, %s ", res,
             res == AppOpsManager::MODE_ALLOWED ? "ALLOWED" :
             res == AppOpsManager::MODE_IGNORED ? "IGNORED" :
