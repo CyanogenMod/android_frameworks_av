@@ -272,6 +272,12 @@ void AudioPort::loadOutChannels(char *name)
                 (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sOutChannelsNameToEnumTable,
                                                    ARRAY_SIZE(sOutChannelsNameToEnumTable),
                                                    str);
+        if (channelMask == 0) { // if not found, check the channel index table
+            channelMask = (audio_channel_mask_t)
+                      ConfigParsingUtils::stringToEnum(sIndexChannelsNameToEnumTable,
+                              ARRAY_SIZE(sIndexChannelsNameToEnumTable),
+                              str);
+        }
         if (channelMask != 0) {
             mChannelMasks.add(channelMask);
         }
