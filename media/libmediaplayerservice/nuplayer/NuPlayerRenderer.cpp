@@ -146,7 +146,7 @@ status_t NuPlayer::Renderer::onConfigPlayback(const AudioPlaybackRate &rate /* s
         return OK;
     }
 
-    if (mAudioSink != NULL) {
+    if (mAudioSink != NULL && mAudioSink->ready()) {
         status_t err = mAudioSink->setPlaybackRate(rate);
         if (err != OK) {
             return err;
@@ -172,7 +172,7 @@ status_t NuPlayer::Renderer::getPlaybackSettings(AudioPlaybackRate *rate /* nonn
 }
 
 status_t NuPlayer::Renderer::onGetPlaybackSettings(AudioPlaybackRate *rate /* nonnull */) {
-    if (mAudioSink != NULL) {
+    if (mAudioSink != NULL && mAudioSink->ready()) {
         status_t err = mAudioSink->getPlaybackRate(rate);
         if (err == OK) {
             if (!isAudioPlaybackRateEqual(*rate, mPlaybackSettings)) {
@@ -1378,7 +1378,7 @@ void NuPlayer::Renderer::onResume() {
         mPaused = false;
 
         // configure audiosink as we did not do it when pausing
-        if (mAudioSink != NULL) {
+        if (mAudioSink != NULL && mAudioSink->ready()) {
             mAudioSink->setPlaybackRate(mPlaybackSettings);
         }
 
