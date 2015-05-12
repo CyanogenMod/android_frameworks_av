@@ -2679,13 +2679,23 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 if (exitPending()) {
                     break;
                 }
-                releaseWakeLock_l();
+                bool released = false;
+                // The following works around a bug in the offload driver. Ideally we would release
+                // the wake lock every time, but that causes the last offload buffer(s) to be
+                // dropped while the device is on battery, so we need to hold a wake lock during
+                // the drain phase.
+                if (mBytesRemaining && !(mDrainSequence & 1)) {
+                    releaseWakeLock_l();
+                    released = true;
+                }
                 mWakeLockUids.clear();
                 mActiveTracksGeneration++;
                 ALOGV("wait async completion");
                 mWaitWorkCV.wait(mLock);
                 ALOGV("async completion/wake");
-                acquireWakeLock_l();
+                if (released) {
+                    acquireWakeLock_l();
+                }
                 standbyTime = systemTime() + standbyDelay;
                 sleepTime = 0;
 
