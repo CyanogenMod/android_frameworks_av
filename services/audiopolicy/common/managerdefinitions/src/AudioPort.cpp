@@ -611,9 +611,13 @@ uint32_t AudioPort::pickSamplingRate() const
 
     // For mixed output and inputs, use max mixer sampling rates. Do not
     // limit sampling rate otherwise
+    // For inputs, also see checkCompatibleSamplingRate().
     if (mType != AUDIO_PORT_TYPE_MIX) {
         maxRate = UINT_MAX;
     }
+    // TODO: should mSamplingRates[] be ordered in terms of our preference
+    // and we return the first (and hence most preferred) match?  This is of concern if
+    // we want to choose 96kHz over 192kHz for USB driver stability or resource constraints.
     for (size_t i = 0; i < mSamplingRates.size(); i ++) {
         if ((mSamplingRates[i] > samplingRate) && (mSamplingRates[i] <= maxRate)) {
             samplingRate = mSamplingRates[i];

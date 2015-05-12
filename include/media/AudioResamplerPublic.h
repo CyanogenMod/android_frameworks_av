@@ -143,6 +143,16 @@ static inline size_t sourceFramesNeededWithTimestretch(
     return required * (double)speed + 1 + 1; // accounting for rounding dependencies
 }
 
+// Identifies sample rates that we associate with music
+// and thus eligible for better resampling and fast capture.
+// This is somewhat less than 44100 to allow for pitch correction
+// involving resampling as well as asynchronous resampling.
+#define AUDIO_PROCESSING_MUSIC_RATE 40000
+
+static inline bool isMusicRate(uint32_t sampleRate) {
+    return sampleRate >= AUDIO_PROCESSING_MUSIC_RATE;
+}
+
 } // namespace android
 
 // ---------------------------------------------------------------------------
