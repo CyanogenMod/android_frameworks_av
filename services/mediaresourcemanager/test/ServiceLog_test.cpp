@@ -34,35 +34,48 @@ protected:
 };
 
 TEST_F(ServiceLogTest, addThenToString) {
+    String8 logString;
+
     mServiceLog->add(String8("log1"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log1"));
-    ALOGV("toString:\n%s", mServiceLog->toString().string());
+    logString = mServiceLog->toString();
+    EXPECT_TRUE(logString.contains("log1"));
+    ALOGV("toString:\n%s", logString.string());
+
+    static const char kTestLogPrefix[] = "testlogprefix: ";
+    logString = mServiceLog->toString(kTestLogPrefix);
+    EXPECT_TRUE(logString.contains(kTestLogPrefix));
+    EXPECT_TRUE(logString.contains("log1"));
+    ALOGV("toString:\n%s", logString.string());
 
     mServiceLog->add(String8("log2"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log1"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log2"));
-    ALOGV("toString:\n%s", mServiceLog->toString().string());
+    logString = mServiceLog->toString();
+    EXPECT_TRUE(logString.contains("log1"));
+    EXPECT_TRUE(logString.contains("log2"));
+    ALOGV("toString:\n%s", logString.string());
 
     mServiceLog->add(String8("log3"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log1"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log2"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log3"));
-    ALOGV("toString:\n%s", mServiceLog->toString().string());
+    logString = mServiceLog->toString();
+    EXPECT_TRUE(logString.contains("log1"));
+    EXPECT_TRUE(logString.contains("log2"));
+    EXPECT_TRUE(logString.contains("log3"));
+    ALOGV("toString:\n%s", logString.string());
 
     mServiceLog->add(String8("log4"));
-    EXPECT_FALSE(mServiceLog->toString().contains("log1"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log2"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log3"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log4"));
-    ALOGV("toString:\n%s", mServiceLog->toString().string());
+    logString = mServiceLog->toString();
+    EXPECT_FALSE(logString.contains("log1"));
+    EXPECT_TRUE(logString.contains("log2"));
+    EXPECT_TRUE(logString.contains("log3"));
+    EXPECT_TRUE(logString.contains("log4"));
+    ALOGV("toString:\n%s", logString.string());
 
     mServiceLog->add(String8("log5"));
-    EXPECT_FALSE(mServiceLog->toString().contains("log1"));
-    EXPECT_FALSE(mServiceLog->toString().contains("log2"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log3"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log4"));
-    EXPECT_TRUE(mServiceLog->toString().contains("log5"));
-    ALOGV("toString:\n%s", mServiceLog->toString().string());
+    logString = mServiceLog->toString();
+    EXPECT_FALSE(logString.contains("log1"));
+    EXPECT_FALSE(logString.contains("log2"));
+    EXPECT_TRUE(logString.contains("log3"));
+    EXPECT_TRUE(logString.contains("log4"));
+    EXPECT_TRUE(logString.contains("log5"));
+    ALOGV("toString:\n%s", logString.string());
 }
 
 } // namespace android
