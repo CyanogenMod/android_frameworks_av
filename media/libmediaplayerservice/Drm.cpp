@@ -358,7 +358,18 @@ status_t Drm::openSession(Vector<uint8_t> &sessionId) {
     status_t err = mPlugin->openSession(sessionId);
     if (err == ERROR_DRM_RESOURCE_BUSY) {
         bool retry = false;
+        mLock.unlock();
+        // reclaimSession may call back to closeSession, since mLock is shared between Drm
+        // instances, we should unlock here to avoid deadlock.
         retry = DrmSessionManager::Instance()->reclaimSession(getCallingPid());
+        mLock.lock();
+        if (mInitCheck != OK) {
+            return mInitCheck;
+        }
+
+        if (mPlugin == NULL) {
+            return -EINVAL;
+        }
         if (retry) {
             err = mPlugin->openSession(sessionId);
         }
