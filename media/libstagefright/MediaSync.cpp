@@ -49,6 +49,7 @@ MediaSync::MediaSync()
         mMutex(),
         mReleaseCondition(),
         mNumOutstandingBuffers(0),
+        mUsageFlagsFromOutput(0),
         mNativeSampleRateInHz(0),
         mNumFramesWritten(0),
         mHasAudio(false),
@@ -82,10 +83,8 @@ MediaSync::~MediaSync() {
 status_t MediaSync::setSurface(const sp<IGraphicBufferProducer> &output) {
     Mutex::Autolock lock(mMutex);
 
-    // TODO: support suface change.
-    if (mOutput != NULL) {
-        ALOGE("setSurface: output surface has already been configured.");
-        return INVALID_OPERATION;
+    if (output == mOutput) {
+        return NO_ERROR;  // same output surface.
     }
 
     if (output == NULL && mSyncSettings.mSource == AVSYNC_SOURCE_VSYNC) {
@@ -94,8 +93,24 @@ status_t MediaSync::setSurface(const sp<IGraphicBufferProducer> &output) {
     }
 
     if (output != NULL) {
+        int newUsage = 0;
+        output->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS, &newUsage);
+
+        // Check usage flags only when current output surface has been used to create input surface.
+        if (mOutput != NULL && mInput != NULL) {
+            int ignoredFlags = (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER
+                    | GRALLOC_USAGE_EXTERNAL_DISP);
+            // New output surface is not allowed to add new usage flag except ignored ones.
+            if ((newUsage & ~(mUsageFlagsFromOutput | ignoredFlags)) != 0) {
+                ALOGE("setSurface: new output surface has new usage flag not used by current one.");
+                return BAD_VALUE;
+            }
+        }
+
+        // Try to connect to new output surface. If failed, current output surface will not
+        // be changed.
         IGraphicBufferProducer::QueueBufferOutput queueBufferOutput;
-        sp<OutputListener> listener(new OutputListener(this));
+        sp<OutputListener> listener(new OutputListener(this, output));
         IInterface::asBinder(output)->linkToDeath(listener);
         status_t status =
             output->connect(listener,
@@ -106,9 +121,17 @@ status_t MediaSync::setSurface(const sp<IGraphicBufferProducer> &output) {
             ALOGE("setSurface: failed to connect (%d)", status);
             return status;
         }
-
-        mOutput = output;
     }
+
+    if (mOutput != NULL) {
+        mOutput->disconnect(NATIVE_WINDOW_API_MEDIA);
+        while (!mBuffersSentToOutput.isEmpty()) {
+            returnBufferToInput_l(mBuffersSentToOutput.valueAt(0), Fence::NO_FENCE);
+            mBuffersSentToOutput.removeItemsAt(0);
+        }
+    }
+
+    mOutput = output;
 
     return NO_ERROR;
 }
@@ -181,9 +204,9 @@ status_t MediaSync::createInputSurface(
     if (status == NO_ERROR) {
         bufferConsumer->setConsumerName(String8("MediaSync"));
         // propagate usage bits from output surface
-        int usage = 0;
-        mOutput->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS, &usage);
-        bufferConsumer->setConsumerUsageBits(usage);
+        mUsageFlagsFromOutput = 0;
+        mOutput->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS, &mUsageFlagsFromOutput);
+        bufferConsumer->setConsumerUsageBits(mUsageFlagsFromOutput);
         *outBufferProducer = bufferProducer;
         mInput = bufferConsumer;
     }
@@ -602,11 +625,23 @@ void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
         return;
     }
 
+    if (mBuffersSentToOutput.indexOfKey(bufferItem.mGraphicBuffer->getId()) >= 0) {
+        // Something is wrong since this buffer should be held by output now, bail.
+        mInput->consumerDisconnect();
+        onAbandoned_l(true /* isInput */);
+        return;
+    }
+    mBuffersSentToOutput.add(bufferItem.mGraphicBuffer->getId(), bufferItem.mGraphicBuffer);
+
     ALOGV("queued buffer %#llx to output", (long long)bufferItem.mGraphicBuffer->getId());
 }
 
-void MediaSync::onBufferReleasedByOutput() {
+void MediaSync::onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output) {
     Mutex::Autolock lock(mMutex);
+
+    if (output != mOutput) {
+        return;  // This is not the current output, ignore.
+    }
 
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
@@ -627,6 +662,13 @@ void MediaSync::onBufferReleasedByOutput() {
     if (mIsAbandoned) {
         return;
     }
+
+    ssize_t ix = mBuffersSentToOutput.indexOfKey(buffer->getId());
+    if (ix < 0) {
+        // The buffer is unknown, maybe leftover, ignore.
+        return;
+    }
+    mBuffersSentToOutput.removeItemsAt(ix);
 
     returnBufferToInput_l(buffer, fence);
 }
@@ -727,13 +769,15 @@ void MediaSync::InputListener::binderDied(const wp<IBinder> &/* who */) {
     mSync->onAbandoned_l(true /* isInput */);
 }
 
-MediaSync::OutputListener::OutputListener(const sp<MediaSync> &sync)
-      : mSync(sync) {}
+MediaSync::OutputListener::OutputListener(const sp<MediaSync> &sync,
+        const sp<IGraphicBufferProducer> &output)
+      : mSync(sync),
+        mOutput(output) {}
 
 MediaSync::OutputListener::~OutputListener() {}
 
 void MediaSync::OutputListener::onBufferReleased() {
-    mSync->onBufferReleasedByOutput();
+    mSync->onBufferReleasedByOutput(mOutput);
 }
 
 void MediaSync::OutputListener::binderDied(const wp<IBinder> &/* who */) {
