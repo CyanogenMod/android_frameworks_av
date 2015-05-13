@@ -385,11 +385,10 @@ status_t OMX::createPersistentInputSurface(
             bufferProducer, bufferConsumer);
 }
 
-status_t OMX::usePersistentInputSurface(
+status_t OMX::setInputSurface(
         node_id node, OMX_U32 port_index,
         const sp<IGraphicBufferConsumer> &bufferConsumer) {
-    return findInstance(node)->usePersistentInputSurface(
-            port_index, bufferConsumer);
+    return findInstance(node)->setInputSurface(port_index, bufferConsumer);
 }
 
 

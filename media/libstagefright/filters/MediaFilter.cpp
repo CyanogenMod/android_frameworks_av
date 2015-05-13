@@ -76,9 +76,9 @@ void MediaFilter::initiateCreateInputSurface() {
     (new AMessage(kWhatCreateInputSurface, this))->post();
 }
 
-void MediaFilter::initiateUsePersistentInputSurface(
+void MediaFilter::initiateSetInputSurface(
         const sp<PersistentSurface> & /* surface */) {
-    ALOGW("initiateUsePersistentInputSurface() unsupported");
+    ALOGW("initiateSetInputSurface() unsupported");
 }
 
 void MediaFilter::initiateStart() {

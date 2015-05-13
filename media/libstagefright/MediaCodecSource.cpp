@@ -427,7 +427,7 @@ status_t MediaCodecSource::initEncoder() {
             // When using persistent surface, we are only interested in the
             // consumer, but have to use PersistentSurface as a wrapper to
             // pass consumer over messages (similar to BufferProducerWrapper)
-            err = mEncoder->usePersistentInputSurface(
+            err = mEncoder->setInputSurface(
                     new PersistentSurface(NULL, mGraphicBufferConsumer));
         } else {
             err = mEncoder->createInputSurface(&mGraphicBufferProducer);

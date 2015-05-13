@@ -891,7 +891,7 @@ status_t OMXNodeInstance::createPersistentInputSurface(
     return OK;
 }
 
-status_t OMXNodeInstance::usePersistentInputSurface(
+status_t OMXNodeInstance::setInputSurface(
         OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer) {
     Mutex::Autolock autolock(mLock);
     return createGraphicBufferSource(portIndex, bufferConsumer);
