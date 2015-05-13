@@ -118,7 +118,7 @@ public:
             sp<IGraphicBufferProducer> *bufferProducer,
             sp<IGraphicBufferConsumer> *bufferConsumer) = 0;
 
-    virtual status_t usePersistentInputSurface(
+    virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
             const sp<IGraphicBufferConsumer> &bufferConsumer) = 0;
 

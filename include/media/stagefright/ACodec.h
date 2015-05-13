@@ -44,8 +44,7 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
     virtual void initiateAllocateComponent(const sp<AMessage> &msg);
     virtual void initiateConfigureComponent(const sp<AMessage> &msg);
     virtual void initiateCreateInputSurface();
-    virtual void initiateUsePersistentInputSurface(
-            const sp<PersistentSurface> &surface);
+    virtual void initiateSetInputSurface(const sp<PersistentSurface> &surface);
     virtual void initiateStart();
     virtual void initiateShutdown(bool keepComponentAllocated = false);
 
@@ -119,7 +118,7 @@ private:
         kWhatConfigureComponent      = 'conf',
         kWhatSetSurface              = 'setS',
         kWhatCreateInputSurface      = 'cisf',
-        kWhatUsePersistentInputSurface = 'pisf',
+        kWhatSetInputSurface         = 'sisf',
         kWhatSignalEndOfInputStream  = 'eois',
         kWhatStart                   = 'star',
         kWhatRequestIDRFrame         = 'ridr',

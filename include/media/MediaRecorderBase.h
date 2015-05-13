@@ -57,7 +57,7 @@ struct MediaRecorderBase {
     virtual status_t reset() = 0;
     virtual status_t getMaxAmplitude(int *max) = 0;
     virtual status_t dump(int fd, const Vector<String16>& args) const = 0;
-    virtual status_t usePersistentSurface(const sp<IGraphicBufferConsumer>& surface) = 0;
+    virtual status_t setInputSurface(const sp<IGraphicBufferConsumer>& surface) = 0;
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const = 0;
 
 

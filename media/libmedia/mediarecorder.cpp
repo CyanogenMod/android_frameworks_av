@@ -345,9 +345,9 @@ sp<IGraphicBufferProducer> MediaRecorder::
 
 
 
-status_t MediaRecorder::usePersistentSurface(const sp<PersistentSurface>& surface)
+status_t MediaRecorder::setInputSurface(const sp<PersistentSurface>& surface)
 {
-    ALOGV("usePersistentSurface");
+    ALOGV("setInputSurface");
     if (mMediaRecorder == NULL) {
         ALOGE("media recorder is not initialized yet");
         return INVALID_OPERATION;
@@ -356,11 +356,11 @@ status_t MediaRecorder::usePersistentSurface(const sp<PersistentSurface>& surfac
                            (MEDIA_RECORDER_PREPARED |
                             MEDIA_RECORDER_RECORDING));
     if (isInvalidState) {
-        ALOGE("usePersistentSurface is called in an invalid state: %d", mCurrentState);
+        ALOGE("setInputSurface is called in an invalid state: %d", mCurrentState);
         return INVALID_OPERATION;
     }
 
-    return mMediaRecorder->usePersistentSurface(surface->getBufferConsumer());
+    return mMediaRecorder->setInputSurface(surface->getBufferConsumer());
 }
 
 status_t MediaRecorder::setVideoFrameRate(int frames_per_second)

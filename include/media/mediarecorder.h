@@ -237,7 +237,7 @@ public:
     status_t    close();
     status_t    release();
     void        notify(int msg, int ext1, int ext2);
-    status_t    usePersistentSurface(const sp<PersistentSurface>& surface);
+    status_t    setInputSurface(const sp<PersistentSurface>& surface);
     sp<IGraphicBufferProducer>     querySurfaceMediaSourceFromMediaServer();
 
 private:
