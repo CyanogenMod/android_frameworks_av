@@ -169,7 +169,7 @@ private:
     class OutputListener : public BnProducerListener,
                            public IBinder::DeathRecipient {
     public:
-        OutputListener(const sp<MediaSync> &sync);
+        OutputListener(const sp<MediaSync> &sync, const sp<IGraphicBufferProducer> &output);
         virtual ~OutputListener();
 
         // From IProducerListener
@@ -180,6 +180,7 @@ private:
 
     private:
         sp<MediaSync> mSync;
+        sp<IGraphicBufferProducer> mOutput;
     };
 
     // mIsAbandoned is set to true when the input or output dies.
@@ -192,6 +193,7 @@ private:
     size_t mNumOutstandingBuffers;
     sp<IGraphicBufferConsumer> mInput;
     sp<IGraphicBufferProducer> mOutput;
+    int mUsageFlagsFromOutput;
 
     sp<AudioTrack> mAudioTrack;
     uint32_t mNativeSampleRateInHz;
@@ -207,6 +209,12 @@ private:
     // and that could cause problem if the producer of |mInput| only
     // supports pre-registered buffers.
     KeyedVector<uint64_t, sp<GraphicBuffer> > mBuffersFromInput;
+
+    // Keep track of buffers sent to |mOutput|. When a new output surface comes
+    // in, those buffers will be returned to input and old output surface will
+    // be disconnected immediately.
+    KeyedVector<uint64_t, sp<GraphicBuffer> > mBuffersSentToOutput;
+
     sp<ALooper> mLooper;
     float mPlaybackRate;
 
@@ -241,7 +249,7 @@ private:
     // It gets called from an OutputListener.
     // During this callback, we detach the buffer from the output, and release
     // it to the input. A blocked onFrameAvailable call will be allowed to proceed.
-    void onBufferReleasedByOutput();
+    void onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output);
 
     // Return |buffer| back to the input.
     void returnBufferToInput_l(const sp<GraphicBuffer> &buffer, const sp<Fence> &fence);
