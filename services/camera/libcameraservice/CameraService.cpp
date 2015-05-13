@@ -519,34 +519,12 @@ String8 CameraService::getFormattedCurrentTime() {
 int CameraService::getCameraPriorityFromProcState(int procState) {
     // Find the priority for the camera usage based on the process state.  Higher priority clients
     // win for evictions.
-    // Note: Unlike the ordering for ActivityManager, persistent system processes will always lose
-    //       the camera to the top/foreground applications.
-    switch(procState) {
-        case PROCESS_STATE_TOP: // User visible
-            return 100;
-        case PROCESS_STATE_IMPORTANT_FOREGROUND: // Foreground
-            return 90;
-        case PROCESS_STATE_PERSISTENT: // Persistent system services
-        case PROCESS_STATE_PERSISTENT_UI:
-            return 80;
-        case PROCESS_STATE_IMPORTANT_BACKGROUND: // "Important" background processes
-            return 70;
-        case PROCESS_STATE_BACKUP: // Everything else
-        case PROCESS_STATE_HEAVY_WEIGHT:
-        case PROCESS_STATE_SERVICE:
-        case PROCESS_STATE_RECEIVER:
-        case PROCESS_STATE_HOME:
-        case PROCESS_STATE_LAST_ACTIVITY:
-        case PROCESS_STATE_CACHED_ACTIVITY:
-        case PROCESS_STATE_CACHED_ACTIVITY_CLIENT:
-        case PROCESS_STATE_CACHED_EMPTY:
-            return 1;
-        case PROCESS_STATE_NONEXISTENT:
-            return -1;
-        default:
-            ALOGE("%s: Received unknown process state from ActivityManagerService!", __FUNCTION__);
-            return -1;
+    if (procState < 0) {
+        ALOGE("%s: Received invalid process state %d from ActivityManagerService!", __FUNCTION__,
+                procState);
+        return -1;
     }
+    return INT_MAX - procState;
 }
 
 status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescriptor>& desc) {
