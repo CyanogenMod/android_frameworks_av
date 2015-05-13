@@ -55,7 +55,7 @@ public:
     virtual     status_t   close();
     virtual     status_t   release();
     virtual     status_t   dump(int fd, const Vector<String16>& args);
-    virtual     status_t   usePersistentSurface(const sp<IGraphicBufferConsumer>& surface);
+    virtual     status_t   setInputSurface(const sp<IGraphicBufferConsumer>& surface);
     virtual     sp<IGraphicBufferProducer> querySurfaceMediaSource();
 
 private:

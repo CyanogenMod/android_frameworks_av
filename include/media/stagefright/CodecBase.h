@@ -50,7 +50,7 @@ struct CodecBase : public AHandler {
     virtual void initiateAllocateComponent(const sp<AMessage> &msg) = 0;
     virtual void initiateConfigureComponent(const sp<AMessage> &msg) = 0;
     virtual void initiateCreateInputSurface() = 0;
-    virtual void initiateUsePersistentInputSurface(
+    virtual void initiateSetInputSurface(
             const sp<PersistentSurface> &surface) = 0;
     virtual void initiateStart() = 0;
     virtual void initiateShutdown(bool keepComponentAllocated = false) = 0;
