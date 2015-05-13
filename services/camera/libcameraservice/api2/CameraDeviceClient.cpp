@@ -691,14 +691,9 @@ status_t CameraDeviceClient::prepare(int streamId) {
         return BAD_VALUE;
     }
 
-    // Also returns BAD_VALUE if stream ID was not valid
+    // Also returns BAD_VALUE if stream ID was not valid, or stream already
+    // has been used
     res = mDevice->prepare(streamId);
-
-    if (res == BAD_VALUE) {
-        ALOGE("%s: Camera %d: Unexpected BAD_VALUE when preparing stream, but we"
-              " already checked and the stream ID (%d) should be valid.",
-              __FUNCTION__, mCameraId, streamId);
-    }
 
     return res;
 }
