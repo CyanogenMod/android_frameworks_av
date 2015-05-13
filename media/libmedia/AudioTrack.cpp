@@ -441,14 +441,6 @@ status_t AudioTrack::set(
                 ((flags | AUDIO_OUTPUT_FLAG_DIRECT) & ~AUDIO_OUTPUT_FLAG_FAST);
     }
 
-    // only allow deep buffering for music stream type
-    if (mStreamType != AUDIO_STREAM_MUSIC) {
-        flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
-        if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-            ALOGE("Offloading only allowed with music stream");
-            return BAD_VALUE; // To trigger fallback or let the client handle
-        }
-    }
 
     audio_stream_type_t attr_streamType = (mStreamType == AUDIO_STREAM_DEFAULT) ?
                                            audio_attributes_to_stream_type(&mAttributes):
