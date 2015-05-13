@@ -87,7 +87,7 @@ struct OMXNodeInstance {
             sp<IGraphicBufferProducer> *bufferProducer,
             sp<IGraphicBufferConsumer> *bufferConsumer);
 
-    status_t usePersistentInputSurface(
+    status_t setInputSurface(
             OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer);
 
     status_t signalEndOfInputStream();

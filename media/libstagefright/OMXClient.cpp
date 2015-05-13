@@ -108,7 +108,7 @@ struct MuxOMX : public IOMX {
             sp<IGraphicBufferProducer> *bufferProducer,
             sp<IGraphicBufferConsumer> *bufferConsumer);
 
-    virtual status_t usePersistentInputSurface(
+    virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
             const sp<IGraphicBufferConsumer> &bufferConsumer);
 
@@ -356,11 +356,10 @@ status_t MuxOMX::createPersistentInputSurface(
             bufferProducer, bufferConsumer);
 }
 
-status_t MuxOMX::usePersistentInputSurface(
+status_t MuxOMX::setInputSurface(
         node_id node, OMX_U32 port_index,
         const sp<IGraphicBufferConsumer> &bufferConsumer) {
-    return getOMX(node)->usePersistentInputSurface(
-            node, port_index, bufferConsumer);
+    return getOMX(node)->setInputSurface(node, port_index, bufferConsumer);
 }
 
 status_t MuxOMX::signalEndOfInputStream(node_id node) {

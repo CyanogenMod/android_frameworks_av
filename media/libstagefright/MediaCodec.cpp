@@ -554,9 +554,9 @@ status_t MediaCodec::configure(
     return err;
 }
 
-status_t MediaCodec::usePersistentInputSurface(
+status_t MediaCodec::setInputSurface(
         const sp<PersistentSurface> &surface) {
-    sp<AMessage> msg = new AMessage(kWhatUsePersistentInputSurface, this);
+    sp<AMessage> msg = new AMessage(kWhatSetInputSurface, this);
     msg->setObject("input-surface", surface.get());
 
     sp<AMessage> response;
@@ -1290,7 +1290,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                 case CodecBase::kWhatInputSurfaceAccepted:
                 {
-                    // response to initiateUsePersistentInputSurface()
+                    // response to initiateSetInputSurface()
                     status_t err = NO_ERROR;
                     sp<AMessage> response = new AMessage();
                     if (!msg->findInt32("err", &err)) {
@@ -1776,7 +1776,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
         }
 
         case kWhatCreateInputSurface:
-        case kWhatUsePersistentInputSurface:
+        case kWhatSetInputSurface:
         {
             sp<AReplyToken> replyID;
             CHECK(msg->senderAwaitsResponse(&replyID));
@@ -1794,7 +1794,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 sp<RefBase> obj;
                 CHECK(msg->findObject("input-surface", &obj));
 
-                mCodec->initiateUsePersistentInputSurface(
+                mCodec->initiateSetInputSurface(
                         static_cast<PersistentSurface *>(obj.get()));
             }
             break;
