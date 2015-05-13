@@ -29,12 +29,6 @@ include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
 
-# Clang++ aborts on AudioMixer.cpp,
-# b/18373866, "do not know how to split this operator."
-ifeq ($(filter $(TARGET_ARCH),arm arm64),$(TARGET_ARCH))
-    LOCAL_CLANG := false
-endif
-
 LOCAL_SRC_FILES:=               \
     AudioFlinger.cpp            \
     Threads.cpp                 \
