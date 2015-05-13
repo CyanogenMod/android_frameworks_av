@@ -147,7 +147,12 @@ private:
             OWNED_BY_UPSTREAM,
             OWNED_BY_DOWNSTREAM,
             OWNED_BY_NATIVE_WINDOW,
+            UNRECOGNIZED,            // not a tracked buffer
         };
+
+        static inline Status getSafeStatus(BufferInfo *info) {
+            return info == NULL ? UNRECOGNIZED : info->mStatus;
+        }
 
         IOMX::buffer_id mBufferID;
         Status mStatus;
@@ -156,6 +161,9 @@ private:
         sp<ABuffer> mData;
         sp<GraphicBuffer> mGraphicBuffer;
     };
+
+    static const char *_asString(BufferInfo::Status s);
+    void dumpBuffers(OMX_U32 portIndex);
 
 #if TRACK_BUFFER_TIMING
     struct BufferStats {
