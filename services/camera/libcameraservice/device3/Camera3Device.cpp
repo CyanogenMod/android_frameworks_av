@@ -1342,6 +1342,8 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
 status_t Camera3Device::prepare(int streamId) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Preparing stream %d", __FUNCTION__, mId, streamId);
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
 
     sp<Camera3StreamInterface> stream;
     ssize_t outputStreamIdx = mOutputStreams.indexOfKey(streamId);
@@ -1353,14 +1355,12 @@ status_t Camera3Device::prepare(int streamId) {
     stream = mOutputStreams.editValueAt(outputStreamIdx);
 
     if (stream->isUnpreparable() || stream->hasOutstandingBuffers() ) {
-        ALOGE("%s: Camera %d: Stream %d has already been a request target",
-                __FUNCTION__, mId, streamId);
+        CLOGE("Stream %d has already been a request target", streamId);
         return BAD_VALUE;
     }
 
     if (mRequestThread->isStreamPending(stream)) {
-        ALOGE("%s: Camera %d: Stream %d is already a target in a pending request",
-                __FUNCTION__, mId, streamId);
+        CLOGE("Stream %d is already a target in a pending request", streamId);
         return BAD_VALUE;
     }
 
