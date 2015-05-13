@@ -49,17 +49,11 @@ PolicySubsystem::PolicySubsystem(const std::string &name)
     // Try to connect a Plugin Interface from Audio Policy Engine
     EngineInstance *engineInstance = EngineInstance::getInstance();
 
-    if (engineInstance == NULL) {
-         ALOG_ASSERT(engineInstance != NULL, "NULL Plugin Interface");
-        return;
-    }
+    ALOG_ASSERT(engineInstance != NULL, "NULL Plugin Interface");
+
     // Retrieve the Route Interface
     mPluginInterface = engineInstance->queryInterface<android::AudioPolicyPluginInterface>();
-    if (mPluginInterface == NULL) {
-        // bailing out
-        ALOG_ASSERT(mPluginInterface != NULL, "NULL Plugin Interface");
-        return;
-    }
+    ALOG_ASSERT(mPluginInterface != NULL, "NULL Plugin Interface");
 
     // Provide mapping keys to the core, necessary when parsing the XML Structure files.
     addContextMappingKey(mKeyName);
