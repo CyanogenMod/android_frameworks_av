@@ -31,6 +31,7 @@ void CameraModule::deriveCameraCharacteristicsKeys(
 
     // Keys added in HAL3.3
     if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_3) {
+        const size_t NUM_DERIVED_KEYS_HAL3_3 = 3;
         Vector<uint8_t> controlModes;
         uint8_t data = ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE;
         chars.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE, &data, /*count*/1);
@@ -78,6 +79,17 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         }
 
         chars.update(ANDROID_CONTROL_AVAILABLE_MODES, controlModes);
+
+        entry = chars.find(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
+        Vector<int32_t> availableCharsKeys;
+        availableCharsKeys.setCapacity(entry.count + NUM_DERIVED_KEYS_HAL3_3);
+        for (size_t i = 0; i < entry.count; i++) {
+            availableCharsKeys.push(entry.data.i32[i]);
+        }
+        availableCharsKeys.push(ANDROID_CONTROL_AE_LOCK_AVAILABLE);
+        availableCharsKeys.push(ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE);
+        availableCharsKeys.push(ANDROID_CONTROL_AVAILABLE_MODES);
+        chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
     }
     return;
 }
