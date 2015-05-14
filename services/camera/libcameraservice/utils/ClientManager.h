@@ -432,15 +432,17 @@ std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VA
 
     auto iter = evicted.cbegin();
 
-    // Remove evicted clients from list
-    mClients.erase(std::remove_if(mClients.begin(), mClients.end(),
-        [&iter] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
-            if (curClientPtr->getKey() == (*iter)->getKey()) {
-                iter++;
-                return true;
-            }
-            return false;
-        }), mClients.end());
+    if (iter != evicted.cend()) {
+        // Remove evicted clients from list
+        mClients.erase(std::remove_if(mClients.begin(), mClients.end(),
+            [&iter] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
+                if (curClientPtr->getKey() == (*iter)->getKey()) {
+                    iter++;
+                    return true;
+                }
+                return false;
+            }), mClients.end());
+    }
 
     mClients.push_back(client);
     mRemovedCondition.broadcast();
