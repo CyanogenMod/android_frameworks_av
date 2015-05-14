@@ -1634,11 +1634,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
 
-    if ((format == AUDIO_FORMAT_PCM_16_BIT) &&(popcount(channelMask) > 2)) {
-        ALOGV("owerwrite flag(%x) for PCM16 multi-channel(CM:%x) playback", flags ,channelMask);
-        flags = AUDIO_OUTPUT_FLAG_DIRECT;
-    }
-
     sp<IOProfile> profile;
 
     // skip direct output selection if the request can obviously be attached to a mixed output
@@ -1656,9 +1651,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
 
-    if ((((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
-            !isNonOffloadableEffectEnabled()) &&
-            flags & AUDIO_OUTPUT_FLAG_DIRECT) {
+    if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
+            !isNonOffloadableEffectEnabled()) {
         profile = getProfileForDirectOutput(device,
                                            samplingRate,
                                            format,
