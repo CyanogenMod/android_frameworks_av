@@ -45,7 +45,8 @@ pred_lt4_asm:
          SUBLT     r5, r5, #2                         @x--
          SUB       r5, r5, #30                        @x -= 15
          RSB       r4, r2, #3                         @k = 3 - frac
-         ADRL      r8, Table
+         ADR       r8, Table
+         NOP                      @space for fixed up relative address of ADR
          LDR       r6, [r8]
          ADD       r6, r8
 	 MOV       r8, r4, LSL #6
@@ -456,7 +457,7 @@ pred_lt4_end:
 Table:
          .word       inter4_2-Table
 	 @ENDFUNC
-	 .END
+	 .end
 
 
 
