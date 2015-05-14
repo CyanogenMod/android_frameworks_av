@@ -98,5 +98,5 @@ LOOP:
 
            LDMFD   	r13!, {r4 - r12, r15}
 
-	   .END
+	   .end
 
