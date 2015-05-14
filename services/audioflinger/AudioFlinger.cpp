@@ -185,11 +185,14 @@ static int load_audio_interface(const char *if_name, audio_hw_device_t **dev)
     if (rc) {
         goto out;
     }
+#ifndef MR0_AUDIO_BLOB
     if ((*dev)->common.version < AUDIO_DEVICE_API_VERSION_MIN) {
         ALOGE("%s wrong audio hw device version %04x", __func__, (*dev)->common.version);
         rc = BAD_VALUE;
         goto out;
     }
+#endif
+
     return 0;
 
 out:
@@ -1858,6 +1861,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     {  // scope for auto-lock pattern
         AutoMutex lock(mHardwareLock);
 
+#ifndef MR0_AUDIO_BLOB
         if (0 == mAudioHwDevs.size()) {
             mHardwareStatus = AUDIO_HW_GET_MASTER_VOLUME;
             if (NULL != dev->get_master_volume) {
@@ -1875,6 +1879,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                 }
             }
         }
+#endif
 
         mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
         if ((NULL != dev->set_master_volume) &&
@@ -1883,12 +1888,14 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
                     AudioHwDevice::AHWD_CAN_SET_MASTER_VOLUME);
         }
 
+#ifndef MR0_AUDIO_BLOB
         mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
         if ((NULL != dev->set_master_mute) &&
             (OK == dev->set_master_mute(dev, mMasterMute))) {
             flags = static_cast<AudioHwDevice::Flags>(flags |
                     AudioHwDevice::AHWD_CAN_SET_MASTER_MUTE);
         }
+#endif
 
         mHardwareStatus = AUDIO_HW_IDLE;
     }
@@ -2144,7 +2151,12 @@ status_t AudioFlinger::openOutput(audio_module_handle_t module,
         thread->audioConfigChanged(AudioSystem::OUTPUT_OPENED);
 
         // the first primary output opened designates the primary hw device
+#ifdef STE_HARDWARE
+        if ( mPrimaryHardwareDev == NULL ) {
+#else
         if ((mPrimaryHardwareDev == NULL) && (flags & AUDIO_OUTPUT_FLAG_PRIMARY)) {
+#endif
+
             ALOGI("Using module %d has the primary audio interface", module);
             mPrimaryHardwareDev = thread->getOutput()->audioHwDev;
 
