@@ -1406,7 +1406,7 @@ sp<AMessage> LiveSession::getTrackInfo(size_t trackIndex) const {
             sp<AMessage> format = new AMessage();
             format->setInt32("type", MEDIA_TRACK_TYPE_METADATA);
             format->setString("language", "und");
-            format->setString("mime", MEDIA_MIMETYPE_DATA_METADATA);
+            format->setString("mime", MEDIA_MIMETYPE_DATA_TIMED_ID3);
             return format;
         }
         return mPlaylist->getTrackInfo(trackIndex);
