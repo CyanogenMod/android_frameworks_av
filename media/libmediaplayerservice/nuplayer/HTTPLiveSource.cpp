@@ -161,24 +161,22 @@ status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, i
 
     status_t err = INVALID_OPERATION;
     bool postFetchMsg = false, isSub = false;
-    if (trackIndex != mLiveSession->getTrackCount() - 1) {
+    if (!mHasMetadata || trackIndex != mLiveSession->getTrackCount() - 1) {
         err = mLiveSession->selectTrack(trackIndex, select);
         postFetchMsg = select;
         isSub = true;
     } else {
-        // metadata track
-        if (mHasMetadata) {
-            if (mMetadataSelected && !select) {
-                err = OK;
-            } else if (!mMetadataSelected && select) {
-                postFetchMsg = true;
-                err = OK;
-            } else {
-                err = BAD_VALUE; // behave as LiveSession::selectTrack
-            }
-
-            mMetadataSelected = select;
+        // metadata track; i.e. (mHasMetadata && trackIndex == mLiveSession->getTrackCount() - 1)
+        if (mMetadataSelected && !select) {
+            err = OK;
+        } else if (!mMetadataSelected && select) {
+            postFetchMsg = true;
+            err = OK;
+        } else {
+            err = BAD_VALUE; // behave as LiveSession::selectTrack
         }
+
+        mMetadataSelected = select;
     }
 
     if (err == OK) {
