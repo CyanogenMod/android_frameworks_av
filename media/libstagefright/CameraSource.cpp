@@ -608,6 +608,16 @@ status_t CameraSource::startCameraRecording() {
         }
     }
 
+    err = mCamera->sendCommand(
+        CAMERA_CMD_SET_VIDEO_FORMAT, mEncoderFormat, mEncoderDataSpace);
+
+    // This could happen for CameraHAL1 clients; thus the failure is
+    // not a fatal error
+    if (err != OK) {
+        ALOGW("Failed to set video encoder format/dataspace to %d, %d due to %d",
+                mEncoderFormat, mEncoderDataSpace, err);
+    }
+
     err = OK;
     if (mCameraFlags & FLAGS_HOT_CAMERA) {
         mCamera->unlock();
@@ -645,6 +655,9 @@ status_t CameraSource::start(MetaData *meta) {
 
     mStartTimeUs = 0;
     mNumInputBuffers = 0;
+    mEncoderFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    mEncoderDataSpace = HAL_DATASPACE_BT709;
+
     if (meta) {
         int64_t startTimeUs;
         if (meta->findInt64(kKeyTime, &startTimeUs)) {
@@ -656,6 +669,10 @@ status_t CameraSource::start(MetaData *meta) {
             CHECK_GT(nBuffers, 0);
             mNumInputBuffers = nBuffers;
         }
+
+        // TODO: Read in format/dataspace from somewhere
+        // Uncomment to test SW encoders until TODO is resolved
+        // mEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
     }
 
     status_t err;

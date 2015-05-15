@@ -63,7 +63,8 @@ class Camera2Device: public CameraDeviceBase {
             uint32_t width, uint32_t height, int format, int *id);
     virtual status_t createReprocessStreamFromStream(int outputId, int *id);
     virtual status_t getStreamInfo(int id,
-            uint32_t *width, uint32_t *height, uint32_t *format);
+            uint32_t *width, uint32_t *height,
+            uint32_t *format, android_dataspace *dataSpace);
     virtual status_t setStreamTransform(int id, int transform);
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);

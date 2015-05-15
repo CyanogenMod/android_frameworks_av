@@ -128,7 +128,8 @@ class CameraDeviceBase : public virtual RefBase {
      * Get information about a given stream.
      */
     virtual status_t getStreamInfo(int id,
-            uint32_t *width, uint32_t *height, uint32_t *format) = 0;
+            uint32_t *width, uint32_t *height,
+            uint32_t *format, android_dataspace *dataSpace) = 0;
 
     /**
      * Set stream gralloc buffer transform
