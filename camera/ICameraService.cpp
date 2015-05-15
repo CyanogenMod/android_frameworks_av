@@ -20,6 +20,7 @@
 #include <utils/Errors.h>
 #include <utils/String16.h>
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -303,10 +304,10 @@ public:
         return res;
     }
 
-    virtual void notifySystemEvent(int eventId, int arg0) {
+    virtual void notifySystemEvent(int32_t eventId, const int32_t* args, size_t len) {
         Parcel data, reply;
         data.writeInt32(eventId);
-        data.writeInt32(arg0);
+        data.writeInt32Array(len, args);
         remote()->transact(BnCameraService::NOTIFY_SYSTEM_EVENT, data, &reply,
                 IBinder::FLAG_ONEWAY);
     }
@@ -481,9 +482,26 @@ status_t BnCameraService::onTransact(
         } break;
         case NOTIFY_SYSTEM_EVENT: {
             CHECK_INTERFACE(ICameraService, data, reply);
-            int eventId = data.readInt32();
-            int arg0 = data.readInt32();
-            notifySystemEvent(eventId, arg0);
+            int32_t eventId = data.readInt32();
+            int32_t len = data.readInt32();
+            if (len < 0) {
+                ALOGE("%s: Received poorly formatted length in binder request: notifySystemEvent.",
+                        __FUNCTION__);
+                return FAILED_TRANSACTION;
+            }
+            if (len > 512) {
+                ALOGE("%s: Length %" PRIi32 " too long in binder request: notifySystemEvent.",
+                        __FUNCTION__, len);
+                return FAILED_TRANSACTION;
+            }
+            int32_t events[len] = {};
+            status_t status = data.read(events, sizeof(int32_t) * len);
+            if (status != NO_ERROR) {
+                ALOGE("%s: Received poorly formatted binder request: notifySystemEvent.",
+                        __FUNCTION__);
+                return FAILED_TRANSACTION;
+            }
+            notifySystemEvent(eventId, events, len);
             return NO_ERROR;
         } break;
         default:
