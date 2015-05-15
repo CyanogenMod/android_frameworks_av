@@ -1393,7 +1393,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMetadata() {
 
     if (mFormat == NULL) {
         mFormat = new MetaData;
-        mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_DATA_METADATA);
+        mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_DATA_TIMED_ID3);
     }
 
     return accessUnit;
