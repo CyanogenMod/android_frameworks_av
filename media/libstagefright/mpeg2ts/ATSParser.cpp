@@ -1355,6 +1355,11 @@ status_t ATSParser::parseAdaptationField(ABitReader *br, unsigned PID) {
     unsigned adaptation_field_length = br->getBits(8);
 
     if (adaptation_field_length > 0) {
+        if (adaptation_field_length * 8 > br->numBitsLeft()) {
+            ALOGV("Adaptation field should be included in a single TS packet.");
+            return ERROR_MALFORMED;
+        }
+
         unsigned discontinuity_indicator = br->getBits(1);
 
         if (discontinuity_indicator) {
