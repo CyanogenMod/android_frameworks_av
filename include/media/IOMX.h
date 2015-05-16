@@ -25,6 +25,8 @@
 #include <utils/List.h>
 #include <utils/String8.h>
 
+#include <media/hardware/MetadataBufferType.h>
+
 #include <OMX_Core.h>
 #include <OMX_Video.h>
 
@@ -81,8 +83,10 @@ public:
     virtual status_t getState(
             node_id node, OMX_STATETYPE* state) = 0;
 
+    // This will set *type to previous metadata buffer type on OMX error (not on binder error), and
+    // new metadata buffer type on success.
     virtual status_t storeMetaDataInBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable) = 0;
+            node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type = NULL) = 0;
 
     virtual status_t prepareForAdaptivePlayback(
             node_id node, OMX_U32 portIndex, OMX_BOOL enable,
@@ -111,17 +115,23 @@ public:
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) = 0;
 
+    // This will set *type to resulting metadata buffer type on OMX error (not on binder error) as
+    // well as on success.
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
-            sp<IGraphicBufferProducer> *bufferProducer) = 0;
+            sp<IGraphicBufferProducer> *bufferProducer,
+            MetadataBufferType *type = NULL) = 0;
 
     virtual status_t createPersistentInputSurface(
             sp<IGraphicBufferProducer> *bufferProducer,
             sp<IGraphicBufferConsumer> *bufferConsumer) = 0;
 
+    // This will set *type to resulting metadata buffer type on OMX error (not on binder error) as
+    // well as on success.
     virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
-            const sp<IGraphicBufferConsumer> &bufferConsumer) = 0;
+            const sp<IGraphicBufferConsumer> &bufferConsumer,
+            MetadataBufferType *type) = 0;
 
     virtual status_t signalEndOfInputStream(node_id node) = 0;
 
@@ -235,5 +245,16 @@ struct CodecProfileLevel {
 };
 
 }  // namespace android
+
+inline static const char *asString(android::MetadataBufferType i, const char *def = "??") {
+    using namespace android;
+    switch (i) {
+        case kMetadataBufferTypeCameraSource:   return "CameraSource";
+        case kMetadataBufferTypeGrallocSource:  return "GrallocSource";
+        case kMetadataBufferTypeANWBuffer:      return "ANWBuffer";
+        case kMetadataBufferTypeInvalid:        return "Invalid";
+        default:                                return def;
+    }
+}
 
 #endif  // ANDROID_IOMX_H_
