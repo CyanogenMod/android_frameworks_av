@@ -69,18 +69,16 @@ private:
 };
 
 struct NuPlayer::SeekAction : public Action {
-    SeekAction(int64_t seekTimeUs, bool needNotify)
-        : mSeekTimeUs(seekTimeUs),
-          mNeedNotify(needNotify) {
+    SeekAction(int64_t seekTimeUs)
+        : mSeekTimeUs(seekTimeUs) {
     }
 
     virtual void execute(NuPlayer *player) {
-        player->performSeek(mSeekTimeUs, mNeedNotify);
+        player->performSeek(mSeekTimeUs);
     }
 
 private:
     int64_t mSeekTimeUs;
-    bool mNeedNotify;
 
     DISALLOW_EVIL_CONSTRUCTORS(SeekAction);
 };
@@ -649,7 +647,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     int64_t currentPositionUs = 0;
                     if (getCurrentPosition(&currentPositionUs) == OK) {
                         mDeferredActions.push_back(
-                                new SeekAction(currentPositionUs, false /* needNotify */));
+                                new SeekAction(currentPositionUs));
                     }
                 }
 
@@ -1101,7 +1099,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             false /* audio */, false /* notifyComplete */);
                 }
 
-                performSeek(positionUs, false /* needNotify */);
+                performSeek(positionUs);
                 if (reason == Renderer::kDueToError) {
                     mRenderer->signalDisableOffloadAudio();
                     mOffloadAudio = false;
@@ -1147,7 +1145,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                                            FLUSH_CMD_FLUSH /* video */));
 
             mDeferredActions.push_back(
-                    new SeekAction(seekTimeUs, needNotify));
+                    new SeekAction(seekTimeUs));
 
             // After a flush without shutdown, decoder is paused.
             // Don't resume it until source seek is done, otherwise it could
@@ -1769,11 +1767,10 @@ void NuPlayer::processDeferredActions() {
     }
 }
 
-void NuPlayer::performSeek(int64_t seekTimeUs, bool needNotify) {
-    ALOGV("performSeek seekTimeUs=%lld us (%.2f secs), needNotify(%d)",
+void NuPlayer::performSeek(int64_t seekTimeUs) {
+    ALOGV("performSeek seekTimeUs=%lld us (%.2f secs)",
           (long long)seekTimeUs,
-          seekTimeUs / 1E6,
-          needNotify);
+          seekTimeUs / 1E6);
 
     if (mSource == NULL) {
         // This happens when reset occurs right before the loop mode
