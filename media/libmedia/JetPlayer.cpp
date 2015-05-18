@@ -85,12 +85,18 @@ int JetPlayer::init()
 
     // create the output AudioTrack
     mAudioTrack = new AudioTrack();
-    mAudioTrack->set(AUDIO_STREAM_MUSIC,  //TODO parameterize this
+    status_t status = mAudioTrack->set(AUDIO_STREAM_MUSIC,  //TODO parameterize this
             pLibConfig->sampleRate,
             AUDIO_FORMAT_PCM_16_BIT,
             audio_channel_out_mask_from_count(pLibConfig->numChannels),
             (size_t) mTrackBufferSize,
             AUDIO_OUTPUT_FLAG_NONE);
+    if (status != OK) {
+        ALOGE("JetPlayer::init(): Error initializing JET library; AudioTrack error %d", status);
+        mAudioTrack.clear();
+        mState = EAS_STATE_ERROR;
+        return EAS_FAILURE;
+    }
 
     // create render and playback thread
     {
