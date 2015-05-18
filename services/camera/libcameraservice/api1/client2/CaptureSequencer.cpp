@@ -43,6 +43,8 @@ CaptureSequencer::CaptureSequencer(wp<Camera2Client> client):
         mNewFrameReceived(false),
         mNewCaptureReceived(false),
         mShutterNotified(false),
+        mHalNotifiedShutter(false),
+        mShutterCaptureId(-1),
         mClient(client),
         mCaptureState(IDLE),
         mStateTransitionCount(0),
@@ -103,6 +105,16 @@ void CaptureSequencer::notifyAutoExposure(uint8_t newState, int triggerId) {
     if (!mNewAEState) {
         mNewAEState = true;
         mNewNotifySignal.signal();
+    }
+}
+
+void CaptureSequencer::notifyShutter(const CaptureResultExtras& resultExtras,
+                                     nsecs_t timestamp) {
+    ATRACE_CALL();
+    Mutex::Autolock l(mInputMutex);
+    if (!mHalNotifiedShutter && resultExtras.requestId == mShutterCaptureId) {
+        mHalNotifiedShutter = true;
+        mShutterNotifySignal.signal();
     }
 }
 
@@ -335,6 +347,11 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStart(
     } else {
         nextState = STANDARD_START;
     }
+    {
+        Mutex::Autolock l(mInputMutex);
+        mShutterCaptureId = mCaptureId;
+        mHalNotifiedShutter = false;
+    }
     mShutterNotified = false;
 
     return nextState;
@@ -541,6 +558,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
             return DONE;
         }
     }
+
     // TODO: Capture should be atomic with setStreamingRequest here
     res = client->getCameraDevice()->capture(captureCopy);
     if (res != OK) {
@@ -560,6 +578,31 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
     ATRACE_CALL();
     Mutex::Autolock l(mInputMutex);
 
+
+    // Wait for shutter callback
+    while (!mHalNotifiedShutter) {
+        if (mTimeoutCount <= 0) {
+            break;
+        }
+        res = mShutterNotifySignal.waitRelative(mInputMutex, kWaitDuration);
+        if (res == TIMED_OUT) {
+            mTimeoutCount--;
+            return STANDARD_CAPTURE_WAIT;
+        }
+    }
+
+    if (mHalNotifiedShutter) {
+        if (!mShutterNotified) {
+            SharedParameters::Lock l(client->getParameters());
+            /* warning: this also locks a SharedCameraCallbacks */
+            shutterNotifyLocked(l.mParameters, client, mMsgType);
+            mShutterNotified = true;
+        }
+    } else if (mTimeoutCount <= 0) {
+        ALOGW("Timed out waiting for shutter notification");
+        return DONE;
+    }
+
     // Wait for new metadata result (mNewFrame)
     while (!mNewFrameReceived) {
         res = mNewFrameSignal.waitRelative(mInputMutex, kWaitDuration);
@@ -567,15 +610,6 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             mTimeoutCount--;
             break;
         }
-    }
-
-    // Approximation of the shutter being closed
-    // - TODO: use the hal3 exposure callback in Camera3Device instead
-    if (mNewFrameReceived && !mShutterNotified) {
-        SharedParameters::Lock l(client->getParameters());
-        /* warning: this also locks a SharedCameraCallbacks */
-        shutterNotifyLocked(l.mParameters, client, mMsgType);
-        mShutterNotified = true;
     }
 
     // Wait until jpeg was captured by JpegProcessor
@@ -591,6 +625,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
         return DONE;
     }
     if (mNewFrameReceived && mNewCaptureReceived) {
+
         if (mNewFrameId != mCaptureId) {
             ALOGW("Mismatched capture frame IDs: Expected %d, got %d",
                     mCaptureId, mNewFrameId);
@@ -667,7 +702,6 @@ CaptureSequencer::CaptureState CaptureSequencer::manageBurstCaptureWait(
         sp<Camera2Client> &/*client*/) {
     status_t res;
     ATRACE_CALL();
-
     while (!mNewCaptureReceived) {
         res = mNewCaptureSignal.waitRelative(mInputMutex, kWaitDuration);
         if (res == TIMED_OUT) {

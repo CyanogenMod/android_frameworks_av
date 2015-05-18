@@ -1975,7 +1975,7 @@ String8 CameraService::CameraClientManager::toString() const {
         auto conflicting = i->getConflicting();
         auto clientSp = i->getValue();
         String8 packageName;
-        userid_t clientUserId;
+        userid_t clientUserId = 0;
         if (clientSp.get() != nullptr) {
             packageName = String8{clientSp->getPackageName()};
             uid_t clientUid = clientSp->getClientUid();
