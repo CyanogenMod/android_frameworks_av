@@ -85,6 +85,9 @@ AudioSource::AudioSource(
                     this,
                     frameCount /*notificationFrames*/);
         mInitCheck = mRecord->initCheck();
+        if (mInitCheck != OK) {
+            mRecord.clear();
+        }
     } else {
         mInitCheck = status;
     }
