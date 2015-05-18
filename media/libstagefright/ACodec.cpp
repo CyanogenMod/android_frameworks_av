@@ -2857,7 +2857,9 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
             break;
     }
 
-    ALOGI("setupVideoEncoder succeeded");
+    if (err == OK) {
+        ALOGI("setupVideoEncoder succeeded");
+    }
 
     return err;
 }
