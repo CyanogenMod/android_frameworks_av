@@ -1628,6 +1628,7 @@ status_t MediaPlayerService::AudioOutput::open(
         if ((t == 0) || (t->initCheck() != NO_ERROR)) {
             ALOGE("Unable to create audio track");
             delete newcbd;
+            // t goes out of scope, so reference count drops to zero
             return NO_INIT;
         } else {
             // successful AudioTrack initialization implies a legacy stream type was generated
