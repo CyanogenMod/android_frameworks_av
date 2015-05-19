@@ -356,6 +356,15 @@ private:
             // check that channelMask is the "canonical" one we expect for the channelCount.
             return channelMask == audio_channel_out_mask_from_count(channelCount);
             }
+        case AUDIO_CHANNEL_REPRESENTATION_INDEX:
+            if (kEnableExtendedChannels) {
+                const uint32_t channelCount = audio_channel_count_from_out_mask(channelMask);
+                if (channelCount >= FCC_2 // mono is not supported at this time
+                        && channelCount <= AudioMixer::MAX_NUM_CHANNELS) {
+                    return true;
+                }
+            }
+            return false;
         default:
             return false;
         }
