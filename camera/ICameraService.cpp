@@ -494,7 +494,8 @@ status_t BnCameraService::onTransact(
                         __FUNCTION__, len);
                 return FAILED_TRANSACTION;
             }
-            int32_t events[len] = {};
+            int32_t events[len];
+            memset(events, 0, sizeof(int32_t) * len);
             status_t status = data.read(events, sizeof(int32_t) * len);
             if (status != NO_ERROR) {
                 ALOGE("%s: Received poorly formatted binder request: notifySystemEvent.",
