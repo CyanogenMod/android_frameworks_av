@@ -583,6 +583,13 @@ ssize_t NuCachedSource2::readInternal(off64_t offset, void *data, size_t size) {
 
     Mutex::Autolock autoLock(mLock);
 
+    // If we're disconnecting, return EOS and don't access *data pointer.
+    // data could be on the stack of the caller to NuCachedSource2::readAt(),
+    // which may have exited already.
+    if (mDisconnecting) {
+        return ERROR_END_OF_STREAM;
+    }
+
     if (!mFetching) {
         mLastAccessPos = offset;
         restartPrefetcherIfNecessary_l(
