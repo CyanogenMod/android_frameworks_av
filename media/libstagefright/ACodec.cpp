@@ -5124,7 +5124,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     sp<CodecObserver> observer = new CodecObserver;
     IOMX::node_id node = 0;
 
-    status_t err = OMX_ErrorComponentNotFound;
+    status_t err = NAME_NOT_FOUND;
     for (size_t matchIndex = 0; matchIndex < matchingCodecs.size();
             ++matchIndex) {
         componentName = matchingCodecs.itemAt(matchIndex).mName.string();
