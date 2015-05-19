@@ -200,6 +200,9 @@ private:
             media_track_type trackType,
             int64_t seekTimeUs = -1ll, int64_t *actualTimeUs = NULL, bool formatChange = false);
 
+    void queueDiscontinuityIfNeeded(
+            bool seeking, bool formatChange, media_track_type trackType, Track *track);
+
     void schedulePollBuffering();
     void cancelPollBuffering();
     void restartPollBuffering();
