@@ -1510,17 +1510,7 @@ void NuPlayer::GenericSource::readBuffer(
                 mVideoTimeUs = timeUs;
             }
 
-            // formatChange && seeking: track whose source is changed during selection
-            // formatChange && !seeking: track whose source is not changed during selection
-            // !formatChange: normal seek
-            if ((seeking || formatChange)
-                    && (trackType == MEDIA_TRACK_TYPE_AUDIO
-                    || trackType == MEDIA_TRACK_TYPE_VIDEO)) {
-                ATSParser::DiscontinuityType type = (formatChange && seeking)
-                        ? ATSParser::DISCONTINUITY_FORMATCHANGE
-                        : ATSParser::DISCONTINUITY_NONE;
-                track->mPackets->queueDiscontinuity( type, NULL, true /* discard */);
-            }
+            queueDiscontinuityIfNeeded(seeking, formatChange, trackType, track);
 
             sp<ABuffer> buffer = mediaBufferToABuffer(
                     mbuf, trackType, seekTimeUs, actualTimeUs);
@@ -1538,9 +1528,25 @@ void NuPlayer::GenericSource::readBuffer(
                     false /* discard */);
 #endif
         } else {
+            queueDiscontinuityIfNeeded(seeking, formatChange, trackType, track);
             track->mPackets->signalEOS(err);
             break;
         }
+    }
+}
+
+void NuPlayer::GenericSource::queueDiscontinuityIfNeeded(
+        bool seeking, bool formatChange, media_track_type trackType, Track *track) {
+    // formatChange && seeking: track whose source is changed during selection
+    // formatChange && !seeking: track whose source is not changed during selection
+    // !formatChange: normal seek
+    if ((seeking || formatChange)
+            && (trackType == MEDIA_TRACK_TYPE_AUDIO
+            || trackType == MEDIA_TRACK_TYPE_VIDEO)) {
+        ATSParser::DiscontinuityType type = (formatChange && seeking)
+                ? ATSParser::DISCONTINUITY_FORMATCHANGE
+                : ATSParser::DISCONTINUITY_NONE;
+        track->mPackets->queueDiscontinuity(type, NULL /* extra */, true /* discard */);
     }
 }
 
