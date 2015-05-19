@@ -106,6 +106,8 @@ public:
 
     virtual void notifyAutoFocus(uint8_t newState, int triggerId);
     virtual void notifyAutoExposure(uint8_t newState, int triggerId);
+    virtual void notifyShutter(const CaptureResultExtras& resultExtras,
+                               nsecs_t timestamp);
 
     /**
      * Interface used by independent components of Camera2Client.
