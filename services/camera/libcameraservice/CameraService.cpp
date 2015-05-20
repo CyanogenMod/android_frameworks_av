@@ -959,6 +959,10 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
                         "(PID %" PRId32 ", priority %" PRId32 ")", i->getKey().string(),
                         String8{i->getValue()->getPackageName()}.string(), i->getOwnerId(),
                         i->getPriority());
+                ALOGE("   Conflicts with: Device %s, client package %s (PID %"
+                        PRId32 ", priority %" PRId32 ")", i->getKey().string(),
+                        String8{i->getValue()->getPackageName()}.string(), i->getOwnerId(),
+                        i->getPriority());
             }
 
             // Log the client's attempt
