@@ -42,6 +42,8 @@
 
 namespace android {
 
+const char *kMaxEncoderInputBuffers = "max-video-encoder-input-buffers";
+
 static Mutex sInitMutex;
 
 static MediaCodecList *gCodecList = NULL;
