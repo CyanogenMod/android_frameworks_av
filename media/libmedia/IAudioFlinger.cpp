@@ -80,7 +80,8 @@ enum {
     RELEASE_AUDIO_PATCH,
     LIST_AUDIO_PATCHES,
     SET_AUDIO_PORT_CONFIG,
-    GET_AUDIO_HW_SYNC
+    GET_AUDIO_HW_SYNC,
+    SYSTEM_READY
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -903,6 +904,12 @@ public:
         }
         return (audio_hw_sync_t)reply.readInt32();
     }
+    virtual status_t systemReady()
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        return remote()->transact(SYSTEM_READY, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -1394,6 +1401,11 @@ status_t BnAudioFlinger::onTransact(
         case GET_AUDIO_HW_SYNC: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32(getAudioHwSyncForSession((audio_session_t)data.readInt32()));
+            return NO_ERROR;
+        } break;
+        case SYSTEM_READY: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            systemReady();
             return NO_ERROR;
         } break;
         default:

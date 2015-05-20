@@ -158,6 +158,9 @@ public:
     // or no HW sync source is used.
     static audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId);
 
+    // Indicate JAVA services are ready (scheduling, power management ...)
+    static status_t systemReady();
+
     // Events used to synchronize actions between audio sessions.
     // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until
     // playback is complete on another audio session.
