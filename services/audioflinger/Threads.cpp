@@ -697,49 +697,62 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
 
 String8 channelMaskToString(audio_channel_mask_t mask, bool output) {
     String8 s;
-    if (output) {
-        if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT) s.append("front-left, ");
-        if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT) s.append("front-right, ");
-        if (mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) s.append("front-center, ");
-        if (mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) s.append("low freq, ");
-        if (mask & AUDIO_CHANNEL_OUT_BACK_LEFT) s.append("back-left, ");
-        if (mask & AUDIO_CHANNEL_OUT_BACK_RIGHT) s.append("back-right, ");
-        if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER) s.append("front-left-of-center, ");
-        if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER) s.append("front-right-of-center, ");
-        if (mask & AUDIO_CHANNEL_OUT_BACK_CENTER) s.append("back-center, ");
-        if (mask & AUDIO_CHANNEL_OUT_SIDE_LEFT) s.append("side-left, ");
-        if (mask & AUDIO_CHANNEL_OUT_SIDE_RIGHT) s.append("side-right, ");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_CENTER) s.append("top-center ,");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_LEFT) s.append("top-front-left, ");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_CENTER) s.append("top-front-center, ");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_RIGHT) s.append("top-front-right, ");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_LEFT) s.append("top-back-left, ");
-        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_CENTER) s.append("top-back-center, " );
-        if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_RIGHT) s.append("top-back-right, " );
-        if (mask & ~AUDIO_CHANNEL_OUT_ALL) s.append("unknown,  ");
-    } else {
-        if (mask & AUDIO_CHANNEL_IN_LEFT) s.append("left, ");
-        if (mask & AUDIO_CHANNEL_IN_RIGHT) s.append("right, ");
-        if (mask & AUDIO_CHANNEL_IN_FRONT) s.append("front, ");
-        if (mask & AUDIO_CHANNEL_IN_BACK) s.append("back, ");
-        if (mask & AUDIO_CHANNEL_IN_LEFT_PROCESSED) s.append("left-processed, ");
-        if (mask & AUDIO_CHANNEL_IN_RIGHT_PROCESSED) s.append("right-processed, ");
-        if (mask & AUDIO_CHANNEL_IN_FRONT_PROCESSED) s.append("front-processed, ");
-        if (mask & AUDIO_CHANNEL_IN_BACK_PROCESSED) s.append("back-processed, ");
-        if (mask & AUDIO_CHANNEL_IN_PRESSURE) s.append("pressure, ");
-        if (mask & AUDIO_CHANNEL_IN_X_AXIS) s.append("X, ");
-        if (mask & AUDIO_CHANNEL_IN_Y_AXIS) s.append("Y, ");
-        if (mask & AUDIO_CHANNEL_IN_Z_AXIS) s.append("Z, ");
-        if (mask & AUDIO_CHANNEL_IN_VOICE_UPLINK) s.append("voice-uplink, ");
-        if (mask & AUDIO_CHANNEL_IN_VOICE_DNLINK) s.append("voice-dnlink, ");
-        if (mask & ~AUDIO_CHANNEL_IN_ALL) s.append("unknown,  ");
+    const audio_channel_representation_t representation = audio_channel_mask_get_representation(mask);
+
+    switch (representation) {
+    case AUDIO_CHANNEL_REPRESENTATION_POSITION: {
+        if (output) {
+            if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT) s.append("front-left, ");
+            if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT) s.append("front-right, ");
+            if (mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) s.append("front-center, ");
+            if (mask & AUDIO_CHANNEL_OUT_LOW_FREQUENCY) s.append("low freq, ");
+            if (mask & AUDIO_CHANNEL_OUT_BACK_LEFT) s.append("back-left, ");
+            if (mask & AUDIO_CHANNEL_OUT_BACK_RIGHT) s.append("back-right, ");
+            if (mask & AUDIO_CHANNEL_OUT_FRONT_LEFT_OF_CENTER) s.append("front-left-of-center, ");
+            if (mask & AUDIO_CHANNEL_OUT_FRONT_RIGHT_OF_CENTER) s.append("front-right-of-center, ");
+            if (mask & AUDIO_CHANNEL_OUT_BACK_CENTER) s.append("back-center, ");
+            if (mask & AUDIO_CHANNEL_OUT_SIDE_LEFT) s.append("side-left, ");
+            if (mask & AUDIO_CHANNEL_OUT_SIDE_RIGHT) s.append("side-right, ");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_CENTER) s.append("top-center ,");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_LEFT) s.append("top-front-left, ");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_CENTER) s.append("top-front-center, ");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_FRONT_RIGHT) s.append("top-front-right, ");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_LEFT) s.append("top-back-left, ");
+            if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_CENTER) s.append("top-back-center, " );
+            if (mask & AUDIO_CHANNEL_OUT_TOP_BACK_RIGHT) s.append("top-back-right, " );
+            if (mask & ~AUDIO_CHANNEL_OUT_ALL) s.append("unknown,  ");
+        } else {
+            if (mask & AUDIO_CHANNEL_IN_LEFT) s.append("left, ");
+            if (mask & AUDIO_CHANNEL_IN_RIGHT) s.append("right, ");
+            if (mask & AUDIO_CHANNEL_IN_FRONT) s.append("front, ");
+            if (mask & AUDIO_CHANNEL_IN_BACK) s.append("back, ");
+            if (mask & AUDIO_CHANNEL_IN_LEFT_PROCESSED) s.append("left-processed, ");
+            if (mask & AUDIO_CHANNEL_IN_RIGHT_PROCESSED) s.append("right-processed, ");
+            if (mask & AUDIO_CHANNEL_IN_FRONT_PROCESSED) s.append("front-processed, ");
+            if (mask & AUDIO_CHANNEL_IN_BACK_PROCESSED) s.append("back-processed, ");
+            if (mask & AUDIO_CHANNEL_IN_PRESSURE) s.append("pressure, ");
+            if (mask & AUDIO_CHANNEL_IN_X_AXIS) s.append("X, ");
+            if (mask & AUDIO_CHANNEL_IN_Y_AXIS) s.append("Y, ");
+            if (mask & AUDIO_CHANNEL_IN_Z_AXIS) s.append("Z, ");
+            if (mask & AUDIO_CHANNEL_IN_VOICE_UPLINK) s.append("voice-uplink, ");
+            if (mask & AUDIO_CHANNEL_IN_VOICE_DNLINK) s.append("voice-dnlink, ");
+            if (mask & ~AUDIO_CHANNEL_IN_ALL) s.append("unknown,  ");
+        }
+        const int len = s.length();
+        if (len > 2) {
+            char *str = s.lockBuffer(len); // needed?
+            s.unlockBuffer(len - 2);       // remove trailing ", "
+        }
+        return s;
     }
-    int len = s.length();
-    if (s.length() > 2) {
-        char *str = s.lockBuffer(len);
-        s.unlockBuffer(len - 2);
+    case AUDIO_CHANNEL_REPRESENTATION_INDEX:
+        s.appendFormat("index mask, bits:%#x", audio_channel_mask_get_bits(mask));
+        return s;
+    default:
+        s.appendFormat("unknown mask, representation:%d  bits:%#x",
+                representation, audio_channel_mask_get_bits(mask));
+        return s;
     }
-    return s;
 }
 
 void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __unused)
