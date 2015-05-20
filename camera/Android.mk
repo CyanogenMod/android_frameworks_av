@@ -28,6 +28,7 @@ LOCAL_SRC_FILES:= \
 	ICameraClient.cpp \
 	ICameraService.cpp \
 	ICameraServiceListener.cpp \
+	ICameraServiceProxy.cpp \
 	ICameraRecordingProxy.cpp \
 	ICameraRecordingProxyListener.cpp \
 	camera2/ICameraDeviceUser.cpp \
