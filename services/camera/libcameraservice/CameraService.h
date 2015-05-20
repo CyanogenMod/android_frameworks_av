@@ -702,6 +702,8 @@ private:
 
     static String8 toString(std::set<userid_t> intSet);
 
+    static void pingCameraServiceProxy();
+
 };
 
 template<class Func>
