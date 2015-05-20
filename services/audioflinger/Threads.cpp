@@ -1585,10 +1585,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             ) &&
             // PCM data
             audio_is_linear_pcm(format) &&
-            // identical channel mask to sink, or mono in and stereo sink
+            // TODO: extract as a data library function that checks that a computationally
+            // expensive downmixer is not required: isFastOutputChannelConversion()
             (channelMask == mChannelMask ||
-                    (channelMask == AUDIO_CHANNEL_OUT_MONO &&
-                            mChannelMask == AUDIO_CHANNEL_OUT_STEREO)) &&
+                    mChannelMask != AUDIO_CHANNEL_OUT_STEREO ||
+                    (channelMask == AUDIO_CHANNEL_OUT_MONO
+                            /* && mChannelMask == AUDIO_CHANNEL_OUT_STEREO */)) &&
             // hardware sample rate
             (sampleRate == mSampleRate) &&
             // normal mixer has an associated fast mixer
