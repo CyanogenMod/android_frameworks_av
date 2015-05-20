@@ -1737,7 +1737,7 @@ private:
         }
 
         if (!mAllTracksHaveTime) {
-            bool allTracksHaveTime = true;
+            bool allTracksHaveTime = (mTracks.size() > 0);
             for (size_t i = 0; i < mTracks.size(); ++i) {
                 TrackInfo *track = &mTracks.editItemAt(i);
                 if (track->mNTPAnchorUs < 0) {
