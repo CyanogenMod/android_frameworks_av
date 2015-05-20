@@ -33,6 +33,7 @@
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <binder/ProcessInfoService.h>
+#include <camera/ICameraServiceProxy.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
 #include <gui/Surface.h>
@@ -224,6 +225,18 @@ void CameraService::onFirstRef()
     }
 
     CameraDeviceFactory::registerService(this);
+
+    CameraService::pingCameraServiceProxy();
+}
+
+void CameraService::pingCameraServiceProxy() {
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = sm->getService(String16("media.camera.proxy"));
+    if (binder == nullptr) {
+        return;
+    }
+    sp<ICameraServiceProxy> proxyBinder = interface_cast<ICameraServiceProxy>(binder);
+    proxyBinder->pingForUserUpdate();
 }
 
 CameraService::~CameraService() {
