@@ -579,24 +579,43 @@ sp<IOProfile> AudioPolicyManager::getProfileForDirectOutput(
                                                                audio_channel_mask_t channelMask,
                                                                audio_output_flags_t flags)
 {
+    // only retain flags that will drive the direct output profile selection
+    // if explicitly requested
+    static const uint32_t kRelevantFlags =
+            (AUDIO_OUTPUT_FLAG_HW_AV_SYNC | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+    flags =
+        (audio_output_flags_t)((flags & kRelevantFlags) | AUDIO_OUTPUT_FLAG_DIRECT);
+
+    sp<IOProfile> profile;
+
     for (size_t i = 0; i < mHwModules.size(); i++) {
         if (mHwModules[i]->mHandle == 0) {
             continue;
         }
         for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++) {
-            sp<IOProfile> profile = mHwModules[i]->mOutputProfiles[j];
-            bool found = profile->isCompatibleProfile(device, String8(""),
+            sp<IOProfile> curProfile = mHwModules[i]->mOutputProfiles[j];
+            if (!curProfile->isCompatibleProfile(device, String8(""),
                     samplingRate, NULL /*updatedSamplingRate*/,
                     format, NULL /*updatedFormat*/,
                     channelMask, NULL /*updatedChannelMask*/,
-                    flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ?
-                        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD : AUDIO_OUTPUT_FLAG_DIRECT);
-            if (found && (mAvailableOutputDevices.types() & profile->mSupportedDevices.types())) {
-                return profile;
+                    flags)) {
+                continue;
+            }
+            // reject profiles not corresponding to a device currently available
+            if ((mAvailableOutputDevices.types() & curProfile->mSupportedDevices.types()) == 0) {
+                continue;
+            }
+            // if several profiles are compatible, give priority to one with offload capability
+            if (profile != 0 && ((curProfile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
+                continue;
+            }
+            profile = curProfile;
+            if ((profile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+                break;
             }
         }
     }
-    return 0;
+    return profile;
 }
 
 audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream,
@@ -819,10 +838,27 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         if (outputDesc != NULL) {
             closeOutput(outputDesc->mIoHandle);
         }
+
+        // if the selected profile is offloaded and no offload info was specified,
+        // create a default one
+        audio_offload_info_t defaultOffloadInfo = AUDIO_INFO_INITIALIZER;
+        if ((profile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) && !offloadInfo) {
+            flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            defaultOffloadInfo.sample_rate = samplingRate;
+            defaultOffloadInfo.channel_mask = channelMask;
+            defaultOffloadInfo.format = format;
+            defaultOffloadInfo.stream_type = stream;
+            defaultOffloadInfo.bit_rate = 0;
+            defaultOffloadInfo.duration_us = -1;
+            defaultOffloadInfo.has_video = true; // conservative
+            defaultOffloadInfo.is_streaming = true; // likely
+            offloadInfo = &defaultOffloadInfo;
+        }
+
         outputDesc = new SwAudioOutputDescriptor(profile, mpClientInterface);
         outputDesc->mDevice = device;
         outputDesc->mLatency = 0;
-        outputDesc->mFlags =(audio_output_flags_t) (outputDesc->mFlags | flags);
+        outputDesc->mFlags = (audio_output_flags_t)(outputDesc->mFlags | flags);
         audio_config_t config = AUDIO_CONFIG_INITIALIZER;
         config.sample_rate = samplingRate;
         config.channel_mask = channelMask;
@@ -849,10 +885,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
                     outputDesc->mChannelMask);
             if (output != AUDIO_IO_HANDLE_NONE) {
                 mpClientInterface->closeOutput(output);
-            }
-            // fall back to mixer output if possible when the direct output could not be open
-            if (audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE) {
-                goto non_direct_output;
             }
             // fall back to mixer output if possible when the direct output could not be open
             if (audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE) {
