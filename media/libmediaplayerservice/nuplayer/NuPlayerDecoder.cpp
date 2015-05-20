@@ -414,6 +414,11 @@ bool NuPlayer::Decoder::handleAnInputBuffer(size_t index) {
     sp<ABuffer> buffer;
     mCodec->getInputBuffer(index, &buffer);
 
+    if (buffer == NULL) {
+        handleError(UNKNOWN_ERROR);
+        return false;
+    }
+
     if (index >= mInputBuffers.size()) {
         for (size_t i = mInputBuffers.size(); i <= index; ++i) {
             mInputBuffers.add();
