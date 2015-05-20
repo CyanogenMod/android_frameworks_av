@@ -62,6 +62,10 @@ class CaptureSequencer:
     // Notifications about AE state changes
     void notifyAutoExposure(uint8_t newState, int triggerId);
 
+    // Notifications about shutter (capture start)
+    void notifyShutter(const CaptureResultExtras& resultExtras,
+                       nsecs_t timestamp);
+
     // Notification from the frame processor
     virtual void onResultAvailable(const CaptureResult &result);
 
@@ -95,7 +99,10 @@ class CaptureSequencer:
     sp<MemoryBase> mCaptureBuffer;
     Condition mNewCaptureSignal;
 
-    bool mShutterNotified;
+    bool mShutterNotified; // Has CaptureSequencer sent shutter to Client
+    bool mHalNotifiedShutter; // Has HAL sent shutter to CaptureSequencer
+    int32_t mShutterCaptureId; // The captureId which is waiting for shutter notification
+    Condition mShutterNotifySignal;
 
     /**
      * Internal to CaptureSequencer
