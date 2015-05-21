@@ -411,7 +411,7 @@ status_t FFMPEGSoftCodec::setSupportedRole(
 status_t FFMPEGSoftCodec::setWMVFormat(
         const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
 {
-    int32_t version = kTypeWMVVer_7;
+    int32_t version = -1;
     OMX_VIDEO_PARAM_WMVTYPE paramWMV;
 
     if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMVVersion), &version)) {
