@@ -66,6 +66,13 @@
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 #endif
 
+// TODO: Move these macro/inlines to a header file.
+template <typename T>
+static inline
+T max(const T& x, const T& y) {
+    return x > y ? x : y;
+}
+
 // Set kUseNewMixer to true to use the new mixer engine always. Otherwise the
 // original code will be used for stereo sinks, the new mixer for multichannel.
 static const bool kUseNewMixer = true;
@@ -499,41 +506,99 @@ void AudioMixer::disable(int name)
 static inline bool setVolumeRampVariables(float newVolume, int32_t ramp,
         int16_t *pIntSetVolume, int32_t *pIntPrevVolume, int32_t *pIntVolumeInc,
         float *pSetVolume, float *pPrevVolume, float *pVolumeInc) {
+    // check floating point volume to see if it is identical to the previously
+    // set volume.
+    // We do not use a tolerance here (and reject changes too small)
+    // as it may be confusing to use a different value than the one set.
+    // If the resulting volume is too small to ramp, it is a direct set of the volume.
     if (newVolume == *pSetVolume) {
         return false;
     }
-    /* set the floating point volume variables */
-    if (ramp != 0) {
-        *pVolumeInc = (newVolume - *pSetVolume) / ramp;
-        *pPrevVolume = *pSetVolume;
+    if (newVolume < 0) {
+        newVolume = 0; // should not have negative volumes
     } else {
-        *pVolumeInc = 0;
-        *pPrevVolume = newVolume;
+        switch (fpclassify(newVolume)) {
+        case FP_SUBNORMAL:
+        case FP_NAN:
+            newVolume = 0;
+            break;
+        case FP_ZERO:
+            break; // zero volume is fine
+        case FP_INFINITE:
+            // Infinite volume could be handled consistently since
+            // floating point math saturates at infinities,
+            // but we limit volume to unity gain float.
+            // ramp = 0; break;
+            //
+            newVolume = AudioMixer::UNITY_GAIN_FLOAT;
+            break;
+        case FP_NORMAL:
+        default:
+            // Floating point does not have problems with overflow wrap
+            // that integer has.  However, we limit the volume to
+            // unity gain here.
+            // TODO: Revisit the volume limitation and perhaps parameterize.
+            if (newVolume > AudioMixer::UNITY_GAIN_FLOAT) {
+                newVolume = AudioMixer::UNITY_GAIN_FLOAT;
+            }
+            break;
+        }
     }
-    *pSetVolume = newVolume;
 
-    /* set the legacy integer volume variables */
-    int32_t intVolume = newVolume * AudioMixer::UNITY_GAIN_INT;
-    if (intVolume > AudioMixer::UNITY_GAIN_INT) {
-        intVolume = AudioMixer::UNITY_GAIN_INT;
-    } else if (intVolume < 0) {
-        ALOGE("negative volume %.7g", newVolume);
-        intVolume = 0; // should never happen, but for safety check.
+    // set floating point volume ramp
+    if (ramp != 0) {
+        // when the ramp completes, *pPrevVolume is set to *pSetVolume, so there
+        // is no computational mismatch; hence equality is checked here.
+        ALOGD_IF(*pPrevVolume != *pSetVolume, "previous float ramp hasn't finished,"
+                " prev:%f  set_to:%f", *pPrevVolume, *pSetVolume);
+        const float inc = (newVolume - *pPrevVolume) / ramp; // could be inf, nan, subnormal
+        const float maxv = max(newVolume, *pPrevVolume); // could be inf, cannot be nan, subnormal
+
+        if (isnormal(inc) // inc must be a normal number (no subnormals, infinite, nan)
+                && maxv + inc != maxv) { // inc must make forward progress
+            *pVolumeInc = inc;
+            // ramp is set now.
+            // Note: if newVolume is 0, then near the end of the ramp,
+            // it may be possible that the ramped volume may be subnormal or
+            // temporarily negative by a small amount or subnormal due to floating
+            // point inaccuracies.
+        } else {
+            ramp = 0; // ramp not allowed
+        }
     }
-    if (intVolume == *pIntSetVolume) {
-        *pIntVolumeInc = 0;
-        /* TODO: integer/float workaround: ignore floating volume ramp */
+
+    // compute and check integer volume, no need to check negative values
+    // The integer volume is limited to "unity_gain" to avoid wrapping and other
+    // audio artifacts, so it never reaches the range limit of U4.28.
+    // We safely use signed 16 and 32 bit integers here.
+    const float scaledVolume = newVolume * AudioMixer::UNITY_GAIN_INT; // not neg, subnormal, nan
+    const int32_t intVolume = (scaledVolume >= (float)AudioMixer::UNITY_GAIN_INT) ?
+            AudioMixer::UNITY_GAIN_INT : (int32_t)scaledVolume;
+
+    // set integer volume ramp
+    if (ramp != 0) {
+        // integer volume is U4.12 (to use 16 bit multiplies), but ramping uses U4.28.
+        // when the ramp completes, *pIntPrevVolume is set to *pIntSetVolume << 16, so there
+        // is no computational mismatch; hence equality is checked here.
+        ALOGD_IF(*pIntPrevVolume != *pIntSetVolume << 16, "previous int ramp hasn't finished,"
+                " prev:%d  set_to:%d", *pIntPrevVolume, *pIntSetVolume << 16);
+        const int32_t inc = ((intVolume << 16) - *pIntPrevVolume) / ramp;
+
+        if (inc != 0) { // inc must make forward progress
+            *pIntVolumeInc = inc;
+        } else {
+            ramp = 0; // ramp not allowed
+        }
+    }
+
+    // if no ramp, or ramp not allowed, then clear float and integer increments
+    if (ramp == 0) {
         *pVolumeInc = 0;
         *pPrevVolume = newVolume;
-        return true;
-    }
-    if (ramp != 0) {
-        *pIntVolumeInc = ((intVolume - *pIntSetVolume) << 16) / ramp;
-        *pIntPrevVolume = (*pIntVolumeInc == 0 ? intVolume : *pIntSetVolume) << 16;
-    } else {
         *pIntVolumeInc = 0;
         *pIntPrevVolume = intVolume << 16;
     }
+    *pSetVolume = newVolume;
     *pIntSetVolume = intVolume;
     return true;
 }
