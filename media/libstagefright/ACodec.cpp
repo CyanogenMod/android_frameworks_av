@@ -2558,6 +2558,12 @@ static const struct VideoCodingMapEntry {
     { MEDIA_MIMETYPE_VIDEO_MPEG2, OMX_VIDEO_CodingMPEG2 },
     { MEDIA_MIMETYPE_VIDEO_VP8, OMX_VIDEO_CodingVP8 },
     { MEDIA_MIMETYPE_VIDEO_VP9, OMX_VIDEO_CodingVP9 },
+    { MEDIA_MIMETYPE_VIDEO_WMV, OMX_VIDEO_CodingWMV },
+    { MEDIA_MIMETYPE_VIDEO_RV, OMX_VIDEO_CodingRV },
+    { MEDIA_MIMETYPE_VIDEO_VC1, OMX_VIDEO_CodingVC1 },
+    { MEDIA_MIMETYPE_VIDEO_FLV1, OMX_VIDEO_CodingFLV1 },
+    { MEDIA_MIMETYPE_VIDEO_DIVX, OMX_VIDEO_CodingDIVX },
+    { MEDIA_MIMETYPE_VIDEO_FFMPEG, OMX_VIDEO_CodingAutoDetect },
 };
 
 static status_t GetVideoCodingTypeFromMime(
@@ -2604,18 +2610,19 @@ status_t ACodec::setupVideoDecoder(
     status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
     if (err != OK) {
+        return err;
+    }
 #ifdef ENABLE_AV_ENHANCEMENTS
-        if (!strncmp(mComponentName.c_str(), "OMX.qcom.", 9)) {
-            err = ExtendedCodec::setVideoFormat(msg, mime, &compressionFormat);
-        }
+    if (!strncmp(mComponentName.c_str(), "OMX.qcom.", 9)) {
+        err = ExtendedCodec::setVideoFormat(msg, mime, &compressionFormat);
+    }
 #endif
-        if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
-            err = FFMPEGSoftCodec::setVideoFormat(
-                    msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
-        }
-        if (err != OK) {
-            return err;
-        }
+    if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+        err = FFMPEGSoftCodec::setVideoFormat(
+                msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat);
+    }
+    if (err != OK) {
+        return err;
     }
 
     err = setVideoPortFormatType(
