@@ -1083,12 +1083,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == Renderer::kWhatMediaRenderingStart) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
-            } else if (what == Renderer::kWhatAudioOffloadTearDown) {
-                ALOGV("Tear down audio offload, fall back to s/w path if due to error.");
+            } else if (what == Renderer::kWhatAudioTearDown) {
                 int64_t positionUs;
                 CHECK(msg->findInt64("positionUs", &positionUs));
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
+                ALOGV("Tear down audio with reason %d.", reason);
                 closeAudioSink();
                 mAudioDecoder.clear();
                 ++mAudioDecoderGeneration;
@@ -1100,9 +1100,22 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 performSeek(positionUs);
+
                 if (reason == Renderer::kDueToError) {
-                    mRenderer->signalDisableOffloadAudio();
-                    mOffloadAudio = false;
+                    sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+                    sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+                    audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
+                    const bool hasVideo = (videoFormat != NULL);
+                    const bool canOffload = canOffloadStream(
+                            audioMeta, hasVideo, true /* is_streaming */, streamType);
+                    if (canOffload) {
+                        mRenderer->signalEnableOffloadAudio();
+                        sp<AMessage> format = mSource->getFormat(true /*audio*/);
+                        tryOpenAudioSinkForOffload(format, hasVideo);
+                    } else {
+                        mRenderer->signalDisableOffloadAudio();
+                        mOffloadAudio = false;
+                    }
                     instantiateDecoder(true /* audio */, &mAudioDecoder);
                 }
             }

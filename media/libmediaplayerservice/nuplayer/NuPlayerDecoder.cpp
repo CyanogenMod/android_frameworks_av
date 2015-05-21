@@ -68,6 +68,7 @@ NuPlayer::Decoder::Decoder(
 }
 
 NuPlayer::Decoder::~Decoder() {
+    mCodec->release();
     releaseAndResetMediaBuffers();
 }
 
