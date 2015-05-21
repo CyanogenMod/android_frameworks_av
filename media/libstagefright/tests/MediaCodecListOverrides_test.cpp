@@ -150,7 +150,11 @@ TEST_F(MediaCodecListOverridesTest, exportTestResultsToXML) {
     fclose(f);
     free(buf);
 
-    EXPECT_TRUE(overrides == kTestOverridesStr);
+    AString expected;
+    expected.append(getProfilingVersionString());
+    expected.append("\n");
+    expected.append(kTestOverridesStr);
+    EXPECT_TRUE(overrides == expected);
 
     remove(fileName);
 }
