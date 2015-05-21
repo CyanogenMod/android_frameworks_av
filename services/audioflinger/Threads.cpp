@@ -487,7 +487,7 @@ const char *sourceToString(audio_source_t source)
 }
 
 AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
-        audio_devices_t outDevice, audio_devices_t inDevice, type_t type)
+        audio_devices_t outDevice, audio_devices_t inDevice, type_t type, bool systemReady)
     :   Thread(false /*canCallJava*/),
         mType(type),
         mAudioFlinger(audioFlinger),
@@ -498,7 +498,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
-        mDeathRecipient(new PMDeathRecipient(this))
+        mDeathRecipient(new PMDeathRecipient(this)),
+        mSystemReady(systemReady)
 {
     memset(&mPatch, 0, sizeof(struct audio_patch));
 }
@@ -567,6 +568,11 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
 {
     status_t status = NO_ERROR;
 
+    if (event->mRequiresSystemReady && !mSystemReady) {
+        event->mWaitStatus = false;
+        mPendingConfigEvents.add(event);
+        return status;
+    }
     mConfigEvents.add(event);
     ALOGV("sendConfigEvent_l() num events %d event %d", mConfigEvents.size(), event->mType);
     mWaitWorkCV.signal();
@@ -596,6 +602,12 @@ void AudioFlinger::ThreadBase::sendIoConfigEvent_l(audio_io_config_event event)
 {
     sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event);
     sendConfigEvent_l(configEvent);
+}
+
+void AudioFlinger::ThreadBase::sendPrioConfigEvent(pid_t pid, pid_t tid, int32_t prio)
+{
+    Mutex::Autolock _l(mLock);
+    sendPrioConfigEvent_l(pid, tid, prio);
 }
 
 // sendPrioConfigEvent_l() must be called with ThreadBase::mLock held
@@ -893,8 +905,7 @@ void AudioFlinger::ThreadBase::updateWakeLockUids(const SortedVector<int> &uids)
 }
 
 void AudioFlinger::ThreadBase::getPowerManager_l() {
-
-    if (mPowerManager == 0) {
+    if (mSystemReady && mPowerManager == 0) {
         // use checkService() to avoid blocking if power service is not up yet
         sp<IBinder> binder =
             defaultServiceManager()->checkService(String16("power"));
@@ -908,7 +919,6 @@ void AudioFlinger::ThreadBase::getPowerManager_l() {
 }
 
 void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uids) {
-
     getPowerManager_l();
     if (mWakeLockToken == NULL) {
         ALOGE("no wake lock to update!");
@@ -1350,6 +1360,20 @@ void AudioFlinger::ThreadBase::getAudioPortConfig(struct audio_port_config *conf
                             AUDIO_PORT_CONFIG_FORMAT;
 }
 
+void AudioFlinger::ThreadBase::systemReady()
+{
+    Mutex::Autolock _l(mLock);
+    if (mSystemReady) {
+        return;
+    }
+    mSystemReady = true;
+
+    for (size_t i = 0; i < mPendingConfigEvents.size(); i++) {
+        sendConfigEvent_l(mPendingConfigEvents.editItemAt(i));
+    }
+    mPendingConfigEvents.clear();
+}
+
 
 // ----------------------------------------------------------------------------
 //      Playback
@@ -1359,8 +1383,9 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              AudioStreamOut* output,
                                              audio_io_handle_t id,
                                              audio_devices_t device,
-                                             type_t type)
-    :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type),
+                                             type_t type,
+                                             bool systemReady)
+    :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type, systemReady),
         mNormalFrameCount(0), mSinkBuffer(NULL),
         mMixerBufferEnabled(AudioFlinger::kEnableExtendedPrecision),
         mMixerBuffer(NULL),
@@ -3133,8 +3158,8 @@ void AudioFlinger::PlaybackThread::getAudioPortConfig(struct audio_port_config *
 // ----------------------------------------------------------------------------
 
 AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-        audio_io_handle_t id, audio_devices_t device, type_t type)
-    :   PlaybackThread(audioFlinger, output, id, device, type),
+        audio_io_handle_t id, audio_devices_t device, bool systemReady, type_t type)
+    :   PlaybackThread(audioFlinger, output, id, device, type, systemReady),
         // mAudioMixer below
         // mFastMixer below
         mFastMixerFutex(0)
@@ -3267,11 +3292,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // start the fast mixer
         mFastMixer->run("FastMixer", PRIORITY_URGENT_AUDIO);
         pid_t tid = mFastMixer->getTid();
-        int err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
-        if (err != 0) {
-            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    kPriorityFastMixer, getpid_cached, tid, err);
-        }
+        sendPrioConfigEvent(getpid_cached, tid, kPriorityFastMixer);
 
 #ifdef AUDIO_WATCHDOG
         // create and start the watchdog
@@ -3279,11 +3300,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         mAudioWatchdog->setDump(&mAudioWatchdogDump);
         mAudioWatchdog->run("AudioWatchdog", PRIORITY_URGENT_AUDIO);
         tid = mAudioWatchdog->getTid();
-        err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
-        if (err != 0) {
-            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    kPriorityFastMixer, getpid_cached, tid, err);
-        }
+        sendPrioConfigEvent(getpid_cached, tid, kPriorityFastMixer);
 #endif
 
     }
@@ -4309,16 +4326,16 @@ void AudioFlinger::MixerThread::cacheParameters_l()
 // ----------------------------------------------------------------------------
 
 AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& audioFlinger,
-        AudioStreamOut* output, audio_io_handle_t id, audio_devices_t device)
-    :   PlaybackThread(audioFlinger, output, id, device, DIRECT)
+        AudioStreamOut* output, audio_io_handle_t id, audio_devices_t device, bool systemReady)
+    :   PlaybackThread(audioFlinger, output, id, device, DIRECT, systemReady)
         // mLeftVolFloat, mRightVolFloat
 {
 }
 
 AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device,
-        ThreadBase::type_t type)
-    :   PlaybackThread(audioFlinger, output, id, device, type)
+        ThreadBase::type_t type, bool systemReady)
+    :   PlaybackThread(audioFlinger, output, id, device, type, systemReady)
         // mLeftVolFloat, mRightVolFloat
 {
 }
@@ -4847,8 +4864,8 @@ void AudioFlinger::AsyncCallbackThread::resetDraining()
 
 // ----------------------------------------------------------------------------
 AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
-        AudioStreamOut* output, audio_io_handle_t id, uint32_t device)
-    :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD),
+        AudioStreamOut* output, audio_io_handle_t id, uint32_t device, bool systemReady)
+    :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD, systemReady),
         mPausedBytesRemaining(0)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
@@ -5125,9 +5142,9 @@ void AudioFlinger::OffloadThread::onAddNewTrack_l()
 // ----------------------------------------------------------------------------
 
 AudioFlinger::DuplicatingThread::DuplicatingThread(const sp<AudioFlinger>& audioFlinger,
-        AudioFlinger::MixerThread* mainThread, audio_io_handle_t id)
+        AudioFlinger::MixerThread* mainThread, audio_io_handle_t id, bool systemReady)
     :   MixerThread(audioFlinger, mainThread->getOutput(), id, mainThread->outDevice(),
-                DUPLICATING),
+                    systemReady, DUPLICATING),
         mWaitTimeMs(UINT_MAX)
 {
     addOutputTrack(mainThread);
@@ -5307,12 +5324,13 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
                                          AudioStreamIn *input,
                                          audio_io_handle_t id,
                                          audio_devices_t outDevice,
-                                         audio_devices_t inDevice
+                                         audio_devices_t inDevice,
+                                         bool systemReady
 #ifdef TEE_SINK
                                          , const sp<NBAIO_Sink>& teeSink
 #endif
                                          ) :
-    ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD),
+    ThreadBase(audioFlinger, id, outDevice, inDevice, RECORD, systemReady),
     mInput(input), mActiveTracksGen(0), mRsmpInBuffer(NULL),
     // mRsmpInFrames and mRsmpInFramesP2 are set by readInputParameters_l()
     mRsmpInRear(0)
@@ -5431,12 +5449,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
         // start the fast capture
         mFastCapture->run("FastCapture", ANDROID_PRIORITY_URGENT_AUDIO);
         pid_t tid = mFastCapture->getTid();
-        int err = requestPriority(getpid_cached, tid, kPriorityFastMixer);
-        if (err != 0) {
-            ALOGW("Policy SCHED_FIFO priority %d is unavailable for pid %d tid %d; error %d",
-                    kPriorityFastCapture, getpid_cached, tid, err);
-        }
-
+        sendPrioConfigEvent(getpid_cached, tid, kPriorityFastMixer);
 #ifdef AUDIO_WATCHDOG
         // FIXME
 #endif

@@ -243,6 +243,9 @@ public:
 
     /* Get the HW synchronization source used for an audio session */
     virtual audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId) = 0;
+
+    /* Indicate JAVA services are ready (scheduling, power management ...) */
+    virtual status_t systemReady() = 0;
 };
 
 

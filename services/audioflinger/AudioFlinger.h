@@ -257,6 +257,9 @@ public:
     /* Get the HW synchronization source used for an audio session */
     virtual audio_hw_sync_t getAudioHwSyncForSession(audio_session_t sessionId);
 
+    /* Indicate JAVA services are ready (scheduling, power management ...) */
+    virtual status_t systemReady();
+
     virtual     status_t    onTransact(
                                 uint32_t code,
                                 const Parcel& data,
@@ -761,6 +764,7 @@ private:
 
     uint32_t    mPrimaryOutputSampleRate;   // sample rate of the primary output, or zero if none
                                             // protected by mHardwareLock
+    bool       mSystemReady;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H
