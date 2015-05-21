@@ -35,7 +35,8 @@ public:
     static const char *threadTypeToString(type_t type);
 
     ThreadBase(const sp<AudioFlinger>& audioFlinger, audio_io_handle_t id,
-                audio_devices_t outDevice, audio_devices_t inDevice, type_t type);
+                audio_devices_t outDevice, audio_devices_t inDevice, type_t type,
+                bool systemReady);
     virtual             ~ThreadBase();
 
     virtual status_t    readyToRun();
@@ -92,10 +93,13 @@ public:
         Condition mCond; // condition for status return
         status_t mStatus; // status communicated to sender
         bool mWaitStatus; // true if sender is waiting for status
+        bool mRequiresSystemReady; // true if must wait for system ready to enter event queue
         sp<ConfigEventData> mData;     // event specific parameter data
 
     protected:
-        ConfigEvent(int type) : mType(type), mStatus(NO_ERROR), mWaitStatus(false), mData(NULL) {}
+        ConfigEvent(int type, bool requiresSystemReady = false) :
+            mType(type), mStatus(NO_ERROR), mWaitStatus(false),
+            mRequiresSystemReady(requiresSystemReady), mData(NULL) {}
     };
 
     class IoConfigEventData : public ConfigEventData {
@@ -136,7 +140,7 @@ public:
     class PrioConfigEvent : public ConfigEvent {
     public:
         PrioConfigEvent(pid_t pid, pid_t tid, int32_t prio) :
-            ConfigEvent(CFG_EVENT_PRIO) {
+            ConfigEvent(CFG_EVENT_PRIO, true) {
             mData = new PrioConfigEventData(pid, tid, prio);
         }
         virtual ~PrioConfigEvent() {}
@@ -258,6 +262,7 @@ public:
                 status_t    sendConfigEvent_l(sp<ConfigEvent>& event);
                 void        sendIoConfigEvent(audio_io_config_event event);
                 void        sendIoConfigEvent_l(audio_io_config_event event);
+                void        sendPrioConfigEvent(pid_t pid, pid_t tid, int32_t prio);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
                 status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
                 status_t    sendCreateAudioPatchConfigEvent(const struct audio_patch *patch,
@@ -359,6 +364,8 @@ public:
 
                 virtual sp<IMemory> pipeMemory() const { return 0; }
 
+                        void systemReady();
+
     mutable     Mutex                   mLock;
 
 protected:
@@ -418,6 +425,7 @@ protected:
                 size_t                  mBufferSize;       // HAL buffer size for read() or write()
 
                 Vector< sp<ConfigEvent> >     mConfigEvents;
+                Vector< sp<ConfigEvent> >     mPendingConfigEvents; // events awaiting system ready
 
                 // These fields are written and read by thread itself without lock or barrier,
                 // and read by other threads without lock or barrier via standby(), outDevice()
@@ -445,6 +453,7 @@ protected:
                                         mSuspendedSessions;
                 static const size_t     kLogSize = 4 * 1024;
                 sp<NBLog::Writer>       mNBLogWriter;
+                bool                    mSystemReady;
 };
 
 // --- PlaybackThread ---
@@ -470,7 +479,7 @@ public:
     static const int8_t kMaxTrackRetriesOffload = 20;
 
     PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                   audio_io_handle_t id, audio_devices_t device, type_t type);
+                   audio_io_handle_t id, audio_devices_t device, type_t type, bool systemReady);
     virtual             ~PlaybackThread();
 
                 void        dump(int fd, const Vector<String16>& args);
@@ -842,6 +851,7 @@ public:
                 AudioStreamOut* output,
                 audio_io_handle_t id,
                 audio_devices_t device,
+                bool systemReady,
                 type_t type = MIXER);
     virtual             ~MixerThread();
 
@@ -903,7 +913,7 @@ class DirectOutputThread : public PlaybackThread {
 public:
 
     DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                       audio_io_handle_t id, audio_devices_t device);
+                       audio_io_handle_t id, audio_devices_t device, bool systemReady);
     virtual                 ~DirectOutputThread();
 
     // Thread virtuals
@@ -933,7 +943,8 @@ protected:
     float mRightVolFloat;
 
     DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                        audio_io_handle_t id, uint32_t device, ThreadBase::type_t type);
+                        audio_io_handle_t id, uint32_t device, ThreadBase::type_t type,
+                        bool systemReady);
     void processVolume_l(Track *track, bool lastTrack);
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
@@ -946,7 +957,7 @@ class OffloadThread : public DirectOutputThread {
 public:
 
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                        audio_io_handle_t id, uint32_t device);
+                        audio_io_handle_t id, uint32_t device, bool systemReady);
     virtual                 ~OffloadThread() {};
     virtual     void        flushHw_l();
 
@@ -1001,7 +1012,7 @@ private:
 class DuplicatingThread : public MixerThread {
 public:
     DuplicatingThread(const sp<AudioFlinger>& audioFlinger, MixerThread* mainThread,
-                      audio_io_handle_t id);
+                      audio_io_handle_t id, bool systemReady);
     virtual                 ~DuplicatingThread();
 
     // Thread virtuals
@@ -1177,7 +1188,8 @@ public:
                     AudioStreamIn *input,
                     audio_io_handle_t id,
                     audio_devices_t outDevice,
-                    audio_devices_t inDevice
+                    audio_devices_t inDevice,
+                    bool systemReady
 #ifdef TEE_SINK
                     , const sp<NBAIO_Sink>& teeSink
 #endif
@@ -1294,6 +1306,7 @@ private:
             // one-time initialization, no locks required
             sp<FastCapture>                     mFastCapture;   // non-0 if there is also
                                                                 // a fast capture
+
             // FIXME audio watchdog thread
 
             // contents are not guaranteed to be consistent, no locks required
