@@ -1032,7 +1032,7 @@ status_t ATSParser::Stream::parsePES(ABitReader *br, SyncEvent *event) {
 }
 
 status_t ATSParser::Stream::flush(SyncEvent *event) {
-    if (mBuffer->size() == 0) {
+    if (mBuffer == NULL || mBuffer->size() == 0) {
         return OK;
     }
 
