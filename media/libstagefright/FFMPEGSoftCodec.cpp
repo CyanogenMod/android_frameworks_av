@@ -60,6 +60,11 @@ void FFMPEGSoftCodec::convertMessageToMetaData(
     if (msg->findInt32("bitrate", &bitrate)) {
         meta->setInt32(kKeyBitRate, bitrate);
     }
+
+    int32_t codedSampleBits;
+    if (msg->findInt32("coded-sample-bits", &codedSampleBits)) {
+        meta->setInt32(kKeyCodedSampleBits, codedSampleBits);
+    }
 }
 
 template<class T>
@@ -357,6 +362,8 @@ status_t FFMPEGSoftCodec::setSupportedRole(
           "video_decoder.divx", NULL },
         { MEDIA_MIMETYPE_VIDEO_WMV,
           "video_decoder.wmv",  NULL },
+        { MEDIA_MIMETYPE_VIDEO_VC1,
+          "video_decoder.vc1", NULL },
         { MEDIA_MIMETYPE_VIDEO_RV,
           "video_decoder.rv", NULL },
         { MEDIA_MIMETYPE_VIDEO_FLV1,
@@ -411,7 +418,7 @@ status_t FFMPEGSoftCodec::setSupportedRole(
 status_t FFMPEGSoftCodec::setWMVFormat(
         const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
 {
-    int32_t version = kTypeWMVVer_7;
+    int32_t version = -1;
     OMX_VIDEO_PARAM_WMVTYPE paramWMV;
 
     if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMVVersion), &version)) {
@@ -587,6 +594,8 @@ status_t FFMPEGSoftCodec::setWMAFormat(
     int32_t sampleRate = 0;
     int32_t blockAlign = 0;
     int32_t formattag = 0;
+    int32_t bitsPerSample = 0;
+
     OMX_AUDIO_PARAM_WMATYPE paramWMA;
 
     CHECK(msg->findInt32(ExtendedCodec::getMsgKey(kKeyChannelCount), &numChannels));
@@ -598,6 +607,11 @@ status_t FFMPEGSoftCodec::setWMAFormat(
         if (!msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMABlockAlign), &blockAlign)) {
             return ERROR_UNSUPPORTED;
         }
+    }
+
+    // mm-parser may want a different bit depth
+    if (msg->findInt32(ExtendedCodec::getMsgKey(kKeyWMABitspersample), &bitsPerSample)) {
+        msg->setInt32("bits-per-sample", bitsPerSample);
     }
 
     ALOGV("Channels: %d, SampleRate: %d, BitRate: %d, blockAlign: %d",
@@ -884,6 +898,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     int32_t sampleRate = 0;
     int32_t blockAlign = 0;
     int32_t sampleFormat = 0;
+    int32_t codedSampleBits = 0;
     OMX_AUDIO_PARAM_FFMPEGTYPE param;
 
     ALOGD("setFFmpegAudioFormat");
@@ -895,6 +910,8 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     msg->findInt32(ExtendedCodec::getMsgKey(kKeyBitsPerSample), &bitsPerSample);
     msg->findInt32(ExtendedCodec::getMsgKey(kKeySampleRate), &sampleRate);
     msg->findInt32(ExtendedCodec::getMsgKey(kKeyBlockAlign), &blockAlign);
+    msg->findInt32(ExtendedCodec::getMsgKey(kKeyBitsPerSample), &bitsPerSample);
+    msg->findInt32(ExtendedCodec::getMsgKey(kKeyCodedSampleBits), &codedSampleBits);
 
     status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
     if (err != OK)
@@ -911,7 +928,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     param.eCodecId       = codec_id;
     param.nChannels      = numChannels;
     param.nBitRate       = bitRate;
-    param.nBitsPerSample = bitsPerSample;
+    param.nBitsPerSample = codedSampleBits;
     param.nSampleRate    = sampleRate;
     param.nBlockAlign    = blockAlign;
     param.eSampleFormat  = sampleFormat;
