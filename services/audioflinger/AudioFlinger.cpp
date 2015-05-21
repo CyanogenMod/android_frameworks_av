@@ -181,7 +181,8 @@ AudioFlinger::AudioFlinger()
       mIsLowRamDevice(true),
       mIsDeviceTypeKnown(false),
       mGlobalEffectEnableTime(0),
-      mPrimaryOutputSampleRate(0)
+      mPrimaryOutputSampleRate(0),
+      mSystemReady(false)
 {
     getpid_cached = getpid();
     char value[PROPERTY_VALUE_MAX];
@@ -1722,6 +1723,26 @@ audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId
     return (audio_hw_sync_t)value;
 }
 
+status_t AudioFlinger::systemReady()
+{
+    Mutex::Autolock _l(mLock);
+    ALOGI("%s", __FUNCTION__);
+    if (mSystemReady) {
+        ALOGW("%s called twice", __FUNCTION__);
+        return NO_ERROR;
+    }
+    mSystemReady = true;
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        ThreadBase *thread = (ThreadBase *)mPlaybackThreads.valueAt(i).get();
+        thread->systemReady();
+    }
+    for (size_t i = 0; i < mRecordThreads.size(); i++) {
+        ThreadBase *thread = (ThreadBase *)mRecordThreads.valueAt(i).get();
+        thread->systemReady();
+    }
+    return NO_ERROR;
+}
+
 // setAudioHwSyncForSession_l() must be called with AudioFlinger::mLock held
 void AudioFlinger::setAudioHwSyncForSession_l(PlaybackThread *thread, audio_session_t sessionId)
 {
@@ -1794,15 +1815,15 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
 
         PlaybackThread *thread;
         if (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-            thread = new OffloadThread(this, outputStream, *output, devices);
+            thread = new OffloadThread(this, outputStream, *output, devices, mSystemReady);
             ALOGV("openOutput_l() created offload output: ID %d thread %p", *output, thread);
         } else if ((flags & AUDIO_OUTPUT_FLAG_DIRECT)
                 || !isValidPcmSinkFormat(config->format)
                 || !isValidPcmSinkChannelMask(config->channel_mask)) {
-            thread = new DirectOutputThread(this, outputStream, *output, devices);
+            thread = new DirectOutputThread(this, outputStream, *output, devices, mSystemReady);
             ALOGV("openOutput_l() created direct output: ID %d thread %p", *output, thread);
         } else {
-            thread = new MixerThread(this, outputStream, *output, devices);
+            thread = new MixerThread(this, outputStream, *output, devices, mSystemReady);
             ALOGV("openOutput_l() created mixer output: ID %d thread %p", *output, thread);
         }
         mPlaybackThreads.add(*output, thread);
@@ -1873,7 +1894,7 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
     }
 
     audio_io_handle_t id = nextUniqueId();
-    DuplicatingThread *thread = new DuplicatingThread(this, thread1, id);
+    DuplicatingThread *thread = new DuplicatingThread(this, thread1, id, mSystemReady);
     thread->addOutputTrack(thread2);
     mPlaybackThreads.add(id, thread);
     // notify client processes of the new output creation
@@ -2120,7 +2141,8 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
                                   inputStream,
                                   *input,
                                   primaryOutputDevice_l(),
-                                  devices
+                                  devices,
+                                  mSystemReady
 #ifdef TEE_SINK
                                   , teeSink
 #endif
