@@ -261,13 +261,12 @@ MatroskaSource::MatroskaSource(
         mType = HEVC;
 
         uint32_t type;
-        const void *data;
+        const uint8_t *data;
         size_t size;
-        CHECK(meta->findData(kKeyHVCC, &type, &data, &size));
+        CHECK(meta->findData(kKeyHVCC, &type, (const void **)&data, &size));
 
-        const uint8_t *ptr = (const uint8_t *)data;
         CHECK(size >= 7);
-        mNALSizeLen = 1 + (ptr[14 + 7] & 3);
+        mNALSizeLen = 1 + (data[14 + 7] & 3);
         ALOGV("mNALSizeLen = %zu", mNALSizeLen);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
         mType = AAC;
@@ -1041,7 +1040,7 @@ void MatroskaExtractor::addTracks() {
                     }
                 } else if (!strcmp("V_MPEGH/ISO/HEVC", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_HEVC);
-                    meta->setData(kKeyHVCC, 0, codecPrivate, codecPrivateSize);
+                    meta->setData(kKeyHVCC, kTypeHVCC, codecPrivate, codecPrivateSize);
 
                 } else if (!strcmp("V_VP8", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP8);
