@@ -55,6 +55,7 @@ enum {
     kKeyBitRate           = 'brte',  // int32_t (bps)
     kKeyCodecId           = 'cdid',  // int32_t
     kKeyBitsPerSample     = 'sbit',  // int32_t (DUPE of kKeySampleBits)
+    kKeyCodedSampleBits   = 'cosb',  // int32_t
     kKeySampleFormat      = 'sfmt',  // int32_t
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t

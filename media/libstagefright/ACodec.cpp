@@ -1265,12 +1265,8 @@ status_t ACodec::setComponentRole(
             "video_decoder.mpeg2", "video_encoder.mpeg2" },
         { MEDIA_MIMETYPE_AUDIO_AC3,
             "audio_decoder.ac3", "audio_encoder.ac3" },
-#ifdef ENABLE_AV_ENHANCEMENTS			
-#ifdef DTS_CODEC_M_
         { MEDIA_MIMETYPE_AUDIO_DTS,
             "audio_decoder.dts", "audio_encoder.dts" },
-#endif
-#endif
         { MEDIA_MIMETYPE_AUDIO_EAC3,
             "audio_decoder.eac3", "audio_encoder.eac3" },
 #ifdef ENABLE_AV_ENHANCEMENTS
