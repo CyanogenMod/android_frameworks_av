@@ -119,8 +119,6 @@ status_t BnResourceManagerService::onTransact(
     switch (code) {
         case CONFIG: {
             CHECK_INTERFACE(IResourceManagerService, data, reply);
-            sp<IResourceManagerClient> client(
-                    interface_cast<IResourceManagerClient>(data.readStrongBinder()));
             Vector<MediaResourcePolicy> policies;
             readFromParcel(data, &policies);
             config(policies);
