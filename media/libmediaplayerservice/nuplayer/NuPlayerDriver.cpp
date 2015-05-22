@@ -397,23 +397,13 @@ status_t NuPlayerDriver::seekTo(int msec) {
     switch (mState) {
         case STATE_PREPARED:
         case STATE_STOPPED_AND_PREPARED:
-        {
-            mStartupSeekTimeUs = seekTimeUs;
-            // pretend that the seek completed. It will actually happen when starting playback.
-            // TODO: actually perform the seek here, so the player is ready to go at the new
-            // location
-            notifySeekComplete_l();
-            break;
-        }
-
-        case STATE_RUNNING:
         case STATE_PAUSED:
+            mStartupSeekTimeUs = seekTimeUs;
+            // fall through.
+        case STATE_RUNNING:
         {
             mAtEOS = false;
             mSeekInProgress = true;
-            if (mState == STATE_PAUSED) {
-               mStartupSeekTimeUs = seekTimeUs;
-            }
             // seeks can take a while, so we essentially paused
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs, true /* needNotify */);
