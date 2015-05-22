@@ -32,6 +32,8 @@
 
 namespace android {
 
+extern const char *kMaxEncoderInputBuffers;
+
 struct AMessage;
 
 struct MediaCodecList : public BnMediaCodecList {
