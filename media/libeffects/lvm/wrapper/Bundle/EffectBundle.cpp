@@ -27,6 +27,7 @@
 
 #include <cutils/log.h>
 #include "EffectBundle.h"
+#include "math.h"
 
 
 // effect_handle_t interface implementation for bass boost
@@ -830,32 +831,69 @@ void LvmEffect_limitLevel(EffectContext *pContext) {
     int gainCorrection = 0;
     //Count the energy contribution per band for EQ and BassBoost only if they are active.
     float energyContribution = 0;
+    float energyCross = 0;
+    float energyBassBoost = 0;
+    float crossCorrection = 0;
 
     //EQ contribution
     if (pContext->pBundledContext->bEqualizerEnabled == LVM_TRUE) {
         for (int i = 0; i < FIVEBAND_NUMBANDS; i++) {
-            float bandEnergy = (pContext->pBundledContext->bandGaindB[i] *
-                    LimitLevel_bandEnergyContribution[i])/15.0;
+            float bandFactor = pContext->pBundledContext->bandGaindB[i]/15.0;
+            float bandCoefficient = LimitLevel_bandEnergyCoefficient[i];
+            float bandEnergy = bandFactor * bandCoefficient * bandCoefficient;
             if (bandEnergy > 0)
                 energyContribution += bandEnergy;
         }
+
+        //cross EQ coefficients
+        float bandFactorSum = 0;
+        for (int i = 0; i < FIVEBAND_NUMBANDS-1; i++) {
+            float bandFactor1 = pContext->pBundledContext->bandGaindB[i]/15.0;
+            float bandFactor2 = pContext->pBundledContext->bandGaindB[i+1]/15.0;
+
+            if (bandFactor1 > 0 && bandFactor2 > 0) {
+                float crossEnergy = bandFactor1 * bandFactor2 *
+                        LimitLevel_bandEnergyCrossCoefficient[i];
+                bandFactorSum += bandFactor1 * bandFactor2;
+
+                if (crossEnergy > 0)
+                    energyCross += crossEnergy;
+            }
+        }
+        bandFactorSum -= 1.0;
+        if (bandFactorSum > 0)
+            crossCorrection = bandFactorSum * 0.7;
     }
 
     //BassBoost contribution
     if (pContext->pBundledContext->bBassEnabled == LVM_TRUE) {
-        float bandEnergy = (pContext->pBundledContext->BassStrengthSaved *
-                LimitLevel_bassBoostEnergyContribution)/1000.0;
-        if (bandEnergy > 0)
-            energyContribution += bandEnergy;
+        float boostFactor = (pContext->pBundledContext->BassStrengthSaved)/1000.0;
+        float boostCoefficient = LimitLevel_bassBoostEnergyCoefficient;
+
+        energyContribution += boostFactor * boostCoefficient * boostCoefficient;
+
+        for (int i = 0; i < FIVEBAND_NUMBANDS; i++) {
+            float bandFactor = pContext->pBundledContext->bandGaindB[i]/15.0;
+            float bandCrossCoefficient = LimitLevel_bassBoostEnergyCrossCoefficient[i];
+            float bandEnergy = boostFactor * bandFactor *
+                    bandCrossCoefficient;
+            if (bandEnergy > 0)
+                energyBassBoost += bandEnergy;
+        }
     }
 
     //Virtualizer contribution
     if (pContext->pBundledContext->bVirtualizerEnabled == LVM_TRUE) {
-                   energyContribution += LimitLevel_virtualizerContribution;
-        }
+        energyContribution += LimitLevel_virtualizerContribution *
+                LimitLevel_virtualizerContribution;
+    }
+
+    double totalEnergyEstimation = sqrt(energyContribution + energyCross + energyBassBoost) -
+            crossCorrection;
+    ALOGV(" TOTAL energy estimation: %0.2f", totalEnergyEstimation);
 
     //roundoff
-    int maxLevelRound = (int)(energyContribution + 0.99);
+    int maxLevelRound = (int)(totalEnergyEstimation + 0.99);
     if (maxLevelRound + pContext->pBundledContext->volume > 0) {
         gainCorrection = maxLevelRound + pContext->pBundledContext->volume;
     }

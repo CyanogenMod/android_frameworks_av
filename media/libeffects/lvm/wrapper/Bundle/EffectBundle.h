@@ -200,10 +200,16 @@ static const PresetConfig gEqualizerPresets[] = {
  * updated.
  */
 
-static const float LimitLevel_bandEnergyContribution[FIVEBAND_NUMBANDS] = {
-        5.0, 6.5, 6.45, 4.8, 1.7 };
+static const float LimitLevel_bandEnergyCoefficient[FIVEBAND_NUMBANDS] = {
+        7.56, 9.69, 9.59, 7.37, 2.88};
 
-static const float LimitLevel_bassBoostEnergyContribution = 6.7;
+static const float LimitLevel_bandEnergyCrossCoefficient[FIVEBAND_NUMBANDS-1] = {
+        126.0, 115.0, 125.0, 104.0 };
+
+static const float LimitLevel_bassBoostEnergyCrossCoefficient[FIVEBAND_NUMBANDS] = {
+        221.21, 208.10, 28.16, 0.0, 0.0 };
+
+static const float LimitLevel_bassBoostEnergyCoefficient = 7.12;
 
 static const float LimitLevel_virtualizerContribution = 1.9;
 
