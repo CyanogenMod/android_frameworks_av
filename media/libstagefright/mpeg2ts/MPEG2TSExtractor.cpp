@@ -16,6 +16,8 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MPEG2TSExtractor"
+
+#include <inttypes.h>
 #include <utils/Log.h>
 
 #include "include/MPEG2TSExtractor.h"
@@ -233,7 +235,7 @@ void MPEG2TSExtractor::init() {
         }
     }
 
-    ALOGI("haveAudio=%d, haveVideo=%d, elaspedTime=%lld",
+    ALOGI("haveAudio=%d, haveVideo=%d, elaspedTime=%" PRId64,
             haveAudio, haveVideo, ALooper::GetNowUs() - startTime);
 }
 
