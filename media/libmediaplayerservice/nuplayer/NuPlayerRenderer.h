@@ -82,16 +82,16 @@ struct NuPlayer::Renderer : public AHandler {
     void closeAudioSink();
 
     enum {
-        kWhatEOS                 = 'eos ',
-        kWhatFlushComplete       = 'fluC',
-        kWhatPosition            = 'posi',
-        kWhatVideoRenderingStart = 'vdrd',
-        kWhatMediaRenderingStart = 'mdrd',
-        kWhatAudioOffloadTearDown = 'aOTD',
+        kWhatEOS                      = 'eos ',
+        kWhatFlushComplete            = 'fluC',
+        kWhatPosition                 = 'posi',
+        kWhatVideoRenderingStart      = 'vdrd',
+        kWhatMediaRenderingStart      = 'mdrd',
+        kWhatAudioTearDown            = 'adTD',
         kWhatAudioOffloadPauseTimeout = 'aOPT',
     };
 
-    enum AudioOffloadTearDownReason {
+    enum AudioTearDownReason {
         kDueToError = 0,
         kDueToTimeout,
     };
@@ -179,7 +179,7 @@ private:
     int64_t mLastPositionUpdateUs;
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
-    bool mAudioOffloadTornDown;
+    bool mAudioTornDown;
     audio_offload_info_t mCurrentOffloadInfo;
 
     struct PcmInfo {
@@ -242,7 +242,7 @@ private:
     int32_t getQueueGeneration(bool audio);
     int32_t getDrainGeneration(bool audio);
     bool getSyncQueues();
-    void onAudioOffloadTearDown(AudioOffloadTearDownReason reason);
+    void onAudioTearDown(AudioTearDownReason reason);
     status_t onOpenAudioSink(
             const sp<AMessage> &format,
             bool offloadOnly,
@@ -255,7 +255,7 @@ private:
     void notifyPosition();
     void notifyVideoLateBy(int64_t lateByUs);
     void notifyVideoRenderingStart();
-    void notifyAudioOffloadTearDown();
+    void notifyAudioTearDown();
 
     void flushQueue(List<QueueEntry> *queue);
     bool dropBufferIfStale(bool audio, const sp<AMessage> &msg);

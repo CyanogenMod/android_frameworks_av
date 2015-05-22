@@ -82,7 +82,7 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
       mAudioOffloadPauseTimeoutGeneration(0),
-      mAudioOffloadTornDown(false),
+      mAudioTornDown(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
       mCurrentPcmInfo(AUDIO_PCMINFO_INITIALIZER),
       mTotalBuffersQueued(0),
@@ -566,9 +566,9 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
-        case kWhatAudioOffloadTearDown:
+        case kWhatAudioTearDown:
         {
-            onAudioOffloadTearDown(kDueToError);
+            onAudioTearDown(kDueToError);
             break;
         }
 
@@ -580,7 +580,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
             ALOGV("Audio Offload tear down due to pause timeout.");
-            onAudioOffloadTearDown(kDueToTimeout);
+            onAudioTearDown(kDueToTimeout);
             mWakeLock->release();
             break;
         }
@@ -648,7 +648,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 
         case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
         {
-            me->notifyAudioOffloadTearDown();
+            me->notifyAudioTearDown();
             break;
         }
     }
@@ -792,6 +792,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
                 ALOGW("AudioSink write would block when writing %zu bytes", copy);
             } else {
                 ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
+                notifyAudioTearDown();
             }
             break;
         }
@@ -1060,8 +1061,8 @@ void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult, int64_t del
     notify->post(delayUs);
 }
 
-void NuPlayer::Renderer::notifyAudioOffloadTearDown() {
-    (new AMessage(kWhatAudioOffloadTearDown, this))->post();
+void NuPlayer::Renderer::notifyAudioTearDown() {
+    (new AMessage(kWhatAudioTearDown, this))->post();
 }
 
 void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
@@ -1480,11 +1481,11 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
     return durationUs;
 }
 
-void NuPlayer::Renderer::onAudioOffloadTearDown(AudioOffloadTearDownReason reason) {
-    if (mAudioOffloadTornDown) {
+void NuPlayer::Renderer::onAudioTearDown(AudioTearDownReason reason) {
+    if (mAudioTornDown) {
         return;
     }
-    mAudioOffloadTornDown = true;
+    mAudioTornDown = true;
 
     int64_t currentPositionUs;
     if (getCurrentPosition(&currentPositionUs) != OK) {
@@ -1495,7 +1496,7 @@ void NuPlayer::Renderer::onAudioOffloadTearDown(AudioOffloadTearDownReason reaso
     mAudioSink->flush();
 
     sp<AMessage> notify = mNotify->dup();
-    notify->setInt32("what", kWhatAudioOffloadTearDown);
+    notify->setInt32("what", kWhatAudioTearDown);
     notify->setInt64("positionUs", currentPositionUs);
     notify->setInt32("reason", reason);
     notify->post();
@@ -1653,7 +1654,9 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     8 /* bufferCount */,
                     NULL,
                     NULL,
-                    (audio_output_flags_t)pcmFlags);
+                    (audio_output_flags_t)pcmFlags,
+                    NULL,
+                    true /* doNotReconnect */);
         if (err == OK) {
             err = mAudioSink->setPlaybackRate(mPlaybackSettings);
         }
@@ -1668,9 +1671,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     if (audioSinkChanged) {
         onAudioSinkChanged();
     }
-    if (offloadingAudio()) {
-        mAudioOffloadTornDown = false;
-    }
+    mAudioTornDown = false;
     return OK;
 }
 

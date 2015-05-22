@@ -183,6 +183,10 @@ public:
      * pid:                Process ID of the app which initially requested this AudioTrack
      *                     for power management tracking, or -1 for current process ID.
      * pAttributes:        If not NULL, supersedes streamType for use case selection.
+     * doNotReconnect:     If set to true, AudioTrack won't automatically recreate the IAudioTrack
+                           binder to AudioFlinger.
+                           It will return an error instead.  The application will recreate
+                           the track based on offloading or different channel configuration, etc.
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
      */
 
@@ -200,7 +204,8 @@ public:
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1,
                                     pid_t pid = -1,
-                                    const audio_attributes_t* pAttributes = NULL);
+                                    const audio_attributes_t* pAttributes = NULL,
+                                    bool doNotReconnect = false);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -228,7 +233,8 @@ public:
                                     const audio_offload_info_t *offloadInfo = NULL,
                                     int uid = -1,
                                     pid_t pid = -1,
-                                    const audio_attributes_t* pAttributes = NULL);
+                                    const audio_attributes_t* pAttributes = NULL,
+                                    bool doNotReconnect = false);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -272,7 +278,8 @@ public:
                             const audio_offload_info_t *offloadInfo = NULL,
                             int uid = -1,
                             pid_t pid = -1,
-                            const audio_attributes_t* pAttributes = NULL);
+                            const audio_attributes_t* pAttributes = NULL,
+                            bool doNotReconnect = false);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
@@ -876,6 +883,8 @@ protected:
     audio_output_flags_t    mFlags;
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
         // mLock must be held to read or write those bits reliably.
+
+    bool                    mDoNotReconnect;
 
     int                     mSessionId;
     int                     mAuxEffectId;

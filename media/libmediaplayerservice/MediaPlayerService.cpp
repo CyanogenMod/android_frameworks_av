@@ -1488,7 +1488,8 @@ status_t MediaPlayerService::AudioOutput::open(
         audio_format_t format, int bufferCount,
         AudioCallback cb, void *cookie,
         audio_output_flags_t flags,
-        const audio_offload_info_t *offloadInfo)
+        const audio_offload_info_t *offloadInfo,
+        bool doNotReconnect)
 {
     mCallback = cb;
     mCallbackCookie = cookie;
@@ -1604,7 +1605,8 @@ status_t MediaPlayerService::AudioOutput::open(
                     offloadInfo,
                     mUid,
                     mPid,
-                    mAttributes);
+                    mAttributes,
+                    doNotReconnect);
         } else {
             t = new AudioTrack(
                     mStreamType,
@@ -1621,7 +1623,8 @@ status_t MediaPlayerService::AudioOutput::open(
                     NULL, // offload info
                     mUid,
                     mPid,
-                    mAttributes);
+                    mAttributes,
+                    doNotReconnect);
         }
 
         if ((t == 0) || (t->initCheck() != NO_ERROR)) {

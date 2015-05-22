@@ -178,7 +178,8 @@ AudioTrack::AudioTrack(
         const audio_offload_info_t *offloadInfo,
         int uid,
         pid_t pid,
-        const audio_attributes_t* pAttributes)
+        const audio_attributes_t* pAttributes,
+        bool doNotReconnect)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -189,7 +190,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
-            offloadInfo, uid, pid, pAttributes);
+            offloadInfo, uid, pid, pAttributes, doNotReconnect);
 }
 
 AudioTrack::AudioTrack(
@@ -207,7 +208,8 @@ AudioTrack::AudioTrack(
         const audio_offload_info_t *offloadInfo,
         int uid,
         pid_t pid,
-        const audio_attributes_t* pAttributes)
+        const audio_attributes_t* pAttributes,
+        bool doNotReconnect)
     : mStatus(NO_INIT),
       mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -218,7 +220,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
-            uid, pid, pAttributes);
+            uid, pid, pAttributes, doNotReconnect);
 }
 
 AudioTrack::~AudioTrack()
@@ -266,7 +268,8 @@ status_t AudioTrack::set(
         const audio_offload_info_t *offloadInfo,
         int uid,
         pid_t pid,
-        const audio_attributes_t* pAttributes)
+        const audio_attributes_t* pAttributes,
+        bool doNotReconnect)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "flags #%x, notificationFrames %u, sessionId %d, transferType %d, uid %d, pid %d",
@@ -308,6 +311,7 @@ status_t AudioTrack::set(
     }
     mSharedBuffer = sharedBuffer;
     mTransfer = transferType;
+    mDoNotReconnect = doNotReconnect;
 
     ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
             sharedBuffer->size());
@@ -2006,7 +2010,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // output parameters and new IAudioFlinger in createTrack_l()
     AudioSystem::clearAudioConfigCache();
 
-    if (isOffloadedOrDirect_l()) {
+    if (isOffloadedOrDirect_l() || mDoNotReconnect) {
         // FIXME re-creation of offloaded tracks is not yet implemented
         return DEAD_OBJECT;
     }
