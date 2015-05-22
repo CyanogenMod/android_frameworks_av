@@ -787,6 +787,7 @@ void SoundTriggerHwService::Module::setCaptureState_l(bool active)
                 mHwDevice->stop_recognition(mHwDevice, model->mHandle);
                 // keep model in ACTIVE state so that event is processed by onCallbackEvent()
                 struct sound_trigger_phrase_recognition_event phraseEvent;
+                memset(&phraseEvent, 0, sizeof(struct sound_trigger_phrase_recognition_event));
                 switch (model->mType) {
                 case SOUND_MODEL_TYPE_KEYPHRASE:
                     phraseEvent.num_phrases = model->mConfig.num_phrases;
