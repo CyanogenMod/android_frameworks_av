@@ -553,10 +553,16 @@ protected:
 
         audio_devices_t availablePrimaryOutputDevices() const
         {
+            if (!hasPrimaryOutput()) {
+                return AUDIO_DEVICE_NONE;
+            }
             return mPrimaryOutput->supportedDevices() & mAvailableOutputDevices.types();
         }
         audio_devices_t availablePrimaryInputDevices() const
         {
+            if (!hasPrimaryOutput()) {
+                return AUDIO_DEVICE_NONE;
+            }
             return mAvailableInputDevices.getDevicesFromHwModule(mPrimaryOutput->getModuleHandle());
         }
 
@@ -575,6 +581,8 @@ protected:
         void clearAudioPatches(uid_t uid);
         void clearSessionRoutes(uid_t uid);
         void checkStrategyRoute(routing_strategy strategy, audio_io_handle_t ouptutToSkip);
+
+        status_t hasPrimaryOutput() const { return mPrimaryOutput != 0; }
 
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface
