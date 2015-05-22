@@ -196,8 +196,7 @@ void MPEG2TSExtractor::init() {
         int64_t durationUs = -1;
         List<int64_t> durations;
         // Estimate duration --- stabilize until you get <500ms deviation.
-        for (; feedMore() == OK && numPacketsParsed <= 10000;
-                ++numPacketsParsed) {
+        while (feedMore() == OK && ALooper::GetNowUs() - startTime <= 2000000ll) {
             status_t err;
             int64_t bufferedDurationUs = impl->getBufferedDurationUs(&err);
             if (err != OK) {
