@@ -20,7 +20,9 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/stagefright/MediaSource.h>
 #include <utils/threads.h>
+#include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -54,10 +56,21 @@ private:
 
     Vector<sp<AnotherPacketSource> > mSourceImpls;
 
+    Vector<KeyedVector<int64_t, off64_t> > mSyncPoints;
+    // Sync points used for seeking --- normally one for video track is used.
+    // If no video track is present, audio track will be used instead.
+    KeyedVector<int64_t, off64_t> *mSeekSyncPoints;
+
     off64_t mOffset;
 
     void init();
     status_t feedMore();
+    status_t seek(int64_t seekTimeUs,
+            const MediaSource::ReadOptions::SeekMode& seekMode);
+    status_t queueDiscontinuityForSeek(int64_t actualSeekTimeUs);
+    status_t seekBeyond(int64_t seekTimeUs);
+
+    status_t feedUntilBufferAvailable(const sp<AnotherPacketSource> &impl);
 
     DISALLOW_EVIL_CONSTRUCTORS(MPEG2TSExtractor);
 };
