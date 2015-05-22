@@ -233,7 +233,7 @@ private:
     void handleFlushComplete(bool audio, bool isDecoder);
     void finishFlushIfPossible();
 
-    void onStart();
+    void onStart(int64_t startPositionUs = -1);
     void onResume();
     void onPause();
 
@@ -242,6 +242,7 @@ private:
     void flushDecoder(bool audio, bool needShutdown);
 
     void finishResume();
+    void notifyDriverSeekComplete();
 
     void postScanSources();
 

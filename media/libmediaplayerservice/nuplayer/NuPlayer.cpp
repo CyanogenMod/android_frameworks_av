@@ -1140,6 +1140,22 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             ALOGV("kWhatSeek seekTimeUs=%lld us, needNotify=%d",
                     (long long)seekTimeUs, needNotify);
 
+            if (!mStarted) {
+                // Seek before the player is started. In order to preview video,
+                // need to start the player and pause it. This branch is called
+                // only once if needed. After the player is started, any seek
+                // operation will go through normal path.
+                // All cases, including audio-only, are handled in the same way
+                // for the sake of simplicity.
+                onStart(seekTimeUs);
+                onPause();
+                mPausedByClient = true;
+                if (needNotify) {
+                    notifyDriverSeekComplete();
+                }
+                break;
+            }
+
             mDeferredActions.push_back(
                     new FlushDecoderAction(FLUSH_CMD_FLUSH /* audio */,
                                            FLUSH_CMD_FLUSH /* video */));
@@ -1233,13 +1249,16 @@ status_t NuPlayer::onInstantiateSecureDecoders() {
     return OK;
 }
 
-void NuPlayer::onStart() {
+void NuPlayer::onStart(int64_t startPositionUs) {
     mOffloadAudio = false;
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
 
     mSource->start();
+    if (startPositionUs > 0) {
+        performSeek(startPositionUs);
+    }
 
     uint32_t flags = 0;
 
@@ -1895,11 +1914,15 @@ void NuPlayer::performResumeDecoders(bool needNotify) {
 void NuPlayer::finishResume() {
     if (mResumePending) {
         mResumePending = false;
-        if (mDriver != NULL) {
-            sp<NuPlayerDriver> driver = mDriver.promote();
-            if (driver != NULL) {
-                driver->notifySeekComplete();
-            }
+        notifyDriverSeekComplete();
+    }
+}
+
+void NuPlayer::notifyDriverSeekComplete() {
+    if (mDriver != NULL) {
+        sp<NuPlayerDriver> driver = mDriver.promote();
+        if (driver != NULL) {
+            driver->notifySeekComplete();
         }
     }
 }
