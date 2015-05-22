@@ -868,17 +868,9 @@ status_t OMXNodeInstance::createPersistentInputSurface(
     consumer->setConsumerName(name);
     consumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER);
 
-    status_t err = consumer->setMaxAcquiredBufferCount(
-            BufferQueue::MAX_MAX_ACQUIRED_BUFFERS);
-    if (err != NO_ERROR) {
-        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
-                BufferQueue::MAX_MAX_ACQUIRED_BUFFERS, err);
-        return err;
-    }
-
     sp<BufferQueue::ProxyConsumerListener> proxy =
         new BufferQueue::ProxyConsumerListener(NULL);
-    err = consumer->consumerConnect(proxy, false);
+    status_t err = consumer->consumerConnect(proxy, false);
     if (err != NO_ERROR) {
         ALOGE("Error connecting to BufferQueue: %s (%d)",
                 strerror(-err), err);

@@ -26,6 +26,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
+#include <gui/BufferQueue.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/IOMX.h>
@@ -320,6 +321,27 @@ sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
     CHECK_EQ(client.connect(), (status_t)OK);
     sp<IOMX> omx = client.interface();
 
+    const sp<IMediaCodecList> mediaCodecList = MediaCodecList::getInstance();
+    if (mediaCodecList == NULL) {
+        ALOGE("Failed to obtain MediaCodecList!");
+        return NULL; // if called from Java should raise IOException
+    }
+
+    AString tmp;
+    sp<AMessage> globalSettings = mediaCodecList->getGlobalSettings();
+    if (globalSettings == NULL || !globalSettings->findString(
+            kMaxEncoderInputBuffers, &tmp)) {
+        ALOGE("Failed to get encoder input buffer count!");
+        return NULL;
+    }
+
+    int32_t bufferCount = strtol(tmp.c_str(), NULL, 10);
+    if (bufferCount <= 0
+            || bufferCount > BufferQueue::MAX_MAX_ACQUIRED_BUFFERS) {
+        ALOGE("Encoder input buffer count is invalid!");
+        return NULL;
+    }
+
     sp<IGraphicBufferProducer> bufferProducer;
     sp<IGraphicBufferConsumer> bufferConsumer;
 
@@ -328,6 +350,14 @@ sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
 
     if (err != OK) {
         ALOGE("Failed to create persistent input surface.");
+        return NULL;
+    }
+
+    err = bufferConsumer->setMaxAcquiredBufferCount(bufferCount);
+
+    if (err != NO_ERROR) {
+        ALOGE("Unable to set BQ max acquired buffer count to %u: %d",
+                bufferCount, err);
         return NULL;
     }
 
