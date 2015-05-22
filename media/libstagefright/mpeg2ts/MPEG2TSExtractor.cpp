@@ -23,6 +23,7 @@
 
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
@@ -144,7 +145,7 @@ sp<MetaData> MPEG2TSExtractor::getMetaData() {
 void MPEG2TSExtractor::init() {
     bool haveAudio = false;
     bool haveVideo = false;
-    int numPacketsParsed = 0;
+    int64_t startTime = ALooper::GetNowUs();
 
     while (feedMore() == OK) {
         if (haveAudio && haveVideo) {
@@ -178,7 +179,8 @@ void MPEG2TSExtractor::init() {
             }
         }
 
-        if (++numPacketsParsed > 10000) {
+        // Wait only for 2 seconds to detect audio/video streams.
+        if (ALooper::GetNowUs() - startTime > 2000000ll) {
             break;
         }
     }
@@ -232,7 +234,8 @@ void MPEG2TSExtractor::init() {
         }
     }
 
-    ALOGI("haveAudio=%d, haveVideo=%d", haveAudio, haveVideo);
+    ALOGI("haveAudio=%d, haveVideo=%d, elaspedTime=%lld",
+            haveAudio, haveVideo, ALooper::GetNowUs() - startTime);
 }
 
 status_t MPEG2TSExtractor::feedMore() {
