@@ -171,7 +171,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
         }
 
         updateDevicesAndOutputs();
-        if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) {
+        if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
             audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
             updateCallRouting(newDevice);
         }
@@ -261,7 +261,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 
         closeAllInputs();
 
-        if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) {
+        if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
             audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
             updateCallRouting(newDevice);
         }
@@ -302,6 +302,9 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
     audio_patch_handle_t afPatchHandle;
     DeviceVector deviceList;
 
+    if(!hasPrimaryOutput()) {
+        return;
+    }
     audio_devices_t txDevice = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
     ALOGV("updateCallRouting device rxDevice %08x txDevice %08x", rxDevice, txDevice);
 
@@ -449,8 +452,6 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
 
-    sp<SwAudioOutputDescriptor> hwOutputDesc = mPrimaryOutput;
-
     int delayMs = 0;
     if (isStateInCall(state)) {
         nsecs_t sysTime = systemTime();
@@ -477,29 +478,31 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         }
     }
 
-    // Note that despite the fact that getNewOutputDevice() is called on the primary output,
-    // the device returned is not necessarily reachable via this output
-    audio_devices_t rxDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
-    // force routing command to audio hardware when ending call
-    // even if no device change is needed
-    if (isStateInCall(oldState) && rxDevice == AUDIO_DEVICE_NONE) {
-        rxDevice = hwOutputDesc->device();
-    }
+    if (hasPrimaryOutput()) {
+        // Note that despite the fact that getNewOutputDevice() is called on the primary output,
+        // the device returned is not necessarily reachable via this output
+        audio_devices_t rxDevice = getNewOutputDevice(mPrimaryOutput, false /*fromCache*/);
+        // force routing command to audio hardware when ending call
+        // even if no device change is needed
+        if (isStateInCall(oldState) && rxDevice == AUDIO_DEVICE_NONE) {
+            rxDevice = mPrimaryOutput->device();
+        }
 
-    if (state == AUDIO_MODE_IN_CALL) {
-        updateCallRouting(rxDevice, delayMs);
-    } else if (oldState == AUDIO_MODE_IN_CALL) {
-        if (mCallRxPatch != 0) {
-            mpClientInterface->releaseAudioPatch(mCallRxPatch->mAfPatchHandle, 0);
-            mCallRxPatch.clear();
+        if (state == AUDIO_MODE_IN_CALL) {
+            updateCallRouting(rxDevice, delayMs);
+        } else if (oldState == AUDIO_MODE_IN_CALL) {
+            if (mCallRxPatch != 0) {
+                mpClientInterface->releaseAudioPatch(mCallRxPatch->mAfPatchHandle, 0);
+                mCallRxPatch.clear();
+            }
+            if (mCallTxPatch != 0) {
+                mpClientInterface->releaseAudioPatch(mCallTxPatch->mAfPatchHandle, 0);
+                mCallTxPatch.clear();
+            }
+            setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
+        } else {
+            setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
         }
-        if (mCallTxPatch != 0) {
-            mpClientInterface->releaseAudioPatch(mCallTxPatch->mAfPatchHandle, 0);
-            mCallTxPatch.clear();
-        }
-        setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
-    } else {
-        setOutputDevice(mPrimaryOutput, rxDevice, force, 0);
     }
     // if entering in call state, handle special case of active streams
     // pertaining to sonification strategy see handleIncallSonification()
@@ -543,7 +546,7 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
     checkA2dpSuspend();
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
-    if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) {
+    if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
         audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
         updateCallRouting(newDevice);
     }
@@ -1258,7 +1261,7 @@ void AudioPolicyManager::releaseOutput(audio_io_handle_t output,
             // If effects where present on the output, audioflinger moved them to the primary
             // output by default: move them back to the appropriate output.
             audio_io_handle_t dstOutput = getOutputForEffect();
-            if (dstOutput != mPrimaryOutput->mIoHandle) {
+            if (hasPrimaryOutput() && dstOutput != mPrimaryOutput->mIoHandle) {
                 mpClientInterface->moveEffects(AUDIO_SESSION_OUTPUT_MIX,
                                                mPrimaryOutput->mIoHandle, dstOutput);
             }
@@ -1966,7 +1969,8 @@ status_t AudioPolicyManager::dump(int fd)
     snprintf(buffer, SIZE, "\nAudioPolicyManager Dump: %p\n", this);
     result.append(buffer);
 
-    snprintf(buffer, SIZE, " Primary Output: %d\n", mPrimaryOutput->mIoHandle);
+    snprintf(buffer, SIZE, " Primary Output: %d\n",
+             hasPrimaryOutput() ? mPrimaryOutput->mIoHandle : AUDIO_IO_HANDLE_NONE);
     result.append(buffer);
     snprintf(buffer, SIZE, " Phone state: %d\n", mEngine->getPhoneState());
     result.append(buffer);
@@ -2928,7 +2932,7 @@ AudioPolicyManager::~AudioPolicyManager()
 
 status_t AudioPolicyManager::initCheck()
 {
-    return (mPrimaryOutput == 0) ? NO_INIT : NO_ERROR;
+    return hasPrimaryOutput() ? NO_ERROR : NO_INIT;
 }
 
 #ifdef AUDIO_POLICY_TEST
@@ -3303,7 +3307,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                         policyMix->setOutput(desc);
                         desc->mPolicyMix = policyMix->getMix();
 
-                    } else if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) {
+                    } else if (((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
+                                    hasPrimaryOutput()) {
                         // no duplicated output for direct outputs and
                         // outputs used by dynamic policy mixes
                         audio_io_handle_t duplicatedOutput = AUDIO_IO_HANDLE_NONE;
@@ -4632,6 +4637,10 @@ void AudioPolicyManager::setStreamMute(audio_stream_type_t stream,
 void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
                                                       bool starting, bool stateChange)
 {
+    if(!hasPrimaryOutput()) {
+        return;
+    }
+
     // if the stream pertains to sonification strategy and we are in call we must
     // mute the stream if it is low visibility. If it is high visibility, we must play a tone
     // in the device used for phone strategy and play the tone if the selected device does not
