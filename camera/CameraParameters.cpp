@@ -180,6 +180,10 @@ const char CameraParameters::LIGHTFX_HDR[] = "high-dynamic-range";
 CAMERA_PARAMETERS_EXTRA_C
 #endif
 
+#ifdef CAMERA_PARAMETERS_EXT_C
+CAMERA_PARAMETERS_EXT_C
+#endif
+
 CameraParameters::CameraParameters()
                 : mMap()
 {
