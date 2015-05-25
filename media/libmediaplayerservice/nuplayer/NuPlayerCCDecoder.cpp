@@ -235,6 +235,12 @@ bool NuPlayer::CCDecoder::parseSEINalUnit(
             payload_size += last_byte;
         } while (last_byte == 0xFF);
 
+        if (payload_size > SIZE_MAX / 8
+                || !br.atLeastNumBitsLeft(payload_size * 8)) {
+            ALOGV("Malformed SEI payload");
+            break;
+        }
+
         // sei_payload()
         if (payload_type == 4) {
             bool isCC = false;
