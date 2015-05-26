@@ -1308,6 +1308,10 @@ void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVi
     }
 }
 
+void NuPlayer::startAudioSink() {
+    mRenderer->startAudioSink();
+}
+
 void NuPlayer::closeAudioSink() {
     mRenderer->closeAudioSink();
 }

@@ -79,6 +79,7 @@ struct NuPlayer::Renderer : public AHandler {
             uint32_t flags,
             bool isStreaming,
             bool *isOffloaded);
+    void startAudioSink();
     void closeAudioSink();
 
     enum {
@@ -114,6 +115,7 @@ private:
         kWhatResume              = 'resm',
         kWhatOpenAudioSink       = 'opnA',
         kWhatCloseAudioSink      = 'clsA',
+        kWhatStartAudioSink      = 'staA',
         kWhatStopAudioSink       = 'stpA',
         kWhatDisableOffloadAudio = 'noOA',
         kWhatEnableOffloadAudio  = 'enOA',
