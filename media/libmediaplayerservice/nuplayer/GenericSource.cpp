@@ -324,6 +324,10 @@ status_t NuPlayer::GenericSource::setBuffers(
     return INVALID_OPERATION;
 }
 
+bool NuPlayer::GenericSource::isStreaming() const {
+    return mIsStreaming;
+}
+
 NuPlayer::GenericSource::~GenericSource() {
     if (mLooper != NULL) {
         mLooper->unregisterHandler(id());

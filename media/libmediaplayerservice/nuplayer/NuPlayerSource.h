@@ -118,6 +118,10 @@ struct NuPlayer::Source : public AHandler {
         return false;
     }
 
+    virtual bool isStreaming() const {
+        return true;
+    }
+
 protected:
     virtual ~Source() {}
 
