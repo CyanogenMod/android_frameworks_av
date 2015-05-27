@@ -4475,7 +4475,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 track->mRetryCount = kMaxTrackRetriesDirect;
                 mActiveTrack = t;
                 mixerStatus = MIXER_TRACKS_READY;
-                if (usesHwAvSync() && mHwPaused) {
+                if (mHwPaused) {
                     doHwResume = true;
                     mHwPaused = false;
                 }
@@ -4527,7 +4527,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 } else if (last) {
                     mixerStatus = MIXER_TRACKS_ENABLED;
-                    if (usesHwAvSync() && !mHwPaused && !mStandby) {
+                    if (mHwSupportsPause && !mHwPaused && !mStandby) {
                         doHwPause = true;
                         mHwPaused = true;
                     }
@@ -4641,7 +4641,7 @@ bool AudioFlinger::DirectOutputThread::shouldStandby_l()
                            mTracks[mTracks.size() - 1]->mState == TrackBase::IDLE;
     }
 
-    return !mStandby && !(trackPaused || (usesHwAvSync() && mHwPaused && !trackStopped));
+    return !mStandby && !(trackPaused || (mHwPaused && !trackStopped));
 }
 
 // getTrackName_l() must be called with ThreadBase::mLock held
@@ -4747,10 +4747,10 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
     // no delay on outputs with HW A/V sync
     if (usesHwAvSync()) {
         standbyDelay = 0;
-    } else if (audio_is_linear_pcm(mFormat)) {
-        standbyDelay = microseconds(activeSleepTime*2);
-    } else {
+    } else if ((mType == OFFLOAD) && !audio_is_linear_pcm(mFormat)) {
         standbyDelay = kOffloadStandbyDelayNs;
+    } else {
+        standbyDelay = microseconds(activeSleepTime*2);
     }
 }
 
@@ -4930,7 +4930,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         if (track->isPausing()) {
             track->setPaused();
             if (last) {
-                if (!mHwPaused) {
+                if (mHwSupportsPause && !mHwPaused) {
                     doHwPause = true;
                     mHwPaused = true;
                 }
