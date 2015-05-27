@@ -2613,6 +2613,21 @@ status_t Camera3Device::RequestThread::clear(
     if (listener != NULL) {
         for (RequestList::iterator it = mRequestQueue.begin();
                  it != mRequestQueue.end(); ++it) {
+            // Abort the input buffers for reprocess requests.
+            if ((*it)->mInputStream != NULL) {
+                camera3_stream_buffer_t inputBuffer;
+                status_t res = (*it)->mInputStream->getInputBuffer(&inputBuffer);
+                if (res != OK) {
+                    ALOGW("%s: %d: couldn't get input buffer while clearing the request "
+                            "list: %s (%d)", __FUNCTION__, __LINE__, strerror(-res), res);
+                } else {
+                    res = (*it)->mInputStream->returnInputBuffer(inputBuffer);
+                    if (res != OK) {
+                        ALOGE("%s: %d: couldn't return input buffer while clearing the request "
+                                "list: %s (%d)", __FUNCTION__, __LINE__, strerror(-res), res);
+                    }
+                }
+            }
             // Set the frame number this request would have had, if it
             // had been submitted; this frame number will not be reused.
             // The requestId and burstId fields were set when the request was
@@ -2752,31 +2767,11 @@ bool Camera3Device::RequestThread::threadLoop() {
                __FUNCTION__);
     }
 
-    camera3_stream_buffer_t inputBuffer;
     uint32_t totalNumBuffers = 0;
 
     // Fill in buffers
-
     if (nextRequest->mInputStream != NULL) {
-        res = nextRequest->mInputStream->getInputBuffer(&inputBuffer);
-        if (res != OK) {
-            // Can't get input buffer from gralloc queue - this could be due to
-            // disconnected queue or other producer misbehavior, so not a fatal
-            // error
-            ALOGE("RequestThread: Can't get input buffer, skipping request:"
-                    " %s (%d)", strerror(-res), res);
-            {
-                Mutex::Autolock l(mRequestLock);
-                if (mListener != NULL) {
-                    mListener->notifyError(
-                            ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
-                            nextRequest->mResultExtras);
-                }
-            }
-            cleanUpFailedRequest(request, nextRequest, outputBuffers);
-            return true;
-        }
-        request.input_buffer = &inputBuffer;
+        request.input_buffer = &nextRequest->mInputBuffer;
         totalNumBuffers += 1;
     } else {
         request.input_buffer = NULL;
@@ -2932,9 +2927,9 @@ void Camera3Device::RequestThread::cleanUpFailedRequest(
     if (request.settings != NULL) {
         nextRequest->mSettings.unlock(request.settings);
     }
-    if (request.input_buffer != NULL) {
-        request.input_buffer->status = CAMERA3_BUFFER_STATUS_ERROR;
-        nextRequest->mInputStream->returnInputBuffer(*(request.input_buffer));
+    if (nextRequest->mInputStream != NULL) {
+        nextRequest->mInputBuffer.status = CAMERA3_BUFFER_STATUS_ERROR;
+        nextRequest->mInputStream->returnInputBuffer(nextRequest->mInputBuffer);
     }
     for (size_t i = 0; i < request.num_output_buffers; i++) {
         outputBuffers.editItemAt(i).status = CAMERA3_BUFFER_STATUS_ERROR;
@@ -3026,6 +3021,25 @@ sp<Camera3Device::CaptureRequest>
         nextRequest->mResultExtras.frameNumber = mFrameNumber++;
         nextRequest->mResultExtras.afTriggerId = mCurrentAfTriggerId;
         nextRequest->mResultExtras.precaptureTriggerId = mCurrentPreCaptureTriggerId;
+
+        // Since RequestThread::clear() removes buffers from the input stream,
+        // get the right buffer here before unlocking mRequestLock
+        if (nextRequest->mInputStream != NULL) {
+            res = nextRequest->mInputStream->getInputBuffer(&nextRequest->mInputBuffer);
+            if (res != OK) {
+                // Can't get input buffer from gralloc queue - this could be due to
+                // disconnected queue or other producer misbehavior, so not a fatal
+                // error
+                ALOGE("%s: Can't get input buffer, skipping request:"
+                        " %s (%d)", __FUNCTION__, strerror(-res), res);
+                if (mListener != NULL) {
+                    mListener->notifyError(
+                            ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                            nextRequest->mResultExtras);
+                }
+                return NULL;
+            }
+        }
     }
     mNextRequest = nextRequest;
 
