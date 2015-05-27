@@ -56,7 +56,7 @@ NuPlayer::GenericSource::GenericSource(
       mVideoLastDequeueTimeUs(0),
       mFetchSubtitleDataGeneration(0),
       mFetchTimedTextDataGeneration(0),
-      mDurationUs(0ll),
+      mDurationUs(-1ll),
       mAudioIsVorbis(false),
       mIsWidevine(false),
       mIsSecure(false),
