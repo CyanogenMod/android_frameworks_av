@@ -755,14 +755,14 @@ private:
     bool                            mInWrite;
 
     // FIXME rename these former local variables of threadLoop to standard "m" names
-    nsecs_t                         standbyTime;
+    nsecs_t                         mStandbyTimeNs;
     size_t                          mSinkBufferSize;
 
     // cached copies of activeSleepTimeUs() and idleSleepTimeUs() made by cacheParameters_l()
-    uint32_t                        activeSleepTime;
-    uint32_t                        idleSleepTime;
+    uint32_t                        mActiveSleepTimeUs;
+    uint32_t                        mIdleSleepTimeUs;
 
-    uint32_t                        sleepTime;
+    uint32_t                        mSleepTimeUs;
 
     // mixer status returned by prepareTracks_l()
     mixer_state                     mMixerStatus; // current cycle
@@ -775,7 +775,7 @@ private:
     uint32_t                        sleepTimeShift;
 
     // same as AudioFlinger::mStandbyTimeInNsecs except for DIRECT which uses a shorter value
-    nsecs_t                         standbyDelay;
+    nsecs_t                         mStandbyDelayNs;
 
     // MIXER only
     nsecs_t                         maxPeriod;
