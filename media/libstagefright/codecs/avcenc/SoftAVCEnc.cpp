@@ -1188,7 +1188,10 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         BufferInfo *outputBufferInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outputBufferHeader = outputBufferInfo->mHeader;
 
-        if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+        if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS &&
+                inputBufferHeader->nFilledLen == 0) {
+            mSawInputEOS = true;
+
             inQueue.erase(inQueue.begin());
             inputBufferInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inputBufferHeader);
