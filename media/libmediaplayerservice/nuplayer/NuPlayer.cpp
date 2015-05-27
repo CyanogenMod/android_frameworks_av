@@ -834,7 +834,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
                 const bool hasVideo = (videoFormat != NULL);
                 const bool canOffload = canOffloadStream(
-                        audioMeta, hasVideo, true /* is_streaming */, streamType);
+                        audioMeta, hasVideo, mSource->isStreaming(), streamType);
                 if (canOffload) {
                     if (!mOffloadAudio) {
                         mRenderer->signalEnableOffloadAudio();
@@ -1107,7 +1107,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
                     const bool hasVideo = (videoFormat != NULL);
                     const bool canOffload = canOffloadStream(
-                            audioMeta, hasVideo, true /* is_streaming */, streamType);
+                            audioMeta, hasVideo, mSource->isStreaming(), streamType);
                     if (canOffload) {
                         mRenderer->signalEnableOffloadAudio();
                         sp<AMessage> format = mSource->getFormat(true /*audio*/);
@@ -1288,8 +1288,7 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
 
     mOffloadAudio =
-        canOffloadStream(audioMeta, (videoFormat != NULL),
-                         true /* is_streaming */, streamType);
+        canOffloadStream(audioMeta, (videoFormat != NULL), mSource->isStreaming(), streamType);
     if (mOffloadAudio) {
         flags |= Renderer::FLAG_OFFLOAD_AUDIO;
     }
