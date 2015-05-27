@@ -2865,6 +2865,12 @@ bool Camera3Device::RequestThread::threadLoop() {
         nextRequest->mSettings.unlock(request.settings);
     }
 
+    // Unset as current request
+    {
+        Mutex::Autolock l(mRequestLock);
+        mNextRequest.clear();
+    }
+
     // Remove any previously queued triggers (after unlock)
     res = removeTriggers(mPrevRequest);
     if (res != OK) {
@@ -2889,6 +2895,13 @@ CameraMetadata Camera3Device::RequestThread::getLatestRequest() const {
 bool Camera3Device::RequestThread::isStreamPending(
         sp<Camera3StreamInterface>& stream) {
     Mutex::Autolock l(mRequestLock);
+
+    if (mNextRequest != nullptr) {
+        for (const auto& s : mNextRequest->mOutputStreams) {
+            if (stream == s) return true;
+        }
+        if (stream == mNextRequest->mInputStream) return true;
+    }
 
     for (const auto& request : mRequestQueue) {
         for (const auto& s : request->mOutputStreams) {
@@ -2924,6 +2937,9 @@ void Camera3Device::RequestThread::cleanUpFailedRequest(
         nextRequest->mOutputStreams.editItemAt(i)->returnBuffer(
             outputBuffers[i], 0);
     }
+
+    Mutex::Autolock l(mRequestLock);
+    mNextRequest.clear();
 }
 
 sp<Camera3Device::CaptureRequest>
@@ -3007,6 +3023,8 @@ sp<Camera3Device::CaptureRequest>
         nextRequest->mResultExtras.afTriggerId = mCurrentAfTriggerId;
         nextRequest->mResultExtras.precaptureTriggerId = mCurrentPreCaptureTriggerId;
     }
+    mNextRequest = nextRequest;
+
     return nextRequest;
 }
 
