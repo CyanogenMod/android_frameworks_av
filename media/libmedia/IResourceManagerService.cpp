@@ -48,7 +48,7 @@ static void writeToParcel(Parcel *data, const Vector<T> &items) {
 template <typename T>
 static void readFromParcel(const Parcel &data, Vector<T> *items) {
     size_t size = (size_t)data.readUint32();
-    for (size_t i = 0; i < size; i++) {
+    for (size_t i = 0; i < size && data.dataAvail() > 0; i++) {
         T item;
         item.readFromParcel(data);
         items->add(item);
