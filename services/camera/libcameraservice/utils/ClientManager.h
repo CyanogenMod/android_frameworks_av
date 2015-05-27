@@ -172,6 +172,26 @@ void ClientDescriptor<KEY, VALUE>::setPriority(int32_t priority) {
 // --------------------------------------------------------------------------------
 
 /**
+ * A default class implementing the LISTENER interface used by ClientManager.
+ */
+template<class KEY, class VALUE>
+class DefaultEventListener {
+public:
+    void onClientAdded(const ClientDescriptor<KEY, VALUE>& descriptor);
+    void onClientRemoved(const ClientDescriptor<KEY, VALUE>& descriptor);
+};
+
+template<class KEY, class VALUE>
+void DefaultEventListener<KEY, VALUE>::onClientAdded(
+        const ClientDescriptor<KEY, VALUE>& /*descriptor*/) {}
+
+template<class KEY, class VALUE>
+void DefaultEventListener<KEY, VALUE>::onClientRemoved(
+        const ClientDescriptor<KEY, VALUE>& /*descriptor*/) {}
+
+// --------------------------------------------------------------------------------
+
+/**
  * The ClientManager class wraps an LRU-ordered list of active clients and implements eviction
  * behavior for handling shared resource access.
  *
@@ -189,7 +209,7 @@ void ClientDescriptor<KEY, VALUE>::setPriority(int32_t priority) {
  *     incoming descriptor has the highest priority.  Otherwise, the incoming descriptor is
  *     removed instead.
  */
-template<class KEY, class VALUE>
+template<class KEY, class VALUE, class LISTENER=DefaultEventListener<KEY, VALUE>>
 class ClientManager {
 public:
     // The default maximum "cost" allowed before evicting
@@ -275,6 +295,24 @@ public:
     status_t waitUntilRemoved(const std::shared_ptr<ClientDescriptor<KEY, VALUE>> client,
             nsecs_t timeout) const;
 
+    /**
+     * Set the current listener for client add/remove events.
+     *
+     * The listener instance must inherit from the LISTENER class and implement the following
+     * methods:
+     *    void onClientRemoved(const ClientDescriptor<KEY, VALUE>& descriptor);
+     *    void onClientAdded(const ClientDescriptor<KEY, VALUE>& descriptor);
+     *
+     * These callback methods will be called with the ClientManager's lock held, and should
+     * not call any further ClientManager methods.
+     *
+     * The onClientRemoved method will be called when the client has been removed or evicted
+     * from the ClientManager that this event listener has been added to. The onClientAdded
+     * method will be called when the client has been added to the ClientManager that this
+     * event listener has been added to.
+     */
+    void setListener(const std::shared_ptr<LISTENER>& listener);
+
 protected:
     ~ClientManager();
 
@@ -300,36 +338,38 @@ private:
     int32_t mMaxCost;
     // LRU ordered, most recent at end
     std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> mClients;
+    std::shared_ptr<LISTENER> mListener;
 }; // class ClientManager
 
-template<class KEY, class VALUE>
-ClientManager<KEY, VALUE>::ClientManager() :
+template<class KEY, class VALUE, class LISTENER>
+ClientManager<KEY, VALUE, LISTENER>::ClientManager() :
         ClientManager(DEFAULT_MAX_COST) {}
 
-template<class KEY, class VALUE>
-ClientManager<KEY, VALUE>::ClientManager(int32_t totalCost) : mMaxCost(totalCost) {}
+template<class KEY, class VALUE, class LISTENER>
+ClientManager<KEY, VALUE, LISTENER>::ClientManager(int32_t totalCost) : mMaxCost(totalCost) {}
 
-template<class KEY, class VALUE>
-ClientManager<KEY, VALUE>::~ClientManager() {}
+template<class KEY, class VALUE, class LISTENER>
+ClientManager<KEY, VALUE, LISTENER>::~ClientManager() {}
 
-template<class KEY, class VALUE>
-std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VALUE>::wouldEvict(
+template<class KEY, class VALUE, class LISTENER>
+std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>>
+ClientManager<KEY, VALUE, LISTENER>::wouldEvict(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>>& client) const {
     Mutex::Autolock lock(mLock);
     return wouldEvictLocked(client);
 }
 
-template<class KEY, class VALUE>
+template<class KEY, class VALUE, class LISTENER>
 std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>>
-ClientManager<KEY, VALUE>::getIncompatibleClients(
+ClientManager<KEY, VALUE, LISTENER>::getIncompatibleClients(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>>& client) const {
     Mutex::Autolock lock(mLock);
     return wouldEvictLocked(client, /*returnIncompatibleClients*/true);
 }
 
-template<class KEY, class VALUE>
+template<class KEY, class VALUE, class LISTENER>
 std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>>
-ClientManager<KEY, VALUE>::wouldEvictLocked(
+ClientManager<KEY, VALUE, LISTENER>::wouldEvictLocked(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>>& client,
         bool returnIncompatibleClients) const {
 
@@ -420,8 +460,9 @@ ClientManager<KEY, VALUE>::wouldEvictLocked(
 
 }
 
-template<class KEY, class VALUE>
-std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VALUE>::addAndEvict(
+template<class KEY, class VALUE, class LISTENER>
+std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>>
+ClientManager<KEY, VALUE, LISTENER>::addAndEvict(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>>& client) {
     Mutex::Autolock lock(mLock);
     auto evicted = wouldEvictLocked(client);
@@ -433,6 +474,9 @@ std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VA
     auto iter = evicted.cbegin();
 
     if (iter != evicted.cend()) {
+
+        if (mListener != nullptr) mListener->onClientRemoved(**iter);
+
         // Remove evicted clients from list
         mClients.erase(std::remove_if(mClients.begin(), mClients.end(),
             [&iter] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
@@ -444,21 +488,22 @@ std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>> ClientManager<KEY, VA
             }), mClients.end());
     }
 
+    if (mListener != nullptr) mListener->onClientAdded(*client);
     mClients.push_back(client);
     mRemovedCondition.broadcast();
 
     return evicted;
 }
 
-template<class KEY, class VALUE>
+template<class KEY, class VALUE, class LISTENER>
 std::vector<std::shared_ptr<ClientDescriptor<KEY, VALUE>>>
-ClientManager<KEY, VALUE>::getAll() const {
+ClientManager<KEY, VALUE, LISTENER>::getAll() const {
     Mutex::Autolock lock(mLock);
     return mClients;
 }
 
-template<class KEY, class VALUE>
-std::vector<KEY> ClientManager<KEY, VALUE>::getAllKeys() const {
+template<class KEY, class VALUE, class LISTENER>
+std::vector<KEY> ClientManager<KEY, VALUE, LISTENER>::getAllKeys() const {
     Mutex::Autolock lock(mLock);
     std::vector<KEY> keys(mClients.size());
     for (const auto& i : mClients) {
@@ -467,8 +512,8 @@ std::vector<KEY> ClientManager<KEY, VALUE>::getAllKeys() const {
     return keys;
 }
 
-template<class KEY, class VALUE>
-std::vector<int32_t> ClientManager<KEY, VALUE>::getAllOwners() const {
+template<class KEY, class VALUE, class LISTENER>
+std::vector<int32_t> ClientManager<KEY, VALUE, LISTENER>::getAllOwners() const {
     Mutex::Autolock lock(mLock);
     std::set<int32_t> owners;
     for (const auto& i : mClients) {
@@ -477,8 +522,8 @@ std::vector<int32_t> ClientManager<KEY, VALUE>::getAllOwners() const {
     return std::vector<int32_t>(owners.begin(), owners.end());
 }
 
-template<class KEY, class VALUE>
-void ClientManager<KEY, VALUE>::updatePriorities(
+template<class KEY, class VALUE, class LISTENER>
+void ClientManager<KEY, VALUE, LISTENER>::updatePriorities(
         const std::map<int32_t,int32_t>& ownerPriorityList) {
     Mutex::Autolock lock(mLock);
     for (auto& i : mClients) {
@@ -489,8 +534,8 @@ void ClientManager<KEY, VALUE>::updatePriorities(
     }
 }
 
-template<class KEY, class VALUE>
-std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE>::get(
+template<class KEY, class VALUE, class LISTENER>
+std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE, LISTENER>::get(
         const KEY& key) const {
     Mutex::Autolock lock(mLock);
     for (const auto& i : mClients) {
@@ -499,23 +544,30 @@ std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE>::get(
     return std::shared_ptr<ClientDescriptor<KEY, VALUE>>(nullptr);
 }
 
-template<class KEY, class VALUE>
-void ClientManager<KEY, VALUE>::removeAll() {
+template<class KEY, class VALUE, class LISTENER>
+void ClientManager<KEY, VALUE, LISTENER>::removeAll() {
     Mutex::Autolock lock(mLock);
+    if (mListener != nullptr) {
+        for (const auto& i : mClients) {
+            mListener->onClientRemoved(*i);
+        }
+    }
     mClients.clear();
     mRemovedCondition.broadcast();
 }
 
-template<class KEY, class VALUE>
-std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE>::remove(const KEY& key) {
+template<class KEY, class VALUE, class LISTENER>
+std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE, LISTENER>::remove(
+    const KEY& key) {
     Mutex::Autolock lock(mLock);
 
     std::shared_ptr<ClientDescriptor<KEY, VALUE>> ret;
 
     // Remove evicted clients from list
     mClients.erase(std::remove_if(mClients.begin(), mClients.end(),
-        [&key, &ret] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
+        [this, &key, &ret] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
             if (curClientPtr->getKey() == key) {
+                if (mListener != nullptr) mListener->onClientRemoved(*curClientPtr);
                 ret = curClientPtr;
                 return true;
             }
@@ -526,8 +578,8 @@ std::shared_ptr<ClientDescriptor<KEY, VALUE>> ClientManager<KEY, VALUE>::remove(
     return ret;
 }
 
-template<class KEY, class VALUE>
-status_t ClientManager<KEY, VALUE>::waitUntilRemoved(
+template<class KEY, class VALUE, class LISTENER>
+status_t ClientManager<KEY, VALUE, LISTENER>::waitUntilRemoved(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>> client,
         nsecs_t timeout) const {
     status_t ret = NO_ERROR;
@@ -558,14 +610,21 @@ status_t ClientManager<KEY, VALUE>::waitUntilRemoved(
     return ret;
 }
 
-template<class KEY, class VALUE>
-void ClientManager<KEY, VALUE>::remove(
+template<class KEY, class VALUE, class LISTENER>
+void ClientManager<KEY, VALUE, LISTENER>::setListener(const std::shared_ptr<LISTENER>& listener) {
+    Mutex::Autolock lock(mLock);
+    mListener = listener;
+}
+
+template<class KEY, class VALUE, class LISTENER>
+void ClientManager<KEY, VALUE, LISTENER>::remove(
         const std::shared_ptr<ClientDescriptor<KEY, VALUE>>& value) {
     Mutex::Autolock lock(mLock);
     // Remove evicted clients from list
     mClients.erase(std::remove_if(mClients.begin(), mClients.end(),
-        [&value] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
+        [this, &value] (std::shared_ptr<ClientDescriptor<KEY, VALUE>>& curClientPtr) {
             if (curClientPtr == value) {
+                if (mListener != nullptr) mListener->onClientRemoved(*curClientPtr);
                 return true;
             }
             return false;
@@ -573,8 +632,8 @@ void ClientManager<KEY, VALUE>::remove(
     mRemovedCondition.broadcast();
 }
 
-template<class KEY, class VALUE>
-int64_t ClientManager<KEY, VALUE>::getCurrentCostLocked() const {
+template<class KEY, class VALUE, class LISTENER>
+int64_t ClientManager<KEY, VALUE, LISTENER>::getCurrentCostLocked() const {
     int64_t totalCost = 0;
     for (const auto& x : mClients) {
             totalCost += x->getCost();

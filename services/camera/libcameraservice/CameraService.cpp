@@ -40,6 +40,7 @@
 #include <media/AudioSystem.h>
 #include <media/IMediaHTTPService.h>
 #include <media/mediaplayer.h>
+#include <mediautils/BatteryNotifier.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 #include <utils/String16.h>
@@ -138,6 +139,11 @@ void CameraService::onFirstRef()
     ALOGI("CameraService process starting");
 
     BnCameraService::onFirstRef();
+
+    // Update battery life tracking if service is restarting
+    BatteryNotifier& notifier(BatteryNotifier::getInstance());
+    notifier.noteResetCamera();
+    notifier.noteResetFlashlight();
 
     camera_module_t *rawModule;
     int err = hw_get_module(CAMERA_HARDWARE_MODULE_ID,
@@ -323,9 +329,36 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
 
     res = setTorchStatusLocked(cameraId, newStatus);
     if (res) {
-        ALOGE("%s: Failed to set the torch status", __FUNCTION__,
-                (uint32_t)newStatus);
+        ALOGE("%s: Failed to set the torch status", __FUNCTION__, (uint32_t)newStatus);
         return;
+    }
+
+    {
+        // Update battery life logging for flashlight
+        Mutex::Autolock al(mTorchClientMapMutex);
+        auto iter = mTorchUidMap.find(cameraId);
+        if (iter != mTorchUidMap.end()) {
+            int oldUid = iter->second.second;
+            int newUid = iter->second.first;
+            BatteryNotifier& notifier(BatteryNotifier::getInstance());
+            if (oldUid != newUid) {
+                // If the UID has changed, log the status and update current UID in mTorchUidMap
+                if (status == ICameraServiceListener::TORCH_STATUS_AVAILABLE_ON) {
+                    notifier.noteFlashlightOff(cameraId, oldUid);
+                }
+                if (newStatus == ICameraServiceListener::TORCH_STATUS_AVAILABLE_ON) {
+                    notifier.noteFlashlightOn(cameraId, newUid);
+                }
+                iter->second.second = newUid;
+            } else {
+                // If the UID has not changed, log the status
+                if (newStatus == ICameraServiceListener::TORCH_STATUS_AVAILABLE_ON) {
+                    notifier.noteFlashlightOn(cameraId, oldUid);
+                } else {
+                    notifier.noteFlashlightOff(cameraId, oldUid);
+                }
+            }
+        }
     }
 
     {
@@ -1137,12 +1170,13 @@ status_t CameraService::connectDevice(
 
 status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         const sp<IBinder>& clientBinder) {
-    if (enabled && clientBinder == NULL) {
+    if (enabled && clientBinder == nullptr) {
         ALOGE("%s: torch client binder is NULL", __FUNCTION__);
         return -EINVAL;
     }
 
     String8 id = String8(cameraId.string());
+    int uid = getCallingUid();
 
     // verify id is valid.
     auto state = getCameraState(id);
@@ -1181,7 +1215,21 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         }
     }
 
+    {
+        // Update UID map - this is used in the torch status changed callbacks, so must be done
+        // before setTorchMode
+        Mutex::Autolock al(mTorchClientMapMutex);
+        if (mTorchUidMap.find(id) == mTorchUidMap.end()) {
+            mTorchUidMap[id].first = uid;
+            mTorchUidMap[id].second = uid;
+        } else {
+            // Set the pending UID
+            mTorchUidMap[id].first = uid;
+        }
+    }
+
     status_t res = mFlashlight->setTorchMode(id, enabled);
+
     if (res) {
         ALOGE("%s: setting torch mode of camera %s to %d failed. %s (%d)",
                 __FUNCTION__, id.string(), enabled, strerror(-res), res);
@@ -1192,19 +1240,17 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         // update the link to client's death
         Mutex::Autolock al(mTorchClientMapMutex);
         ssize_t index = mTorchClientMap.indexOfKey(id);
+        BatteryNotifier& notifier(BatteryNotifier::getInstance());
         if (enabled) {
             if (index == NAME_NOT_FOUND) {
                 mTorchClientMap.add(id, clientBinder);
             } else {
-                const sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
-                oldBinder->unlinkToDeath(this);
-
+                mTorchClientMap.valueAt(index)->unlinkToDeath(this);
                 mTorchClientMap.replaceValueAt(index, clientBinder);
             }
             clientBinder->linkToDeath(this);
         } else if (index != NAME_NOT_FOUND) {
-            sp<IBinder> oldBinder = mTorchClientMap.valueAt(index);
-            oldBinder->unlinkToDeath(this);
+            mTorchClientMap.valueAt(index)->unlinkToDeath(this);
         }
     }
 
@@ -1226,8 +1272,7 @@ void CameraService::notifySystemEvent(int32_t eventId, const int32_t* args, size
     }
 }
 
-status_t CameraService::addListener(
-                                const sp<ICameraServiceListener>& listener) {
+status_t CameraService::addListener(const sp<ICameraServiceListener>& listener) {
     ALOGV("%s: Add listener %p", __FUNCTION__, listener.get());
 
     if (listener == 0) {
@@ -1948,8 +1993,39 @@ String8 CameraService::CameraState::getId() const {
 }
 
 // ----------------------------------------------------------------------------
+//                  ClientEventListener
+// ----------------------------------------------------------------------------
+
+void CameraService::ClientEventListener::onClientAdded(
+        const resource_policy::ClientDescriptor<String8,
+        sp<CameraService::BasicClient>>& descriptor) {
+    auto basicClient = descriptor.getValue();
+    if (basicClient.get() != nullptr) {
+        BatteryNotifier& notifier(BatteryNotifier::getInstance());
+        notifier.noteStartCamera(descriptor.getKey(),
+                static_cast<int>(basicClient->getClientUid()));
+    }
+}
+
+void CameraService::ClientEventListener::onClientRemoved(
+        const resource_policy::ClientDescriptor<String8,
+        sp<CameraService::BasicClient>>& descriptor) {
+    auto basicClient = descriptor.getValue();
+    if (basicClient.get() != nullptr) {
+        BatteryNotifier& notifier(BatteryNotifier::getInstance());
+        notifier.noteStopCamera(descriptor.getKey(),
+                static_cast<int>(basicClient->getClientUid()));
+    }
+}
+
+
+// ----------------------------------------------------------------------------
 //                  CameraClientManager
 // ----------------------------------------------------------------------------
+
+CameraService::CameraClientManager::CameraClientManager() {
+    setListener(std::make_shared<ClientEventListener>());
+}
 
 CameraService::CameraClientManager::~CameraClientManager() {}
 

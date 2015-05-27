@@ -46,6 +46,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <utility>
 
 namespace android {
 
@@ -327,6 +328,20 @@ public:
 
     }; // class Client
 
+    /**
+     * A listener class that implements the LISTENER interface for use with a ClientManager, and
+     * implements the following methods:
+     *    void onClientRemoved(const ClientDescriptor<KEY, VALUE>& descriptor);
+     *    void onClientAdded(const ClientDescriptor<KEY, VALUE>& descriptor);
+     */
+    class ClientEventListener {
+    public:
+        void onClientAdded(const resource_policy::ClientDescriptor<String8,
+                sp<CameraService::BasicClient>>& descriptor);
+        void onClientRemoved(const resource_policy::ClientDescriptor<String8,
+                sp<CameraService::BasicClient>>& descriptor);
+    }; // class ClientEventListener
+
     typedef std::shared_ptr<resource_policy::ClientDescriptor<String8,
             sp<CameraService::BasicClient>>> DescriptorPtr;
 
@@ -338,9 +353,10 @@ public:
      * This class manages the eviction behavior for the camera clients.  See the parent class
      * implementation in utils/ClientManager for the specifics of this behavior.
      */
-    class CameraClientManager :
-            public resource_policy::ClientManager<String8, sp<CameraService::BasicClient>> {
+    class CameraClientManager : public resource_policy::ClientManager<String8,
+            sp<CameraService::BasicClient>, ClientEventListener> {
     public:
+        CameraClientManager();
         virtual ~CameraClientManager();
 
         /**
@@ -624,13 +640,15 @@ private:
     sp<CameraFlashlight> mFlashlight;
     // guard mTorchStatusMap
     Mutex                mTorchStatusMutex;
-    // guard mTorchClientMap
+    // guard mTorchClientMap, mTorchUidMap
     Mutex                mTorchClientMapMutex;
     // camera id -> torch status
     KeyedVector<String8, ICameraServiceListener::TorchStatus> mTorchStatusMap;
     // camera id -> torch client binder
     // only store the last client that turns on each camera's torch mode
-    KeyedVector<String8, sp<IBinder> > mTorchClientMap;
+    KeyedVector<String8, sp<IBinder>> mTorchClientMap;
+    // camera id -> [incoming uid, current uid] pair
+    std::map<String8, std::pair<int, int>> mTorchUidMap;
 
     // check and handle if torch client's process has died
     void handleTorchClientBinderDied(const wp<IBinder> &who);

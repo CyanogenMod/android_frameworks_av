@@ -60,8 +60,6 @@ struct MediaCodec : public AHandler {
         CB_RESOURCE_RECLAIMED = 5,
     };
 
-    struct BatteryNotifier;
-
     static sp<MediaCodec> CreateByType(
             const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err = NULL);
 
