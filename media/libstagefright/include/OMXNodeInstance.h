@@ -142,12 +142,11 @@ private:
         OMX::buffer_id mID;
     };
     Vector<ActiveBuffer> mActiveBuffers;
-#ifdef __LP64__
+    // for buffer ptr to buffer id translation
     Mutex mBufferIDLock;
     uint32_t mBufferIDCount;
     KeyedVector<OMX::buffer_id, OMX_BUFFERHEADERTYPE *> mBufferIDToBufferHeader;
     KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
-#endif
 
     // For debug support
     char *mName;
