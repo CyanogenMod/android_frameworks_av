@@ -75,6 +75,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual status_t setBuffers(bool audio, Vector<MediaBuffer *> &buffers);
 
+    virtual bool isStreaming() const;
+
 protected:
     virtual ~GenericSource();
 
