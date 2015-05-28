@@ -2765,11 +2765,13 @@ bool Camera3Device::RequestThread::threadLoop() {
             // error
             ALOGE("RequestThread: Can't get input buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
-            Mutex::Autolock l(mRequestLock);
-            if (mListener != NULL) {
-                mListener->notifyError(
-                        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
-                        nextRequest->mResultExtras);
+            {
+                Mutex::Autolock l(mRequestLock);
+                if (mListener != NULL) {
+                    mListener->notifyError(
+                            ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                            nextRequest->mResultExtras);
+                }
             }
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
@@ -2792,11 +2794,13 @@ bool Camera3Device::RequestThread::threadLoop() {
             // error
             ALOGE("RequestThread: Can't get output buffer, skipping request:"
                     " %s (%d)", strerror(-res), res);
-            Mutex::Autolock l(mRequestLock);
-            if (mListener != NULL) {
-                mListener->notifyError(
-                        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
-                        nextRequest->mResultExtras);
+            {
+                Mutex::Autolock l(mRequestLock);
+                if (mListener != NULL) {
+                    mListener->notifyError(
+                            ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                            nextRequest->mResultExtras);
+                }
             }
             cleanUpFailedRequest(request, nextRequest, outputBuffers);
             return true;
