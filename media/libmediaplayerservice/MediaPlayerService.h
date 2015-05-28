@@ -194,6 +194,7 @@ class MediaPlayerService : public BnMediaPlayerService
             DISALLOW_EVIL_CONSTRUCTORS(CallbackData);
         };
 
+        mutable Mutex mLock;
     }; // AudioOutput
 
 
