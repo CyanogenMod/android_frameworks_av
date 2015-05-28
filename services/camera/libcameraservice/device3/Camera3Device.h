@@ -501,6 +501,10 @@ class Camera3Device :
         Condition          mRequestSignal;
         RequestList        mRequestQueue;
         RequestList        mRepeatingRequests;
+        // The next request being prepped for submission to the HAL, no longer
+        // on the request queue. Read-only even with mRequestLock held, outside
+        // of threadLoop
+        sp<const CaptureRequest> mNextRequest;
 
         bool               mReconfigured;
 
