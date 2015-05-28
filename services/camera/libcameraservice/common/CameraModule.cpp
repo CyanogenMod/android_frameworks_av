@@ -31,7 +31,7 @@ void CameraModule::deriveCameraCharacteristicsKeys(
 
     // Keys added in HAL3.3
     if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_3) {
-        const size_t NUM_DERIVED_KEYS_HAL3_3 = 3;
+        const size_t NUM_DERIVED_KEYS_HAL3_3 = 5;
         Vector<uint8_t> controlModes;
         uint8_t data = ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE;
         chars.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE, &data, /*count*/1);
@@ -80,6 +80,29 @@ void CameraModule::deriveCameraCharacteristicsKeys(
 
         chars.update(ANDROID_CONTROL_AVAILABLE_MODES, controlModes);
 
+        entry = chars.find(ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS);
+        // HAL3.2 devices passing existing CTS test should all support all LSC modes and LSC map
+        bool lensShadingModeSupported = false;
+        if (entry.count > 0) {
+            for (size_t i = 0; i < entry.count; i++) {
+                if (entry.data.i32[i] == ANDROID_SHADING_MODE) {
+                    lensShadingModeSupported = true;
+                    break;
+                }
+            }
+        }
+        Vector<uint8_t> lscModes;
+        Vector<uint8_t> lscMapModes;
+        lscModes.push(ANDROID_SHADING_MODE_FAST);
+        lscModes.push(ANDROID_SHADING_MODE_HIGH_QUALITY);
+        lscMapModes.push(ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_OFF);
+        if (lensShadingModeSupported) {
+            lscModes.push(ANDROID_SHADING_MODE_OFF);
+            lscMapModes.push(ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_ON);
+        }
+        chars.update(ANDROID_SHADING_AVAILABLE_MODES, lscModes);
+        chars.update(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES, lscMapModes);
+
         entry = chars.find(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
         Vector<int32_t> availableCharsKeys;
         availableCharsKeys.setCapacity(entry.count + NUM_DERIVED_KEYS_HAL3_3);
@@ -87,9 +110,12 @@ void CameraModule::deriveCameraCharacteristicsKeys(
             availableCharsKeys.push(entry.data.i32[i]);
         }
         availableCharsKeys.push(ANDROID_CONTROL_AE_LOCK_AVAILABLE);
-        availableCharsKeys.push(ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE);
+        availableCharsKeys.push(ANDROID_CONTROL_AWB_LOCK_AVAILABLE);
         availableCharsKeys.push(ANDROID_CONTROL_AVAILABLE_MODES);
+        availableCharsKeys.push(ANDROID_SHADING_AVAILABLE_MODES);
+        availableCharsKeys.push(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES);
         chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
+
     }
     return;
 }
