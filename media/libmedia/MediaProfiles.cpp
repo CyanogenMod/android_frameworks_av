@@ -152,16 +152,6 @@ MediaProfiles::logAudioDecoderCap(const MediaProfiles::AudioDecoderCap& cap UNUS
     ALOGV("codec = %d", cap.mCodec);
 }
 
-/*static*/ void
-MediaProfiles::logVideoEditorCap(const MediaProfiles::VideoEditorCap& cap UNUSED)
-{
-    ALOGV("videoeditor cap:");
-    ALOGV("mMaxInputFrameWidth = %d", cap.mMaxInputFrameWidth);
-    ALOGV("mMaxInputFrameHeight = %d", cap.mMaxInputFrameHeight);
-    ALOGV("mMaxOutputFrameWidth = %d", cap.mMaxOutputFrameWidth);
-    ALOGV("mMaxOutputFrameHeight = %d", cap.mMaxOutputFrameHeight);
-}
-
 /*static*/ int
 MediaProfiles::findTagForName(const MediaProfiles::NameToTagMap *map, size_t nMappings,
         const char *name)
@@ -398,42 +388,6 @@ void MediaProfiles::addStartTimeOffset(int cameraId, const char** atts)
     ALOGV("%s: cameraId=%d, offset=%d ms", __func__, cameraId, offsetTimeMs);
     mStartTimeOffsets.replaceValueFor(cameraId, offsetTimeMs);
 }
-/*static*/ MediaProfiles::ExportVideoProfile*
-MediaProfiles::createExportVideoProfile(const char **atts)
-{
-    CHECK(!strcmp("name", atts[0]) &&
-          !strcmp("profile", atts[2]) &&
-          !strcmp("level", atts[4]));
-
-    const size_t nMappings =
-        sizeof(sVideoEncoderNameMap)/sizeof(sVideoEncoderNameMap[0]);
-    const int codec = findTagForName(sVideoEncoderNameMap, nMappings, atts[1]);
-    CHECK(codec != -1);
-
-    MediaProfiles::ExportVideoProfile *profile =
-        new MediaProfiles::ExportVideoProfile(
-            codec, atoi(atts[3]), atoi(atts[5]));
-
-    return profile;
-}
-/*static*/ MediaProfiles::VideoEditorCap*
-MediaProfiles::createVideoEditorCap(const char **atts, MediaProfiles *profiles)
-{
-    CHECK(!strcmp("maxInputFrameWidth", atts[0]) &&
-          !strcmp("maxInputFrameHeight", atts[2])  &&
-          !strcmp("maxOutputFrameWidth", atts[4]) &&
-          !strcmp("maxOutputFrameHeight", atts[6]) &&
-          !strcmp("maxPrefetchYUVFrames", atts[8]));
-
-    MediaProfiles::VideoEditorCap *pVideoEditorCap =
-        new MediaProfiles::VideoEditorCap(atoi(atts[1]), atoi(atts[3]),
-                atoi(atts[5]), atoi(atts[7]), atoi(atts[9]));
-
-    logVideoEditorCap(*pVideoEditorCap);
-    profiles->mVideoEditorCap = pVideoEditorCap;
-
-    return pVideoEditorCap;
-}
 
 /*static*/ void
 MediaProfiles::startElementHandler(void *userData, const char *name, const char **atts)
@@ -465,10 +419,6 @@ MediaProfiles::startElementHandler(void *userData, const char *name, const char 
             createCamcorderProfile(profiles->mCurrentCameraId, atts, profiles->mCameraIds));
     } else if (strcmp("ImageEncoding", name) == 0) {
         profiles->addImageEncodingQualityLevel(profiles->mCurrentCameraId, atts);
-    } else if (strcmp("VideoEditorCap", name) == 0) {
-        createVideoEditorCap(atts, profiles);
-    } else if (strcmp("ExportVideoProfile", name) == 0) {
-        profiles->mVideoEditorExportProfiles.add(createExportVideoProfile(atts));
     }
 }
 
@@ -873,32 +823,6 @@ MediaProfiles::createDefaultImageEncodingQualityLevels(MediaProfiles *profiles)
     profiles->mImageEncodingQualityLevels.add(levels);
 }
 
-/*static*/ void
-MediaProfiles::createDefaultVideoEditorCap(MediaProfiles *profiles)
-{
-    profiles->mVideoEditorCap =
-        new MediaProfiles::VideoEditorCap(
-                VIDEOEDITOR_DEFAULT_MAX_INPUT_FRAME_WIDTH,
-                VIDEOEDITOR_DEFUALT_MAX_INPUT_FRAME_HEIGHT,
-                VIDEOEDITOR_DEFAULT_MAX_OUTPUT_FRAME_WIDTH,
-                VIDEOEDITOR_DEFUALT_MAX_OUTPUT_FRAME_HEIGHT,
-                VIDEOEDITOR_DEFAULT_MAX_PREFETCH_YUV_FRAMES);
-}
-/*static*/ void
-MediaProfiles::createDefaultExportVideoProfiles(MediaProfiles *profiles)
-{
-    // Create default video export profiles
-    profiles->mVideoEditorExportProfiles.add(
-        new ExportVideoProfile(VIDEO_ENCODER_H263,
-            OMX_VIDEO_H263ProfileBaseline, OMX_VIDEO_H263Level10));
-    profiles->mVideoEditorExportProfiles.add(
-        new ExportVideoProfile(VIDEO_ENCODER_MPEG_4_SP,
-            OMX_VIDEO_MPEG4ProfileSimple, OMX_VIDEO_MPEG4Level1));
-    profiles->mVideoEditorExportProfiles.add(
-        new ExportVideoProfile(VIDEO_ENCODER_H264,
-            OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel13));
-}
-
 /*static*/ MediaProfiles*
 MediaProfiles::createDefaultInstance()
 {
@@ -910,8 +834,6 @@ MediaProfiles::createDefaultInstance()
     createDefaultAudioDecoders(profiles);
     createDefaultEncoderOutputFileFormats(profiles);
     createDefaultImageEncodingQualityLevels(profiles);
-    createDefaultVideoEditorCap(profiles);
-    createDefaultExportVideoProfiles(profiles);
     return profiles;
 }
 
@@ -1007,54 +929,6 @@ int MediaProfiles::getVideoEncoderParamByName(const char *name, video_encoder co
     if (!strcmp("enc.vid.fps.max", name)) return mVideoEncoders[index]->mMaxFrameRate;
 
     ALOGE("The given video encoder param name %s is not found", name);
-    return -1;
-}
-int MediaProfiles::getVideoEditorExportParamByName(
-    const char *name, int codec) const
-{
-    ALOGV("getVideoEditorExportParamByName: name %s codec %d", name, codec);
-    ExportVideoProfile *exportProfile = NULL;
-    int index = -1;
-    for (size_t i =0; i < mVideoEditorExportProfiles.size(); i++) {
-        exportProfile = mVideoEditorExportProfiles[i];
-        if (exportProfile->mCodec == codec) {
-            index = i;
-            break;
-        }
-    }
-    if (index == -1) {
-        ALOGE("The given video decoder %d is not found", codec);
-        return -1;
-    }
-    if (!strcmp("videoeditor.export.profile", name))
-        return exportProfile->mProfile;
-    if (!strcmp("videoeditor.export.level", name))
-        return exportProfile->mLevel;
-
-    ALOGE("The given video editor export param name %s is not found", name);
-    return -1;
-}
-int MediaProfiles::getVideoEditorCapParamByName(const char *name) const
-{
-    ALOGV("getVideoEditorCapParamByName: %s", name);
-
-    if (mVideoEditorCap == NULL) {
-        ALOGE("The mVideoEditorCap is not created, then create default cap.");
-        createDefaultVideoEditorCap(sInstance);
-    }
-
-    if (!strcmp("videoeditor.input.width.max", name))
-        return mVideoEditorCap->mMaxInputFrameWidth;
-    if (!strcmp("videoeditor.input.height.max", name))
-        return mVideoEditorCap->mMaxInputFrameHeight;
-    if (!strcmp("videoeditor.output.width.max", name))
-        return mVideoEditorCap->mMaxOutputFrameWidth;
-    if (!strcmp("videoeditor.output.height.max", name))
-        return mVideoEditorCap->mMaxOutputFrameHeight;
-    if (!strcmp("maxPrefetchYUVFrames", name))
-        return mVideoEditorCap->mMaxPrefetchYUVFrames;
-
-    ALOGE("The given video editor param name %s is not found", name);
     return -1;
 }
 

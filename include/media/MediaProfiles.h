@@ -58,24 +58,6 @@ enum camcorder_quality {
     CAMCORDER_QUALITY_HIGH_SPEED_LIST_END = 2005,
 };
 
-/**
- * Set CIF as default maximum import and export resolution of video editor.
- * The maximum import and export resolutions are platform specific,
- * which should be defined in media_profiles.xml.
- * Set default maximum prefetch YUV frames to 6, which means video editor can
- * queue up to 6 YUV frames in the video encoder source.
- * This value is used to limit the amount of memory used by video editor
- * engine when the encoder consumes YUV frames at a lower speed
- * than video editor engine produces.
- */
-enum videoeditor_capability {
-    VIDEOEDITOR_DEFAULT_MAX_INPUT_FRAME_WIDTH = 352,
-    VIDEOEDITOR_DEFUALT_MAX_INPUT_FRAME_HEIGHT = 288,
-    VIDEOEDITOR_DEFAULT_MAX_OUTPUT_FRAME_WIDTH = 352,
-    VIDEOEDITOR_DEFUALT_MAX_OUTPUT_FRAME_HEIGHT = 288,
-    VIDEOEDITOR_DEFAULT_MAX_PREFETCH_YUV_FRAMES = 6
-};
-
 enum video_decoder {
     VIDEO_DECODER_WMV,
 };
@@ -148,32 +130,6 @@ public:
     int getVideoEncoderParamByName(const char *name, video_encoder codec) const;
 
     /**
-     * Returns the value for the given param name for the video editor cap
-     * param or -1 if error.
-     * Supported param name are:
-     * videoeditor.input.width.max - max input video frame width
-     * videoeditor.input.height.max - max input video frame height
-     * videoeditor.output.width.max - max output video frame width
-     * videoeditor.output.height.max - max output video frame height
-     * maxPrefetchYUVFrames - max prefetch YUV frames in video editor engine. This value is used
-     * to limit the memory consumption.
-     */
-    int getVideoEditorCapParamByName(const char *name) const;
-
-    /**
-     * Returns the value for the given param name for the video editor export codec format
-     * param or -1 if error.
-     * Supported param name are:
-     * videoeditor.export.profile - export video profile
-     * videoeditor.export.level - export video level
-     * Supported param codec are:
-     * 1 for h263
-     * 2 for h264
-     * 3 for mpeg4
-     */
-    int getVideoEditorExportParamByName(const char *name, int codec) const;
-
-    /**
      * Returns the audio encoders supported.
      */
     Vector<audio_encoder> getAudioEncoders() const;
@@ -221,7 +177,7 @@ private:
 
     MediaProfiles& operator=(const MediaProfiles&);  // Don't call me
     MediaProfiles(const MediaProfiles&);             // Don't call me
-    MediaProfiles() { mVideoEditorCap = NULL; }        // Dummy default constructor
+    MediaProfiles() {}                               // Dummy default constructor
     ~MediaProfiles();                                // Don't delete me
 
     struct VideoCodec {
@@ -366,31 +322,6 @@ private:
         int mCameraId;
         Vector<int> mLevels;
     };
-    struct ExportVideoProfile {
-        ExportVideoProfile(int codec, int profile, int level)
-            :mCodec(codec),mProfile(profile),mLevel(level) {}
-        ~ExportVideoProfile() {}
-        int mCodec;
-        int mProfile;
-        int mLevel;
-    };
-    struct VideoEditorCap {
-        VideoEditorCap(int inFrameWidth, int inFrameHeight,
-            int outFrameWidth, int outFrameHeight, int frames)
-            : mMaxInputFrameWidth(inFrameWidth),
-              mMaxInputFrameHeight(inFrameHeight),
-              mMaxOutputFrameWidth(outFrameWidth),
-              mMaxOutputFrameHeight(outFrameHeight),
-              mMaxPrefetchYUVFrames(frames) {}
-
-        ~VideoEditorCap() {}
-
-        int mMaxInputFrameWidth;
-        int mMaxInputFrameHeight;
-        int mMaxOutputFrameWidth;
-        int mMaxOutputFrameHeight;
-        int mMaxPrefetchYUVFrames;
-    };
 
     int getCamcorderProfileIndex(int cameraId, camcorder_quality quality) const;
     void initRequiredProfileRefs(const Vector<int>& cameraIds);
@@ -403,7 +334,6 @@ private:
     static void logAudioEncoderCap(const AudioEncoderCap& cap);
     static void logVideoDecoderCap(const VideoDecoderCap& cap);
     static void logAudioDecoderCap(const AudioDecoderCap& cap);
-    static void logVideoEditorCap(const VideoEditorCap& cap);
 
     // If the xml configuration file does exist, use the settings
     // from the xml
@@ -415,9 +345,6 @@ private:
     static VideoDecoderCap* createVideoDecoderCap(const char **atts);
     static VideoEncoderCap* createVideoEncoderCap(const char **atts);
     static AudioEncoderCap* createAudioEncoderCap(const char **atts);
-    static VideoEditorCap* createVideoEditorCap(
-                const char **atts, MediaProfiles *profiles);
-    static ExportVideoProfile* createExportVideoProfile(const char **atts);
 
     static CamcorderProfile* createCamcorderProfile(
                 int cameraId, const char **atts, Vector<int>& cameraIds);
@@ -461,8 +388,6 @@ private:
     static void createDefaultEncoderOutputFileFormats(MediaProfiles *profiles);
     static void createDefaultImageEncodingQualityLevels(MediaProfiles *profiles);
     static void createDefaultImageDecodingMaxMemory(MediaProfiles *profiles);
-    static void createDefaultVideoEditorCap(MediaProfiles *profiles);
-    static void createDefaultExportVideoProfiles(MediaProfiles *profiles);
 
     static VideoEncoderCap* createDefaultH263VideoEncoderCap();
     static VideoEncoderCap* createDefaultM4vVideoEncoderCap();
@@ -520,8 +445,6 @@ private:
 
     RequiredProfiles *mRequiredProfileRefs;
     Vector<int>              mCameraIds;
-    VideoEditorCap* mVideoEditorCap;
-    Vector<ExportVideoProfile*> mVideoEditorExportProfiles;
 };
 
 }; // namespace android
