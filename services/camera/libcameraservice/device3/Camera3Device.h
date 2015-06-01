@@ -234,6 +234,7 @@ class Camera3Device :
       public:
         CameraMetadata                      mSettings;
         sp<camera3::Camera3Stream>          mInputStream;
+        camera3_stream_buffer_t             mInputBuffer;
         Vector<sp<camera3::Camera3OutputStreamInterface> >
                                             mOutputStreams;
         CaptureResultExtras                 mResultExtras;
