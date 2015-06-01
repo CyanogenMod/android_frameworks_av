@@ -19,7 +19,7 @@
 #include <utils/Log.h>
 
 #include "NuPlayerRenderer.h"
-
+#include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -35,6 +35,25 @@
 #include <inttypes.h>
 
 namespace android {
+
+/*
+ * Example of common configuration settings in shell script form
+
+   #Turn offload audio off (use PCM for Play Music) -- AudioPolicyManager
+   adb shell setprop audio.offload.disable 1
+
+   #Allow offload audio with video (requires offloading to be enabled) -- AudioPolicyManager
+   adb shell setprop audio.offload.video 1
+
+   #Use audio callbacks for PCM data
+   adb shell setprop media.stagefright.audio.cbk 1
+
+ * These configurations take effect for the next track played (not the current track).
+ */
+
+static inline bool getUseAudioCallbackSetting() {
+    return property_get_bool("media.stagefright.audio.cbk", false /* default_value */);
+}
 
 // Maximum time in paused state when offloading audio decompression. When elapsed, the AudioSink
 // is closed to allow the audio DSP to power down.
@@ -87,6 +106,7 @@ NuPlayer::Renderer::Renderer(
       mCurrentPcmInfo(AUDIO_PCMINFO_INITIALIZER),
       mTotalBuffersQueued(0),
       mLastAudioBufferDrained(0),
+      mUseAudioCallback(false),
       mWakeLock(new AWakeLock()) {
     mMediaClock = new MediaClock;
     mPlaybackRate = mPlaybackSettings.mSpeed;
@@ -593,7 +613,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
 void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
     if (mDrainAudioQueuePending || mSyncQueues || mPaused
-            || offloadingAudio()) {
+            || mUseAudioCallback) {
         return;
     }
 
@@ -642,12 +662,14 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 
         case MediaPlayerBase::AudioSink::CB_EVENT_STREAM_END:
         {
+            ALOGV("AudioSink::CB_EVENT_STREAM_END");
             me->notifyEOS(true /* audio */, ERROR_END_OF_STREAM);
             break;
         }
 
         case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
         {
+            ALOGV("AudioSink::CB_EVENT_TEAR_DOWN");
             me->notifyAudioTearDown();
             break;
         }
@@ -659,7 +681,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
     Mutex::Autolock autoLock(mLock);
 
-    if (!offloadingAudio() || mPaused) {
+    if (!mUseAudioCallback || mPaused) {
         return 0;
     }
 
@@ -667,13 +689,13 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
 
     size_t sizeCopied = 0;
     bool firstEntry = true;
+    QueueEntry *entry;  // will be valid after while loop if hasEOS is set.
     while (sizeCopied < size && !mAudioQueue.empty()) {
-        QueueEntry *entry = &*mAudioQueue.begin();
+        entry = &*mAudioQueue.begin();
 
         if (entry->mBuffer == NULL) { // EOS
             hasEOS = true;
             mAudioQueue.erase(mAudioQueue.begin());
-            entry = NULL;
             break;
         }
 
@@ -681,7 +703,7 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
             firstEntry = false;
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
-            ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
+            ALOGV("fillAudioBuffer: rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
             setAudioFirstAnchorTimeIfNeeded_l(mediaTimeUs);
         }
 
@@ -714,10 +736,28 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
         mMediaClock->updateAnchor(nowMediaUs, nowUs, INT64_MAX);
     }
 
-    if (hasEOS) {
-        (new AMessage(kWhatStopAudioSink, this))->post();
+    // for non-offloaded audio, we need to compute the frames written because
+    // there is no EVENT_STREAM_END notification. The frames written gives
+    // an estimate on the pending played out duration.
+    if (!offloadingAudio()) {
+        mNumFramesWritten += sizeCopied / mAudioSink->frameSize();
     }
 
+    if (hasEOS) {
+        (new AMessage(kWhatStopAudioSink, this))->post();
+        // As there is currently no EVENT_STREAM_END callback notification for
+        // non-offloaded audio tracks, we need to post the EOS ourselves.
+        if (!offloadingAudio()) {
+            int64_t postEOSDelayUs = 0;
+            if (mAudioSink->needsTrailingPadding()) {
+                postEOSDelayUs = getPendingAudioPlayoutDurationUs(ALooper::GetNowUs());
+            }
+            ALOGV("fillAudioBuffer: notifyEOS "
+                    "mNumFramesWritten:%u  finalResult:%d  postEOSDelay:%lld",
+                    mNumFramesWritten, entry->mFinalResult, (long long)postEOSDelayUs);
+            notifyEOS(true /* audio */, entry->mFinalResult, postEOSDelayUs);
+        }
+    }
     return sizeCopied;
 }
 
@@ -778,7 +818,8 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         if (entry->mOffset == 0 && entry->mBuffer->size() > 0) {
             int64_t mediaTimeUs;
             CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
-            ALOGV("rendering audio at media time %.2f secs", mediaTimeUs / 1E6);
+            ALOGV("onDrainAudioQueue: rendering audio at media time %.2f secs",
+                    mediaTimeUs / 1E6);
             onNewAudioMediaTime(mediaTimeUs);
         }
 
@@ -1230,9 +1271,8 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             ++mAudioDrainGeneration;
             prepareForMediaRenderingStart_l();
 
-            if (offloadingAudio()) {
-                clearAudioFirstAnchorTime_l();
-            }
+            // the frame count will be reset after flush.
+            clearAudioFirstAnchorTime_l();
         }
 
         mDrainAudioQueuePending = false;
@@ -1590,6 +1630,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             offloadFlags &= ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
             audioSinkChanged = true;
             mAudioSink->close();
+
             err = mAudioSink->open(
                     sampleRate,
                     numChannels,
@@ -1623,6 +1664,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
                 ALOGV("openAudioSink: offload failed");
             }
+            mUseAudioCallback = true;  // offload mode transfers data through callback
         }
     }
     if (!offloadOnly && !offloadingAudio()) {
@@ -1646,14 +1688,17 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         audioSinkChanged = true;
         mAudioSink->close();
         mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+        // Note: It is possible to set up the callback, but not use it to send audio data.
+        // This requires a fix in AudioSink to explicitly specify the transfer mode.
+        mUseAudioCallback = getUseAudioCallbackSetting();
         status_t err = mAudioSink->open(
                     sampleRate,
                     numChannels,
                     (audio_channel_mask_t)channelMask,
                     AUDIO_FORMAT_PCM_16_BIT,
                     8 /* bufferCount */,
-                    NULL,
-                    NULL,
+                    mUseAudioCallback ? &NuPlayer::Renderer::AudioSinkCallback : NULL,
+                    mUseAudioCallback ? this : NULL,
                     (audio_output_flags_t)pcmFlags,
                     NULL,
                     true /* doNotReconnect */);
