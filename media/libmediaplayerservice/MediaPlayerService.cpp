@@ -1884,6 +1884,15 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                 me->mCallbackCookie, CB_EVENT_TEAR_DOWN);
         break;
 
+    case AudioTrack::EVENT_UNDERRUN:
+        // This occurs when there is no data available, typically occurring
+        // when there is a failure to supply data to the AudioTrack.  It can also
+        // occur in non-offloaded mode when the audio device comes out of standby.
+        //
+        // If you see this at the start of playback, there probably was a glitch.
+        ALOGI("callbackwrapper: EVENT_UNDERRUN (discarded)");
+        break;
+
     default:
         ALOGE("received unknown event type: %d inside CallbackWrapper !", event);
     }
