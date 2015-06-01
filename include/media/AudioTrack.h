@@ -59,9 +59,11 @@ public:
                                     // voluntary invalidation by mediaserver, or mediaserver crash.
         EVENT_STREAM_END = 7,       // Sent after all the buffers queued in AF and HW are played
                                     // back (after stop is called)
+#if 0   // FIXME not yet implemented
         EVENT_NEW_TIMESTAMP = 8,    // Delivered periodically and when there's a significant change
                                     // in the mapping from frame position to presentation time.
                                     // See AudioTimestamp for the information included with event.
+#endif
     };
 
     /* Client should declare a Buffer and pass the address to obtainBuffer()
