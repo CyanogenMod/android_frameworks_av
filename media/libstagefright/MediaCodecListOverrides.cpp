@@ -20,6 +20,7 @@
 
 #include "MediaCodecListOverrides.h"
 
+#include <cutils/properties.h>
 #include <gui/Surface.h>
 #include <media/ICrypto.h>
 #include <media/IMediaCodecList.h>
@@ -33,6 +34,15 @@
 namespace android {
 
 const char *kProfilingResults = "/data/misc/media/media_codecs_profiling_results.xml";
+
+AString getProfilingVersionString() {
+    char val[PROPERTY_VALUE_MAX];
+    if (property_get("ro.build.display.id", val, NULL) && (strlen(val) > 0)) {
+        return AStringPrintf("<!-- Profiled-with: %s -->", val);
+    }
+
+    return "<!-- Profiled-with: UNKNOWN_BUILD_ID -->";
+}
 
 // a limit to avoid allocating unreasonable number of codec instances in the measurement.
 // this should be in sync with the MAX_SUPPORTED_INSTANCES defined in MediaCodecInfo.java.
@@ -375,6 +385,8 @@ void exportResultsToXML(
     }
 
     AString overrides;
+    overrides.append(getProfilingVersionString());
+    overrides.append("\n");
     overrides.append("<MediaCodecs>\n");
     if (global_results.size() > 0) {
         overrides.append("    <Settings>\n");
