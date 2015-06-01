@@ -38,9 +38,21 @@ static const int kMaxLoopCountNotifications = 32;
 namespace android {
 // ---------------------------------------------------------------------------
 
+// TODO: Move to a separate .h
+
 template <typename T>
-const T &min(const T &x, const T &y) {
+static inline const T &min(const T &x, const T &y) {
     return x < y ? x : y;
+}
+
+template <typename T>
+static inline const T &max(const T &x, const T &y) {
+    return x > y ? x : y;
+}
+
+static inline nsecs_t framesToNanoseconds(ssize_t frames, uint32_t sampleRate, float speed)
+{
+    return ((double)frames * 1000000000) / ((double)sampleRate * speed);
 }
 
 static int64_t convertTimespecToUs(const struct timespec &tv)
@@ -1759,7 +1771,7 @@ nsecs_t AudioTrack::processAudioBuffer()
     // Cache other fields that will be needed soon
     uint32_t sampleRate = mSampleRate;
     float speed = mPlaybackRate.mSpeed;
-    uint32_t notificationFrames = mNotificationFramesAct;
+    const uint32_t notificationFrames = mNotificationFramesAct;
     if (mRefreshRemaining) {
         mRefreshRemaining = false;
         mRemainingFrames = notificationFrames;
@@ -1797,7 +1809,14 @@ nsecs_t AudioTrack::processAudioBuffer()
 
     mLock.unlock();
 
+    // get anchor time to account for callbacks.
+    const nsecs_t timeBeforeCallbacks = systemTime();
+
     if (waitStreamEnd) {
+        // FIXME:  Instead of blocking in proxy->waitStreamEndDone(), Callback thread
+        // should wait on proxy futex and handle CBLK_STREAM_END_DONE within this function
+        // (and make sure we don't callback for more data while we're stopping).
+        // This helps with position, marker notifications, and track invalidation.
         struct timespec timeout;
         timeout.tv_sec = WAIT_STREAM_END_TIMEOUT_SEC;
         timeout.tv_nsec = 0;
@@ -1882,18 +1901,30 @@ nsecs_t AudioTrack::processAudioBuffer()
         minFrames = kPoll * notificationFrames;
     }
 
+    // This "fudge factor" avoids soaking CPU, and compensates for late progress by server
+    static const nsecs_t kWaitPeriodNs = WAIT_PERIOD_MS * 1000000LL;
+    const nsecs_t timeAfterCallbacks = systemTime();
+
     // Convert frame units to time units
     nsecs_t ns = NS_WHENEVER;
     if (minFrames != (uint32_t) ~0) {
-        // This "fudge factor" avoids soaking CPU, and compensates for late progress by server
-        static const nsecs_t kFudgeNs = 10000000LL; // 10 ms
-        ns = ((double)minFrames * 1000000000) / ((double)sampleRate * speed) + kFudgeNs;
+        ns = framesToNanoseconds(minFrames, sampleRate, speed) + kWaitPeriodNs;
+        ns -= (timeAfterCallbacks - timeBeforeCallbacks);  // account for callback time
+        // TODO: Should we warn if the callback time is too long?
+        if (ns < 0) ns = 0;
     }
 
     // If not supplying data by EVENT_MORE_DATA, then we're done
     if (mTransfer != TRANSFER_CALLBACK) {
         return ns;
     }
+
+    // EVENT_MORE_DATA callback handling.
+    // Timing for linear pcm audio data formats can be derived directly from the
+    // buffer fill level.
+    // Timing for compressed data is not directly available from the buffer fill level,
+    // rather indirectly from waiting for blocking mode callbacks or waiting for obtain()
+    // to return a certain fill level.
 
     struct timespec timeout;
     const struct timespec *requested = &ClientProxy::kForever;
@@ -1925,12 +1956,15 @@ nsecs_t AudioTrack::processAudioBuffer()
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer && !isOffloaded()) {
+        if (mRetryOnPartialBuffer && audio_is_linear_pcm(mFormat)) {
             mRetryOnPartialBuffer = false;
             if (avail < mRemainingFrames) {
-                int64_t myns = ((double)(mRemainingFrames - avail) * 1100000000)
-                        / ((double)sampleRate * speed);
-                if (ns < 0 || myns < ns) {
+                if (ns > 0) { // account for obtain time
+                    const nsecs_t timeNow = systemTime();
+                    ns = max((nsecs_t)0, ns - (timeNow - timeAfterCallbacks));
+                }
+                nsecs_t myns = framesToNanoseconds(mRemainingFrames - avail, sampleRate, speed);
+                if (ns < 0 /* NS_WHENEVER */ || myns < ns) {
                     ns = myns;
                 }
                 return ns;
@@ -1953,7 +1987,42 @@ nsecs_t AudioTrack::processAudioBuffer()
             // Keep this thread going to handle timed events and
             // still try to get more data in intervals of WAIT_PERIOD_MS
             // but don't just loop and block the CPU, so wait
-            return WAIT_PERIOD_MS * 1000000LL;
+
+            // mCbf(EVENT_MORE_DATA, ...) might either
+            // (1) Block until it can fill the buffer, returning 0 size on EOS.
+            // (2) Block until it can fill the buffer, returning 0 data (silence) on EOS.
+            // (3) Return 0 size when no data is available, does not wait for more data.
+            //
+            // (1) and (2) occurs with AudioPlayer/AwesomePlayer; (3) occurs with NuPlayer.
+            // We try to compute the wait time to avoid a tight sleep-wait cycle,
+            // especially for case (3).
+            //
+            // The decision to support (1) and (2) affect the sizing of mRemainingFrames
+            // and this loop; whereas for case (3) we could simply check once with the full
+            // buffer size and skip the loop entirely.
+
+            nsecs_t myns;
+            if (audio_is_linear_pcm(mFormat)) {
+                // time to wait based on buffer occupancy
+                const nsecs_t datans = mRemainingFrames <= avail ? 0 :
+                        framesToNanoseconds(mRemainingFrames - avail, sampleRate, speed);
+                // audio flinger thread buffer size (TODO: adjust for fast tracks)
+                const nsecs_t afns = framesToNanoseconds(mAfFrameCount, mAfSampleRate, speed);
+                // add a half the AudioFlinger buffer time to avoid soaking CPU if datans is 0.
+                myns = datans + (afns / 2);
+            } else {
+                // FIXME: This could ping quite a bit if the buffer isn't full.
+                // Note that when mState is stopping we waitStreamEnd, so it never gets here.
+                myns = kWaitPeriodNs;
+            }
+            if (ns > 0) { // account for obtain and callback time
+                const nsecs_t timeNow = systemTime();
+                ns = max((nsecs_t)0, ns - (timeNow - timeAfterCallbacks));
+            }
+            if (ns < 0 /* NS_WHENEVER */ || myns < ns) {
+                ns = myns;
+            }
+            return ns;
         }
 
         size_t releasedFrames = writtenSize / mFrameSize;
