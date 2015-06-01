@@ -27,7 +27,7 @@ struct AMessage;
 class DataSource;
 class String8;
 
-struct MyVorbisExtractor;
+struct MyOggExtractor;
 struct OggSource;
 
 struct OggExtractor : public MediaExtractor {
@@ -48,7 +48,7 @@ private:
     sp<DataSource> mDataSource;
     status_t mInitCheck;
 
-    MyVorbisExtractor *mImpl;
+    MyOggExtractor *mImpl;
 
     OggExtractor(const OggExtractor &);
     OggExtractor &operator=(const OggExtractor &);
