@@ -1065,7 +1065,7 @@ void ToneGenerator::stopTone() {
 bool ToneGenerator::initAudioTrack() {
 
     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_FAST;
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) && !defined(QCOM_DIRECTTRACK)
     // Set AUDIO_OUTPUT_FLAG_DIRECT and AUDIO_OUTPUT_FLAG_INCALL_MUSIC for incall music delivery
     if (mStreamType == AUDIO_STREAM_INCALL_MUSIC) {
         flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_INCALL_MUSIC);
