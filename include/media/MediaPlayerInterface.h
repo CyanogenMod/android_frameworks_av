@@ -114,7 +114,8 @@ public:
                 void *cookie = NULL,
                 audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                 const audio_offload_info_t *offloadInfo = NULL,
-                bool doNotReconnect = false) = 0;
+                bool doNotReconnect = false,
+                uint32_t suggestedFrameCount = 0) = 0;
 
         virtual status_t    start() = 0;
 

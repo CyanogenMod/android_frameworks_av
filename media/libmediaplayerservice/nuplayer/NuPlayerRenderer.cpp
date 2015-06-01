@@ -48,11 +48,19 @@ namespace android {
    #Use audio callbacks for PCM data
    adb shell setprop media.stagefright.audio.cbk 1
 
+   #Set size of buffers for pcm audio sink in msec (example: 1000 msec)
+   adb shell setprop media.stagefright.audio.sink 1000
+
  * These configurations take effect for the next track played (not the current track).
  */
 
 static inline bool getUseAudioCallbackSetting() {
     return property_get_bool("media.stagefright.audio.cbk", false /* default_value */);
+}
+
+static inline int32_t getAudioSinkPcmMsSetting() {
+    return property_get_int32(
+            "media.stagefright.audio.sink", 500 /* default_value */);
 }
 
 // Maximum time in paused state when offloading audio decompression. When elapsed, the AudioSink
@@ -1636,7 +1644,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     numChannels,
                     (audio_channel_mask_t)channelMask,
                     audioFormat,
-                    8 /* bufferCount */,
+                    0 /* bufferCount - unused */,
                     &NuPlayer::Renderer::AudioSinkCallback,
                     this,
                     (audio_output_flags_t)offloadFlags,
@@ -1691,17 +1699,24 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         // Note: It is possible to set up the callback, but not use it to send audio data.
         // This requires a fix in AudioSink to explicitly specify the transfer mode.
         mUseAudioCallback = getUseAudioCallbackSetting();
+
+        // Compute the desired buffer size.
+        // For callback mode, the amount of time before wakeup is about half the buffer size.
+        const uint32_t frameCount =
+                (unsigned long long)sampleRate * getAudioSinkPcmMsSetting() / 1000;
+
         status_t err = mAudioSink->open(
                     sampleRate,
                     numChannels,
                     (audio_channel_mask_t)channelMask,
                     AUDIO_FORMAT_PCM_16_BIT,
-                    8 /* bufferCount */,
+                    0 /* bufferCount - unused */,
                     mUseAudioCallback ? &NuPlayer::Renderer::AudioSinkCallback : NULL,
                     mUseAudioCallback ? this : NULL,
                     (audio_output_flags_t)pcmFlags,
                     NULL,
-                    true /* doNotReconnect */);
+                    true /* doNotReconnect */,
+                    frameCount);
         if (err == OK) {
             err = mAudioSink->setPlaybackRate(mPlaybackSettings);
         }
