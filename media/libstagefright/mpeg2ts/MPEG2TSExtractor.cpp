@@ -194,18 +194,19 @@ void MPEG2TSExtractor::init() {
                         ATSParser::VIDEO).get()
                 : (AnotherPacketSource *)mParser->getSource(
                         ATSParser::AUDIO).get();
-        int64_t prevBufferedDurationUs = 0;
+        size_t prevSyncSize = 1;
         int64_t durationUs = -1;
         List<int64_t> durations;
         // Estimate duration --- stabilize until you get <500ms deviation.
-        while (feedMore() == OK && ALooper::GetNowUs() - startTime <= 2000000ll) {
-            status_t err;
-            int64_t bufferedDurationUs = impl->getBufferedDurationUs(&err);
-            if (err != OK) {
-                break;
-            }
-            if (bufferedDurationUs != prevBufferedDurationUs) {
-                durationUs = size * bufferedDurationUs / mOffset;
+        while (feedMore() == OK
+                && ALooper::GetNowUs() - startTime <= 2000000ll) {
+            if (mSeekSyncPoints->size() > prevSyncSize) {
+                prevSyncSize = mSeekSyncPoints->size();
+                int64_t diffUs = mSeekSyncPoints->keyAt(prevSyncSize - 1)
+                        - mSeekSyncPoints->keyAt(0);
+                off64_t diffOffset = mSeekSyncPoints->valueAt(prevSyncSize - 1)
+                        - mSeekSyncPoints->valueAt(0);
+                durationUs = size * diffUs / diffOffset;
                 durations.push_back(durationUs);
                 if (durations.size() > 5) {
                     durations.erase(durations.begin());
@@ -225,8 +226,13 @@ void MPEG2TSExtractor::init() {
                         break;
                     }
                 }
-                prevBufferedDurationUs = bufferedDurationUs;
             }
+        }
+        status_t err;
+        int64_t bufferedDurationUs;
+        bufferedDurationUs = impl->getBufferedDurationUs(&err);
+        if (err == ERROR_END_OF_STREAM) {
+            durationUs = bufferedDurationUs;
         }
         if (durationUs > 0) {
             const sp<MetaData> meta = impl->getFormat();
