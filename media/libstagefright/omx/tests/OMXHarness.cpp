@@ -193,7 +193,7 @@ status_t Harness::allocatePortBuffers(
         CHECK(buffer.mMemory != NULL);
 
         err = mOMX->allocateBufferWithBackup(
-                node, portIndex, buffer.mMemory, &buffer.mID);
+                node, portIndex, buffer.mMemory, &buffer.mID, buffer.mMemory->size());
         EXPECT_SUCCESS(err, "allocateBuffer");
 
         buffers->push(buffer);
