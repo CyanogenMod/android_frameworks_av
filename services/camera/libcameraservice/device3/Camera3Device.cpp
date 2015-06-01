@@ -419,6 +419,8 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
         lines.appendFormat("    Error cause: %s\n", mErrorCause.string());
     }
     lines.appendFormat("    Stream configuration:\n");
+    lines.appendFormat("    Operation mode: %s \n", mIsConstrainedHighSpeedConfiguration ?
+            "CONSTAINED HIGH SPEED VIDEO" : "NORMAL");
 
     if (mInputStream != NULL) {
         write(fd, lines.string(), lines.size());
@@ -1023,12 +1025,13 @@ status_t Camera3Device::deleteReprocessStream(int id) {
     return INVALID_OPERATION;
 }
 
-status_t Camera3Device::configureStreams() {
+status_t Camera3Device::configureStreams(bool isConstrainedHighSpeed) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
 
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
+    mIsConstrainedHighSpeedConfiguration = isConstrainedHighSpeed;
 
     return configureStreamsLocked();
 }
@@ -1528,7 +1531,9 @@ status_t Camera3Device::configureStreamsLocked() {
     ALOGV("%s: Camera %d: Starting stream configuration", __FUNCTION__, mId);
 
     camera3_stream_configuration config;
-
+    config.operation_mode = mIsConstrainedHighSpeedConfiguration ?
+            CAMERA3_STREAM_CONFIGURATION_CONSTRAINED_HIGH_SPEED_MODE :
+            CAMERA3_STREAM_CONFIGURATION_NORMAL_MODE;
     config.num_streams = (mInputStream != NULL) + mOutputStreams.size();
 
     Vector<camera3_stream_t*> streams;
