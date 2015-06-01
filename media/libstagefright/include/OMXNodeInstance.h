@@ -105,16 +105,16 @@ struct OMXNodeInstance {
 
     status_t freeBuffer(OMX_U32 portIndex, OMX::buffer_id buffer);
 
-    status_t fillBuffer(OMX::buffer_id buffer);
+    status_t fillBuffer(OMX::buffer_id buffer, int fenceFd);
 
     status_t emptyBuffer(
             OMX::buffer_id buffer,
             OMX_U32 rangeOffset, OMX_U32 rangeLength,
-            OMX_U32 flags, OMX_TICKS timestamp);
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd);
 
     status_t emptyGraphicBuffer(
             OMX_BUFFERHEADERTYPE *header, const sp<GraphicBuffer> &buffer,
-            OMX_U32 flags, OMX_TICKS timestamp);
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd);
 
     status_t getExtensionIndex(
             const char *parameterName, OMX_INDEXTYPE *index);
@@ -208,9 +208,18 @@ private:
     status_t storeMetaDataInBuffers_l(
             OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type);
 
+    // Stores fence into buffer if it is ANWBuffer type and has enough space.
+    // otherwise, waits for the fence to signal.  Takes ownership of |fenceFd|.
+    status_t storeFenceInMeta_l(
+            OMX_BUFFERHEADERTYPE *header, int fenceFd, OMX_U32 portIndex);
+
+    // Retrieves the fence from buffer if ANWBuffer type and has enough space. Otherwise, returns -1
+    int retrieveFenceFromMeta_l(
+            OMX_BUFFERHEADERTYPE *header, OMX_U32 portIndex);
+
     status_t emptyBuffer_l(
             OMX_BUFFERHEADERTYPE *header,
-            OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr);
+            OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr, int fenceFd);
 
     status_t updateGraphicBufferInMeta_l(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,

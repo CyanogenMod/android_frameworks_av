@@ -415,17 +415,17 @@ status_t OMX::freeBuffer(node_id node, OMX_U32 port_index, buffer_id buffer) {
             port_index, buffer);
 }
 
-status_t OMX::fillBuffer(node_id node, buffer_id buffer) {
-    return findInstance(node)->fillBuffer(buffer);
+status_t OMX::fillBuffer(node_id node, buffer_id buffer, int fenceFd) {
+    return findInstance(node)->fillBuffer(buffer, fenceFd);
 }
 
 status_t OMX::emptyBuffer(
         node_id node,
         buffer_id buffer,
         OMX_U32 range_offset, OMX_U32 range_length,
-        OMX_U32 flags, OMX_TICKS timestamp) {
+        OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
     return findInstance(node)->emptyBuffer(
-            buffer, range_offset, range_length, flags, timestamp);
+            buffer, range_offset, range_length, flags, timestamp, fenceFd);
 }
 
 status_t OMX::getExtensionIndex(
@@ -459,6 +459,7 @@ OMX_ERRORTYPE OMX::OnEvent(
     omx_message msg;
     msg.type = omx_message::EVENT;
     msg.node = node;
+    msg.fenceFd = -1;
     msg.u.event_data.event = eEvent;
     msg.u.event_data.data1 = nData1;
     msg.u.event_data.data2 = nData2;
@@ -469,12 +470,13 @@ OMX_ERRORTYPE OMX::OnEvent(
 }
 
 OMX_ERRORTYPE OMX::OnEmptyBufferDone(
-        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
+        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer, int fenceFd) {
     ALOGV("OnEmptyBufferDone buffer=%p", pBuffer);
 
     omx_message msg;
     msg.type = omx_message::EMPTY_BUFFER_DONE;
     msg.node = node;
+    msg.fenceFd = fenceFd;
     msg.u.buffer_data.buffer = buffer;
 
     findDispatcher(node)->post(msg);
@@ -483,12 +485,13 @@ OMX_ERRORTYPE OMX::OnEmptyBufferDone(
 }
 
 OMX_ERRORTYPE OMX::OnFillBufferDone(
-        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer) {
+        node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer, int fenceFd) {
     ALOGV("OnFillBufferDone buffer=%p", pBuffer);
 
     omx_message msg;
     msg.type = omx_message::FILL_BUFFER_DONE;
     msg.node = node;
+    msg.fenceFd = fenceFd;
     msg.u.extended_buffer_data.buffer = buffer;
     msg.u.extended_buffer_data.range_offset = pBuffer->nOffset;
     msg.u.extended_buffer_data.range_length = pBuffer->nFilledLen;

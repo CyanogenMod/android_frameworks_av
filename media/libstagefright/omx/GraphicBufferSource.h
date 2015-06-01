@@ -93,7 +93,7 @@ public:
 
     // Called from OnEmptyBufferDone.  If we have a BQ buffer available,
     // fill it with a new frame of data; otherwise, just mark it as available.
-    void codecBufferEmptied(OMX_BUFFERHEADERTYPE* header);
+    void codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int fenceFd);
 
     // Called when omx_message::FILL_BUFFER_DONE is received. (Currently the
     // buffer source will fix timestamp in the header if needed.)
@@ -274,6 +274,7 @@ private:
     int mLatestBufferId;
     uint64_t mLatestBufferFrameNum;
     int32_t mLatestBufferUseCount;
+    sp<Fence> mLatestBufferFence;
 
     // The previous buffer should've been repeated but
     // no codec buffer was available at the time.

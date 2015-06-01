@@ -511,11 +511,15 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t fillBuffer(node_id node, buffer_id buffer) {
+    virtual status_t fillBuffer(node_id node, buffer_id buffer, int fenceFd) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32((int32_t)buffer);
+        data.writeInt32(fenceFd >= 0);
+        if (fenceFd >= 0) {
+            data.writeFileDescriptor(fenceFd, true /* takeOwnership */);
+        }
         remote()->transact(FILL_BUFFER, data, &reply);
 
         return reply.readInt32();
@@ -525,7 +529,7 @@ public:
             node_id node,
             buffer_id buffer,
             OMX_U32 range_offset, OMX_U32 range_length,
-            OMX_U32 flags, OMX_TICKS timestamp) {
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
@@ -534,6 +538,10 @@ public:
         data.writeInt32(range_length);
         data.writeInt32(flags);
         data.writeInt64(timestamp);
+        data.writeInt32(fenceFd >= 0);
+        if (fenceFd >= 0) {
+            data.writeFileDescriptor(fenceFd, true /* takeOwnership */);
+        }
         remote()->transact(EMPTY_BUFFER, data, &reply);
 
         return reply.readInt32();
@@ -1012,7 +1020,9 @@ status_t BnOMX::onTransact(
 
             node_id node = (node_id)data.readInt32();
             buffer_id buffer = (buffer_id)data.readInt32();
-            reply->writeInt32(fillBuffer(node, buffer));
+            bool haveFence = data.readInt32();
+            int fenceFd = haveFence ? ::dup(data.readFileDescriptor()) : -1;
+            reply->writeInt32(fillBuffer(node, buffer, fenceFd));
 
             return NO_ERROR;
         }
@@ -1027,11 +1037,10 @@ status_t BnOMX::onTransact(
             OMX_U32 range_length = data.readInt32();
             OMX_U32 flags = data.readInt32();
             OMX_TICKS timestamp = data.readInt64();
-
-            reply->writeInt32(
-                    emptyBuffer(
-                        node, buffer, range_offset, range_length,
-                        flags, timestamp));
+            bool haveFence = data.readInt32();
+            int fenceFd = haveFence ? ::dup(data.readFileDescriptor()) : -1;
+            reply->writeInt32(emptyBuffer(
+                    node, buffer, range_offset, range_length, flags, timestamp, fenceFd));
 
             return NO_ERROR;
         }
@@ -1072,7 +1081,9 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(IOMXObserver::getInterfaceDescriptor());
         data.write(&msg, sizeof(msg));
-
+        if (msg.fenceFd >= 0) {
+            data.writeFileDescriptor(msg.fenceFd, true /* takeOwnership */);
+        }
         ALOGV("onMessage writing message %d, size %zu", msg.type, sizeof(msg));
 
         remote()->transact(OBSERVER_ON_MSG, data, &reply, IBinder::FLAG_ONEWAY);
@@ -1090,6 +1101,9 @@ status_t BnOMXObserver::onTransact(
 
             omx_message msg;
             data.read(&msg, sizeof(msg));
+            if (msg.fenceFd >= 0) {
+                msg.fenceFd = ::dup(data.readFileDescriptor());
+            }
 
             ALOGV("onTransact reading message %d, size %zu", msg.type, sizeof(msg));
 

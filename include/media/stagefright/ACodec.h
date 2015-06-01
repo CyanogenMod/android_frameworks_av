@@ -160,10 +160,24 @@ private:
 
         sp<ABuffer> mData;
         sp<GraphicBuffer> mGraphicBuffer;
+        int mFenceFd;
+
+        // The following field and 4 methods are used for debugging only
+        bool mIsReadFence;
+        // Store |fenceFd| and set read/write flag. Log error, if there is already a fence stored.
+        void setReadFence(int fenceFd, const char *dbg);
+        void setWriteFence(int fenceFd, const char *dbg);
+        // Log error, if the current fence is not a read/write fence.
+        void checkReadFence(const char *dbg);
+        void checkWriteFence(const char *dbg);
     };
 
     static const char *_asString(BufferInfo::Status s);
     void dumpBuffers(OMX_U32 portIndex);
+
+    // If |fd| is non-negative, waits for fence with |fd| and logs an error if it fails. Returns
+    // the error code or OK on success. If |fd| is negative, it returns OK
+    status_t waitForFence(int fd, const char *dbg);
 
 #if TRACK_BUFFER_TIMING
     struct BufferStats {

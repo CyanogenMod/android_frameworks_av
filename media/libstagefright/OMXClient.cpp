@@ -125,13 +125,13 @@ struct MuxOMX : public IOMX {
     virtual status_t freeBuffer(
             node_id node, OMX_U32 port_index, buffer_id buffer);
 
-    virtual status_t fillBuffer(node_id node, buffer_id buffer);
+    virtual status_t fillBuffer(node_id node, buffer_id buffer, int fenceFd);
 
     virtual status_t emptyBuffer(
             node_id node,
             buffer_id buffer,
             OMX_U32 range_offset, OMX_U32 range_length,
-            OMX_U32 flags, OMX_TICKS timestamp);
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd);
 
     virtual status_t getExtensionIndex(
             node_id node,
@@ -385,17 +385,17 @@ status_t MuxOMX::freeBuffer(
     return getOMX(node)->freeBuffer(node, port_index, buffer);
 }
 
-status_t MuxOMX::fillBuffer(node_id node, buffer_id buffer) {
-    return getOMX(node)->fillBuffer(node, buffer);
+status_t MuxOMX::fillBuffer(node_id node, buffer_id buffer, int fenceFd) {
+    return getOMX(node)->fillBuffer(node, buffer, fenceFd);
 }
 
 status_t MuxOMX::emptyBuffer(
         node_id node,
         buffer_id buffer,
         OMX_U32 range_offset, OMX_U32 range_length,
-        OMX_U32 flags, OMX_TICKS timestamp) {
+        OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
     return getOMX(node)->emptyBuffer(
-            node, buffer, range_offset, range_length, flags, timestamp);
+            node, buffer, range_offset, range_length, flags, timestamp, fenceFd);
 }
 
 status_t MuxOMX::getExtensionIndex(
