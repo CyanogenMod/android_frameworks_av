@@ -6750,7 +6750,7 @@ const AudioPolicyManager::VolumeCurvePoint
         sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_EARPIECE
         sDefaultMediaVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
     },
-#ifdef QCOM_HARDWARE
+#ifdef AUDIO_EXTN_INCALL_MUSIC_ENABLED
     { // AUDIO_STREAM_INCALL_MUSIC
         sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET
         sSpeakerMediaVolumeCurve, // DEVICE_CATEGORY_SPEAKER
