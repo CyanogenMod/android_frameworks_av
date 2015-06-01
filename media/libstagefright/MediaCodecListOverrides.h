@@ -26,9 +26,12 @@
 
 namespace android {
 
+extern const char *kProfilingVersionString;
 extern const char *kProfilingResults;
 
 struct MediaCodecInfo;
+
+AString getProfilingVersionString();
 
 bool splitString(const AString &s, const AString &delimiter, AString *s1, AString *s2);
 

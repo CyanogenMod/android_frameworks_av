@@ -73,10 +73,24 @@ sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
             if (gCodecList->initCheck() == OK) {
                 sCodecList = gCodecList;
 
-                struct stat s;
-                if (stat(kProfilingResults, &s) == -1) {
+                FILE *resultsFile = fopen(kProfilingResults, "r");
+                if (resultsFile) {
+                    AString currentVersion = getProfilingVersionString();
+                    size_t currentVersionSize = currentVersion.size();
+                    char *versionString = new char[currentVersionSize];
+                    fgets(versionString, currentVersionSize, resultsFile);
+                    if (strncmp(versionString, currentVersion.c_str(), currentVersionSize) != 0) {
+                        // profiling result out of date
+                        profilingNeeded = true;
+                    }
+                    fclose(resultsFile);
+                    delete[] versionString;
+                } else {
                     // profiling results doesn't existed
                     profilingNeeded = true;
+                }
+
+                if (profilingNeeded) {
                     for (size_t i = 0; i < gCodecList->countCodecs(); ++i) {
                         infos.push_back(gCodecList->getCodecInfo(i));
                     }
