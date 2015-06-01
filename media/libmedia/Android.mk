@@ -93,6 +93,12 @@ endif
 endif
 #QTI Resampler
 
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+	ifneq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),false)
+		LOCAL_CFLAGS += -DAUDIO_EXTN_INCALL_MUSIC_ENABLED
+	endif
+endif
+
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
     LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
     LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include/media
