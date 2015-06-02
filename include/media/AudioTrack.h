@@ -801,6 +801,13 @@ protected:
     size_t                  mReqFrameCount;         // frame count to request the first or next time
                                                     // a new IAudioTrack is needed, non-decreasing
 
+    // The following AudioFlinger server-side values are cached in createAudioTrack_l().
+    // These values can be used for informational purposes until the track is invalidated,
+    // whereupon restoreTrack_l() calls createTrack_l() to update the values.
+    uint32_t                mAfLatency;             // AudioFlinger latency in ms
+    size_t                  mAfFrameCount;          // AudioFlinger frame count
+    uint32_t                mAfSampleRate;          // AudioFlinger sample rate
+
     // constant after constructor or set()
     audio_format_t          mFormat;                // as requested by client, not forced to 16-bit
     audio_stream_type_t     mStreamType;            // mStreamType == AUDIO_STREAM_DEFAULT implies

@@ -1111,31 +1111,27 @@ status_t AudioTrack::createTrack_l()
     // we must release it ourselves if anything goes wrong.
 
     // Not all of these values are needed under all conditions, but it is easier to get them all
-
-    uint32_t afLatency;
-    status = AudioSystem::getLatency(output, &afLatency);
+    status = AudioSystem::getLatency(output, &mAfLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
         goto release;
     }
-    ALOGV("createTrack_l() output %d afLatency %u", output, afLatency);
+    ALOGV("createTrack_l() output %d afLatency %u", output, mAfLatency);
 
-    size_t afFrameCount;
-    status = AudioSystem::getFrameCount(output, &afFrameCount);
+    status = AudioSystem::getFrameCount(output, &mAfFrameCount);
     if (status != NO_ERROR) {
         ALOGE("getFrameCount(output=%d) status %d", output, status);
         goto release;
     }
 
-    uint32_t afSampleRate;
-    status = AudioSystem::getSamplingRate(output, &afSampleRate);
+    status = AudioSystem::getSamplingRate(output, &mAfSampleRate);
     if (status != NO_ERROR) {
         ALOGE("getSamplingRate(output=%d) status %d", output, status);
         goto release;
     }
     if (mSampleRate == 0) {
-        mSampleRate = afSampleRate;
-        mOriginalSampleRate = afSampleRate;
+        mSampleRate = mAfSampleRate;
+        mOriginalSampleRate = mAfSampleRate;
     }
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
@@ -1148,9 +1144,9 @@ status_t AudioTrack::createTrack_l()
             // use case 3: obtain/release mode
             (mTransfer == TRANSFER_OBTAIN)) &&
             // matching sample rate
-            (mSampleRate == afSampleRate))) {
+            (mSampleRate == mAfSampleRate))) {
         ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, output %u Hz",
-                mTransfer, mSampleRate, afSampleRate);
+                mTransfer, mSampleRate, mAfSampleRate);
         // once denied, do not request again if IAudioTrack is re-created
         mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
     }
@@ -1171,7 +1167,7 @@ status_t AudioTrack::createTrack_l()
             // Same comment as below about ignoring frameCount parameter for set()
             frameCount = mSharedBuffer->size();
         } else if (frameCount == 0) {
-            frameCount = afFrameCount;
+            frameCount = mAfFrameCount;
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;
@@ -1207,7 +1203,7 @@ status_t AudioTrack::createTrack_l()
         if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
             // for normal tracks precompute the frame count based on speed.
             const size_t minFrameCount = calculateMinFrameCount(
-                    afLatency, afFrameCount, afSampleRate, mSampleRate,
+                    mAfLatency, mAfFrameCount, mAfSampleRate, mSampleRate,
                     mPlaybackRate.mSpeed);
             if (frameCount < minFrameCount) {
                 frameCount = minFrameCount;
@@ -1357,7 +1353,7 @@ status_t AudioTrack::createTrack_l()
     mAudioTrack->attachAuxEffect(mAuxEffectId);
     // FIXME doesn't take into account speed or future sample rate changes (until restoreTrack)
     // FIXME don't believe this lie
-    mLatency = afLatency + (1000*frameCount) / mSampleRate;
+    mLatency = mAfLatency + (1000*frameCount) / mSampleRate;
 
     mFrameCount = frameCount;
     // If IAudioTrack is re-created, don't let the requested frameCount
@@ -2089,30 +2085,8 @@ bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) co
     if (mStaticProxy != 0) {
         return true; // static tracks do not have issues with buffer sizing.
     }
-    status_t status;
-    uint32_t afLatency;
-    status = AudioSystem::getLatency(mOutput, &afLatency);
-    if (status != NO_ERROR) {
-        ALOGE("getLatency(%d) failed status %d", mOutput, status);
-        return false;
-    }
-
-    size_t afFrameCount;
-    status = AudioSystem::getFrameCount(mOutput, &afFrameCount);
-    if (status != NO_ERROR) {
-        ALOGE("getFrameCount(output=%d) status %d", mOutput, status);
-        return false;
-    }
-
-    uint32_t afSampleRate;
-    status = AudioSystem::getSamplingRate(mOutput, &afSampleRate);
-    if (status != NO_ERROR) {
-        ALOGE("getSamplingRate(output=%d) status %d", mOutput, status);
-        return false;
-    }
-
     const size_t minFrameCount =
-            calculateMinFrameCount(afLatency, afFrameCount, afSampleRate, sampleRate, speed);
+            calculateMinFrameCount(mAfLatency, mAfFrameCount, mAfSampleRate, sampleRate, speed);
     ALOGV("isSampleRateSpeedAllowed_l mFrameCount %zu  minFrameCount %zu",
             mFrameCount, minFrameCount);
     return mFrameCount >= minFrameCount;
