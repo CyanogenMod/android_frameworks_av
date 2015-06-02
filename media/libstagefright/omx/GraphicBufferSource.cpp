@@ -29,6 +29,7 @@
 #include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
 #include <gui/BufferItem.h>
+#include <HardwareAPI.h>
 
 #include <inttypes.h>
 #include "FrameDropper.h"
@@ -43,7 +44,6 @@ GraphicBufferSource::GraphicBufferSource(
         uint32_t bufferWidth,
         uint32_t bufferHeight,
         uint32_t bufferCount,
-        bool useGraphicBufferInMeta,
         const sp<IGraphicBufferConsumer> &consumer) :
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
@@ -68,8 +68,7 @@ GraphicBufferSource::GraphicBufferSource(
     mTimePerCaptureUs(-1ll),
     mTimePerFrameUs(-1ll),
     mPrevCaptureUs(-1ll),
-    mPrevFrameUs(-1ll),
-    mUseGraphicBufferInMeta(useGraphicBufferInMeta) {
+    mPrevFrameUs(-1ll) {
 
     ALOGV("GraphicBufferSource w=%u h=%u c=%u",
             bufferWidth, bufferHeight, bufferCount);
@@ -262,27 +261,27 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         return;
     }
 
-    if (EXTRA_CHECK) {
+    if (EXTRA_CHECK && header->nAllocLen >= sizeof(MetadataBufferType)) {
         // Pull the graphic buffer handle back out of the buffer, and confirm
         // that it matches expectations.
         OMX_U8* data = header->pBuffer;
         MetadataBufferType type = *(MetadataBufferType *)data;
-        if (type == kMetadataBufferTypeGrallocSource) {
-            buffer_handle_t bufferHandle;
-            memcpy(&bufferHandle, data + 4, sizeof(buffer_handle_t));
-            if (bufferHandle != codecBuffer.mGraphicBuffer->handle) {
+        if (type == kMetadataBufferTypeGrallocSource
+                && header->nAllocLen >= sizeof(VideoGrallocMetadata)) {
+            VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)data;
+            if (grallocMeta.hHandle != codecBuffer.mGraphicBuffer->handle) {
                 // should never happen
                 ALOGE("codecBufferEmptied: buffer's handle is %p, expected %p",
-                        bufferHandle, codecBuffer.mGraphicBuffer->handle);
+                        grallocMeta.hHandle, codecBuffer.mGraphicBuffer->handle);
                 CHECK(!"codecBufferEmptied: mismatched buffer");
             }
-        } else if (type == kMetadataBufferTypeGraphicBuffer) {
-            GraphicBuffer *buffer;
-            memcpy(&buffer, data + 4, sizeof(buffer));
-            if (buffer != codecBuffer.mGraphicBuffer.get()) {
+        } else if (type == kMetadataBufferTypeANWBuffer
+                && header->nAllocLen >= sizeof(VideoNativeMetadata)) {
+            VideoNativeMetadata &nativeMeta = *(VideoNativeMetadata *)data;
+            if (nativeMeta.pBuffer != codecBuffer.mGraphicBuffer->getNativeBuffer()) {
                 // should never happen
                 ALOGE("codecBufferEmptied: buffer is %p, expected %p",
-                        buffer, codecBuffer.mGraphicBuffer.get());
+                        nativeMeta.pBuffer, codecBuffer.mGraphicBuffer->getNativeBuffer());
                 CHECK(!"codecBufferEmptied: mismatched buffer");
             }
         }
@@ -703,36 +702,17 @@ status_t GraphicBufferSource::submitBuffer_l(
     codecBuffer.mFrameNumber = item.mFrameNumber;
 
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
-    CHECK(header->nAllocLen >= 4 + sizeof(buffer_handle_t));
-    OMX_U8* data = header->pBuffer;
-    buffer_handle_t handle;
-    if (!mUseGraphicBufferInMeta) {
-        const OMX_U32 type = kMetadataBufferTypeGrallocSource;
-        handle = codecBuffer.mGraphicBuffer->handle;
-        memcpy(data, &type, 4);
-        memcpy(data + 4, &handle, sizeof(buffer_handle_t));
-    } else {
-        // codecBuffer holds a reference to the GraphicBuffer, so
-        // it is valid while it is with the OMX component
-        const OMX_U32 type = kMetadataBufferTypeGraphicBuffer;
-        memcpy(data, &type, 4);
-        // passing a non-reference-counted graphicBuffer
-        GraphicBuffer *buffer = codecBuffer.mGraphicBuffer.get();
-        handle = buffer->handle;
-        memcpy(data + 4, &buffer, sizeof(buffer));
-    }
-
-    status_t err = mNodeInstance->emptyDirectBuffer(header, 0,
-            4 + sizeof(buffer_handle_t), OMX_BUFFERFLAG_ENDOFFRAME,
-            timeUs);
+    sp<GraphicBuffer> buffer = codecBuffer.mGraphicBuffer;
+    status_t err = mNodeInstance->emptyGraphicBuffer(
+            header, buffer, OMX_BUFFERFLAG_ENDOFFRAME, timeUs);
     if (err != OK) {
-        ALOGW("WARNING: emptyDirectBuffer failed: 0x%x", err);
+        ALOGW("WARNING: emptyNativeWindowBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
         return err;
     }
 
-    ALOGV("emptyDirectBuffer succeeded, h=%p p=%p bufhandle=%p",
-            header, header->pBuffer, handle);
+    ALOGV("emptyNativeWindowBuffer succeeded, h=%p p=%p buf=%p bufhandle=%p",
+            header, header->pBuffer, buffer->getNativeBuffer(), buffer->handle);
     return OK;
 }
 
@@ -755,19 +735,9 @@ void GraphicBufferSource::submitEndOfInputStream_l() {
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
 
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
-    if (EXTRA_CHECK) {
-        // Guard against implementations that don't check nFilledLen.
-        size_t fillLen = 4 + sizeof(buffer_handle_t);
-        CHECK(header->nAllocLen >= fillLen);
-        OMX_U8* data = header->pBuffer;
-        memset(data, 0xcd, fillLen);
-    }
-
-    uint64_t timestamp = 0; // does this matter?
-
-    status_t err = mNodeInstance->emptyDirectBuffer(header, /*offset*/ 0,
-            /*length*/ 0, OMX_BUFFERFLAG_ENDOFFRAME | OMX_BUFFERFLAG_EOS,
-            timestamp);
+    status_t err = mNodeInstance->emptyGraphicBuffer(
+            header, NULL /* buffer */, OMX_BUFFERFLAG_ENDOFFRAME | OMX_BUFFERFLAG_EOS,
+            0 /* timestamp */);
     if (err != OK) {
         ALOGW("emptyDirectBuffer EOS failed: 0x%x", err);
     } else {

@@ -69,7 +69,7 @@ public:
             node_id node, OMX_U32 port_index, OMX_U32* usage);
 
     virtual status_t storeMetaDataInBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable);
+            node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type);
 
     virtual status_t prepareForAdaptivePlayback(
             node_id node, OMX_U32 portIndex, OMX_BOOL enable,
@@ -93,7 +93,8 @@ public:
 
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
-            sp<IGraphicBufferProducer> *bufferProducer);
+            sp<IGraphicBufferProducer> *bufferProducer,
+            MetadataBufferType *type);
 
     virtual status_t createPersistentInputSurface(
             sp<IGraphicBufferProducer> *bufferProducer,
@@ -101,7 +102,8 @@ public:
 
     virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
-            const sp<IGraphicBufferConsumer> &bufferConsumer);
+            const sp<IGraphicBufferConsumer> &bufferConsumer,
+            MetadataBufferType *type);
 
     virtual status_t signalEndOfInputStream(node_id node);
 

@@ -306,7 +306,7 @@ public:
 
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
-            sp<IGraphicBufferProducer> *bufferProducer) {
+            sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
         Parcel data, reply;
         status_t err;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
@@ -316,6 +316,12 @@ public:
         if (err != OK) {
             ALOGW("binder transaction failed: %d", err);
             return err;
+        }
+
+        // read type even if createInputSurface failed
+        int negotiatedType = reply.readInt32();
+        if (type != NULL) {
+            *type = (MetadataBufferType)negotiatedType;
         }
 
         err = reply.readInt32();
@@ -356,7 +362,7 @@ public:
 
     virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
-            const sp<IGraphicBufferConsumer> &bufferConsumer) {
+            const sp<IGraphicBufferConsumer> &bufferConsumer, MetadataBufferType *type) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         status_t err;
@@ -370,6 +376,13 @@ public:
             ALOGW("binder transaction failed: %d", err);
             return err;
         }
+
+        // read type even if setInputSurface failed
+        int negotiatedType = reply.readInt32();
+        if (type != NULL) {
+            *type = (MetadataBufferType)negotiatedType;
+        }
+
         return reply.readInt32();
     }
 
@@ -388,7 +401,7 @@ public:
     }
 
     virtual status_t storeMetaDataInBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable) {
+            node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
@@ -396,8 +409,13 @@ public:
         data.writeInt32((uint32_t)enable);
         remote()->transact(STORE_META_DATA_IN_BUFFERS, data, &reply);
 
-        status_t err = reply.readInt32();
-        return err;
+        // read type even storeMetaDataInBuffers failed
+        int negotiatedType = reply.readInt32();
+        if (type != NULL) {
+            *type = (MetadataBufferType)negotiatedType;
+        }
+
+        return reply.readInt32();
     }
 
     virtual status_t prepareForAdaptivePlayback(
@@ -818,9 +836,10 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
 
             sp<IGraphicBufferProducer> bufferProducer;
-            status_t err = createInputSurface(node, port_index,
-                    &bufferProducer);
+            MetadataBufferType type;
+            status_t err = createInputSurface(node, port_index, &bufferProducer, &type);
 
+            reply->writeInt32(type);
             reply->writeInt32(err);
 
             if (err == OK) {
@@ -859,8 +878,10 @@ status_t BnOMX::onTransact(
             sp<IGraphicBufferConsumer> bufferConsumer =
                     interface_cast<IGraphicBufferConsumer>(data.readStrongBinder());
 
-            status_t err = setInputSurface(node, port_index, bufferConsumer);
+            MetadataBufferType type;
+            status_t err = setInputSurface(node, port_index, bufferConsumer, &type);
 
+            reply->writeInt32(type);
             reply->writeInt32(err);
             return NO_ERROR;
         }
@@ -885,7 +906,9 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
             OMX_BOOL enable = (OMX_BOOL)data.readInt32();
 
-            status_t err = storeMetaDataInBuffers(node, port_index, enable);
+            MetadataBufferType type;
+            status_t err = storeMetaDataInBuffers(node, port_index, enable, &type);
+            reply->writeInt32(type);
             reply->writeInt32(err);
 
             return NO_ERROR;

@@ -58,7 +58,8 @@ struct OMXNodeInstance {
 
     status_t getGraphicBufferUsage(OMX_U32 portIndex, OMX_U32* usage);
 
-    status_t storeMetaDataInBuffers(OMX_U32 portIndex, OMX_BOOL enable);
+    status_t storeMetaDataInBuffers(
+            OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type);
 
     status_t prepareForAdaptivePlayback(
             OMX_U32 portIndex, OMX_BOOL enable,
@@ -81,14 +82,16 @@ struct OMXNodeInstance {
             OMX::buffer_id buffer);
 
     status_t createInputSurface(
-            OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer);
+            OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer,
+            MetadataBufferType *type);
 
     static status_t createPersistentInputSurface(
             sp<IGraphicBufferProducer> *bufferProducer,
             sp<IGraphicBufferConsumer> *bufferConsumer);
 
     status_t setInputSurface(
-            OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer);
+            OMX_U32 portIndex, const sp<IGraphicBufferConsumer> &bufferConsumer,
+            MetadataBufferType *type);
 
     status_t signalEndOfInputStream();
 
@@ -109,9 +112,8 @@ struct OMXNodeInstance {
             OMX_U32 rangeOffset, OMX_U32 rangeLength,
             OMX_U32 flags, OMX_TICKS timestamp);
 
-    status_t emptyDirectBuffer(
-            OMX_BUFFERHEADERTYPE *header,
-            OMX_U32 rangeOffset, OMX_U32 rangeLength,
+    status_t emptyGraphicBuffer(
+            OMX_BUFFERHEADERTYPE *header, const sp<GraphicBuffer> &buffer,
             OMX_U32 flags, OMX_TICKS timestamp);
 
     status_t getExtensionIndex(
@@ -156,6 +158,7 @@ private:
     uint32_t mBufferIDCount;
     KeyedVector<OMX::buffer_id, OMX_BUFFERHEADERTYPE *> mBufferIDToBufferHeader;
     KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
+    MetadataBufferType mMetadataType[2];
 
     // For debug support
     char *mName;
@@ -203,15 +206,19 @@ private:
             OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
 
     status_t storeMetaDataInBuffers_l(
-            OMX_U32 portIndex, OMX_BOOL enable,
-            OMX_BOOL useGraphicBuffer, OMX_BOOL *usingGraphicBufferInMeta);
+            OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type);
 
     status_t emptyBuffer_l(
             OMX_BUFFERHEADERTYPE *header,
             OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr);
 
+    status_t updateGraphicBufferInMeta_l(
+            OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
+            OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header);
+
     status_t createGraphicBufferSource(
-            OMX_U32 portIndex, sp<IGraphicBufferConsumer> consumer = NULL);
+            OMX_U32 portIndex, sp<IGraphicBufferConsumer> consumer /* nullable */,
+            MetadataBufferType *type);
     sp<GraphicBufferSource> getGraphicBufferSource();
     void setGraphicBufferSource(const sp<GraphicBufferSource>& bufferSource);
 

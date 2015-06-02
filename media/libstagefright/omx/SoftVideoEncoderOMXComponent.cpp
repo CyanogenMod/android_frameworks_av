@@ -155,7 +155,7 @@ void SoftVideoEncoderOMXComponent::updatePortParams() {
     uint32_t rawBufferSize =
         inDef->format.video.nStride * inDef->format.video.nSliceHeight * 3 / 2;
     if (inDef->format.video.eColorFormat == OMX_COLOR_FormatAndroidOpaque) {
-        inDef->nBufferSize = 4 + max(sizeof(buffer_handle_t), sizeof(GraphicBuffer *));
+        inDef->nBufferSize = max(sizeof(VideoNativeMetadata), sizeof(VideoGrallocMetadata));
     } else {
         inDef->nBufferSize = rawBufferSize;
     }
@@ -482,8 +482,8 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
     size_t dstVStride = height;
 
     MetadataBufferType bufferType = *(MetadataBufferType *)src;
-    bool usingGraphicBuffer = bufferType == kMetadataBufferTypeGraphicBuffer;
-    if (!usingGraphicBuffer && bufferType != kMetadataBufferTypeGrallocSource) {
+    bool usingANWBuffer = bufferType == kMetadataBufferTypeANWBuffer;
+    if (!usingANWBuffer && bufferType != kMetadataBufferTypeGrallocSource) {
         ALOGE("Unsupported metadata type (%d)", bufferType);
         return NULL;
     }
@@ -499,13 +499,14 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
     int format;
     size_t srcStride;
     size_t srcVStride;
-    if (usingGraphicBuffer) {
-        if (srcSize < sizeof(OMX_U32) + sizeof(GraphicBuffer *)) {
-            ALOGE("Metadata is too small (%zu vs %zu)", srcSize, sizeof(OMX_U32) + sizeof(GraphicBuffer *));
+    if (usingANWBuffer) {
+        if (srcSize < sizeof(VideoNativeMetadata)) {
+            ALOGE("Metadata is too small (%zu vs %zu)", srcSize, sizeof(VideoNativeMetadata));
             return NULL;
         }
 
-        GraphicBuffer *buffer = *(GraphicBuffer **)(src + sizeof(OMX_U32));
+        VideoNativeMetadata &nativeMeta = *(VideoNativeMetadata *)src;
+        ANativeWindowBuffer *buffer = nativeMeta.pBuffer;
         handle = buffer->handle;
         format = buffer->format;
         srcStride = buffer->stride;
@@ -519,12 +520,13 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
     } else {
         // TODO: remove this part.  Check if anyone uses this.
 
-        if (srcSize < sizeof(OMX_U32) + sizeof(buffer_handle_t)) {
-            ALOGE("Metadata is too small (%zu vs %zu)", srcSize, sizeof(OMX_U32) + sizeof(buffer_handle_t));
+        if (srcSize < sizeof(VideoGrallocMetadata)) {
+            ALOGE("Metadata is too small (%zu vs %zu)", srcSize, sizeof(VideoGrallocMetadata));
             return NULL;
         }
 
-        handle = *(buffer_handle_t *)(src + sizeof(OMX_U32));
+        VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)(src);
+        handle = grallocMeta.hHandle;
         // assume HAL_PIXEL_FORMAT_RGBA_8888
         // there is no way to get the src stride without the graphic buffer
         format = HAL_PIXEL_FORMAT_RGBA_8888;
@@ -606,7 +608,7 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
 OMX_ERRORTYPE SoftVideoEncoderOMXComponent::getExtensionIndex(
         const char *name, OMX_INDEXTYPE *index) {
     if (!strcmp(name, "OMX.google.android.index.storeMetaDataInBuffers") ||
-        !strcmp(name, "OMX.google.android.index.storeGraphicBufferInMetaData")) {
+        !strcmp(name, "OMX.google.android.index.storeANWBufferInMetadata")) {
         *(int32_t*)index = kStoreMetaDataExtensionIndex;
         return OMX_ErrorNone;
     }
