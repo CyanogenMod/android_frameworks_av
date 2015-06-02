@@ -34,7 +34,6 @@
 
 #include <utils/misc.h>
 
-#include <binder/IBatteryStats.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryHeapBase.h>
@@ -60,6 +59,7 @@
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooperRoster.h>
+#include <mediautils/BatteryNotifier.h>
 
 #include <system/audio.h>
 
@@ -287,17 +287,9 @@ MediaPlayerService::MediaPlayerService()
     // reset battery stats
     // if the mediaserver has crashed, battery stats could be left
     // in bad state, reset the state upon service start.
-    const sp<IServiceManager> sm(defaultServiceManager());
-    if (sm != NULL) {
-        const String16 name("batterystats");
-        // use checkService() to avoid blocking if service is not up yet
-        sp<IBatteryStats> batteryStats =
-                interface_cast<IBatteryStats>(sm->checkService(name));
-        if (batteryStats != NULL) {
-            batteryStats->noteResetVideo();
-            batteryStats->noteResetAudio();
-        }
-    }
+    BatteryNotifier& notifier(BatteryNotifier::getInstance());
+    notifier.noteResetVideo();
+    notifier.noteResetAudio();
 
     MediaPlayerFactory::registerBuiltinFactories();
 }

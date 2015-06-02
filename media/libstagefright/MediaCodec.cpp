@@ -21,7 +21,6 @@
 #include "include/avc_utils.h"
 #include "include/SoftwareRenderer.h"
 
-#include <binder/IBatteryStats.h>
 #include <binder/IMemory.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -48,6 +47,7 @@
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/SurfaceUtils.h>
+#include <mediautils/BatteryNotifier.h>
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
@@ -107,134 +107,6 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(ResourceManagerClient);
 };
-
-struct MediaCodec::BatteryNotifier : public Singleton<BatteryNotifier> {
-    BatteryNotifier();
-    virtual ~BatteryNotifier();
-
-    void noteStartVideo();
-    void noteStopVideo();
-    void noteStartAudio();
-    void noteStopAudio();
-    void onBatteryStatServiceDied();
-
-private:
-    struct DeathNotifier : public IBinder::DeathRecipient {
-        DeathNotifier() {}
-        virtual void binderDied(const wp<IBinder>& /*who*/) {
-            BatteryNotifier::getInstance().onBatteryStatServiceDied();
-        }
-    };
-
-    Mutex mLock;
-    int32_t mVideoRefCount;
-    int32_t mAudioRefCount;
-    sp<IBatteryStats> mBatteryStatService;
-    sp<DeathNotifier> mDeathNotifier;
-
-    sp<IBatteryStats> getBatteryService_l();
-
-    DISALLOW_EVIL_CONSTRUCTORS(BatteryNotifier);
-};
-
-ANDROID_SINGLETON_STATIC_INSTANCE(MediaCodec::BatteryNotifier)
-
-MediaCodec::BatteryNotifier::BatteryNotifier() :
-    mVideoRefCount(0),
-    mAudioRefCount(0) {
-}
-
-sp<IBatteryStats> MediaCodec::BatteryNotifier::getBatteryService_l() {
-    if (mBatteryStatService != NULL) {
-        return mBatteryStatService;
-    }
-    // get battery service from service manager
-    const sp<IServiceManager> sm(defaultServiceManager());
-    if (sm != NULL) {
-        const String16 name("batterystats");
-        mBatteryStatService =
-                interface_cast<IBatteryStats>(sm->getService(name));
-        if (mBatteryStatService == NULL) {
-            ALOGE("batterystats service unavailable!");
-            return NULL;
-        }
-        mDeathNotifier = new DeathNotifier();
-        IInterface::asBinder(mBatteryStatService)->linkToDeath(mDeathNotifier);
-        // notify start now if media already started
-        if (mVideoRefCount > 0) {
-            mBatteryStatService->noteStartVideo(AID_MEDIA);
-        }
-        if (mAudioRefCount > 0) {
-            mBatteryStatService->noteStartAudio(AID_MEDIA);
-        }
-    }
-    return mBatteryStatService;
-}
-
-MediaCodec::BatteryNotifier::~BatteryNotifier() {
-    if (mDeathNotifier != NULL) {
-        IInterface::asBinder(mBatteryStatService)->
-                unlinkToDeath(mDeathNotifier);
-    }
-}
-
-void MediaCodec::BatteryNotifier::noteStartVideo() {
-    Mutex::Autolock _l(mLock);
-    sp<IBatteryStats> batteryService = getBatteryService_l();
-    if (mVideoRefCount == 0 && batteryService != NULL) {
-        batteryService->noteStartVideo(AID_MEDIA);
-    }
-    mVideoRefCount++;
-}
-
-void MediaCodec::BatteryNotifier::noteStopVideo() {
-    Mutex::Autolock _l(mLock);
-    if (mVideoRefCount == 0) {
-        ALOGW("BatteryNotifier::noteStop(): video refcount is broken!");
-        return;
-    }
-
-    sp<IBatteryStats> batteryService = getBatteryService_l();
-
-    mVideoRefCount--;
-    if (mVideoRefCount == 0 && batteryService != NULL) {
-        batteryService->noteStopVideo(AID_MEDIA);
-    }
-}
-
-void MediaCodec::BatteryNotifier::noteStartAudio() {
-    Mutex::Autolock _l(mLock);
-    sp<IBatteryStats> batteryService = getBatteryService_l();
-    if (mAudioRefCount == 0 && batteryService != NULL) {
-        batteryService->noteStartAudio(AID_MEDIA);
-    }
-    mAudioRefCount++;
-}
-
-void MediaCodec::BatteryNotifier::noteStopAudio() {
-    Mutex::Autolock _l(mLock);
-    if (mAudioRefCount == 0) {
-        ALOGW("BatteryNotifier::noteStop(): audio refcount is broken!");
-        return;
-    }
-
-    sp<IBatteryStats> batteryService = getBatteryService_l();
-
-    mAudioRefCount--;
-    if (mAudioRefCount == 0 && batteryService != NULL) {
-        batteryService->noteStopAudio(AID_MEDIA);
-    }
-}
-
-void MediaCodec::BatteryNotifier::onBatteryStatServiceDied() {
-    Mutex::Autolock _l(mLock);
-    mBatteryStatService.clear();
-    mDeathNotifier.clear();
-    // Do not reset mVideoRefCount and mAudioRefCount here. The ref
-    // counting is independent of the battery service availability.
-    // We need this if battery service becomes available after media
-    // started.
-}
 
 MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy() {
 }
