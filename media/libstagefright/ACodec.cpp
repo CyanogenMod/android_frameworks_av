@@ -725,9 +725,9 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     info.mData = new ABuffer(ptr, bufSize);
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
-                            mNode, portIndex, mem, &info.mBufferID);
+                            mNode, portIndex, mem, &info.mBufferID, def.nBufferSize);
                 } else {
-                    err = mOMX->useBuffer(mNode, portIndex, mem, &info.mBufferID);
+                    err = mOMX->useBuffer(mNode, portIndex, mem, &info.mBufferID, def.nBufferSize);
                 }
 
                 if (mem != NULL) {
@@ -997,7 +997,7 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
 
         // we use useBuffer for metadata regardless of quirks
         err = mOMX->useBuffer(
-                mNode, kPortIndexOutput, mem, &info.mBufferID);
+                mNode, kPortIndexOutput, mem, &info.mBufferID, mem->size());
 
         mBuffers[kPortIndexOutput].push(info);
 

@@ -245,12 +245,13 @@ public:
 
     virtual status_t useBuffer(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
-            buffer_id *buffer) {
+            buffer_id *buffer, OMX_U32 allottedSize) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
         data.writeStrongBinder(IInterface::asBinder(params));
+        data.writeInt32(allottedSize);
         remote()->transact(USE_BUFFER, data, &reply);
 
         status_t err = reply.readInt32();
@@ -459,12 +460,13 @@ public:
 
     virtual status_t allocateBufferWithBackup(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
-            buffer_id *buffer) {
+            buffer_id *buffer, OMX_U32 allottedSize) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
         data.writeStrongBinder(IInterface::asBinder(params));
+        data.writeInt32(allottedSize);
         remote()->transact(ALLOC_BUFFER_WITH_BACKUP, data, &reply);
 
         status_t err = reply.readInt32();
@@ -757,9 +759,10 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
             sp<IMemory> params =
                 interface_cast<IMemory>(data.readStrongBinder());
+            OMX_U32 allottedSize = data.readInt32();
 
             buffer_id buffer;
-            status_t err = useBuffer(node, port_index, params, &buffer);
+            status_t err = useBuffer(node, port_index, params, &buffer, allottedSize);
             reply->writeInt32(err);
 
             if (err == OK) {
@@ -953,10 +956,11 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
             sp<IMemory> params =
                 interface_cast<IMemory>(data.readStrongBinder());
+            OMX_U32 allottedSize = data.readInt32();
 
             buffer_id buffer;
             status_t err = allocateBufferWithBackup(
-                    node, port_index, params, &buffer);
+                    node, port_index, params, &buffer, allottedSize);
 
             reply->writeInt32(err);
 
