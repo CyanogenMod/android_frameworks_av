@@ -90,6 +90,7 @@ LOCAL_SHARED_LIBRARIES := \
         libicuuc \
         liblog \
         libmedia \
+        libmediautils \
         libnetd_client \
         libopus \
         libsonivox \
