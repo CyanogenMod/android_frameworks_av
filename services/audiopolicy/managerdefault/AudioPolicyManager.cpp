@@ -2031,8 +2031,9 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     }
 
     //TODO: enable audio offloading with video when ready
-    if (offloadInfo.has_video)
-    {
+    const bool allowOffloadWithVideo =
+            property_get_bool("audio.offload.video", false /* default_value */);
+    if (offloadInfo.has_video && !allowOffloadWithVideo) {
         ALOGV("isOffloadSupported: has_video == true, returning false");
         return false;
     }
