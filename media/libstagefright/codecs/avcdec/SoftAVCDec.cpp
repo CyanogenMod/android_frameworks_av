@@ -121,6 +121,7 @@ SoftAVC::SoftAVC(
       mIvColorFormat(IV_YUV_420P),
       mNewWidth(mWidth),
       mNewHeight(mHeight),
+      mNewLevel(0),
       mChangingResolution(false) {
     initPorts(
             kNumBuffers, INPUT_BUF_SIZE, kNumBuffers, CODEC_MIME_TYPE);
@@ -303,18 +304,22 @@ status_t SoftAVC::initDecoder() {
     uint32_t displayHeight = outputBufferHeight();
     uint32_t displaySizeY = displayStride * displayHeight;
 
-    if (displaySizeY > (1920 * 1088)) {
-        i4_level = 50;
-    } else if (displaySizeY > (1280 * 720)) {
-        i4_level = 40;
-    } else if (displaySizeY > (720 * 576)) {
-        i4_level = 31;
-    } else if (displaySizeY > (624 * 320)) {
-        i4_level = 30;
-    } else if (displaySizeY > (352 * 288)) {
-        i4_level = 21;
+    if(mNewLevel == 0){
+        if (displaySizeY > (1920 * 1088)) {
+            i4_level = 50;
+        } else if (displaySizeY > (1280 * 720)) {
+            i4_level = 40;
+        } else if (displaySizeY > (720 * 576)) {
+            i4_level = 31;
+        } else if (displaySizeY > (624 * 320)) {
+            i4_level = 30;
+        } else if (displaySizeY > (352 * 288)) {
+            i4_level = 21;
+        } else {
+            i4_level = 20;
+        }
     } else {
-        i4_level = 20;
+        i4_level = mNewLevel;
     }
 
     {
@@ -691,6 +696,7 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             bool unsupportedDimensions =
                 (IVD_STREAM_WIDTH_HEIGHT_NOT_SUPPORTED == (s_dec_op.u4_error_code & 0xFF));
             bool resChanged = (IVD_RES_CHANGED == (s_dec_op.u4_error_code & 0xFF));
+            bool unsupportedLevel = (IH264D_UNSUPPORTED_LEVEL == (s_dec_op.u4_error_code & 0xFF));
 
             GETTIME(&mTimeEnd, NULL);
             /* Compute time taken for decode() */
@@ -722,6 +728,18 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
                 return;
             }
 
+            if (unsupportedLevel && !mFlushNeeded) {
+
+                mNewLevel = 51;
+
+                CHECK_EQ(reInitDecoder(), (status_t)OK);
+
+                setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
+
+                ivdec_api_function(mCodecCtx, (void *)&s_dec_ip, (void *)&s_dec_op);
+                return;
+            }
+
             // If the decoder is in the changing resolution mode and there is no output present,
             // that means the switching is done and it's ready to reset the decoder and the plugin.
             if (mChangingResolution && !s_dec_op.u4_output_present) {
@@ -742,6 +760,17 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
                     mNewHeight = s_dec_op.u4_pic_ht;
                     mInitNeeded = true;
                 }
+                continue;
+            }
+
+            if (unsupportedLevel) {
+
+                if (mFlushNeeded) {
+                    setFlushMode();
+                }
+
+                mNewLevel = 51;
+                mInitNeeded = true;
                 continue;
             }
 
