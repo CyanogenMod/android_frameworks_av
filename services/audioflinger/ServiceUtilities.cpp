@@ -53,6 +53,10 @@ bool recordingAllowed(const String16& opPackageName) {
     }
 
     const uid_t uid = IPCThreadState::self()->getCallingUid();
+
+    // To permit command-line native tests
+    if (uid == AID_ROOT) return true;
+
     String16 checkedOpPackageName = opPackageName;
 
     // In some cases the calling code has no access to the package it runs under.
