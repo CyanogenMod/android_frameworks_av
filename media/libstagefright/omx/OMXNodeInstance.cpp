@@ -620,8 +620,11 @@ status_t OMXNodeInstance::configureVideoTunnelMode(
 
 status_t OMXNodeInstance::useBuffer(
         OMX_U32 portIndex, const sp<IMemory> &params,
-        OMX::buffer_id *buffer) {
+        OMX::buffer_id *buffer, OMX_U32 allottedSize) {
     Mutex::Autolock autoLock(mLock);
+    if (allottedSize > params->size()) {
+        return BAD_VALUE;
+    }
 
     BufferMeta *buffer_meta = new BufferMeta(params);
 
@@ -629,10 +632,11 @@ status_t OMXNodeInstance::useBuffer(
 
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
-            params->size(), static_cast<OMX_U8 *>(params->pointer()));
+            allottedSize, static_cast<OMX_U8 *>(params->pointer()));
 
     if (err != OMX_ErrorNone) {
-        CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(portIndex, params->size(), params->pointer()));
+        CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
+                portIndex, (size_t)allottedSize, params->pointer()));
 
         delete buffer_meta;
         buffer_meta = NULL;
@@ -654,7 +658,7 @@ status_t OMXNodeInstance::useBuffer(
     }
 
     CLOG_BUFFER(useBuffer, NEW_BUFFER_FMT(
-            *buffer, portIndex, "%zu@%p", params->size(), params->pointer()));
+            *buffer, portIndex, "%u@%p", allottedSize, params->pointer()));
     return OK;
 }
 
@@ -939,19 +943,21 @@ status_t OMXNodeInstance::allocateBuffer(
 
 status_t OMXNodeInstance::allocateBufferWithBackup(
         OMX_U32 portIndex, const sp<IMemory> &params,
-        OMX::buffer_id *buffer) {
+        OMX::buffer_id *buffer, OMX_U32 allottedSize) {
     Mutex::Autolock autoLock(mLock);
+    if (allottedSize > params->size()) {
+        return BAD_VALUE;
+    }
 
     BufferMeta *buffer_meta = new BufferMeta(params, true);
 
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_AllocateBuffer(
-            mHandle, &header, portIndex, buffer_meta, params->size());
-
+            mHandle, &header, portIndex, buffer_meta, allottedSize);
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(allocateBufferWithBackup, err,
-                SIMPLE_BUFFER(portIndex, params->size(), params->pointer()));
+                SIMPLE_BUFFER(portIndex, (size_t)allottedSize, params->pointer()));
         delete buffer_meta;
         buffer_meta = NULL;
 
@@ -971,8 +977,8 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
         bufferSource->addCodecBuffer(header);
     }
 
-    CLOG_BUFFER(allocateBufferWithBackup, NEW_BUFFER_FMT(*buffer, portIndex, "%zu@%p :> %p",
-            params->size(), params->pointer(), header->pBuffer));
+    CLOG_BUFFER(allocateBufferWithBackup, NEW_BUFFER_FMT(*buffer, portIndex, "%u@%p :> %p",
+            allottedSize, params->pointer(), header->pBuffer));
 
     return OK;
 }
