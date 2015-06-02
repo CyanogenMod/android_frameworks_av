@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <android/native_window.h>
+#include <media/hardware/MetadataBufferType.h>
 #include <media/IOMX.h>
 #include <media/stagefright/foundation/AHierarchicalStateMachine.h>
 #include <media/stagefright/CodecBase.h>
@@ -123,7 +124,7 @@ private:
         kWhatStart                   = 'star',
         kWhatRequestIDRFrame         = 'ridr',
         kWhatSetParameters           = 'setP',
-        kWhatSubmitOutputMetaDataBufferIfEOS = 'subm',
+        kWhatSubmitOutputMetadataBufferIfEOS = 'subm',
         kWhatOMXDied                 = 'OMXd',
         kWhatReleaseCodecInstance    = 'relC',
     };
@@ -207,7 +208,6 @@ private:
     bool mSentFormat;
     bool mIsVideo;
     bool mIsEncoder;
-    bool mUseMetadataOnEncoderOutput;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
 
@@ -222,9 +222,10 @@ private:
     bool mChannelMaskPresent;
     int32_t mChannelMask;
     unsigned mDequeueCounter;
-    bool mStoreMetaDataInOutputBuffers;
+    MetadataBufferType mInputMetadataType;
+    MetadataBufferType mOutputMetadataType;
     bool mLegacyAdaptiveExperiment;
-    int32_t mMetaDataBuffersToSubmit;
+    int32_t mMetadataBuffersToSubmit;
     size_t mNumUndequeuedBuffers;
 
     int64_t mRepeatFrameDelayUs;
@@ -249,13 +250,21 @@ private:
     status_t configureOutputBuffersFromNativeWindow(
             OMX_U32 *nBufferCount, OMX_U32 *nBufferSize,
             OMX_U32 *nMinUndequeuedBuffers);
-    status_t allocateOutputMetaDataBuffers();
-    status_t submitOutputMetaDataBuffer();
-    void signalSubmitOutputMetaDataBufferIfEOS_workaround();
+    status_t allocateOutputMetadataBuffers();
+    status_t submitOutputMetadataBuffer();
+    void signalSubmitOutputMetadataBufferIfEOS_workaround();
     status_t allocateOutputBuffersFromNativeWindow();
     status_t cancelBufferToNativeWindow(BufferInfo *info);
     status_t freeOutputBuffersNotOwnedByComponent();
     BufferInfo *dequeueBufferFromNativeWindow();
+
+    inline bool storingMetadataInDecodedBuffers() {
+        return mOutputMetadataType >= 0 && !mIsEncoder;
+    }
+
+    inline bool usingMetadataOnEncoderOutput() {
+        return mOutputMetadataType >= 0 && mIsEncoder;
+    }
 
     BufferInfo *findBufferByID(
             uint32_t portIndex, IOMX::buffer_id bufferID,

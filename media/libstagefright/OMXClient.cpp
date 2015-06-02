@@ -72,7 +72,7 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_STATETYPE* state);
 
     virtual status_t storeMetaDataInBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable);
+            node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type);
 
     virtual status_t prepareForAdaptivePlayback(
             node_id node, OMX_U32 port_index, OMX_BOOL enable,
@@ -102,7 +102,7 @@ struct MuxOMX : public IOMX {
 
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index,
-            sp<IGraphicBufferProducer> *bufferProducer);
+            sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type);
 
     virtual status_t createPersistentInputSurface(
             sp<IGraphicBufferProducer> *bufferProducer,
@@ -110,7 +110,7 @@ struct MuxOMX : public IOMX {
 
     virtual status_t setInputSurface(
             node_id node, OMX_U32 port_index,
-            const sp<IGraphicBufferConsumer> &bufferConsumer);
+            const sp<IGraphicBufferConsumer> &bufferConsumer, MetadataBufferType *type);
 
     virtual status_t signalEndOfInputStream(node_id node);
 
@@ -292,8 +292,8 @@ status_t MuxOMX::getState(
 }
 
 status_t MuxOMX::storeMetaDataInBuffers(
-        node_id node, OMX_U32 port_index, OMX_BOOL enable) {
-    return getOMX(node)->storeMetaDataInBuffers(node, port_index, enable);
+        node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type) {
+    return getOMX(node)->storeMetaDataInBuffers(node, port_index, enable, type);
 }
 
 status_t MuxOMX::prepareForAdaptivePlayback(
@@ -342,9 +342,9 @@ status_t MuxOMX::updateGraphicBufferInMeta(
 
 status_t MuxOMX::createInputSurface(
         node_id node, OMX_U32 port_index,
-        sp<IGraphicBufferProducer> *bufferProducer) {
+        sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
     status_t err = getOMX(node)->createInputSurface(
-            node, port_index, bufferProducer);
+            node, port_index, bufferProducer, type);
     return err;
 }
 
@@ -358,8 +358,8 @@ status_t MuxOMX::createPersistentInputSurface(
 
 status_t MuxOMX::setInputSurface(
         node_id node, OMX_U32 port_index,
-        const sp<IGraphicBufferConsumer> &bufferConsumer) {
-    return getOMX(node)->setInputSurface(node, port_index, bufferConsumer);
+        const sp<IGraphicBufferConsumer> &bufferConsumer, MetadataBufferType *type) {
+    return getOMX(node)->setInputSurface(node, port_index, bufferConsumer, type);
 }
 
 status_t MuxOMX::signalEndOfInputStream(node_id node) {

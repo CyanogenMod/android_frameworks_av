@@ -55,7 +55,6 @@ public:
             uint32_t bufferWidth,
             uint32_t bufferHeight,
             uint32_t bufferCount,
-            bool useGraphicBufferInMeta = false,
             const sp<IGraphicBufferConsumer> &consumer = NULL
     );
 
@@ -286,7 +285,7 @@ private:
     int64_t mPrevCaptureUs;
     int64_t mPrevFrameUs;
 
-    bool mUseGraphicBufferInMeta;
+    MetadataBufferType mMetadataBufferType;
 
     void onMessageReceived(const sp<AMessage> &msg);
 

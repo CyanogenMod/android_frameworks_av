@@ -413,7 +413,6 @@ ACodec::ACodec()
       mSentFormat(false),
       mIsVideo(false),
       mIsEncoder(false),
-      mUseMetadataOnEncoderOutput(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
       mEncoderDelay(0),
@@ -422,9 +421,10 @@ ACodec::ACodec()
       mChannelMaskPresent(false),
       mChannelMask(0),
       mDequeueCounter(0),
-      mStoreMetaDataInOutputBuffers(false),
+      mInputMetadataType(kMetadataBufferTypeInvalid),
+      mOutputMetadataType(kMetadataBufferTypeInvalid),
       mLegacyAdaptiveExperiment(false),
-      mMetaDataBuffersToSubmit(0),
+      mMetadataBuffersToSubmit(0),
       mRepeatFrameDelayUs(-1ll),
       mMaxPtsGapUs(-1ll),
       mMaxFps(-1),
@@ -542,10 +542,10 @@ void ACodec::signalRequestIDRFrame() {
 // This causes a halt if we already signaled an EOS on the input
 // port.  For now keep submitting an output buffer if there was an
 // EOS on the input port, but not yet on the output port.
-void ACodec::signalSubmitOutputMetaDataBufferIfEOS_workaround() {
+void ACodec::signalSubmitOutputMetadataBufferIfEOS_workaround() {
     if (mPortEOS[kPortIndexInput] && !mPortEOS[kPortIndexOutput] &&
-            mMetaDataBuffersToSubmit > 0) {
-        (new AMessage(kWhatSubmitOutputMetaDataBufferIfEOS, this))->post();
+            mMetadataBuffersToSubmit > 0) {
+        (new AMessage(kWhatSubmitOutputMetadataBufferIfEOS, this))->post();
     }
 }
 
@@ -620,7 +620,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     for (size_t i = 0; i < buffers.size(); ++i) {
         const BufferInfo &info = buffers[i];
         // skip undequeued buffers for meta data mode
-        if (mStoreMetaDataInOutputBuffers
+        if (storingMetadataInDecodedBuffers()
                 && !mLegacyAdaptiveExperiment
                 && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
             ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
@@ -638,7 +638,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     // cancel undequeued buffers to new surface
-    if (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment) {
+    if (!storingMetadataInDecodedBuffers() || mLegacyAdaptiveExperiment) {
         for (size_t i = 0; i < buffers.size(); ++i) {
             const BufferInfo &info = buffers[i];
             if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
@@ -674,8 +674,8 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
     status_t err;
     if (mNativeWindow != NULL && portIndex == kPortIndexOutput) {
-        if (mStoreMetaDataInOutputBuffers) {
-            err = allocateOutputMetaDataBuffers();
+        if (storingMetadataInDecodedBuffers()) {
+            err = allocateOutputMetadataBuffers();
         } else {
             err = allocateOutputBuffersFromNativeWindow();
         }
@@ -688,16 +688,33 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
         if (err == OK) {
-            ALOGV("[%s] Allocating %u buffers of size %u on %s port",
+            MetadataBufferType type =
+                portIndex == kPortIndexOutput ? mOutputMetadataType : mInputMetadataType;
+            int32_t bufSize = def.nBufferSize;
+            if (type == kMetadataBufferTypeGrallocSource) {
+                bufSize = sizeof(VideoGrallocMetadata);
+            } else if (type == kMetadataBufferTypeANWBuffer) {
+                bufSize = sizeof(VideoNativeMetadata);
+            }
+
+            // If using gralloc or native source input metadata buffers, allocate largest
+            // metadata size as we prefer to generate native source metadata, but component
+            // may require gralloc source.
+            int32_t allottedSize = bufSize;
+            if (portIndex == kPortIndexInput && type > 0) {
+                bufSize = max(sizeof(VideoGrallocMetadata), sizeof(VideoNativeMetadata));
+            }
+
+            ALOGV("[%s] Allocating %u buffers of size %d/%d (from %u using %s) on %s port",
                     mComponentName.c_str(),
-                    def.nBufferCountActual, def.nBufferSize,
+                    def.nBufferCountActual, bufSize, allottedSize, def.nBufferSize, asString(type),
                     portIndex == kPortIndexInput ? "input" : "output");
 
-            size_t totalSize = def.nBufferCountActual * def.nBufferSize;
+            size_t totalSize = def.nBufferCountActual * bufSize;
             mDealer[portIndex] = new MemoryDealer(totalSize, "ACodec");
 
-            for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
-                sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
+            for (OMX_U32 i = 0; i < def.nBufferCountActual && err == OK; ++i) {
+                sp<IMemory> mem = mDealer[portIndex]->allocate(bufSize);
                 if (mem == NULL || mem->pointer() == NULL) {
                     return NO_MEMORY;
                 }
@@ -711,27 +728,27 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                         : OMXCodec::kRequiresAllocateBufferOnOutputPorts;
 
                 if ((portIndex == kPortIndexInput && (mFlags & kFlagIsSecure))
-                        || mUseMetadataOnEncoderOutput) {
+                        || (portIndex == kPortIndexOutput && usingMetadataOnEncoderOutput())) {
                     mem.clear();
 
                     void *ptr;
                     err = mOMX->allocateBuffer(
-                            mNode, portIndex, def.nBufferSize, &info.mBufferID,
+                            mNode, portIndex, bufSize, &info.mBufferID,
                             &ptr);
-
-                    int32_t bufSize = mUseMetadataOnEncoderOutput ?
-                            (4 + sizeof(buffer_handle_t)) : def.nBufferSize;
 
                     info.mData = new ABuffer(ptr, bufSize);
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
-                            mNode, portIndex, mem, &info.mBufferID, def.nBufferSize);
+                            mNode, portIndex, mem, &info.mBufferID, allottedSize);
                 } else {
-                    err = mOMX->useBuffer(mNode, portIndex, mem, &info.mBufferID, def.nBufferSize);
+                    err = mOMX->useBuffer(mNode, portIndex, mem, &info.mBufferID, allottedSize);
                 }
 
                 if (mem != NULL) {
-                    info.mData = new ABuffer(mem->pointer(), def.nBufferSize);
+                    info.mData = new ABuffer(mem->pointer(), bufSize);
+                    if (type == kMetadataBufferTypeANWBuffer) {
+                        ((VideoNativeMetadata *)mem->pointer())->nFenceFd = -1;
+                    }
                 }
 
                 mBuffers[portIndex].push(info);
@@ -896,7 +913,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
 
-    if (!mStoreMetaDataInOutputBuffers) {
+    if (!storingMetadataInDecodedBuffers()) {
         static_cast<Surface*>(mNativeWindow.get())
                 ->getIGraphicBufferProducer()->allowAllocation(true);
     }
@@ -959,7 +976,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         }
     }
 
-    if (!mStoreMetaDataInOutputBuffers) {
+    if (!storingMetadataInDecodedBuffers()) {
         static_cast<Surface*>(mNativeWindow.get())
                 ->getIGraphicBufferProducer()->allowAllocation(false);
     }
@@ -967,7 +984,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
     return err;
 }
 
-status_t ACodec::allocateOutputMetaDataBuffers() {
+status_t ACodec::allocateOutputMetadataBuffers() {
     OMX_U32 bufferCount, bufferSize, minUndequeuedBuffers;
     status_t err = configureOutputBuffersFromNativeWindow(
             &bufferCount, &bufferSize, &minUndequeuedBuffers);
@@ -978,7 +995,9 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
     ALOGV("[%s] Allocating %u meta buffers on output port",
          mComponentName.c_str(), bufferCount);
 
-    size_t totalSize = bufferCount * 8;
+    size_t bufSize = mOutputMetadataType == kMetadataBufferTypeANWBuffer ?
+            sizeof(struct VideoNativeMetadata) : sizeof(struct VideoGrallocMetadata);
+    size_t totalSize = bufferCount * bufSize;
     mDealer[kPortIndexOutput] = new MemoryDealer(totalSize, "ACodec");
 
     // Dequeue buffers and send them to OMX
@@ -988,10 +1007,12 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
         info.mGraphicBuffer = NULL;
         info.mDequeuedAt = mDequeueCounter;
 
-        sp<IMemory> mem = mDealer[kPortIndexOutput]->allocate(
-                sizeof(struct VideoDecoderOutputMetaData));
+        sp<IMemory> mem = mDealer[kPortIndexOutput]->allocate(bufSize);
         if (mem == NULL || mem->pointer() == NULL) {
             return NO_MEMORY;
+        }
+        if (mOutputMetadataType == kMetadataBufferTypeANWBuffer) {
+            ((VideoNativeMetadata *)mem->pointer())->nFenceFd = -1;
         }
         info.mData = new ABuffer(mem->pointer(), mem->size());
 
@@ -1044,13 +1065,13 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
                 ->getIGraphicBufferProducer()->allowAllocation(false);
     }
 
-    mMetaDataBuffersToSubmit = bufferCount - minUndequeuedBuffers;
+    mMetadataBuffersToSubmit = bufferCount - minUndequeuedBuffers;
     return err;
 }
 
-status_t ACodec::submitOutputMetaDataBuffer() {
-    CHECK(mStoreMetaDataInOutputBuffers);
-    if (mMetaDataBuffersToSubmit == 0)
+status_t ACodec::submitOutputMetadataBuffer() {
+    CHECK(storingMetadataInDecodedBuffers());
+    if (mMetadataBuffersToSubmit == 0)
         return OK;
 
     BufferInfo *info = dequeueBufferFromNativeWindow();
@@ -1061,7 +1082,7 @@ status_t ACodec::submitOutputMetaDataBuffer() {
     ALOGV("[%s] submitting output meta buffer ID %u for graphic buffer %p",
           mComponentName.c_str(), info->mBufferID, info->mGraphicBuffer.get());
 
-    --mMetaDataBuffersToSubmit;
+    --mMetadataBuffersToSubmit;
     status_t err = mOMX->fillBuffer(mNode, info->mBufferID);
     if (err == OK) {
         info->mStatus = BufferInfo::OWNED_BY_COMPONENT;
@@ -1159,7 +1180,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         // same is possible in meta mode, in which case, it will be treated
         // as a normal buffer, which is not desirable.
         // TODO: fix this.
-        if (!stale && (!mStoreMetaDataInOutputBuffers || mLegacyAdaptiveExperiment)) {
+        if (!stale && (!storingMetadataInDecodedBuffers() || mLegacyAdaptiveExperiment)) {
             ALOGI("dequeued unrecognized (stale) buffer %p. discarding", buf);
             stale = true;
         }
@@ -1187,7 +1208,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     CHECK(oldest != NULL);
     // it is impossible to dequeue an unknown buffer in non-meta mode, as the
     // while loop above does not complete
-    CHECK(mStoreMetaDataInOutputBuffers);
+    CHECK(storingMetadataInDecodedBuffers());
 
     // discard buffer in LRU info and replace with new buffer
     oldest->mGraphicBuffer = new GraphicBuffer(buf, false);
@@ -1197,16 +1218,23 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
             mNode, kPortIndexOutput, oldest->mGraphicBuffer,
             oldest->mBufferID);
 
-    VideoDecoderOutputMetaData *metaData =
-        reinterpret_cast<VideoDecoderOutputMetaData *>(
-                oldest->mData->base());
-    CHECK_EQ(metaData->eType, kMetadataBufferTypeGrallocSource);
-
-    ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
-            (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
-            mDequeueCounter - oldest->mDequeuedAt,
-            metaData->pHandle,
-            oldest->mGraphicBuffer->handle, oldest->mData->base());
+    if (mOutputMetadataType == kMetadataBufferTypeGrallocSource) {
+        VideoGrallocMetadata *grallocMeta =
+            reinterpret_cast<VideoGrallocMetadata *>(oldest->mData->base());
+        ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
+                (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
+                mDequeueCounter - oldest->mDequeuedAt,
+                grallocMeta->hHandle,
+                oldest->mGraphicBuffer->handle, oldest->mData->base());
+    } else if (mOutputMetadataType == kMetadataBufferTypeANWBuffer) {
+        VideoNativeMetadata *nativeMeta =
+            reinterpret_cast<VideoNativeMetadata *>(oldest->mData->base());
+        ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
+                (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
+                mDequeueCounter - oldest->mDequeuedAt,
+                nativeMeta->pBuffer,
+                oldest->mGraphicBuffer->getNativeBuffer(), oldest->mData->base());
+    }
 
     return oldest;
 }
@@ -1398,6 +1426,8 @@ status_t ACodec::configureCodec(
 
     mIsEncoder = encoder;
 
+    mInputMetadataType = kMetadataBufferTypeInvalid;
+    mOutputMetadataType = kMetadataBufferTypeInvalid;
 
     status_t err = setComponentRole(encoder /* isEncoder */, mime);
 
@@ -1416,15 +1446,19 @@ status_t ACodec::configureCodec(
     if (encoder
             && msg->findInt32("store-metadata-in-buffers", &storeMeta)
             && storeMeta != 0) {
-        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE);
-
+        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexInput, OMX_TRUE, &mInputMetadataType);
         if (err != OK) {
-              ALOGE("[%s] storeMetaDataInBuffers (input) failed w/ err %d",
+            ALOGE("[%s] storeMetaDataInBuffers (input) failed w/ err %d",
                     mComponentName.c_str(), err);
 
-              return err;
-          }
-      }
+            return err;
+        }
+        // For this specific case we could be using camera source even if storeMetaDataInBuffers
+        // returns Gralloc source. Pretend that we are; this will force us to use nBufferSize.
+        if (mInputMetadataType == kMetadataBufferTypeGrallocSource) {
+            mInputMetadataType = kMetadataBufferTypeCameraSource;
+        }
+    }
 
     int32_t prependSPSPPS = 0;
     if (encoder
@@ -1463,14 +1497,10 @@ status_t ACodec::configureCodec(
             && msg->findInt32("store-metadata-in-buffers-output", &storeMeta)
             && storeMeta != 0);
 
-        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, enable);
-
+        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, enable, &mOutputMetadataType);
         if (err != OK) {
             ALOGE("[%s] storeMetaDataInBuffers (output) failed w/ err %d",
                 mComponentName.c_str(), err);
-            mUseMetadataOnEncoderOutput = 0;
-        } else {
-            mUseMetadataOnEncoderOutput = enable;
         }
 
         if (!msg->findInt64(
@@ -1502,7 +1532,6 @@ status_t ACodec::configureCodec(
     sp<RefBase> obj;
     bool haveNativeWindow = msg->findObject("native-window", &obj)
             && obj != NULL && video && !encoder;
-    mStoreMetaDataInOutputBuffers = false;
     mLegacyAdaptiveExperiment = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
@@ -1588,7 +1617,7 @@ status_t ACodec::configureCodec(
 
             // Always try to enable dynamic output buffers on native surface
             err = mOMX->storeMetaDataInBuffers(
-                    mNode, kPortIndexOutput, OMX_TRUE);
+                    mNode, kPortIndexOutput, OMX_TRUE, &mOutputMetadataType);
             if (err != OK) {
                 ALOGE("[%s] storeMetaDataInBuffers failed w/ err %d",
                         mComponentName.c_str(), err);
@@ -1640,7 +1669,7 @@ status_t ACodec::configureCodec(
             } else {
                 ALOGV("[%s] storeMetaDataInBuffers succeeded",
                         mComponentName.c_str());
-                mStoreMetaDataInOutputBuffers = true;
+                CHECK(storingMetadataInDecodedBuffers());
                 mLegacyAdaptiveExperiment = ADebug::isExperimentEnabled(
                         "legacy-adaptive", !msg->contains("no-experiments"));
 
@@ -1717,9 +1746,10 @@ status_t ACodec::configureCodec(
                     mNativeWindow.clear();
                     haveNativeWindow = false;
                     usingSwRenderer = true;
-                    if (mStoreMetaDataInOutputBuffers) {
-                        err = mOMX->storeMetaDataInBuffers(mNode, kPortIndexOutput, OMX_FALSE);
-                        mStoreMetaDataInOutputBuffers = false;
+                    if (storingMetadataInDecodedBuffers()) {
+                        err = mOMX->storeMetaDataInBuffers(
+                                mNode, kPortIndexOutput, OMX_FALSE, &mOutputMetadataType);
+                        mOutputMetadataType = kMetadataBufferTypeInvalid; // just in case
                         // TODO: implement adaptive-playback support for bytebuffer mode.
                         // This is done by SW codecs, but most HW codecs don't support it.
                         inputFormat->setInt32("adaptive-playback", false);
@@ -3536,8 +3566,8 @@ void ACodec::waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs() {
     while (countBuffersOwnedByNativeWindow() > mNumUndequeuedBuffers
             && dequeueBufferFromNativeWindow() != NULL) {
         // these buffers will be submitted as regular buffers; account for this
-        if (mStoreMetaDataInOutputBuffers && mMetaDataBuffersToSubmit > 0) {
-            --mMetaDataBuffersToSubmit;
+        if (storingMetadataInDecodedBuffers() && mMetadataBuffersToSubmit > 0) {
+            --mMetadataBuffersToSubmit;
         }
     }
 }
@@ -4628,16 +4658,16 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 mCodec->mBufferStats.add(timeUs, stats);
 #endif
 
-                if (mCodec->mStoreMetaDataInOutputBuffers) {
+                if (mCodec->storingMetadataInDecodedBuffers()) {
                     // try to submit an output buffer for each input buffer
                     PortMode outputMode = getPortMode(kPortIndexOutput);
 
-                    ALOGV("MetaDataBuffersToSubmit=%u portMode=%s",
-                            mCodec->mMetaDataBuffersToSubmit,
+                    ALOGV("MetadataBuffersToSubmit=%u portMode=%s",
+                            mCodec->mMetadataBuffersToSubmit,
                             (outputMode == FREE_BUFFERS ? "FREE" :
                              outputMode == KEEP_BUFFERS ? "KEEP" : "RESUBMIT"));
                     if (outputMode == RESUBMIT_BUFFERS) {
-                        mCodec->submitOutputMetaDataBuffer();
+                        mCodec->submitOutputMetadataBuffer();
                     }
                 }
                 status_t err2 = mCodec->mOMX->emptyBuffer(
@@ -4799,10 +4829,17 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             if (!mCodec->mSentFormat && rangeLength > 0) {
                 mCodec->sendFormatChange(reply);
             }
-
-            if (mCodec->mUseMetadataOnEncoderOutput) {
-                native_handle_t* handle =
-                        *(native_handle_t**)(info->mData->data() + 4);
+            if (mCodec->usingMetadataOnEncoderOutput()) {
+                native_handle_t *handle = NULL;
+                VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)info->mData->data();
+                VideoNativeMetadata &nativeMeta = *(VideoNativeMetadata *)info->mData->data();
+                if (info->mData->size() >= sizeof(grallocMeta)
+                        && grallocMeta.eType == kMetadataBufferTypeGrallocSource) {
+                    handle = (native_handle_t *)grallocMeta.hHandle;
+                } else if (info->mData->size() >= sizeof(nativeMeta)
+                        && nativeMeta.eType == kMetadataBufferTypeANWBuffer) {
+                    handle = (native_handle_t *)nativeMeta.pBuffer->handle;
+                }
                 info->mData->meta()->setPointer("handle", handle);
                 info->mData->meta()->setInt32("rangeOffset", rangeOffset);
                 info->mData->meta()->setInt32("rangeLength", rangeLength);
@@ -4999,7 +5036,8 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
-    mCodec->mUseMetadataOnEncoderOutput = 0;
+    mCodec->mInputMetadataType = kMetadataBufferTypeInvalid;
+    mCodec->mOutputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mComponentName.clear();
 }
 
@@ -5202,7 +5240,7 @@ void ACodec::LoadedState::stateEntered() {
     mCodec->mInputEOSResult = OK;
 
     mCodec->mDequeueCounter = 0;
-    mCodec->mMetaDataBuffersToSubmit = 0;
+    mCodec->mMetadataBuffersToSubmit = 0;
     mCodec->mRepeatFrameDelayUs = -1ll;
     mCodec->mInputFormat.clear();
     mCodec->mOutputFormat.clear();
@@ -5431,7 +5469,7 @@ void ACodec::LoadedState::onCreateInputSurface(
 
     sp<IGraphicBufferProducer> bufferProducer;
     status_t err = mCodec->mOMX->createInputSurface(
-            mCodec->mNode, kPortIndexInput, &bufferProducer);
+            mCodec->mNode, kPortIndexInput, &bufferProducer, &mCodec->mInputMetadataType);
 
     if (err == OK) {
         err = setupInputSurface();
@@ -5463,7 +5501,8 @@ void ACodec::LoadedState::onSetInputSurface(
     sp<PersistentSurface> surface = static_cast<PersistentSurface *>(obj.get());
 
     status_t err = mCodec->mOMX->setInputSurface(
-            mCodec->mNode, kPortIndexInput, surface->getBufferConsumer());
+            mCodec->mNode, kPortIndexInput, surface->getBufferConsumer(),
+            &mCodec->mInputMetadataType);
 
     if (err == OK) {
         err = setupInputSurface();
@@ -5680,13 +5719,13 @@ void ACodec::ExecutingState::submitOutputMetaBuffers() {
         BufferInfo *info = &mCodec->mBuffers[kPortIndexInput].editItemAt(i);
 
         if (info->mStatus == BufferInfo::OWNED_BY_COMPONENT) {
-            if (mCodec->submitOutputMetaDataBuffer() != OK)
+            if (mCodec->submitOutputMetadataBuffer() != OK)
                 break;
         }
     }
 
     // *** NOTE: THE FOLLOWING WORKAROUND WILL BE REMOVED ***
-    mCodec->signalSubmitOutputMetaDataBufferIfEOS_workaround();
+    mCodec->signalSubmitOutputMetadataBufferIfEOS_workaround();
 }
 
 void ACodec::ExecutingState::submitRegularOutputBuffers() {
@@ -5731,7 +5770,7 @@ void ACodec::ExecutingState::submitRegularOutputBuffers() {
 
 void ACodec::ExecutingState::submitOutputBuffers() {
     submitRegularOutputBuffers();
-    if (mCodec->mStoreMetaDataInOutputBuffers) {
+    if (mCodec->storingMetadataInDecodedBuffers()) {
         submitOutputMetaBuffers();
     }
 }
@@ -5863,13 +5902,13 @@ bool ACodec::ExecutingState::onMessageReceived(const sp<AMessage> &msg) {
         }
 
         // *** NOTE: THE FOLLOWING WORKAROUND WILL BE REMOVED ***
-        case kWhatSubmitOutputMetaDataBufferIfEOS:
+        case kWhatSubmitOutputMetadataBufferIfEOS:
         {
             if (mCodec->mPortEOS[kPortIndexInput] &&
                     !mCodec->mPortEOS[kPortIndexOutput]) {
-                status_t err = mCodec->submitOutputMetaDataBuffer();
+                status_t err = mCodec->submitOutputMetadataBuffer();
                 if (err == OK) {
-                    mCodec->signalSubmitOutputMetaDataBufferIfEOS_workaround();
+                    mCodec->signalSubmitOutputMetadataBufferIfEOS_workaround();
                 }
             }
             return true;
@@ -5980,7 +6019,7 @@ bool ACodec::ExecutingState::onOMXEvent(
             CHECK_EQ(data1, (OMX_U32)kPortIndexOutput);
 
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
-                mCodec->mMetaDataBuffersToSubmit = 0;
+                mCodec->mMetadataBuffersToSubmit = 0;
                 CHECK_EQ(mCodec->mOMX->sendCommand(
                             mCodec->mNode,
                             OMX_CommandPortDisable, kPortIndexOutput),

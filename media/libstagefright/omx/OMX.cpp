@@ -332,8 +332,8 @@ status_t OMX::getGraphicBufferUsage(
 }
 
 status_t OMX::storeMetaDataInBuffers(
-        node_id node, OMX_U32 port_index, OMX_BOOL enable) {
-    return findInstance(node)->storeMetaDataInBuffers(port_index, enable);
+        node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type) {
+    return findInstance(node)->storeMetaDataInBuffers(port_index, enable, type);
 }
 
 status_t OMX::prepareForAdaptivePlayback(
@@ -373,9 +373,9 @@ status_t OMX::updateGraphicBufferInMeta(
 
 status_t OMX::createInputSurface(
         node_id node, OMX_U32 port_index,
-        sp<IGraphicBufferProducer> *bufferProducer) {
+        sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
     return findInstance(node)->createInputSurface(
-            port_index, bufferProducer);
+            port_index, bufferProducer, type);
 }
 
 status_t OMX::createPersistentInputSurface(
@@ -387,8 +387,8 @@ status_t OMX::createPersistentInputSurface(
 
 status_t OMX::setInputSurface(
         node_id node, OMX_U32 port_index,
-        const sp<IGraphicBufferConsumer> &bufferConsumer) {
-    return findInstance(node)->setInputSurface(port_index, bufferConsumer);
+        const sp<IGraphicBufferConsumer> &bufferConsumer, MetadataBufferType *type) {
+    return findInstance(node)->setInputSurface(port_index, bufferConsumer, type);
 }
 
 
