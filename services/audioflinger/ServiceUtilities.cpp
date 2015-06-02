@@ -18,6 +18,7 @@
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
+#include <private/android_filesystem_config.h>
 #include "ServiceUtilities.h"
 
 /* When performing permission checks we do not use permission cache for
