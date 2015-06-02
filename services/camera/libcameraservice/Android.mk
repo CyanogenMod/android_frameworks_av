@@ -62,6 +62,7 @@ LOCAL_SHARED_LIBRARIES:= \
     libbinder \
     libcutils \
     libmedia \
+    libmediautils \
     libcamera_client \
     libgui \
     libhardware \

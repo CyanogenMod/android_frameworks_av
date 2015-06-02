@@ -33,6 +33,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libdl                       \
     libgui                      \
     libmedia                    \
+    libmediautils               \
     libsonivox                  \
     libstagefright              \
     libstagefright_foundation   \
