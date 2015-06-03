@@ -2191,6 +2191,10 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     ALOGI("HAL output buffer size %u frames, normal sink buffer size %u frames", mFrameCount,
             mNormalFrameCount);
 
+    // Check if we want to throttle the processing to no more than 2x normal rate
+    mThreadThrottle = property_get_bool("af.thread.throttle", true /* default_value */);
+    mHalfBufferMs = mNormalFrameCount * 1000 / (2 * mSampleRate);
+
     // mSinkBuffer is the sink buffer.  Size is always multiple-of-16 frames.
     // Originally this was int16_t[] array, need to remove legacy implications.
     free(mSinkBuffer);
@@ -2908,8 +2912,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         if (!waitingAsyncCallback()) {
             // mSleepTimeUs == 0 means we must write to audio hardware
             if (mSleepTimeUs == 0) {
+                ssize_t ret = 0;
                 if (mBytesRemaining) {
-                    ssize_t ret = threadLoop_write();
+                    ret = threadLoop_write();
                     if (ret < 0) {
                         mBytesRemaining = 0;
                     } else {
@@ -2920,17 +2925,42 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         (mMixerStatus == MIXER_DRAIN_ALL)) {
                     threadLoop_drain();
                 }
-                if (mType == MIXER) {
+                if (mType == MIXER && !mStandby) {
                     // write blocked detection
                     nsecs_t now = systemTime();
                     nsecs_t delta = now - mLastWriteTime;
-                    if (!mStandby && delta > maxPeriod) {
+                    if (delta > maxPeriod) {
                         mNumDelayedWrites++;
                         if ((now - lastWarning) > kWarningThrottleNs) {
                             ATRACE_NAME("underrun");
                             ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
                                     ns2ms(delta), mNumDelayedWrites, this);
                             lastWarning = now;
+                        }
+                    }
+
+                    if (mThreadThrottle
+                            && mMixerStatus == MIXER_TRACKS_READY // we are mixing (active tracks)
+                            && ret > 0) {                         // we wrote something
+                        // Limit MixerThread data processing to no more than twice the
+                        // expected processing rate.
+                        //
+                        // This helps prevent underruns with NuPlayer and other applications
+                        // which may set up buffers that are close to the minimum size, or use
+                        // deep buffers, and rely on a double-buffering sleep strategy to fill.
+                        //
+                        // The throttle smooths out sudden large data drains from the device,
+                        // e.g. when it comes out of standby, which often causes problems with
+                        // (1) mixer threads without a fast mixer (which has its own warm-up)
+                        // (2) minimum buffer sized tracks (even if the track is full,
+                        //     the app won't fill fast enough to handle the sudden draw).
+
+                        const int32_t deltaMs = delta / 1000000;
+                        const int32_t throttleMs = mHalfBufferMs - deltaMs;
+                        if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
+                            usleep(throttleMs * 1000);
+                            ALOGD("mixer(%p) throttle: ret(%zd) deltaMs(%d) requires sleep %d ms",
+                                    this, ret, deltaMs, throttleMs);
                         }
                     }
                 }
@@ -4023,6 +4053,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             }
         } else {
             if (framesReady < desiredFrames && !track->isStopped() && !track->isPaused()) {
+                ALOGV("track(%p) underrun,  framesReady(%zu) < framesDesired(%zd)",
+                        track, framesReady, desiredFrames);
                 track->mAudioTrackServerProxy->tallyUnderrunFrames(desiredFrames);
             }
             // clear effect chain input buffer if an active track underruns to avoid sending
