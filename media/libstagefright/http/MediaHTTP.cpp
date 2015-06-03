@@ -54,7 +54,10 @@ status_t MediaHTTP::connect(
     if (headers != NULL) {
         extHeaders = *headers;
     }
-    extHeaders.add(String8("User-Agent"), String8(MakeUserAgent().c_str()));
+
+    if (extHeaders.indexOfKey(String8("User-Agent")) < 0) {
+        extHeaders.add(String8("User-Agent"), String8(MakeUserAgent().c_str()));
+    }
 
     bool success = mHTTPConnection->connect(uri, &extHeaders);
 
