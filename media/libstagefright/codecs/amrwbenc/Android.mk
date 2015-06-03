@@ -86,9 +86,6 @@ LOCAL_SRC_FILES += \
 
 endif
 
-# ARMV5E/Filt_6k_7k_opt.s does not compile with Clang.
-LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
-
 LOCAL_MODULE := libstagefright_amrwbenc
 
 LOCAL_ARM_MODE := arm
