@@ -63,13 +63,6 @@ const sp<Session>& SessionLibrary::findSession(
     return mSessions.valueFor(sessionId);
 }
 
-const sp<Session>& SessionLibrary::findSession(
-        const void* data, size_t size) {
-    Vector<uint8_t> sessionId;
-    sessionId.appendArray(reinterpret_cast<const uint8_t*>(data), size);
-    return findSession(sessionId);
-}
-
 void SessionLibrary::destroySession(const sp<Session>& session) {
     Mutex::Autolock lock(mSessionsLock);\
     mSessions.removeItem(session->sessionId());
