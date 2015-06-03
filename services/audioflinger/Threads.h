@@ -613,6 +613,9 @@ protected:
     // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
+    bool                            mThreadThrottle;     // throttle the thread processing
+    uint32_t                        mHalfBufferMs;       // half the buffer size in milliseconds
+
     void*                           mSinkBuffer;         // frame size aligned sink buffer
 
     // TODO:
