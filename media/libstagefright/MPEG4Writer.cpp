@@ -113,6 +113,8 @@ private:
             mCurrTableEntriesElement(NULL) {
             CHECK_GT(mElementCapacity, 0);
             CHECK_GT(mEntryCapacity, 0);
+            // Ensure no integer overflow on allocation in add().
+            CHECK_LT(mEntryCapacity, UINT32_MAX / mElementCapacity);
         }
 
         // Free the allocated memory.
