@@ -64,6 +64,7 @@ GraphicBufferSource::GraphicBufferSource(
     mLatestBufferId(-1),
     mLatestBufferFrameNum(0),
     mLatestBufferUseCount(0),
+    mLatestBufferFence(Fence::NO_FENCE),
     mRepeatBufferDeferred(false),
     mTimePerCaptureUs(-1ll),
     mTimePerFrameUs(-1ll),
@@ -226,9 +227,8 @@ void GraphicBufferSource::addCodecBuffer(OMX_BUFFERHEADERTYPE* header) {
     mCodecBuffers.add(codecBuffer);
 }
 
-void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
+void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int fenceFd) {
     Mutex::Autolock autoLock(mMutex);
-
     if (!mExecuting) {
         return;
     }
@@ -237,6 +237,9 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     if (cbi < 0) {
         // This should never happen.
         ALOGE("codecBufferEmptied: buffer not recognized (h=%p)", header);
+        if (fenceFd >= 0) {
+            ::close(fenceFd);
+        }
         return;
     }
 
@@ -258,6 +261,9 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
         }
         // No GraphicBuffer to deal with, no additional input or output is
         // expected, so just return.
+        if (fenceFd >= 0) {
+            ::close(fenceFd);
+        }
         return;
     }
 
@@ -291,6 +297,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
     // If we find a match, release that slot.  If we don't, the BufferQueue
     // has dropped that GraphicBuffer, and there's nothing for us to release.
     int id = codecBuffer.mBuf;
+    sp<Fence> fence = new Fence(fenceFd);
     if (mBufferSlot[id] != NULL &&
         mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
         ALOGV("cbi %d matches bq slot %d, handle=%p",
@@ -304,15 +311,16 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header) {
                 int outSlot;
                 mConsumer->attachBuffer(&outSlot, mBufferSlot[id]);
                 mConsumer->releaseBuffer(outSlot, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
             } else {
                 mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
             }
         }
     } else {
         ALOGV("codecBufferEmptied: no match for emptied buffer in cbi %d",
                 cbi);
+        // we will not reuse codec buffer, so there is no need to wait for fence
     }
 
     // Mark the codec buffer as available by clearing the GraphicBuffer ref.
@@ -394,7 +402,7 @@ void GraphicBufferSource::suspend(bool suspend) {
                 mConsumer->detachBuffer(item.mBuf);
                 mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
                 mConsumer->releaseBuffer(item.mBuf, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
             } else {
                 mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
@@ -447,13 +455,6 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
 
     mNumFramesAvailable--;
 
-    // Wait for it to become available.
-    err = item.mFence->waitForever("GraphicBufferSource::fillCodecBuffer_l");
-    if (err != OK) {
-        ALOGW("failed to wait for buffer fence: %d", err);
-        // keep going
-    }
-
     // If this is the first time we're seeing this buffer, add it to our
     // slot table.
     if (item.mGraphicBuffer != NULL) {
@@ -489,11 +490,12 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
             mConsumer->detachBuffer(item.mBuf);
             mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
             mConsumer->releaseBuffer(item.mBuf, 0,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
         } else {
             mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
         }
+        // item.mFence is released at the end of this method
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
         setLatestBuffer_l(item, dropped);
@@ -520,9 +522,10 @@ bool GraphicBufferSource::repeatLatestBuffer_l() {
                 mLatestBufferFrameNum,
                 EGL_NO_DISPLAY,
                 EGL_NO_SYNC_KHR,
-                Fence::NO_FENCE);
+                mLatestBufferFence);
         mLatestBufferId = -1;
         mLatestBufferFrameNum = 0;
+        mLatestBufferFence = Fence::NO_FENCE;
         return false;
     }
 
@@ -537,6 +540,7 @@ bool GraphicBufferSource::repeatLatestBuffer_l() {
     item.mBuf = mLatestBufferId;
     item.mFrameNumber = mLatestBufferFrameNum;
     item.mTimestamp = mRepeatLastFrameTimestamp;
+    item.mFence = mLatestBufferFence;
 
     status_t err = submitBuffer_l(item, cbi);
 
@@ -576,12 +580,13 @@ void GraphicBufferSource::setLatestBuffer_l(
                 mConsumer->attachBuffer(&outSlot, mBufferSlot[mLatestBufferId]);
 
                 mConsumer->releaseBuffer(outSlot, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, mLatestBufferFence);
             } else {
                 mConsumer->releaseBuffer(
                         mLatestBufferId, mLatestBufferFrameNum,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, mLatestBufferFence);
             }
+            // mLatestBufferFence will be set to new fence just below
         }
     }
 
@@ -592,6 +597,7 @@ void GraphicBufferSource::setLatestBuffer_l(
     mLatestBufferUseCount = dropped ? 0 : 1;
     mRepeatBufferDeferred = false;
     mRepeatLastFrameCount = kRepeatLastFrameCount;
+    mLatestBufferFence = item.mFence;
 
     if (mReflector != NULL) {
         sp<AMessage> msg = new AMessage(kWhatRepeatLastFrame, mReflector);
@@ -687,8 +693,7 @@ int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
     return timeUs;
 }
 
-status_t GraphicBufferSource::submitBuffer_l(
-        const BufferItem &item, int cbi) {
+status_t GraphicBufferSource::submitBuffer_l(const BufferItem &item, int cbi) {
     ALOGV("submitBuffer_l cbi=%d", cbi);
 
     int64_t timeUs = getTimestamp(item);
@@ -704,7 +709,8 @@ status_t GraphicBufferSource::submitBuffer_l(
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
     sp<GraphicBuffer> buffer = codecBuffer.mGraphicBuffer;
     status_t err = mNodeInstance->emptyGraphicBuffer(
-            header, buffer, OMX_BUFFERFLAG_ENDOFFRAME, timeUs);
+            header, buffer, OMX_BUFFERFLAG_ENDOFFRAME, timeUs,
+            item.mFence->isValid() ? item.mFence->dup() : -1);
     if (err != OK) {
         ALOGW("WARNING: emptyNativeWindowBuffer failed: 0x%x", err);
         codecBuffer.mGraphicBuffer = NULL;
@@ -737,7 +743,7 @@ void GraphicBufferSource::submitEndOfInputStream_l() {
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
     status_t err = mNodeInstance->emptyGraphicBuffer(
             header, NULL /* buffer */, OMX_BUFFERFLAG_ENDOFFRAME | OMX_BUFFERFLAG_EOS,
-            0 /* timestamp */);
+            0 /* timestamp */, -1 /* fenceFd */);
     if (err != OK) {
         ALOGW("emptyDirectBuffer EOS failed: 0x%x", err);
     } else {
@@ -799,7 +805,7 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
                 mConsumer->detachBuffer(item.mBuf);
                 mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
                 mConsumer->releaseBuffer(item.mBuf, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
+                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
             } else {
                 mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);

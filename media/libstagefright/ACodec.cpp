@@ -132,6 +132,7 @@ struct CodecObserver : public BnOMXObserver {
             case omx_message::EMPTY_BUFFER_DONE:
             {
                 msg->setInt32("buffer", omx_msg.u.buffer_data.buffer);
+                msg->setInt32("fence_fd", omx_msg.fenceFd);
                 break;
             }
 
@@ -151,6 +152,8 @@ struct CodecObserver : public BnOMXObserver {
                 msg->setInt64(
                         "timestamp",
                         omx_msg.u.extended_buffer_data.timestamp);
+                msg->setInt32(
+                        "fence_fd", omx_msg.fenceFd);
                 break;
             }
 
@@ -199,13 +202,14 @@ protected:
 private:
     bool onOMXMessage(const sp<AMessage> &msg);
 
-    bool onOMXEmptyBufferDone(IOMX::buffer_id bufferID);
+    bool onOMXEmptyBufferDone(IOMX::buffer_id bufferID, int fenceFd);
 
     bool onOMXFillBufferDone(
             IOMX::buffer_id bufferID,
             size_t rangeOffset, size_t rangeLength,
             OMX_U32 flags,
-            int64_t timeUs);
+            int64_t timeUs,
+            int fenceFd);
 
     void getMoreInputDataIfPossible();
 
@@ -404,6 +408,38 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(FlushingState);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ACodec::BufferInfo::setWriteFence(int fenceFd, const char *dbg) {
+    if (mFenceFd >= 0) {
+        ALOGW("OVERWRITE OF %s fence %d by write fence %d in %s",
+                mIsReadFence ? "read" : "write", mFenceFd, fenceFd, dbg);
+    }
+    mFenceFd = fenceFd;
+    mIsReadFence = false;
+}
+
+void ACodec::BufferInfo::setReadFence(int fenceFd, const char *dbg) {
+    if (mFenceFd >= 0) {
+        ALOGW("OVERWRITE OF %s fence %d by read fence %d in %s",
+                mIsReadFence ? "read" : "write", mFenceFd, fenceFd, dbg);
+    }
+    mFenceFd = fenceFd;
+    mIsReadFence = true;
+}
+
+void ACodec::BufferInfo::checkWriteFence(const char *dbg) {
+    if (mFenceFd >= 0 && mIsReadFence) {
+        ALOGD("REUSING read fence %d as write fence in %s", mFenceFd, dbg);
+    }
+}
+
+void ACodec::BufferInfo::checkReadFence(const char *dbg) {
+    if (mFenceFd >= 0 && !mIsReadFence) {
+        ALOGD("REUSING write fence %d as read fence in %s", mFenceFd, dbg);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -640,11 +676,12 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     // cancel undequeued buffers to new surface
     if (!storingMetadataInDecodedBuffers() || mLegacyAdaptiveExperiment) {
         for (size_t i = 0; i < buffers.size(); ++i) {
-            const BufferInfo &info = buffers[i];
+            BufferInfo &info = buffers.editItemAt(i);
             if (info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
                 ALOGV("canceling buffer %p", info.mGraphicBuffer->getNativeBuffer());
                 err = nativeWindow->cancelBuffer(
-                        nativeWindow, info.mGraphicBuffer->getNativeBuffer(), -1);
+                        nativeWindow, info.mGraphicBuffer->getNativeBuffer(), info.mFenceFd);
+                info.mFenceFd = -1;
                 if (err != OK) {
                     ALOGE("failed to cancel buffer %p to the new surface: %s (%d)",
                             info.mGraphicBuffer->getNativeBuffer(),
@@ -721,6 +758,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
                 BufferInfo info;
                 info.mStatus = BufferInfo::OWNED_BY_US;
+                info.mFenceFd = -1;
 
                 uint32_t requiresAllocateBufferBit =
                     (portIndex == kPortIndexInput)
@@ -925,7 +963,8 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
     // Dequeue buffers and send them to OMX
     for (OMX_U32 i = 0; i < bufferCount; i++) {
         ANativeWindowBuffer *buf;
-        err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+        int fenceFd;
+        err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf, &fenceFd);
         if (err != 0) {
             ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
             break;
@@ -934,6 +973,8 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         sp<GraphicBuffer> graphicBuffer(new GraphicBuffer(buf, false));
         BufferInfo info;
         info.mStatus = BufferInfo::OWNED_BY_US;
+        info.mFenceFd = fenceFd;
+        info.mIsReadFence = false;
         info.mData = new ABuffer(NULL /* data */, bufferSize /* capacity */);
         info.mGraphicBuffer = graphicBuffer;
         mBuffers[kPortIndexOutput].push(info);
@@ -1004,6 +1045,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
     for (OMX_U32 i = 0; i < bufferCount; i++) {
         BufferInfo info;
         info.mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
+        info.mFenceFd = -1;
         info.mGraphicBuffer = NULL;
         info.mDequeuedAt = mDequeueCounter;
 
@@ -1040,7 +1082,8 @@ status_t ACodec::allocateOutputMetadataBuffers() {
             BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
 
             ANativeWindowBuffer *buf;
-            err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf);
+            int fenceFd;
+            err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf, &fenceFd);
             if (err != 0) {
                 ALOGE("dequeueBuffer failed: %s (%d)", strerror(-err), -err);
                 break;
@@ -1050,6 +1093,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
             mOMX->updateGraphicBufferInMeta(
                     mNode, kPortIndexOutput, graphicBuffer, info->mBufferID);
             info->mStatus = BufferInfo::OWNED_BY_US;
+            info->setWriteFence(fenceFd, "allocateOutputMetadataBuffers for legacy");
             info->mGraphicBuffer = graphicBuffer;
         }
 
@@ -1083,12 +1127,24 @@ status_t ACodec::submitOutputMetadataBuffer() {
           mComponentName.c_str(), info->mBufferID, info->mGraphicBuffer.get());
 
     --mMetadataBuffersToSubmit;
-    status_t err = mOMX->fillBuffer(mNode, info->mBufferID);
+    info->checkWriteFence("submitOutputMetadataBuffer");
+    status_t err = mOMX->fillBuffer(mNode, info->mBufferID, info->mFenceFd);
+    info->mFenceFd = -1;
     if (err == OK) {
         info->mStatus = BufferInfo::OWNED_BY_COMPONENT;
     }
 
     return err;
+}
+
+status_t ACodec::waitForFence(int fd, const char *dbg ) {
+    status_t res = OK;
+    if (fd >= 0) {
+        sp<Fence> fence = new Fence(fd);
+        res = fence->wait(IOMX::kFenceTimeoutMs);
+        ALOGW_IF(res != OK, "FENCE TIMEOUT for %d in %s", fd, dbg);
+    }
+    return res;
 }
 
 // static
@@ -1123,8 +1179,10 @@ status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
     ALOGV("[%s] Calling cancelBuffer on buffer %u",
          mComponentName.c_str(), info->mBufferID);
 
+    info->checkWriteFence("cancelBufferToNativeWindow");
     int err = mNativeWindow->cancelBuffer(
-        mNativeWindow.get(), info->mGraphicBuffer.get(), -1);
+        mNativeWindow.get(), info->mGraphicBuffer.get(), info->mFenceFd);
+    info->mFenceFd = -1;
 
     ALOGW_IF(err != 0, "[%s] can not return buffer %u to native window",
             mComponentName.c_str(), info->mBufferID);
@@ -1144,9 +1202,11 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         return NULL;
     }
 
+    int fenceFd = -1;
     do {
-        if (native_window_dequeue_buffer_and_wait(mNativeWindow.get(), &buf) != 0) {
-            ALOGE("dequeueBuffer failed.");
+        status_t err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf, &fenceFd);
+        if (err != 0) {
+            ALOGE("dequeueBuffer failed: %s(%d).", asString(err), err);
             return NULL;
         }
 
@@ -1170,7 +1230,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
                 }
                 ALOGV("dequeued buffer %p", info->mGraphicBuffer->getNativeBuffer());
                 info->mStatus = BufferInfo::OWNED_BY_US;
-
+                info->setWriteFence(fenceFd, "dequeueBufferFromNativeWindow");
                 return info;
             }
         }
@@ -1213,6 +1273,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     // discard buffer in LRU info and replace with new buffer
     oldest->mGraphicBuffer = new GraphicBuffer(buf, false);
     oldest->mStatus = BufferInfo::OWNED_BY_US;
+    oldest->setWriteFence(fenceFd, "dequeueBufferFromNativeWindow for oldest");
 
     mOMX->updateGraphicBufferInMeta(
             mNode, kPortIndexOutput, oldest->mGraphicBuffer,
@@ -1277,6 +1338,18 @@ status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
     BufferInfo *info = &mBuffers[portIndex].editItemAt(i);
     status_t err = OK;
 
+    // there should not be any fences in the metadata
+    MetadataBufferType type =
+        portIndex == kPortIndexOutput ? mOutputMetadataType : mInputMetadataType;
+    if (type == kMetadataBufferTypeANWBuffer && info->mData != NULL
+            && info->mData->size() >= sizeof(VideoNativeMetadata)) {
+        int fenceFd = ((VideoNativeMetadata *)info->mData->data())->nFenceFd;
+        if (fenceFd >= 0) {
+            ALOGW("unreleased fence (%d) in %s metadata buffer %zu",
+                    fenceFd, portIndex == kPortIndexInput ? "input" : "output", i);
+        }
+    }
+
     switch (info->mStatus) {
         case BufferInfo::OWNED_BY_US:
             if (portIndex == kPortIndexOutput && mNativeWindow != NULL) {
@@ -1292,6 +1365,10 @@ status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
             ALOGE("trying to free buffer not owned by us or ANW (%d)", info->mStatus);
             err = FAILED_TRANSACTION;
             break;
+    }
+
+    if (info->mFenceFd >= 0) {
+        ::close(info->mFenceFd);
     }
 
     // remove buffer even if mOMX->freeBuffer fails
@@ -4433,9 +4510,12 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
         case omx_message::EMPTY_BUFFER_DONE:
         {
             IOMX::buffer_id bufferID;
-            CHECK(msg->findInt32("buffer", (int32_t*)&bufferID));
+            int32_t fenceFd;
 
-            return onOMXEmptyBufferDone(bufferID);
+            CHECK(msg->findInt32("buffer", (int32_t*)&bufferID));
+            CHECK(msg->findInt32("fence_fd", &fenceFd));
+
+            return onOMXEmptyBufferDone(bufferID, fenceFd);
         }
 
         case omx_message::FILL_BUFFER_DONE:
@@ -4443,19 +4523,21 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
             IOMX::buffer_id bufferID;
             CHECK(msg->findInt32("buffer", (int32_t*)&bufferID));
 
-            int32_t rangeOffset, rangeLength, flags;
+            int32_t rangeOffset, rangeLength, flags, fenceFd;
             int64_t timeUs;
 
             CHECK(msg->findInt32("range_offset", &rangeOffset));
             CHECK(msg->findInt32("range_length", &rangeLength));
             CHECK(msg->findInt32("flags", &flags));
             CHECK(msg->findInt64("timestamp", &timeUs));
+            CHECK(msg->findInt32("fence_fd", &fenceFd));
 
             return onOMXFillBufferDone(
                     bufferID,
                     (size_t)rangeOffset, (size_t)rangeLength,
                     (OMX_U32)flags,
-                    timeUs);
+                    timeUs,
+                    fenceFd);
         }
 
         default:
@@ -4486,7 +4568,7 @@ bool ACodec::BaseState::onOMXEvent(
     return true;
 }
 
-bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
+bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID, int fenceFd) {
     ALOGV("[%s] onOMXEmptyBufferDone %u",
          mCodec->mComponentName.c_str(), bufferID);
 
@@ -4495,9 +4577,19 @@ bool ACodec::BaseState::onOMXEmptyBufferDone(IOMX::buffer_id bufferID) {
     if (status != BufferInfo::OWNED_BY_COMPONENT) {
         ALOGE("Wrong ownership in EBD: %s(%d) buffer #%u", _asString(status), status, bufferID);
         mCodec->dumpBuffers(kPortIndexInput);
+        if (fenceFd >= 0) {
+            ::close(fenceFd);
+        }
         return false;
     }
     info->mStatus = BufferInfo::OWNED_BY_US;
+
+    // input buffers cannot take fences, so wait for any fence now
+    (void)mCodec->waitForFence(fenceFd, "onOMXEmptyBufferDone");
+    fenceFd = -1;
+
+    // still save fence for completeness
+    info->setWriteFence(fenceFd, "onOMXEmptyBufferDone");
 
     // We're in "store-metadata-in-buffers" mode, the underlying
     // OMX component had access to data that's implicitly refcounted
@@ -4670,13 +4762,16 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                         mCodec->submitOutputMetadataBuffer();
                     }
                 }
+                info->checkReadFence("onInputBufferFilled");
                 status_t err2 = mCodec->mOMX->emptyBuffer(
                     mCodec->mNode,
                     bufferID,
                     0,
                     buffer->size(),
                     flags,
-                    timeUs);
+                    timeUs,
+                    info->mFenceFd);
+                info->mFenceFd = -1;
                 if (err2 != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err2));
                     return;
@@ -4704,13 +4799,16 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                 ALOGV("[%s] calling emptyBuffer %u signalling EOS",
                      mCodec->mComponentName.c_str(), bufferID);
 
+                info->checkReadFence("onInputBufferFilled");
                 status_t err2 = mCodec->mOMX->emptyBuffer(
                         mCodec->mNode,
                         bufferID,
                         0,
                         0,
                         OMX_BUFFERFLAG_EOS,
-                        0);
+                        0,
+                        info->mFenceFd);
+                info->mFenceFd = -1;
                 if (err2 != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err2));
                     return;
@@ -4765,7 +4863,8 @@ bool ACodec::BaseState::onOMXFillBufferDone(
         IOMX::buffer_id bufferID,
         size_t rangeOffset, size_t rangeLength,
         OMX_U32 flags,
-        int64_t timeUs) {
+        int64_t timeUs,
+        int fenceFd) {
     ALOGV("[%s] onOMXFillBufferDone %u time %" PRId64 " us, flags = 0x%08x",
          mCodec->mComponentName.c_str(), bufferID, timeUs, flags);
 
@@ -4794,11 +4893,21 @@ bool ACodec::BaseState::onOMXFillBufferDone(
         ALOGE("Wrong ownership in FBD: %s(%d) buffer #%u", _asString(status), status, bufferID);
         mCodec->dumpBuffers(kPortIndexOutput);
         mCodec->signalError(OMX_ErrorUndefined, FAILED_TRANSACTION);
+        if (fenceFd >= 0) {
+            ::close(fenceFd);
+        }
         return true;
     }
 
     info->mDequeuedAt = ++mCodec->mDequeueCounter;
     info->mStatus = BufferInfo::OWNED_BY_US;
+
+    // byte buffers cannot take fences, so wait for any fence now
+    if (mCodec->mNativeWindow == NULL) {
+        (void)mCodec->waitForFence(fenceFd, "onOMXFillBufferDone");
+        fenceFd = -1;
+    }
+    info->setReadFence(fenceFd, "onOMXFillBufferDone");
 
     PortMode mode = getPortMode(kPortIndexOutput);
 
@@ -4813,7 +4922,8 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 ALOGV("[%s] calling fillBuffer %u",
                      mCodec->mComponentName.c_str(), info->mBufferID);
 
-                err = mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID);
+                err = mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID, info->mFenceFd);
+                info->mFenceFd = -1;
                 if (err != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
                     return true;
@@ -4946,17 +5056,23 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         err = native_window_set_buffers_timestamp(mCodec->mNativeWindow.get(), timestampNs);
         ALOGW_IF(err != NO_ERROR, "failed to set buffer timestamp: %d", err);
 
+        info->checkReadFence("onOutputBufferDrained before queueBuffer");
         err = mCodec->mNativeWindow->queueBuffer(
-                    mCodec->mNativeWindow.get(), info->mGraphicBuffer.get(), -1);
+                    mCodec->mNativeWindow.get(), info->mGraphicBuffer.get(), info->mFenceFd);
+        info->mFenceFd = -1;
         if (err == OK) {
             info->mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
         } else {
             mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
             info->mStatus = BufferInfo::OWNED_BY_US;
+            // keeping read fence as write fence to avoid clobbering
+            info->mIsReadFence = false;
         }
     } else {
         if (mCodec->mNativeWindow != NULL &&
             (info->mData == NULL || info->mData->size() != 0)) {
+            // move read fence into write fence to avoid clobbering
+            info->mIsReadFence = false;
             ATRACE_NAME("frame-drop");
         }
         info->mStatus = BufferInfo::OWNED_BY_US;
@@ -4991,7 +5107,10 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
                 if (info != NULL) {
                     ALOGV("[%s] calling fillBuffer %u",
                          mCodec->mComponentName.c_str(), info->mBufferID);
-                    status_t err = mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID);
+                    info->checkWriteFence("onOutputBufferDrained::RESUBMIT_BUFFERS");
+                    status_t err = mCodec->mOMX->fillBuffer(
+                            mCodec->mNode, info->mBufferID, info->mFenceFd);
+                    info->mFenceFd = -1;
                     if (err == OK) {
                         info->mStatus = BufferInfo::OWNED_BY_COMPONENT;
                     } else {
@@ -5754,7 +5873,9 @@ void ACodec::ExecutingState::submitRegularOutputBuffers() {
 
         ALOGV("[%s] calling fillBuffer %u", mCodec->mComponentName.c_str(), info->mBufferID);
 
-        status_t err = mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID);
+        info->checkWriteFence("submitRegularOutputBuffers");
+        status_t err = mCodec->mOMX->fillBuffer(mCodec->mNode, info->mBufferID, info->mFenceFd);
+        info->mFenceFd = -1;
         if (err != OK) {
             failed = true;
             break;
