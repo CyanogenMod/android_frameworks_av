@@ -100,6 +100,7 @@ private:
     bool mInitNeeded;
     uint32_t mNewWidth;
     uint32_t mNewHeight;
+    uint32_t mNewLevel;
     // The input stream has changed to a different resolution, which is still supported by the
     // codec. So the codec is switching to decode the new resolution.
     bool mChangingResolution;
