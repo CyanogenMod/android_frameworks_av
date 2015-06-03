@@ -43,10 +43,18 @@ android::status_t CryptoFactory::createPlugin(
         return android::BAD_VALUE;
     }
 
-    android::sp<Session> session = SessionLibrary::get()->findSession(
-            data, size);
-    *plugin = new CryptoPlugin(session);
-    return android::OK;
+    android::Vector<uint8_t> sessionId;
+    sessionId.appendArray(reinterpret_cast<const uint8_t*>(data), size);
+
+    CryptoPlugin *clearKeyPlugin = new CryptoPlugin(sessionId);
+    android::status_t result = clearKeyPlugin->getInitStatus();
+    if (result == android::OK) {
+        *plugin = clearKeyPlugin;
+    } else {
+        delete clearKeyPlugin;
+        *plugin = NULL;
+    }
+    return result;
 }
 
 } // namespace clearkeydrm

@@ -37,7 +37,9 @@ status_t DrmPlugin::openSession(Vector<uint8_t>& sessionId) {
 
 status_t DrmPlugin::closeSession(const Vector<uint8_t>& sessionId) {
     sp<Session> session = mSessionLibrary->findSession(sessionId);
-    mSessionLibrary->destroySession(session);
+    if (session.get()) {
+        mSessionLibrary->destroySession(session);
+    }
     return android::OK;
 }
 
@@ -55,8 +57,11 @@ status_t DrmPlugin::getKeyRequest(
         return android::ERROR_DRM_CANNOT_HANDLE;
     }
     *keyRequestType = DrmPlugin::kKeyRequestType_Initial;
-    sp<Session> session = mSessionLibrary->findSession(scope);
     defaultUrl.clear();
+    sp<Session> session = mSessionLibrary->findSession(scope);
+    if (!session.get()) {
+        return android::ERROR_DRM_SESSION_NOT_OPENED;
+    }
     return session->getKeyRequest(initData, initDataType, &request);
 }
 
@@ -65,6 +70,9 @@ status_t DrmPlugin::provideKeyResponse(
         const Vector<uint8_t>& response,
         Vector<uint8_t>& keySetId) {
     sp<Session> session = mSessionLibrary->findSession(scope);
+    if (!session.get()) {
+        return android::ERROR_DRM_SESSION_NOT_OPENED;
+    }
     status_t res = session->provideKeyResponse(response);
     if (res == android::OK) {
         keySetId.clear();
