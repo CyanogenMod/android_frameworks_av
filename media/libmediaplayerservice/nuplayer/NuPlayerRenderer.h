@@ -194,6 +194,7 @@ private:
 
     int32_t mTotalBuffersQueued;
     int32_t mLastAudioBufferDrained;
+    bool mUseAudioCallback;
 
     sp<AWakeLock> mWakeLock;
 
