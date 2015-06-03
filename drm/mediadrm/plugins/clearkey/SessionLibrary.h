@@ -36,8 +36,6 @@ public:
     const android::sp<Session>& findSession(
             const android::Vector<uint8_t>& sessionId);
 
-    const android::sp<Session>& findSession(const void* data, size_t size);
-
     void destroySession(const android::sp<Session>& session);
 
 private:
@@ -50,7 +48,7 @@ private:
 
     android::Mutex mSessionsLock;
     uint32_t mNextSessionId;
-    android::KeyedVector<android::Vector<uint8_t>, android::sp<Session> >
+    android::DefaultKeyedVector<android::Vector<uint8_t>, android::sp<Session> >
             mSessions;
 };
 
