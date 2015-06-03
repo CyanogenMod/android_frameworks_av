@@ -1285,7 +1285,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
                 (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
                 mDequeueCounter - oldest->mDequeuedAt,
-                grallocMeta->hHandle,
+                grallocMeta->pHandle,
                 oldest->mGraphicBuffer->handle, oldest->mData->base());
     } else if (mOutputMetadataType == kMetadataBufferTypeANWBuffer) {
         VideoNativeMetadata *nativeMeta =
@@ -4945,7 +4945,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 VideoNativeMetadata &nativeMeta = *(VideoNativeMetadata *)info->mData->data();
                 if (info->mData->size() >= sizeof(grallocMeta)
                         && grallocMeta.eType == kMetadataBufferTypeGrallocSource) {
-                    handle = (native_handle_t *)grallocMeta.hHandle;
+                    handle = (native_handle_t *)grallocMeta.pHandle;
                 } else if (info->mData->size() >= sizeof(nativeMeta)
                         && nativeMeta.eType == kMetadataBufferTypeANWBuffer) {
                     handle = (native_handle_t *)nativeMeta.pBuffer->handle;
