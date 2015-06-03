@@ -92,7 +92,7 @@ public:
             node_id node, OMX_U32 portIndex, OMX_BOOL enable,
             OMX_U32 maxFrameWidth, OMX_U32 maxFrameHeight) = 0;
 
-   virtual status_t configureVideoTunnelMode(
+    virtual status_t configureVideoTunnelMode(
             node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
             OMX_U32 audioHwSync, native_handle_t **sidebandHandle) = 0;
 
@@ -152,13 +152,23 @@ public:
     virtual status_t freeBuffer(
             node_id node, OMX_U32 port_index, buffer_id buffer) = 0;
 
-    virtual status_t fillBuffer(node_id node, buffer_id buffer) = 0;
+    enum {
+        kFenceTimeoutMs = 1000
+    };
+    // Calls OMX_FillBuffer on buffer, and passes |fenceFd| to component if it supports
+    // fences. Otherwise, it waits on |fenceFd| before calling OMX_FillBuffer.
+    // Takes ownership of |fenceFd| even if this call fails.
+    virtual status_t fillBuffer(node_id node, buffer_id buffer, int fenceFd = -1) = 0;
 
+    // Calls OMX_EmptyBuffer on buffer (after updating buffer header with |range_offset|,
+    // |range_length|, |flags| and |timestamp|). Passes |fenceFd| to component if it
+    // supports fences. Otherwise, it waits on |fenceFd| before calling OMX_EmptyBuffer.
+    // Takes ownership of |fenceFd| even if this call fails.
     virtual status_t emptyBuffer(
             node_id node,
             buffer_id buffer,
             OMX_U32 range_offset, OMX_U32 range_length,
-            OMX_U32 flags, OMX_TICKS timestamp) = 0;
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd = -1) = 0;
 
     virtual status_t getExtensionIndex(
             node_id node,
@@ -190,6 +200,7 @@ struct omx_message {
     } type;
 
     IOMX::node_id node;
+    int fenceFd; // used for EMPTY_BUFFER_DONE and FILL_BUFFER_DONE; client must close this
 
     union {
         // if type == EVENT

@@ -118,13 +118,13 @@ public:
     virtual status_t freeBuffer(
             node_id node, OMX_U32 port_index, buffer_id buffer);
 
-    virtual status_t fillBuffer(node_id node, buffer_id buffer);
+    virtual status_t fillBuffer(node_id node, buffer_id buffer, int fenceFd);
 
     virtual status_t emptyBuffer(
             node_id node,
             buffer_id buffer,
             OMX_U32 range_offset, OMX_U32 range_length,
-            OMX_U32 flags, OMX_TICKS timestamp);
+            OMX_U32 flags, OMX_TICKS timestamp, int fenceFd);
 
     virtual status_t getExtensionIndex(
             node_id node,
@@ -148,10 +148,10 @@ public:
             OMX_IN OMX_PTR pEventData);
 
     OMX_ERRORTYPE OnEmptyBufferDone(
-            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
+            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer, int fenceFd);
 
     OMX_ERRORTYPE OnFillBufferDone(
-            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer);
+            node_id node, buffer_id buffer, OMX_IN OMX_BUFFERHEADERTYPE *pBuffer, int fenceFd);
 
     void invalidateNodeID(node_id node);
 
