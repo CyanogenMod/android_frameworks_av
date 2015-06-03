@@ -812,7 +812,7 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta_l(
             && header->nAllocLen >= sizeof(VideoGrallocMetadata)) {
         VideoGrallocMetadata &metadata = *(VideoGrallocMetadata *)(header->pBuffer);
         metadata.eType = kMetadataBufferTypeGrallocSource;
-        metadata.hHandle = graphicBuffer == NULL ? NULL : graphicBuffer->handle;
+        metadata.pHandle = graphicBuffer == NULL ? NULL : graphicBuffer->handle;
     } else if (mMetadataType[portIndex] == kMetadataBufferTypeANWBuffer
             && header->nAllocLen >= sizeof(VideoNativeMetadata)) {
         VideoNativeMetadata &metadata = *(VideoNativeMetadata *)(header->pBuffer);
@@ -1113,7 +1113,7 @@ status_t OMXNodeInstance::emptyBuffer(
         VideoNativeMetadata &backupMeta = *(VideoNativeMetadata *)backup->base();
         VideoGrallocMetadata &codecMeta = *(VideoGrallocMetadata *)codec->base();
         ALOGV("converting ANWB %p to handle %p", backupMeta.pBuffer, backupMeta.pBuffer->handle);
-        codecMeta.hHandle = backupMeta.pBuffer->handle;
+        codecMeta.pHandle = backupMeta.pBuffer->handle;
         codecMeta.eType = kMetadataBufferTypeGrallocSource;
         header->nFilledLen = sizeof(codecMeta);
     } else {
