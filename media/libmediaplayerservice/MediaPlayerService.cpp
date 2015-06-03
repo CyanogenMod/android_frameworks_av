@@ -1850,20 +1850,23 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
                 me, buffer->raw, buffer->size, me->mCallbackCookie,
                 CB_EVENT_FILL_BUFFER);
 
-        if ((me->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0 &&
-            actualSize == 0 && buffer->size > 0 && me->mNextOutput == NULL) {
-            // We've reached EOS but the audio track is not stopped yet,
-            // keep playing silence.
+        // Log when no data is returned from the callback.
+        // (1) We may have no data (especially with network streaming sources).
+        // (2) We may have reached the EOS and the audio track is not stopped yet.
+        // Note that AwesomePlayer/AudioPlayer will only return zero size when it reaches the EOS.
+        // NuPlayerRenderer will return zero when it doesn't have data (it doesn't block to fill).
+        //
+        // This is a benign busy-wait, with the next data request generated 10 ms or more later;
+        // nevertheless for power reasons, we don't want to see too many of these.
 
-            memset(buffer->raw, 0, buffer->size);
-            actualSize = buffer->size;
-        }
+        ALOGV_IF(actualSize == 0 && buffer->size > 0, "callbackwrapper: empty buffer returned");
 
+        me->mBytesWritten += actualSize;  // benign race with reader.
         buffer->size = actualSize;
         } break;
 
-
     case AudioTrack::EVENT_STREAM_END:
+        // currently only occurs for offloaded callbacks
         ALOGV("callbackwrapper: deliver EVENT_STREAM_END");
         (*me->mCallback)(me, NULL /* buffer */, 0 /* size */,
                 me->mCallbackCookie, CB_EVENT_STREAM_END);
@@ -1876,11 +1879,15 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         break;
 
     case AudioTrack::EVENT_UNDERRUN:
-        // This occurs when there is no data available, typically occurring
+        // This occurs when there is no data available, typically
         // when there is a failure to supply data to the AudioTrack.  It can also
         // occur in non-offloaded mode when the audio device comes out of standby.
         //
-        // If you see this at the start of playback, there probably was a glitch.
+        // If an AudioTrack underruns it outputs silence. Since this happens suddenly
+        // it may sound like an audible pop or glitch.
+        //
+        // The underrun event is sent once per track underrun; the condition is reset
+        // when more data is sent to the AudioTrack.
         ALOGI("callbackwrapper: EVENT_UNDERRUN (discarded)");
         break;
 
