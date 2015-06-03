@@ -275,10 +275,10 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int f
         if (type == kMetadataBufferTypeGrallocSource
                 && header->nAllocLen >= sizeof(VideoGrallocMetadata)) {
             VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)data;
-            if (grallocMeta.hHandle != codecBuffer.mGraphicBuffer->handle) {
+            if (grallocMeta.pHandle != codecBuffer.mGraphicBuffer->handle) {
                 // should never happen
                 ALOGE("codecBufferEmptied: buffer's handle is %p, expected %p",
-                        grallocMeta.hHandle, codecBuffer.mGraphicBuffer->handle);
+                        grallocMeta.pHandle, codecBuffer.mGraphicBuffer->handle);
                 CHECK(!"codecBufferEmptied: mismatched buffer");
             }
         } else if (type == kMetadataBufferTypeANWBuffer

@@ -536,7 +536,7 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
         }
 
         VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)(src);
-        handle = grallocMeta.hHandle;
+        handle = grallocMeta.pHandle;
         // assume HAL_PIXEL_FORMAT_RGBA_8888
         // there is no way to get the src stride without the graphic buffer
         format = HAL_PIXEL_FORMAT_RGBA_8888;
