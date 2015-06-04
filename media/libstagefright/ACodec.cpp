@@ -37,6 +37,7 @@
 #include <media/stagefright/foundation/AUtils.h>
 
 #include <media/stagefright/BufferProducerWrapper.h>
+#include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/OMXClient.h>
@@ -175,6 +176,15 @@ struct CodecObserver : public BnOMXObserver {
                     break;
                 }
 
+                case omx_message::FRAME_RENDERED:
+                {
+                    msg->setInt64(
+                            "media_time_us", omx_msg.u.render_data.timestamp);
+                    msg->setInt64(
+                            "system_nano", omx_msg.u.render_data.nanoTime);
+                    break;
+                }
+
                 default:
                     ALOGE("Unrecognized message type: %d", omx_msg.type);
                     break;
@@ -237,6 +247,8 @@ private:
             OMX_U32 flags,
             int64_t timeUs,
             int fenceFd);
+
+    virtual bool onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano);
 
     void getMoreInputDataIfPossible();
 
@@ -354,6 +366,7 @@ protected:
     virtual void stateEntered();
 
     virtual bool onOMXEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2);
+    virtual bool onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano);
 
 private:
     bool mActive;
@@ -372,6 +385,7 @@ protected:
     virtual void stateEntered();
 
     virtual bool onOMXEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2);
+    virtual bool onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano);
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(OutputPortSettingsChangedState);
@@ -786,6 +800,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 BufferInfo info;
                 info.mStatus = BufferInfo::OWNED_BY_US;
                 info.mFenceFd = -1;
+                info.mRenderInfo = NULL;
 
                 uint32_t requiresAllocateBufferBit =
                     (portIndex == kPortIndexInput)
@@ -1002,6 +1017,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         info.mStatus = BufferInfo::OWNED_BY_US;
         info.mFenceFd = fenceFd;
         info.mIsReadFence = false;
+        info.mRenderInfo = NULL;
         info.mData = new ABuffer(NULL /* data */, bufferSize /* capacity */);
         info.mGraphicBuffer = graphicBuffer;
         mBuffers[kPortIndexOutput].push(info);
@@ -1073,6 +1089,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
         BufferInfo info;
         info.mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
         info.mFenceFd = -1;
+        info.mRenderInfo = NULL;
         info.mGraphicBuffer = NULL;
         info.mDequeuedAt = mDequeueCounter;
 
@@ -1219,6 +1236,42 @@ status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
     return err;
 }
 
+void ACodec::updateRenderInfoForDequeuedBuffer(
+        ANativeWindowBuffer *buf, int fenceFd, BufferInfo *info) {
+
+    info->mRenderInfo =
+        mRenderTracker.updateInfoForDequeuedBuffer(
+                buf, fenceFd, info - &mBuffers[kPortIndexOutput][0]);
+
+    // check for any fences already signaled
+    notifyOfRenderedFrames(false /* dropIncomplete */, info->mRenderInfo);
+}
+
+void ACodec::onFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano) {
+    if (mRenderTracker.onFrameRendered(mediaTimeUs, systemNano) != OK) {
+        mRenderTracker.dumpRenderQueue();
+    }
+}
+
+void ACodec::notifyOfRenderedFrames(bool dropIncomplete, FrameRenderTracker::Info *until) {
+    sp<AMessage> msg = mNotify->dup();
+    msg->setInt32("what", CodecBase::kWhatOutputFramesRendered);
+    std::list<FrameRenderTracker::Info> done =
+        mRenderTracker.checkFencesAndGetRenderedFrames(until, dropIncomplete);
+
+    // unlink untracked frames
+    for (std::list<FrameRenderTracker::Info>::const_iterator it = done.cbegin();
+            it != done.cend(); ++it) {
+        if (it->getIndex() >= 0) {
+            mBuffers[kPortIndexOutput].editItemAt(it->getIndex()).mRenderInfo = NULL;
+        }
+    }
+
+    if (MediaCodec::CreateFramesRenderedMessage(done, msg)) {
+        msg->post();
+    }
+}
+
 ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     ANativeWindowBuffer *buf;
     CHECK(mNativeWindow.get() != NULL);
@@ -1242,7 +1295,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
             BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
 
             if (info->mGraphicBuffer != NULL &&
-                info->mGraphicBuffer->handle == buf->handle) {
+                    info->mGraphicBuffer->handle == buf->handle) {
                 // Since consumers can attach buffers to BufferQueues, it is possible
                 // that a known yet stale buffer can return from a surface that we
                 // once used.  We can simply ignore this as we have already dequeued
@@ -1255,9 +1308,11 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
                     stale = true;
                     break;
                 }
+
                 ALOGV("dequeued buffer %p", info->mGraphicBuffer->getNativeBuffer());
                 info->mStatus = BufferInfo::OWNED_BY_US;
                 info->setWriteFence(fenceFd, "dequeueBufferFromNativeWindow");
+                updateRenderInfoForDequeuedBuffer(buf, fenceFd, info);
                 return info;
             }
         }
@@ -1301,6 +1356,8 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     oldest->mGraphicBuffer = new GraphicBuffer(buf, false);
     oldest->mStatus = BufferInfo::OWNED_BY_US;
     oldest->setWriteFence(fenceFd, "dequeueBufferFromNativeWindow for oldest");
+    mRenderTracker.untrackFrame(oldest->mRenderInfo);
+    oldest->mRenderInfo = NULL;
 
     mOMX->updateGraphicBufferInMeta(
             mNode, kPortIndexOutput, oldest->mGraphicBuffer,
@@ -1324,6 +1381,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
                 oldest->mGraphicBuffer->getNativeBuffer(), oldest->mData->base());
     }
 
+    updateRenderInfoForDequeuedBuffer(buf, fenceFd, oldest);
     return oldest;
 }
 
@@ -1397,6 +1455,9 @@ status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
     if (info->mFenceFd >= 0) {
         ::close(info->mFenceFd);
     }
+
+    mRenderTracker.untrackFrame(info->mRenderInfo);
+    info->mRenderInfo = NULL;
 
     // remove buffer even if mOMX->freeBuffer fails
     mBuffers[portIndex].removeAt(i);
@@ -4518,9 +4579,20 @@ bool ACodec::BaseState::onOMXMessageList(const sp<AMessage> &msg) {
     CHECK(msg->findObject("messages", &obj));
     sp<MessageList> msgList = static_cast<MessageList *>(obj.get());
 
+    bool receivedRenderedEvents = false;
     for (std::list<sp<AMessage>>::const_iterator it = msgList->getList().cbegin();
           it != msgList->getList().cend(); ++it) {
         onOMXMessage(*it);
+        int32_t type;
+        CHECK((*it)->findInt32("type", &type));
+        if (type == omx_message::FRAME_RENDERED) {
+            receivedRenderedEvents = true;
+        }
+    }
+
+    if (receivedRenderedEvents) {
+        // NOTE: all buffers are rendered in this case
+        mCodec->notifyOfRenderedFrames();
     }
     return true;
 }
@@ -4587,10 +4659,27 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
                     fenceFd);
         }
 
+        case omx_message::FRAME_RENDERED:
+        {
+            int64_t mediaTimeUs, systemNano;
+
+            CHECK(msg->findInt64("media_time_us", &mediaTimeUs));
+            CHECK(msg->findInt64("system_nano", &systemNano));
+
+            return onOMXFrameRendered(
+                    mediaTimeUs, systemNano);
+        }
+
         default:
             ALOGE("Unexpected message type: %d", type);
             return false;
     }
+}
+
+bool ACodec::BaseState::onOMXFrameRendered(
+        int64_t mediaTimeUs __unused, nsecs_t systemNano __unused) {
+    // ignore outside of Executing and PortSettingsChanged states
+    return true;
 }
 
 bool ACodec::BaseState::onOMXEvent(
@@ -4949,6 +5038,15 @@ bool ACodec::BaseState::onOMXFillBufferDone(
     info->mDequeuedAt = ++mCodec->mDequeueCounter;
     info->mStatus = BufferInfo::OWNED_BY_US;
 
+    if (info->mRenderInfo != NULL) {
+        // The fence for an emptied buffer must have signaled, but there still could be queued
+        // or out-of-order dequeued buffers in the render queue prior to this buffer. Drop these,
+        // as we will soon requeue this buffer to the surface. While in theory we could still keep
+        // track of buffers that are requeued to the surface, it is better to add support to the
+        // buffer-queue to notify us of released buffers and their fences (in the future).
+        mCodec->notifyOfRenderedFrames(true /* dropIncomplete */);
+    }
+
     // byte buffers cannot take fences, so wait for any fence now
     if (mCodec->mNativeWindow == NULL) {
         (void)mCodec->waitForFence(fenceFd, "onOMXFillBufferDone");
@@ -5084,6 +5182,14 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
             && info->mData != NULL && info->mData->size() != 0) {
         ATRACE_NAME("render");
         // The client wants this buffer to be rendered.
+
+        // save buffers sent to the surface so we can get render time when they return
+        int64_t mediaTimeUs = -1;
+        info->mData->meta()->findInt64("timeUs", &mediaTimeUs);
+        if (mediaTimeUs >= 0) {
+            mCodec->mRenderTracker.onFrameQueued(
+                    mediaTimeUs, info->mGraphicBuffer, new Fence(::dup(info->mFenceFd)));
+        }
 
         int64_t timestampNs = 0;
         if (!msg->findInt64("timestampNs", &timestampNs)) {
@@ -5367,6 +5473,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     observer->setNotificationMessage(notify);
 
     mCodec->mComponentName = componentName;
+    mCodec->mRenderTracker.setComponentName(componentName);
     mCodec->mFlags = 0;
 
     if (componentName.endsWith(".secure")) {
@@ -5969,6 +6076,7 @@ void ACodec::ExecutingState::resume() {
 void ACodec::ExecutingState::stateEntered() {
     ALOGV("[%s] Now Executing", mCodec->mComponentName.c_str());
 
+    mCodec->mRenderTracker.clear(systemTime(CLOCK_MONOTONIC));
     mCodec->processDeferredMessages();
 }
 
@@ -6179,6 +6287,11 @@ void ACodec::onSignalEndOfInputStream() {
     notify->post();
 }
 
+bool ACodec::ExecutingState::onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano) {
+    mCodec->onFrameRendered(mediaTimeUs, systemNano);
+    return true;
+}
+
 bool ACodec::ExecutingState::onOMXEvent(
         OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
     switch (event) {
@@ -6264,6 +6377,12 @@ bool ACodec::OutputPortSettingsChangedState::onMessageReceived(
 void ACodec::OutputPortSettingsChangedState::stateEntered() {
     ALOGV("[%s] Now handling output port settings change",
          mCodec->mComponentName.c_str());
+}
+
+bool ACodec::OutputPortSettingsChangedState::onOMXFrameRendered(
+        int64_t mediaTimeUs, nsecs_t systemNano) {
+    mCodec->onFrameRendered(mediaTimeUs, systemNano);
+    return true;
 }
 
 bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
@@ -6643,6 +6762,8 @@ void ACodec::FlushingState::changeStateIfWeOwnAllBuffers() {
         // We now own all buffers except possibly those still queued with
         // the native window for rendering. Let's get those back as well.
         mCodec->waitUntilAllPossibleNativeWindowBuffersAreReturnedToUs();
+
+        mCodec->mRenderTracker.clear(systemTime(CLOCK_MONOTONIC));
 
         sp<AMessage> notify = mCodec->mNotify->dup();
         notify->setInt32("what", CodecBase::kWhatFlushCompleted);
