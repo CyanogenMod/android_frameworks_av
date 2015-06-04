@@ -429,7 +429,8 @@ protected:
 private:
 
      // Implements the IEffectClient interface
-    class EffectClient : public android::BnEffectClient,  public android::IBinder::DeathRecipient
+    class EffectClient :
+        public android::BnEffectClient, public android::IBinder::DeathRecipient
     {
     public:
 
@@ -437,24 +438,39 @@ private:
 
         // IEffectClient
         virtual void controlStatusChanged(bool controlGranted) {
-            mEffect->controlStatusChanged(controlGranted);
+            sp<AudioEffect> effect = mEffect.promote();
+            if (effect != 0) {
+                effect->controlStatusChanged(controlGranted);
+            }
         }
         virtual void enableStatusChanged(bool enabled) {
-            mEffect->enableStatusChanged(enabled);
+            sp<AudioEffect> effect = mEffect.promote();
+            if (effect != 0) {
+                effect->enableStatusChanged(enabled);
+            }
         }
         virtual void commandExecuted(uint32_t cmdCode,
                                      uint32_t cmdSize,
                                      void *pCmdData,
                                      uint32_t replySize,
                                      void *pReplyData) {
-            mEffect->commandExecuted(cmdCode, cmdSize, pCmdData, replySize, pReplyData);
+            sp<AudioEffect> effect = mEffect.promote();
+            if (effect != 0) {
+                effect->commandExecuted(
+                    cmdCode, cmdSize, pCmdData, replySize, pReplyData);
+            }
         }
 
         // IBinder::DeathRecipient
-        virtual void binderDied(const wp<IBinder>& who) {mEffect->binderDied();}
+        virtual void binderDied(const wp<IBinder>& who) {
+            sp<AudioEffect> effect = mEffect.promote();
+            if (effect != 0) {
+                effect->binderDied();
+            }
+        }
 
     private:
-        AudioEffect *mEffect;
+        wp<AudioEffect> mEffect;
     };
 
     void binderDied();
