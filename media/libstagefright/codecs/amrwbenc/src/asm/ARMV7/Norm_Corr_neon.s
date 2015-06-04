@@ -265,6 +265,6 @@ Norm_corr_asm_end:
         ADD            r13, r13, #voSTACK
         LDMFD          r13!, {r4 - r12, r15}
 
-        .END
+        .end
 
 
