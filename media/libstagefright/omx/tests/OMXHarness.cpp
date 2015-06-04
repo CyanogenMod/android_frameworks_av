@@ -64,9 +64,11 @@ status_t Harness::initOMX() {
     return mOMX != 0 ? OK : NO_INIT;
 }
 
-void Harness::onMessage(const omx_message &msg) {
+void Harness::onMessages(const std::list<omx_message> &messages) {
     Mutex::Autolock autoLock(mLock);
-    mMessageQueue.push_back(msg);
+    for (std::list<omx_message>::const_iterator it = messages.cbegin(); it != messages.cend(); ) {
+        mMessageQueue.push_back(*it++);
+    }
     mMessageAddedCondition.signal();
 }
 

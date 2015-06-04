@@ -25,6 +25,8 @@
 #include <utils/List.h>
 #include <utils/String8.h>
 
+#include <list>
+
 #include <media/hardware/MetadataBufferType.h>
 
 #include <OMX_Core.h>
@@ -231,7 +233,8 @@ class IOMXObserver : public IInterface {
 public:
     DECLARE_META_INTERFACE(OMXObserver);
 
-    virtual void onMessage(const omx_message &msg) = 0;
+    // Handle (list of) messages.
+    virtual void onMessages(const std::list<omx_message> &messages) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

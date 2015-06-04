@@ -116,12 +116,15 @@ struct OMXCodecObserver : public BnOMXObserver {
     }
 
     // from IOMXObserver
-    virtual void onMessage(const omx_message &msg) {
+    virtual void onMessages(const std::list<omx_message> &messages) {
         sp<OMXCodec> codec = mTarget.promote();
 
         if (codec.get() != NULL) {
             Mutex::Autolock autoLock(codec->mLock);
-            codec->on_message(msg);
+            for (std::list<omx_message>::const_iterator it = messages.cbegin();
+                  it != messages.cend(); ++it) {
+                codec->on_message(*it);
+            }
             codec.clear();
         }
     }

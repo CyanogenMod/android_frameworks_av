@@ -1077,16 +1077,29 @@ public:
         : BpInterface<IOMXObserver>(impl) {
     }
 
-    virtual void onMessage(const omx_message &msg) {
+    virtual void onMessages(const std::list<omx_message> &messages) {
         Parcel data, reply;
-        data.writeInterfaceToken(IOMXObserver::getInterfaceDescriptor());
-        data.write(&msg, sizeof(msg));
-        if (msg.fenceFd >= 0) {
-            data.writeFileDescriptor(msg.fenceFd, true /* takeOwnership */);
+        std::list<omx_message>::const_iterator it = messages.cbegin();
+        bool first = true;
+        while (it != messages.cend()) {
+            const omx_message &msg = *it++;
+            if (first) {
+                data.writeInterfaceToken(IOMXObserver::getInterfaceDescriptor());
+                data.writeInt32(msg.node);
+                first = false;
+            }
+            data.writeInt32(msg.fenceFd >= 0);
+            if (msg.fenceFd >= 0) {
+                data.writeFileDescriptor(msg.fenceFd, true /* takeOwnership */);
+            }
+            data.writeInt32(msg.type);
+            data.write(&msg.u, sizeof(msg.u));
+            ALOGV("onMessage writing message %d, size %zu", msg.type, sizeof(msg));
         }
-        ALOGV("onMessage writing message %d, size %zu", msg.type, sizeof(msg));
-
-        remote()->transact(OBSERVER_ON_MSG, data, &reply, IBinder::FLAG_ONEWAY);
+        if (!first) {
+            data.writeInt32(-1); // mark end
+            remote()->transact(OBSERVER_ON_MSG, data, &reply, IBinder::FLAG_ONEWAY);
+        }
     }
 };
 
@@ -1098,19 +1111,28 @@ status_t BnOMXObserver::onTransact(
         case OBSERVER_ON_MSG:
         {
             CHECK_OMX_INTERFACE(IOMXObserver, data, reply);
+            IOMX::node_id node = data.readInt32();
+            std::list<omx_message> messages;
+            status_t err = FAILED_TRANSACTION; // must receive at least one message
+            do {
+                int haveFence = data.readInt32();
+                if (haveFence < 0) { // we use -1 to mark end of messages
+                    break;
+                }
+                omx_message msg;
+                msg.node = node;
+                msg.fenceFd = haveFence ? ::dup(data.readFileDescriptor()) : -1;
+                msg.type = (typeof(msg.type))data.readInt32();
+                err = data.read(&msg.u, sizeof(msg.u));
+                ALOGV("onTransact reading message %d, size %zu", msg.type, sizeof(msg));
+                messages.push_back(msg);
+            } while (err == OK);
 
-            omx_message msg;
-            data.read(&msg, sizeof(msg));
-            if (msg.fenceFd >= 0) {
-                msg.fenceFd = ::dup(data.readFileDescriptor());
+            if (err == OK) {
+                onMessages(messages);
             }
 
-            ALOGV("onTransact reading message %d, size %zu", msg.type, sizeof(msg));
-
-            // XXX Could use readInplace maybe?
-            onMessage(msg);
-
-            return NO_ERROR;
+            return err;
         }
 
         default:
