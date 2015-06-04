@@ -220,7 +220,7 @@ end:
 	LDMFD	r13!, {r4 -r12,pc}
 
         @ENDFUNC
-        .END
+        .end
 
 
 
