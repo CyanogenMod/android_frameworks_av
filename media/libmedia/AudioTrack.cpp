@@ -492,6 +492,8 @@ status_t AudioTrack::set(
     mObservedSequence = mSequence;
     mInUnderrun = false;
     mPreviousTimestampValid = false;
+    mTimestampStartupGlitchReported = false;
+    mRetrogradeMotionReported = false;
 
     return NO_ERROR;
 }
@@ -519,6 +521,8 @@ status_t AudioTrack::start()
         // reset current position as seen by client to 0
         mPosition = 0;
         mPreviousTimestampValid = false;
+        mTimestampStartupGlitchReported = false;
+        mRetrogradeMotionReported = false;
 
         // For offloaded tracks, we don't know if the hardware counters are really zero here,
         // since the flush is asynchronous and stop may not fully drain.
@@ -2218,7 +2222,12 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         }
 
         // Check whether a pending flush or stop has completed, as those commands may
-        // be asynchronous or return near finish.
+        // be asynchronous or return near finish or exhibit glitchy behavior.
+        //
+        // Originally this showed up as the first timestamp being a continuation of
+        // the previous song under gapless playback.
+        // However, we sometimes see zero timestamps, then a glitch of
+        // the previous song's position, and then correct timestamps afterwards.
         if (mStartUs != 0 && mSampleRate != 0) {
             static const int kTimeJitterUs = 100000; // 100 ms
             static const int k1SecUs = 1000000;
@@ -2236,16 +2245,29 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
                 if (deltaPositionByUs > deltaTimeUs + kTimeJitterUs) {
                     // Verify that the counter can't count faster than the sample rate
-                    // since the start time.  If greater, then that means we have failed
+                    // since the start time.  If greater, then that means we may have failed
                     // to completely flush or stop the previous playing track.
-                    ALOGW("incomplete flush or stop:"
+                    ALOGW_IF(!mTimestampStartupGlitchReported,
+                            "getTimestamp startup glitch detected"
                             " deltaTimeUs(%lld) deltaPositionUs(%lld) tsmPosition(%u)",
                             (long long)deltaTimeUs, (long long)deltaPositionByUs,
                             timestamp.mPosition);
+                    mTimestampStartupGlitchReported = true;
+                    if (previousTimestampValid
+                            && mPreviousTimestamp.mPosition == 0 /* should be true if valid */) {
+                        timestamp = mPreviousTimestamp;
+                        mPreviousTimestampValid = true;
+                        return NO_ERROR;
+                    }
                     return WOULD_BLOCK;
                 }
+                if (deltaPositionByUs != 0) {
+                    mStartUs = 0; // don't check again, we got valid nonzero position.
+                }
+            } else {
+                mStartUs = 0; // don't check again, start time expired.
             }
-            mStartUs = 0; // no need to check again, start timestamp has either expired or unneeded.
+            mTimestampStartupGlitchReported = false;
         }
     } else {
         // Update the mapping between local consumed (mPosition) and server consumed (mServer)
