@@ -2280,16 +2280,9 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         } else {
             *inputType = API_INPUT_LEGACY;
         }
-
-        /*The below code is intentionally not ported.
-        It's not needed to update the channel mask based on source because
-        the source is sent to audio HAL through set_parameters().
-        For example, if source = VOICE_CALL, does not mean we need to capture two channels.
-        If the sound recorder app selects AMR as encoding format but source as RX+TX,
-        we need both in ONE channel. So we use the channels set by the app and use source
-        to tell the driver what needs to captured (RX only, TX only, or RX+TX ).*/
+#ifdef QCOM_DIRECTTRACK
         // adapt channel selection to input source
-        /*switch (inputSource) {
+        switch (inputSource) {
         case AUDIO_SOURCE_VOICE_UPLINK:
             channelMask |= AUDIO_CHANNEL_IN_VOICE_UPLINK;
             break;
@@ -2301,8 +2294,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
             break;
         default:
             break;
-        }*/
-
+        }
+#endif
         if (inputSource == AUDIO_SOURCE_HOTWORD) {
             ssize_t index = mSoundTriggerSessions.indexOfKey(session);
             if (index >= 0) {
