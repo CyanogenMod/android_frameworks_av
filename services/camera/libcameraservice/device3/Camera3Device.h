@@ -115,7 +115,7 @@ class Camera3Device :
     virtual status_t deleteStream(int id);
     virtual status_t deleteReprocessStream(int id);
 
-    virtual status_t configureStreams();
+    virtual status_t configureStreams(bool isConstraiedHighSpeed = false);
     virtual status_t getInputBufferProducer(
             sp<IGraphicBufferProducer> *producer);
 
@@ -172,6 +172,9 @@ class Camera3Device :
 
     // Camera device ID
     const int                  mId;
+
+    // Flag indicating is the current active stream configuration is constrained high speed.
+    bool                       mIsConstrainedHighSpeedConfiguration;
 
     /**** Scope for mLock ****/
 

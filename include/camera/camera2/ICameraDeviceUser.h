@@ -97,7 +97,7 @@ public:
      * must be called before any requests can be submitted.
      * <p>
      */
-    virtual status_t        endConfigure() = 0;
+    virtual status_t        endConfigure(bool isConstrainedHighSpeed = false) = 0;
 
     virtual status_t        deleteStream(int streamId) = 0;
 
