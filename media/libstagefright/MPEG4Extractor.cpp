@@ -1586,13 +1586,13 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             break;
         }
 
-        // ©xyz
+        // \xA9xyz
         case FOURCC(0xA9, 'x', 'y', 'z'):
         {
             *offset += chunk_size;
 
-            // Best case the total data length inside "©xyz" box
-            // would be 8, for instance "©xyz" + "\x00\x04\x15\xc7" + "0+0/",
+            // Best case the total data length inside "\xA9xyz" box
+            // would be 8, for instance "\xA9xyz" + "\x00\x04\x15\xc7" + "0+0/",
             // where "\x00\x04" is the text string length with value = 4,
             // "\0x15\xc7" is the language code = en, and "0+0" is a
             // location (string) value with longitude = 0 and latitude = 0.
@@ -3294,16 +3294,24 @@ status_t MPEG4Source::start(MetaData *params) {
         mWantsNALFragments = false;
     }
 
+    int32_t tmp;
+    CHECK(mFormat->findInt32(kKeyMaxInputSize, &tmp));
+    size_t max_size = tmp;
+
+    // A somewhat arbitrary limit that should be sufficient for 8k video frames
+    // If you see the message below for a valid input stream: increase the limit
+    if (max_size > 64 * 1024 * 1024) {
+        ALOGE("bogus max input size: %zu", max_size);
+        return ERROR_MALFORMED;
+    }
     mGroup = new MediaBufferGroup;
-
-    int32_t max_size;
-    CHECK(mFormat->findInt32(kKeyMaxInputSize, &max_size));
-
     mGroup->add_buffer(new MediaBuffer(max_size));
 
     mSrcBuffer = new (std::nothrow) uint8_t[max_size];
     if (mSrcBuffer == NULL) {
         // file probably specified a bad max size
+        delete mGroup;
+        mGroup = NULL;
         return ERROR_MALFORMED;
     }
 
