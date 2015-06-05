@@ -43,22 +43,30 @@ public:
      */
     enum event_type {
         EVENT_MORE_DATA = 0,        // Request to write more data to buffer.
+                                    // This event only occurs for TRANSFER_CALLBACK.
                                     // If this event is delivered but the callback handler
-                                    // does not want to write more data, the handler must explicitly
+                                    // does not want to write more data, the handler must
                                     // ignore the event by setting frameCount to zero.
-        EVENT_UNDERRUN = 1,         // Buffer underrun occurred.
+                                    // This might occur, for example, if the application is
+                                    // waiting for source data or is at the end of stream.
+                                    //
+                                    // For data filling, it is preferred that the callback
+                                    // does not block and instead returns a short count on
+                                    // the amount of data actually delivered
+                                    // (or 0, if no data is currently available).
+        EVENT_UNDERRUN = 1,         // Buffer underrun occurred. This will not occur for
+                                    // static tracks.
         EVENT_LOOP_END = 2,         // Sample loop end was reached; playback restarted from
-                                    // loop start if loop count was not 0.
+                                    // loop start if loop count was not 0 for a static track.
         EVENT_MARKER = 3,           // Playback head is at the specified marker position
                                     // (See setMarkerPosition()).
         EVENT_NEW_POS = 4,          // Playback head is at a new position
                                     // (See setPositionUpdatePeriod()).
-        EVENT_BUFFER_END = 5,       // Playback head is at the end of the buffer.
-                                    // Not currently used by android.media.AudioTrack.
+        EVENT_BUFFER_END = 5,       // Playback has completed for a static track.
         EVENT_NEW_IAUDIOTRACK = 6,  // IAudioTrack was re-created, either due to re-routing and
                                     // voluntary invalidation by mediaserver, or mediaserver crash.
         EVENT_STREAM_END = 7,       // Sent after all the buffers queued in AF and HW are played
-                                    // back (after stop is called)
+                                    // back (after stop is called) for an offloaded track.
 #if 0   // FIXME not yet implemented
         EVENT_NEW_TIMESTAMP = 8,    // Delivered periodically and when there's a significant change
                                     // in the mapping from frame position to presentation time.
