@@ -116,6 +116,21 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         availableCharsKeys.push(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES);
         chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
 
+        // Need update android.control.availableHighSpeedVideoConfigurations since HAL3.3
+        // adds batch size to this array.
+        entry = chars.find(ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS);
+        if (entry.count > 0) {
+            Vector<int32_t> highSpeedConfig;
+            for (size_t i = 0; i < entry.count; i += 4) {
+                highSpeedConfig.add(entry.data.i32[i]); // width
+                highSpeedConfig.add(entry.data.i32[i + 1]); // height
+                highSpeedConfig.add(entry.data.i32[i + 2]); // fps_min
+                highSpeedConfig.add(entry.data.i32[i + 3]); // fps_max
+                highSpeedConfig.add(1); // batchSize_max. default to 1 for HAL3.2
+            }
+            chars.update(ANDROID_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,
+                    highSpeedConfig);
+        }
     }
     return;
 }

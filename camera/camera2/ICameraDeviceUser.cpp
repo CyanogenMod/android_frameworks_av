@@ -190,11 +190,13 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t endConfigure()
+    virtual status_t endConfigure(bool isConstrainedHighSpeed)
     {
         ALOGV("endConfigure");
         Parcel data, reply;
         data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        data.writeInt32(isConstrainedHighSpeed);
+
         remote()->transact(END_CONFIGURE, data, &reply);
         reply.readExceptionCode();
         return reply.readInt32();
@@ -556,8 +558,9 @@ status_t BnCameraDeviceUser::onTransact(
         } break;
         case END_CONFIGURE: {
             CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            bool isConstrainedHighSpeed = data.readInt32();
             reply->writeNoException();
-            reply->writeInt32(endConfigure());
+            reply->writeInt32(endConfigure(isConstrainedHighSpeed));
             return NO_ERROR;
         } break;
         case PREPARE: {

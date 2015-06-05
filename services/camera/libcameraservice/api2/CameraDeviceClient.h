@@ -79,7 +79,7 @@ public:
 
     virtual status_t beginConfigure();
 
-    virtual status_t endConfigure();
+    virtual status_t endConfigure(bool isConstrainedHighSpeed = false);
 
     // Returns -EBUSY if device is not idle
     virtual status_t      deleteStream(int streamId);

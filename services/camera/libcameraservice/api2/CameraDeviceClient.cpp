@@ -269,13 +269,33 @@ status_t CameraDeviceClient::cancelRequest(int requestId, int64_t* lastFrameNumb
 
 status_t CameraDeviceClient::beginConfigure() {
     // TODO: Implement this.
-    ALOGE("%s: Not implemented yet.", __FUNCTION__);
+    ALOGV("%s: Not implemented yet.", __FUNCTION__);
     return OK;
 }
 
-status_t CameraDeviceClient::endConfigure() {
+status_t CameraDeviceClient::endConfigure(bool isConstrainedHighSpeed) {
     ALOGV("%s: ending configure (%d input stream, %zu output streams)",
             __FUNCTION__, mInputStream.configured ? 1 : 0, mStreamMap.size());
+
+    // Sanitize the high speed session against necessary capability bit.
+    if (isConstrainedHighSpeed) {
+        CameraMetadata staticInfo = mDevice->info();
+        camera_metadata_entry_t entry = staticInfo.find(ANDROID_REQUEST_AVAILABLE_CAPABILITIES);
+        bool isConstrainedHighSpeedSupported = false;
+        for(size_t i = 0; i < entry.count; ++i) {
+            uint8_t capability = entry.data.u8[i];
+            if (capability == ANDROID_REQUEST_AVAILABLE_CAPABILITIES_CONSTRAINED_HIGH_SPEED_VIDEO) {
+                isConstrainedHighSpeedSupported = true;
+                break;
+            }
+        }
+        if (!isConstrainedHighSpeedSupported) {
+            ALOGE("%s: Camera %d: Try to create a constrained high speed configuration on a device"
+                    " that doesn't support it.",
+                          __FUNCTION__, mCameraId);
+            return INVALID_OPERATION;
+        }
+    }
 
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
@@ -284,7 +304,7 @@ status_t CameraDeviceClient::endConfigure() {
 
     if (!mDevice.get()) return DEAD_OBJECT;
 
-    return mDevice->configureStreams();
+    return mDevice->configureStreams(isConstrainedHighSpeed);
 }
 
 status_t CameraDeviceClient::deleteStream(int streamId) {
