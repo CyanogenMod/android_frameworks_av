@@ -48,6 +48,9 @@ namespace android {
    #Use audio callbacks for PCM data
    adb shell setprop media.stagefright.audio.cbk 1
 
+   #Use deep buffer for PCM data with video (it is generally enabled for audio-only)
+   adb shell setprop media.stagefright.audio.deep 1
+
    #Set size of buffers for pcm audio sink in msec (example: 1000 msec)
    adb shell setprop media.stagefright.audio.sink 1000
 
