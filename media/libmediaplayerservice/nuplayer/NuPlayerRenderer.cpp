@@ -692,7 +692,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
 size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
     Mutex::Autolock autoLock(mLock);
 
-    if (!mUseAudioCallback || mPaused) {
+    if (!mUseAudioCallback) {
         return 0;
     }
 
@@ -1291,7 +1291,9 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         if (offloadingAudio()) {
             mAudioSink->pause();
             mAudioSink->flush();
-            mAudioSink->start();
+            if (!mPaused) {
+                mAudioSink->start();
+            }
         } else {
             mAudioSink->pause();
             mAudioSink->flush();
@@ -1665,7 +1667,9 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 // before reaching the hardware.
                 // TODO
                 mCurrentOffloadInfo = offloadInfo;
-                err = mAudioSink->start();
+                if (!mPaused) { // for preview mode, don't start if paused
+                    err = mAudioSink->start();
+                }
                 ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
             }
             if (err != OK) {
