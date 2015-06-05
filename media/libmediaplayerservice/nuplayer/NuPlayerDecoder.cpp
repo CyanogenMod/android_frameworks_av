@@ -24,6 +24,7 @@
 #include "NuPlayerRenderer.h"
 #include "NuPlayerSource.h"
 
+#include <cutils/properties.h>
 #include <media/ICrypto.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -39,6 +40,10 @@
 #include "ATSParser.h"
 
 namespace android {
+
+static inline bool getAudioDeepBufferSetting() {
+    return property_get_bool("media.stagefright.audio.deep", false /* default_value */);
+}
 
 NuPlayer::Decoder::Decoder(
         const sp<AMessage> &notify,
@@ -539,9 +544,10 @@ void NuPlayer::Decoder::handleOutputFormatChange(const sp<AMessage> &format) {
         uint32_t flags;
         int64_t durationUs;
         bool hasVideo = (mSource->getFormat(false /* audio */) != NULL);
-        if (!hasVideo &&
-                mSource->getDuration(&durationUs) == OK &&
-                durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US) {
+        if (getAudioDeepBufferSetting() // override regardless of source duration
+                || (!hasVideo
+                        && mSource->getDuration(&durationUs) == OK
+                        && durationUs > AUDIO_SINK_MIN_DEEP_BUFFER_DURATION_US)) {
             flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
         } else {
             flags = AUDIO_OUTPUT_FLAG_NONE;
