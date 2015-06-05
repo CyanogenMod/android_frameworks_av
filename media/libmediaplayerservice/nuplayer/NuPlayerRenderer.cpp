@@ -623,8 +623,7 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
-    if (mDrainAudioQueuePending || mSyncQueues || mPaused
-            || mUseAudioCallback) {
+    if (mDrainAudioQueuePending || mSyncQueues || mUseAudioCallback) {
         return;
     }
 
@@ -800,6 +799,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     }
 #endif
 
+    uint32_t prevFramesWritten = mNumFramesWritten;
     while (!mAudioQueue.empty()) {
         QueueEntry *entry = &*mAudioQueue.begin();
 
@@ -898,7 +898,13 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     }
     mMediaClock->updateMaxTimeMedia(maxTimeMedia);
 
-    return !mAudioQueue.empty();
+    // calculate whether we need to reschedule another write.
+    bool reschedule = !mAudioQueue.empty()
+            && (!mPaused
+                || prevFramesWritten != mNumFramesWritten); // permit pause to fill buffers
+    //ALOGD("reschedule:%d  empty:%d  mPaused:%d  prevFramesWritten:%u  mNumFramesWritten:%u",
+    //        reschedule, mAudioQueue.empty(), mPaused, prevFramesWritten, mNumFramesWritten);
+    return reschedule;
 }
 
 int64_t NuPlayer::Renderer::getDurationUsIfPlayedAtSampleRate(uint32_t numFrames) {
@@ -1398,7 +1404,7 @@ void NuPlayer::Renderer::onPause() {
 
     {
         Mutex::Autolock autoLock(mLock);
-        ++mAudioDrainGeneration;
+        // we do not increment audio drain generation so that we fill audio buffer during pause.
         ++mVideoDrainGeneration;
         prepareForMediaRenderingStart_l();
         mPaused = true;
@@ -1733,7 +1739,9 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             return err;
         }
         mCurrentPcmInfo = info;
-        mAudioSink->start();
+        if (!mPaused) { // for preview mode, don't start if paused
+            mAudioSink->start();
+        }
     }
     if (audioSinkChanged) {
         onAudioSinkChanged();
