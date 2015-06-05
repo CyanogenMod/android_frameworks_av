@@ -415,7 +415,7 @@ status_t Camera2Device::deleteReprocessStream(int id) {
     return OK;
 }
 
-status_t Camera2Device::configureStreams() {
+status_t Camera2Device::configureStreams(bool isConstrainedHighSpeed) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
 
