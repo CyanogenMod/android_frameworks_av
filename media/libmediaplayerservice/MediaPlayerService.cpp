@@ -1481,20 +1481,11 @@ status_t MediaPlayerService::AudioOutput::open(
         AudioCallback cb, void *cookie,
         audio_output_flags_t flags,
         const audio_offload_info_t *offloadInfo,
-        bool doNotReconnect)
+        bool doNotReconnect,
+        uint32_t suggestedFrameCount)
 {
-    mCallback = cb;
-    mCallbackCookie = cookie;
-
-    // Check argument "bufferCount" against the mininum buffer count
-    if (bufferCount < mMinBufferCount) {
-        ALOGD("bufferCount (%d) is too small and increased to %d", bufferCount, mMinBufferCount);
-        bufferCount = mMinBufferCount;
-
-    }
     ALOGV("open(%u, %d, 0x%x, 0x%x, %d, %d 0x%x)", sampleRate, channelCount, channelMask,
                 format, bufferCount, mSessionId, flags);
-    size_t frameCount;
 
     // offloading is only supported in callback mode for now.
     // offloadInfo must be present if offload flag is set
@@ -1503,20 +1494,36 @@ status_t MediaPlayerService::AudioOutput::open(
         return BAD_VALUE;
     }
 
+    // compute frame count for the AudioTrack internal buffer
+    size_t frameCount;
     if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
         frameCount = 0; // AudioTrack will get frame count from AudioFlinger
     } else {
+        // try to estimate the buffer processing fetch size from AudioFlinger.
+        // framesPerBuffer is approximate and generally correct, except when it's not :-).
         uint32_t afSampleRate;
         size_t afFrameCount;
-
         if (AudioSystem::getOutputFrameCount(&afFrameCount, mStreamType) != NO_ERROR) {
             return NO_INIT;
         }
         if (AudioSystem::getOutputSamplingRate(&afSampleRate, mStreamType) != NO_ERROR) {
             return NO_INIT;
         }
+        const size_t framesPerBuffer =
+                (unsigned long long)sampleRate * afFrameCount / afSampleRate;
 
-        frameCount = (sampleRate*afFrameCount*bufferCount)/afSampleRate;
+        if (bufferCount == 0) {
+            // use suggestedFrameCount
+            bufferCount = (suggestedFrameCount + framesPerBuffer - 1) / framesPerBuffer;
+        }
+        // Check argument bufferCount against the mininum buffer count
+        if (bufferCount != 0 && bufferCount < mMinBufferCount) {
+            ALOGV("bufferCount (%d) increased to %d", bufferCount, mMinBufferCount);
+            bufferCount = mMinBufferCount;
+        }
+        // if frameCount is 0, then AudioTrack will get frame count from AudioFlinger
+        // which will be the minimum size permitted.
+        frameCount = bufferCount * framesPerBuffer;
     }
 
     if (channelMask == CHANNEL_MASK_USE_CHANNEL_ORDER) {
@@ -1526,6 +1533,9 @@ status_t MediaPlayerService::AudioOutput::open(
             return NO_INIT;
         }
     }
+
+    mCallback = cb;
+    mCallbackCookie = cookie;
 
     // Check whether we can recycle the track
     bool reuse = false;
