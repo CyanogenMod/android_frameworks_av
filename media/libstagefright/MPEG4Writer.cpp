@@ -385,6 +385,13 @@ MPEG4Writer::MPEG4Writer(int fd)
       mStartTimeOffsetMs(-1),
       mMetaKeys(new AMessage()) {
     addDeviceMeta();
+
+    // Verify mFd is seekable
+    off64_t off = lseek64(mFd, 0, SEEK_SET);
+    if (off < 0) {
+        ALOGE("cannot seek mFd: %s (%d)", strerror(errno), errno);
+        release();
+    }
 }
 
 MPEG4Writer::~MPEG4Writer() {
