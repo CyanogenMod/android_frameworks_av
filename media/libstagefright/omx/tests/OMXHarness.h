@@ -74,7 +74,7 @@ struct Harness : public BnOMXObserver {
 
     status_t testAll();
 
-    virtual void onMessage(const omx_message &msg);
+    virtual void onMessages(const std::list<omx_message> &messages);
 
 protected:
     virtual ~Harness();

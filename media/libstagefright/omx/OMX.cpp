@@ -61,7 +61,11 @@ private:
 struct OMX::CallbackDispatcher : public RefBase {
     CallbackDispatcher(OMXNodeInstance *owner);
 
-    void post(const omx_message &msg);
+    // Posts |msg| to the listener's queue. If |realTime| is true, the listener thread is notified
+    // that a new message is available on the queue. Otherwise, the message stays on the queue, but
+    // the listener is not notified of it. It will process this message when a subsequent message
+    // is posted with |realTime| set to true.
+    void post(const omx_message &msg, bool realTime = true);
 
     bool loop();
 
@@ -74,11 +78,11 @@ private:
     OMXNodeInstance *mOwner;
     bool mDone;
     Condition mQueueChanged;
-    List<omx_message> mQueue;
+    std::list<omx_message> mQueue;
 
     sp<CallbackDispatcherThread> mThread;
 
-    void dispatch(const omx_message &msg);
+    void dispatch(std::list<omx_message> &messages);
 
     CallbackDispatcher(const CallbackDispatcher &);
     CallbackDispatcher &operator=(const CallbackDispatcher &);
@@ -109,24 +113,26 @@ OMX::CallbackDispatcher::~CallbackDispatcher() {
     }
 }
 
-void OMX::CallbackDispatcher::post(const omx_message &msg) {
+void OMX::CallbackDispatcher::post(const omx_message &msg, bool realTime) {
     Mutex::Autolock autoLock(mLock);
 
     mQueue.push_back(msg);
-    mQueueChanged.signal();
+    if (realTime) {
+        mQueueChanged.signal();
+    }
 }
 
-void OMX::CallbackDispatcher::dispatch(const omx_message &msg) {
+void OMX::CallbackDispatcher::dispatch(std::list<omx_message> &messages) {
     if (mOwner == NULL) {
         ALOGV("Would have dispatched a message to a node that's already gone.");
         return;
     }
-    mOwner->onMessage(msg);
+    mOwner->onMessages(messages);
 }
 
 bool OMX::CallbackDispatcher::loop() {
     for (;;) {
-        omx_message msg;
+        std::list<omx_message> messages;
 
         {
             Mutex::Autolock autoLock(mLock);
@@ -138,11 +144,10 @@ bool OMX::CallbackDispatcher::loop() {
                 break;
             }
 
-            msg = *mQueue.begin();
-            mQueue.erase(mQueue.begin());
+            messages.swap(mQueue);
         }
 
-        dispatch(msg);
+        dispatch(messages);
     }
 
     return false;
