@@ -97,7 +97,8 @@ status_t Camera::connectLegacy(int cameraId, int halVersion,
         c->mStatus = NO_ERROR;
         camera = c;
     } else {
-        ALOGW("An error occurred while connecting to camera: %d", cameraId);
+        ALOGW("An error occurred while connecting to camera %d: %d (%s)",
+                cameraId, status, strerror(-status));
         c.clear();
     }
     return status;
