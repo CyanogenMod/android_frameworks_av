@@ -38,6 +38,72 @@ namespace android {
 
 static const bool EXTRA_CHECK = true;
 
+GraphicBufferSource::PersistentProxyListener::PersistentProxyListener(
+        const wp<IGraphicBufferConsumer> &consumer,
+        const wp<ConsumerListener>& consumerListener) :
+    mConsumerListener(consumerListener),
+    mConsumer(consumer) {}
+
+GraphicBufferSource::PersistentProxyListener::~PersistentProxyListener() {}
+
+void GraphicBufferSource::PersistentProxyListener::onFrameAvailable(
+        const BufferItem& item) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != NULL) {
+        listener->onFrameAvailable(item);
+    } else {
+        sp<IGraphicBufferConsumer> consumer(mConsumer.promote());
+        if (consumer == NULL) {
+            return;
+        }
+        BufferItem bi;
+        status_t err = consumer->acquireBuffer(&bi, 0);
+        if (err != OK) {
+            ALOGE("PersistentProxyListener: acquireBuffer failed (%d)", err);
+            return;
+        }
+
+        err = consumer->detachBuffer(bi.mBuf);
+        if (err != OK) {
+            ALOGE("PersistentProxyListener: detachBuffer failed (%d)", err);
+            return;
+        }
+
+        err = consumer->attachBuffer(&bi.mBuf, bi.mGraphicBuffer);
+        if (err != OK) {
+            ALOGE("PersistentProxyListener: attachBuffer failed (%d)", err);
+            return;
+        }
+
+        err = consumer->releaseBuffer(bi.mBuf, 0,
+                EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, bi.mFence);
+        if (err != OK) {
+            ALOGE("PersistentProxyListener: releaseBuffer failed (%d)", err);
+        }
+    }
+}
+
+void GraphicBufferSource::PersistentProxyListener::onFrameReplaced(
+        const BufferItem& item) {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != NULL) {
+        listener->onFrameReplaced(item);
+    }
+}
+
+void GraphicBufferSource::PersistentProxyListener::onBuffersReleased() {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != NULL) {
+        listener->onBuffersReleased();
+    }
+}
+
+void GraphicBufferSource::PersistentProxyListener::onSidebandStreamChanged() {
+    sp<ConsumerListener> listener(mConsumerListener.promote());
+    if (listener != NULL) {
+        listener->onSidebandStreamChanged();
+    }
+}
 
 GraphicBufferSource::GraphicBufferSource(
         OMXNodeInstance* nodeInstance,
@@ -101,7 +167,12 @@ GraphicBufferSource::GraphicBufferSource(
     // dropping to 0 at the end of the ctor.  Since all we need is a wp<...>
     // that's what we create.
     wp<BufferQueue::ConsumerListener> listener = static_cast<BufferQueue::ConsumerListener*>(this);
-    sp<BufferQueue::ProxyConsumerListener> proxy = new BufferQueue::ProxyConsumerListener(listener);
+    sp<IConsumerListener> proxy;
+    if (!mIsPersistent) {
+        proxy = new BufferQueue::ProxyConsumerListener(listener);
+    } else {
+        proxy = new PersistentProxyListener(mConsumer, listener);
+    }
 
     mInitCheck = mConsumer->consumerConnect(proxy, false);
     if (mInitCheck != NO_ERROR) {
@@ -312,6 +383,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int f
                 mConsumer->attachBuffer(&outSlot, mBufferSlot[id]);
                 mConsumer->releaseBuffer(outSlot, 0,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+                mBufferSlot[id] = NULL;
             } else {
                 mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
@@ -400,6 +472,7 @@ void GraphicBufferSource::suspend(bool suspend) {
 
             if (mIsPersistent) {
                 mConsumer->detachBuffer(item.mBuf);
+                mBufferSlot[item.mBuf] = NULL;
                 mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
                 mConsumer->releaseBuffer(item.mBuf, 0,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
@@ -488,6 +561,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
         if (mIsPersistent) {
             mConsumer->detachBuffer(item.mBuf);
+            mBufferSlot[item.mBuf] = NULL;
             mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
             mConsumer->releaseBuffer(item.mBuf, 0,
                     EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
@@ -578,9 +652,9 @@ void GraphicBufferSource::setLatestBuffer_l(
 
                 int outSlot;
                 mConsumer->attachBuffer(&outSlot, mBufferSlot[mLatestBufferId]);
-
                 mConsumer->releaseBuffer(outSlot, 0,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, mLatestBufferFence);
+                mBufferSlot[mLatestBufferId] = NULL;
             } else {
                 mConsumer->releaseBuffer(
                         mLatestBufferId, mLatestBufferFrameNum,
@@ -803,6 +877,7 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
 
             if (mIsPersistent) {
                 mConsumer->detachBuffer(item.mBuf);
+                mBufferSlot[item.mBuf] = NULL;
                 mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
                 mConsumer->releaseBuffer(item.mBuf, 0,
                         EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
