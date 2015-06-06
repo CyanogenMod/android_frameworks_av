@@ -583,7 +583,7 @@ status_t CameraMetadata::writeToParcel(Parcel& data,
      */
     WritableBlob blob;
     do {
-        res = data.writeBlob(blobSize, &blob);
+        res = data.writeBlob(blobSize, false, &blob);
         if (res != OK) {
             break;
         }
