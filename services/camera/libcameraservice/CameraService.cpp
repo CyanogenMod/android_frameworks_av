@@ -1864,7 +1864,8 @@ status_t CameraService::BasicClient::startCameraOps() {
     if (res == AppOpsManager::MODE_IGNORED) {
         ALOGI("Camera %d: Access for \"%s\" has been restricted",
                 mCameraId, String8(mClientPackageName).string());
-        return INVALID_OPERATION;
+        // Return the same error as for device policy manager rejection
+        return -EACCES;
     }
 
     mOpsActive = true;

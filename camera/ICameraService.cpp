@@ -175,10 +175,13 @@ public:
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
-        remote()->transact(BnCameraService::CONNECT, data, &reply);
+
+        status_t status;
+        status = remote()->transact(BnCameraService::CONNECT, data, &reply);
+        if (status != OK) return status;
 
         if (readExceptionCode(reply)) return -EPROTO;
-        status_t status = reply.readInt32();
+        status = reply.readInt32();
         if (reply.readInt32() != 0) {
             device = interface_cast<ICamera>(reply.readStrongBinder());
         }
@@ -198,10 +201,13 @@ public:
         data.writeInt32(halVersion);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
-        remote()->transact(BnCameraService::CONNECT_LEGACY, data, &reply);
+
+        status_t status;
+        status = remote()->transact(BnCameraService::CONNECT_LEGACY, data, &reply);
+        if (status != OK) return status;
 
         if (readExceptionCode(reply)) return -EPROTO;
-        status_t status = reply.readInt32();
+        status = reply.readInt32();
         if (reply.readInt32() != 0) {
             device = interface_cast<ICamera>(reply.readStrongBinder());
         }
@@ -237,10 +243,13 @@ public:
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
-        remote()->transact(BnCameraService::CONNECT_DEVICE, data, &reply);
+
+        status_t status;
+        status = remote()->transact(BnCameraService::CONNECT_DEVICE, data, &reply);
+        if (status != OK) return status;
 
         if (readExceptionCode(reply)) return -EPROTO;
-        status_t status = reply.readInt32();
+        status = reply.readInt32();
         if (reply.readInt32() != 0) {
             device = interface_cast<ICameraDeviceUser>(reply.readStrongBinder());
         }
