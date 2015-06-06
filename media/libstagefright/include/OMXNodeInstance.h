@@ -125,6 +125,8 @@ struct OMXNodeInstance {
             const void *data,
             size_t size);
 
+    // handles messages and removes them from the list
+    void onMessages(std::list<omx_message> &messages);
     void onMessage(const omx_message &msg);
     void onObserverDied(OMXMaster *master);
     void onGetHandleFailed();
@@ -230,6 +232,10 @@ private:
             MetadataBufferType *type);
     sp<GraphicBufferSource> getGraphicBufferSource();
     void setGraphicBufferSource(const sp<GraphicBufferSource>& bufferSource);
+
+    // Handles |msg|, and may modify it. Returns true iff completely handled it and
+    // |msg| does not need to be sent to the event listener.
+    bool handleMessage(omx_message &msg);
 
     OMXNodeInstance(const OMXNodeInstance &);
     OMXNodeInstance &operator=(const OMXNodeInstance &);

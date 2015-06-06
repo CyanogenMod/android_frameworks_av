@@ -109,6 +109,7 @@ private:
     enum {
         kWhatSetup                   = 'setu',
         kWhatOMXMessage              = 'omx ',
+        kWhatOMXMessageList          = 'omxL',
         kWhatInputBufferFilled       = 'inpF',
         kWhatOutputBufferDrained     = 'outD',
         kWhatShutdown                = 'shut',

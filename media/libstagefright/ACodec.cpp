@@ -106,6 +106,16 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
+struct MessageList : public RefBase {
+    MessageList() {
+    }
+    std::list<sp<AMessage> > &getList() { return mList; }
+private:
+    std::list<sp<AMessage> > mList;
+
+    DISALLOW_EVIL_CONSTRUCTORS(MessageList);
+};
+
 struct CodecObserver : public BnOMXObserver {
     CodecObserver() {}
 
@@ -114,55 +124,65 @@ struct CodecObserver : public BnOMXObserver {
     }
 
     // from IOMXObserver
-    virtual void onMessage(const omx_message &omx_msg) {
-        sp<AMessage> msg = mNotify->dup();
-
-        msg->setInt32("type", omx_msg.type);
-        msg->setInt32("node", omx_msg.node);
-
-        switch (omx_msg.type) {
-            case omx_message::EVENT:
-            {
-                msg->setInt32("event", omx_msg.u.event_data.event);
-                msg->setInt32("data1", omx_msg.u.event_data.data1);
-                msg->setInt32("data2", omx_msg.u.event_data.data2);
-                break;
+    virtual void onMessages(const std::list<omx_message> &messages) {
+        sp<AMessage> notify;
+        bool first = true;
+        sp<MessageList> msgList = new MessageList();
+        for (std::list<omx_message>::const_iterator it = messages.cbegin();
+              it != messages.cend(); ++it) {
+            const omx_message &omx_msg = *it;
+            if (first) {
+                notify = mNotify->dup();
+                notify->setInt32("node", omx_msg.node);
             }
 
-            case omx_message::EMPTY_BUFFER_DONE:
-            {
-                msg->setInt32("buffer", omx_msg.u.buffer_data.buffer);
-                msg->setInt32("fence_fd", omx_msg.fenceFd);
-                break;
-            }
+            sp<AMessage> msg = new AMessage;
+            msg->setInt32("type", omx_msg.type);
+            switch (omx_msg.type) {
+                case omx_message::EVENT:
+                {
+                    msg->setInt32("event", omx_msg.u.event_data.event);
+                    msg->setInt32("data1", omx_msg.u.event_data.data1);
+                    msg->setInt32("data2", omx_msg.u.event_data.data2);
+                    break;
+                }
 
-            case omx_message::FILL_BUFFER_DONE:
-            {
-                msg->setInt32(
-                        "buffer", omx_msg.u.extended_buffer_data.buffer);
-                msg->setInt32(
-                        "range_offset",
-                        omx_msg.u.extended_buffer_data.range_offset);
-                msg->setInt32(
-                        "range_length",
-                        omx_msg.u.extended_buffer_data.range_length);
-                msg->setInt32(
-                        "flags",
-                        omx_msg.u.extended_buffer_data.flags);
-                msg->setInt64(
-                        "timestamp",
-                        omx_msg.u.extended_buffer_data.timestamp);
-                msg->setInt32(
-                        "fence_fd", omx_msg.fenceFd);
-                break;
-            }
+                case omx_message::EMPTY_BUFFER_DONE:
+                {
+                    msg->setInt32("buffer", omx_msg.u.buffer_data.buffer);
+                    msg->setInt32("fence_fd", omx_msg.fenceFd);
+                    break;
+                }
 
-            default:
-                ALOGE("Unrecognized message type: %d", omx_msg.type);
-                break;
+                case omx_message::FILL_BUFFER_DONE:
+                {
+                    msg->setInt32(
+                            "buffer", omx_msg.u.extended_buffer_data.buffer);
+                    msg->setInt32(
+                            "range_offset",
+                            omx_msg.u.extended_buffer_data.range_offset);
+                    msg->setInt32(
+                            "range_length",
+                            omx_msg.u.extended_buffer_data.range_length);
+                    msg->setInt32(
+                            "flags",
+                            omx_msg.u.extended_buffer_data.flags);
+                    msg->setInt64(
+                            "timestamp",
+                            omx_msg.u.extended_buffer_data.timestamp);
+                    msg->setInt32(
+                            "fence_fd", omx_msg.fenceFd);
+                    break;
+                }
+
+                default:
+                    ALOGE("Unrecognized message type: %d", omx_msg.type);
+                    break;
+            }
+            msgList->getList().push_back(msg);
         }
-
-        msg->post();
+        notify->setObject("messages", msgList);
+        notify->post();
     }
 
 protected:
@@ -200,7 +220,14 @@ protected:
     void postFillThisBuffer(BufferInfo *info);
 
 private:
+    // Handles an OMX message. Returns true iff message was handled.
     bool onOMXMessage(const sp<AMessage> &msg);
+
+    // Handles a list of messages. Returns true iff messages were handled.
+    bool onOMXMessageList(const sp<AMessage> &msg);
+
+    // returns true iff this message is for this component and the component is alive
+    bool checkOMXMessage(const sp<AMessage> &msg);
 
     bool onOMXEmptyBufferDone(IOMX::buffer_id bufferID, int fenceFd);
 
@@ -4402,9 +4429,14 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case ACodec::kWhatOMXMessageList:
+        {
+            return checkOMXMessage(msg) ? onOMXMessageList(msg) : true;
+        }
+
         case ACodec::kWhatOMXMessage:
         {
-            return onOMXMessage(msg);
+            return checkOMXMessage(msg) ? onOMXMessage(msg) : true;
         }
 
         case ACodec::kWhatSetSurface:
@@ -4463,16 +4495,13 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
     return true;
 }
 
-bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
-    int32_t type;
-    CHECK(msg->findInt32("type", &type));
-
+bool ACodec::BaseState::checkOMXMessage(const sp<AMessage> &msg) {
     // there is a possibility that this is an outstanding message for a
     // codec that we have already destroyed
     if (mCodec->mNode == 0) {
         ALOGI("ignoring message as already freed component: %s",
                 msg->debugString().c_str());
-        return true;
+        return false;
     }
 
     IOMX::node_id nodeID;
@@ -4481,6 +4510,24 @@ bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
         ALOGE("Unexpected message for nodeID: %u, should have been %u", nodeID, mCodec->mNode);
         return false;
     }
+    return true;
+}
+
+bool ACodec::BaseState::onOMXMessageList(const sp<AMessage> &msg) {
+    sp<RefBase> obj;
+    CHECK(msg->findObject("messages", &obj));
+    sp<MessageList> msgList = static_cast<MessageList *>(obj.get());
+
+    for (std::list<sp<AMessage>>::const_iterator it = msgList->getList().cbegin();
+          it != msgList->getList().cend(); ++it) {
+        onOMXMessage(*it);
+    }
+    return true;
+}
+
+bool ACodec::BaseState::onOMXMessage(const sp<AMessage> &msg) {
+    int32_t type;
+    CHECK(msg->findInt32("type", &type));
 
     switch (type) {
         case omx_message::EVENT:
@@ -5316,7 +5363,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         return false;
     }
 
-    notify = new AMessage(kWhatOMXMessage, mCodec);
+    notify = new AMessage(kWhatOMXMessageList, mCodec);
     observer->setNotificationMessage(notify);
 
     mCodec->mComponentName = componentName;

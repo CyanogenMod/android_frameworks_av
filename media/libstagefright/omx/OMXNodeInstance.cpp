@@ -1357,7 +1357,7 @@ status_t OMXNodeInstance::setInternalOption(
     }
 }
 
-void OMXNodeInstance::onMessage(const omx_message &msg) {
+bool OMXNodeInstance::handleMessage(omx_message &msg) {
     const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
 
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
@@ -1384,10 +1384,7 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
             // fix up the buffer info (especially timestamp) if needed
             bufferSource->codecBufferFilled(buffer);
 
-            omx_message newMsg = msg;
-            newMsg.u.extended_buffer_data.timestamp = buffer->nTimeStamp;
-            mObserver->onMessage(newMsg);
-            return;
+            msg.u.extended_buffer_data.timestamp = buffer->nTimeStamp;
         }
     } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
@@ -1408,11 +1405,23 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
             // know that anyone asked to have the buffer emptied and will
             // be very confused.
             bufferSource->codecBufferEmptied(buffer, msg.fenceFd);
-            return;
+            return true;
         }
     }
 
-    mObserver->onMessage(msg);
+    return false;
+}
+
+void OMXNodeInstance::onMessages(std::list<omx_message> &messages) {
+    for (std::list<omx_message>::iterator it = messages.begin(); it != messages.end(); ) {
+        if (handleMessage(*it)) {
+            messages.erase(it++);
+        } else {
+            ++it;
+        }
+    }
+
+    mObserver->onMessages(messages);
 }
 
 void OMXNodeInstance::onObserverDied(OMXMaster *master) {
