@@ -31,6 +31,7 @@ namespace android {
 namespace img_utils {
 
 #define NELEMS(x) ((int) (sizeof(x) / sizeof((x)[0])))
+#define CLAMP(x, low, high) (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
 
 /**
  * Utility class for building values for the OpcodeList tags specified
@@ -107,13 +108,49 @@ class ANDROID_API OpcodeListBuilder : public LightRefBase<OpcodeListBuilder> {
                                     uint32_t mapPlanes,
                                     const float* mapGains);
 
+        /**
+         * Add WarpRectilinear opcode for the given metadata parameters.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t addWarpRectilinearForMetadata(const float* kCoeffs,
+                                                       uint32_t activeArrayWidth,
+                                                       uint32_t activeArrayHeight,
+                                                       float opticalCenterX,
+                                                       float opticalCenterY);
+
+        /**
+         * Add a WarpRectilinear opcode.
+         *
+         * numPlanes - Number of planes included in this opcode.
+         * opticalCenterX, opticalCenterY - Normalized x,y coordinates of the sensor optical
+         *          center relative to the top,left pixel of the produced images (e.g. [0.5, 0.5]
+         *          gives a sensor optical center in the image center.
+         * kCoeffs - A list of coefficients for the polynomial equation representing the distortion
+         *          correction.  For each plane, 6 coefficients must be included:
+         *          {k_r0, k_r1, k_r2, k_r3, k_t0, k_t1}.  See the DNG 1.4 specification for an
+         *          outline of the polynomial used here.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t addWarpRectilinear(uint32_t numPlanes,
+                                            double opticalCenterX,
+                                            double opticalCenterY,
+                                            const double* kCoeffs);
+
         // TODO: Add other Opcode methods
     protected:
         static const uint32_t FLAG_OPTIONAL = 0x1u;
         static const uint32_t FLAG_OPTIONAL_FOR_PREVIEW = 0x2u;
 
+        // Opcode IDs
         enum {
+            WARP_RECTILINEAR_ID = 1,
             GAIN_MAP_ID = 9,
+        };
+
+        // LSM mosaic indices
+        enum {
             LSM_R_IND = 0,
             LSM_GE_IND = 1,
             LSM_GO_IND = 2,
