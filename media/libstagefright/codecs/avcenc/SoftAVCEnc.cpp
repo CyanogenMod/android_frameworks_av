@@ -634,6 +634,10 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
         }
 
         if (mConversionBuffer == NULL) {
+            if (((uint64_t)mStride * mHeight) > (((uint64_t)INT32_MAX / 3) * 2)) {
+                ALOGE("Buffer size is too big.");
+                return OMX_ErrorUndefined;
+            }
             mConversionBuffer = (uint8_t *)malloc(mStride * mHeight * 3 / 2);
             if (mConversionBuffer == NULL) {
                 ALOGE("Allocating conversion buffer failed.");
@@ -679,6 +683,10 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
     }
 
     /* Allocate array to hold memory records */
+    if (mNumMemRecords > SIZE_MAX / sizeof(iv_mem_rec_t)) {
+        ALOGE("requested memory size is too big.");
+        return OMX_ErrorUndefined;
+    }
     mMemRecords = (iv_mem_rec_t *)malloc(mNumMemRecords * sizeof(iv_mem_rec_t));
     if (NULL == mMemRecords) {
         ALOGE("Unable to allocate memory for hold memory records: Size %zu",
