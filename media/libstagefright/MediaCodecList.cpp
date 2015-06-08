@@ -46,8 +46,6 @@ const char *kMaxEncoderInputBuffers = "max-video-encoder-input-buffers";
 
 static Mutex sInitMutex;
 
-static MediaCodecList *gCodecList = NULL;
-
 static bool parseBoolean(const char *s) {
     if (!strcasecmp(s, "true") || !strcasecmp(s, "yes") || !strcasecmp(s, "y")) {
         return true;
@@ -57,64 +55,76 @@ static bool parseBoolean(const char *s) {
     return *s != '\0' && *end == '\0' && res > 0;
 }
 
+static bool isProfilingNeeded() {
+    bool profilingNeeded = true;
+    FILE *resultsFile = fopen(kProfilingResults, "r");
+    if (resultsFile) {
+        AString currentVersion = getProfilingVersionString();
+        size_t currentVersionSize = currentVersion.size();
+        char *versionString = new char[currentVersionSize + 1];
+        fgets(versionString, currentVersionSize + 1, resultsFile);
+        if (strcmp(versionString, currentVersion.c_str()) == 0) {
+            // profiling result up to date
+            profilingNeeded = false;
+        }
+        fclose(resultsFile);
+        delete[] versionString;
+    }
+    return profilingNeeded;
+}
+
 // static
 sp<IMediaCodecList> MediaCodecList::sCodecList;
 
 // static
-sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
-    bool profilingNeeded = false;
+void *MediaCodecList::profilerThreadWrapper(void * /*arg*/) {
+    ALOGV("Enter profilerThreadWrapper.");
+    MediaCodecList *codecList = new MediaCodecList();
+    if (codecList->initCheck() != OK) {
+        ALOGW("Failed to create a new MediaCodecList, skipping codec profiling.");
+        delete codecList;
+        return NULL;
+    }
+
     Vector<sp<MediaCodecInfo>> infos;
+    for (size_t i = 0; i < codecList->countCodecs(); ++i) {
+        infos.push_back(codecList->getCodecInfo(i));
+    }
+    ALOGV("Codec profiling started.");
+    profileCodecs(infos);
+    ALOGV("Codec profiling completed.");
+    codecList->parseTopLevelXMLFile(kProfilingResults, true /* ignore_errors */);
 
     {
         Mutex::Autolock autoLock(sInitMutex);
+        sCodecList = codecList;
+    }
+    return NULL;
+}
 
-        if (gCodecList == NULL) {
-            gCodecList = new MediaCodecList;
-            if (gCodecList->initCheck() == OK) {
-                sCodecList = gCodecList;
+// static
+sp<IMediaCodecList> MediaCodecList::getLocalInstance() {
+    Mutex::Autolock autoLock(sInitMutex);
 
-                FILE *resultsFile = fopen(kProfilingResults, "r");
-                if (resultsFile) {
-                    AString currentVersion = getProfilingVersionString();
-                    size_t currentVersionSize = currentVersion.size();
-                    char *versionString = new char[currentVersionSize];
-                    fgets(versionString, currentVersionSize, resultsFile);
-                    if (strncmp(versionString, currentVersion.c_str(), currentVersionSize) != 0) {
-                        // profiling result out of date
-                        profilingNeeded = true;
-                    }
-                    fclose(resultsFile);
-                    delete[] versionString;
-                } else {
-                    // profiling results doesn't existed
-                    profilingNeeded = true;
+    if (sCodecList == NULL) {
+        MediaCodecList *codecList = new MediaCodecList;
+        if (codecList->initCheck() == OK) {
+            sCodecList = codecList;
+
+            if (isProfilingNeeded()) {
+                ALOGV("Codec profiling needed, will be run in separated thread.");
+                pthread_t profiler;
+                if (pthread_create(&profiler, NULL, profilerThreadWrapper, NULL) != 0) {
+                    ALOGW("Failed to create thread for codec profiling.");
                 }
-
-                if (profilingNeeded) {
-                    for (size_t i = 0; i < gCodecList->countCodecs(); ++i) {
-                        infos.push_back(gCodecList->getCodecInfo(i));
-                    }
-                }
-            } else {
-                // failure to initialize may be temporary. retry on next call.
-                delete gCodecList;
-                gCodecList = NULL;
             }
+        } else {
+            // failure to initialize may be temporary. retry on next call.
+            delete codecList;
         }
     }
 
-    if (profilingNeeded) {
-        profileCodecs(infos);
-    }
-
-    {
-        Mutex::Autolock autoLock(sInitMutex);
-        if (profilingNeeded) {
-            gCodecList->parseTopLevelXMLFile(kProfilingResults, true /* ignore_errors */);
-        }
-
-        return sCodecList;
-    }
+    return sCodecList;
 }
 
 static Mutex sRemoteInitMutex;

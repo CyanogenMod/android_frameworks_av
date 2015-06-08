@@ -55,7 +55,10 @@ struct MediaCodecList : public BnMediaCodecList {
     // to be used by MediaPlayerService alone
     static sp<IMediaCodecList> getLocalInstance();
 
-    // only to be used in getLocalInstance
+    // only to be used by getLocalInstance
+    static void *profilerThreadWrapper(void * /*arg*/);
+
+    // only to be used by MediaPlayerService
     void parseTopLevelXMLFile(const char *path, bool ignore_errors = false);
 
 private:
