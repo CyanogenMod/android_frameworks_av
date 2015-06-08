@@ -1194,8 +1194,7 @@ void StagefrightRecorder::clipVideoFrameWidth() {
     }
 }
 
-status_t StagefrightRecorder::checkVideoEncoderCapabilities(
-        bool *supportsCameraSourceMetaDataMode) {
+status_t StagefrightRecorder::checkVideoEncoderCapabilities() {
     /* hardware codecs must support camera source meta data mode */
     Vector<CodecCapabilities> codecs;
     OMXClient client;
@@ -1207,9 +1206,6 @@ status_t StagefrightRecorder::checkVideoEncoderCapabilities(
              mVideoEncoder == VIDEO_ENCODER_VP8 ? MEDIA_MIMETYPE_VIDEO_VP8 :
              mVideoEncoder == VIDEO_ENCODER_H264 ? MEDIA_MIMETYPE_VIDEO_AVC : ""),
             false /* decoder */, true /* hwCodec */, &codecs);
-    *supportsCameraSourceMetaDataMode = codecs.size() > 0;
-    ALOGV("encoder %s camera source meta-data mode",
-            *supportsCameraSourceMetaDataMode ? "supports" : "DOES NOT SUPPORT");
 
     if (!mCaptureTimeLapse) {
         // Dont clip for time lapse capture as encoder will have enough
@@ -1418,9 +1414,7 @@ status_t StagefrightRecorder::setupMediaSource(
 status_t StagefrightRecorder::setupCameraSource(
         sp<CameraSource> *cameraSource) {
     status_t err = OK;
-    bool encoderSupportsCameraSourceMetaDataMode;
-    if ((err = checkVideoEncoderCapabilities(
-                &encoderSupportsCameraSourceMetaDataMode)) != OK) {
+    if ((err = checkVideoEncoderCapabilities()) != OK) {
         return err;
     }
     Size videoSize;
@@ -1436,14 +1430,13 @@ status_t StagefrightRecorder::setupCameraSource(
         mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate, mPreviewSurface,
-                mTimeBetweenTimeLapseFrameCaptureUs,
-                encoderSupportsCameraSourceMetaDataMode);
+                mTimeBetweenTimeLapseFrameCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate,
-                mPreviewSurface, encoderSupportsCameraSourceMetaDataMode);
+                mPreviewSurface);
     }
     mCamera.clear();
     mCameraProxy.clear();

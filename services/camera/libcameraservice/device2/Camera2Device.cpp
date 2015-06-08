@@ -315,7 +315,8 @@ status_t Camera2Device::createReprocessStreamFromStream(int outputId, int *id) {
 
 
 status_t Camera2Device::getStreamInfo(int id,
-        uint32_t *width, uint32_t *height, uint32_t *format) {
+        uint32_t *width, uint32_t *height,
+        uint32_t *format, android_dataspace *dataSpace) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     bool found = false;
@@ -336,6 +337,7 @@ status_t Camera2Device::getStreamInfo(int id,
     if (width) *width = (*streamI)->getWidth();
     if (height) *height = (*streamI)->getHeight();
     if (format) *format = (*streamI)->getFormat();
+    if (dataSpace) *dataSpace = HAL_DATASPACE_UNKNOWN;
 
     return OK;
 }

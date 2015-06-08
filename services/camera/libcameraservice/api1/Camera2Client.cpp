@@ -1559,6 +1559,9 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
             return commandPingL();
         case CAMERA_CMD_SET_VIDEO_BUFFER_COUNT:
             return commandSetVideoBufferCountL(arg1);
+        case CAMERA_CMD_SET_VIDEO_FORMAT:
+            return commandSetVideoFormatL(arg1,
+                    static_cast<android_dataspace>(arg2));
         default:
             ALOGE("%s: Unknown command %d (arguments %d, %d)",
                     __FUNCTION__, cmd, arg1, arg2);
@@ -1708,6 +1711,17 @@ status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
     }
 
     return mStreamingProcessor->setRecordingBufferCount(count);
+}
+
+status_t Camera2Client::commandSetVideoFormatL(int format,
+        android_dataspace dataspace) {
+    if (recordingEnabledL()) {
+        ALOGE("%s: Camera %d: Error setting video format after "
+                "recording was started", __FUNCTION__, mCameraId);
+        return INVALID_OPERATION;
+    }
+
+    return mStreamingProcessor->setRecordingFormat(format, dataspace);
 }
 
 void Camera2Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,

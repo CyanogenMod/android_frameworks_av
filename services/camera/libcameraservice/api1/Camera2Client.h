@@ -167,6 +167,7 @@ private:
     status_t commandEnableFocusMoveMsgL(bool enable);
     status_t commandPingL();
     status_t commandSetVideoBufferCountL(size_t count);
+    status_t commandSetVideoFormatL(int format, android_dataspace dataSpace);
 
     // Current camera device configuration
     camera2::SharedParameters mParameters;

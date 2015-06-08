@@ -53,6 +53,8 @@ class StreamingProcessor:
     int getPreviewStreamId() const;
 
     status_t setRecordingBufferCount(size_t count);
+    status_t setRecordingFormat(int format, android_dataspace_t dataspace);
+
     status_t updateRecordingRequest(const Parameters &params);
     // If needsUpdate is set to true, a updateRecordingStream call with params will recreate
     // recording stream
@@ -126,6 +128,18 @@ class StreamingProcessor:
     size_t mRecordingHeapCount;
     Vector<BufferItem> mRecordingBuffers;
     size_t mRecordingHeapHead, mRecordingHeapFree;
+
+    static const int kDefaultRecordingFormat =
+            HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    int mRecordingFormat;
+
+    static const android_dataspace kDefaultRecordingDataSpace =
+            HAL_DATASPACE_BT709;
+    android_dataspace mRecordingDataSpace;
+
+    static const int kDefaultRecordingGrallocUsage =
+            GRALLOC_USAGE_HW_VIDEO_ENCODER;
+    int mRecordingGrallocUsage;
 
     virtual bool threadLoop();
 

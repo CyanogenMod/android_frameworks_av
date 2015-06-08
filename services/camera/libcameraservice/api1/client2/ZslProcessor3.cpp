@@ -150,7 +150,7 @@ status_t ZslProcessor3::updateStream(const Parameters &params) {
         // Check if stream parameters have to change
         uint32_t currentWidth, currentHeight;
         res = device->getStreamInfo(mZslStreamId,
-                &currentWidth, &currentHeight, 0);
+                &currentWidth, &currentHeight, 0, 0);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying capture output stream info: "
                     "%s (%d)", __FUNCTION__,

@@ -141,8 +141,7 @@ private:
     status_t setupRTPRecording();
     status_t setupMPEG2TSRecording();
     sp<MediaSource> createAudioSource();
-    status_t checkVideoEncoderCapabilities(
-            bool *supportsCameraSourceMetaDataMode);
+    status_t checkVideoEncoderCapabilities();
     status_t checkAudioEncoderCapabilities();
     // Generic MediaSource set-up. Returns the appropriate
     // source (CameraSource or SurfaceMediaSource)
