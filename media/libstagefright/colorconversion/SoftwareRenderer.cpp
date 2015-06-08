@@ -197,7 +197,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
 }
 
 void SoftwareRenderer::render(
-        const void *data, size_t /*size*/, int64_t timestampNs,
+        const void *data, size_t size, int64_t timestampNs,
         void* /*platformPrivate*/, const sp<AMessage>& format) {
     resetFormatIfChanged(format);
 
@@ -228,6 +228,9 @@ void SoftwareRenderer::render(
                 buf->stride, buf->height,
                 0, 0, mCropWidth - 1, mCropHeight - 1);
     } else if (mColorFormat == OMX_COLOR_FormatYUV420Planar) {
+        if ((size_t)mWidth * mHeight * 3 / 2 > size) {
+            goto skip_copying;
+        }
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_u =
                 (const uint8_t *)data + mWidth * mHeight;
@@ -258,6 +261,9 @@ void SoftwareRenderer::render(
         }
     } else if (mColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar
             || mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
+        if ((size_t)mWidth * mHeight * 3 / 2 > size) {
+            goto skip_copying;
+        }
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_uv = (const uint8_t *)data
                 + mWidth * (mHeight - mCropTop / 2);
@@ -289,6 +295,9 @@ void SoftwareRenderer::render(
             dst_v += dst_c_stride;
         }
     } else if (mColorFormat == OMX_COLOR_Format24bitRGB888) {
+        if ((size_t)mWidth * mHeight * 3 > size) {
+            goto skip_copying;
+        }
         uint8_t* srcPtr = (uint8_t*)data;
         uint8_t* dstPtr = (uint8_t*)dst;
 
@@ -298,6 +307,9 @@ void SoftwareRenderer::render(
             dstPtr += buf->stride * 3;
         }
     } else if (mColorFormat == OMX_COLOR_Format32bitARGB8888) {
+        if ((size_t)mWidth * mHeight * 4 > size) {
+            goto skip_copying;
+        }
         uint8_t *srcPtr, *dstPtr;
 
         for (size_t y = 0; y < (size_t)mCropHeight; ++y) {
@@ -312,6 +324,9 @@ void SoftwareRenderer::render(
             }
         }
     } else if (mColorFormat == OMX_COLOR_Format32BitRGBA8888) {
+        if ((size_t)mWidth * mHeight * 4 > size) {
+            goto skip_copying;
+        }
         uint8_t* srcPtr = (uint8_t*)data;
         uint8_t* dstPtr = (uint8_t*)dst;
 
@@ -324,6 +339,7 @@ void SoftwareRenderer::render(
         LOG_ALWAYS_FATAL("bad color format %#x", mColorFormat);
     }
 
+skip_copying:
     CHECK_EQ(0, mapper.unlock(buf->handle));
 
     if ((err = native_window_set_buffers_timestamp(mNativeWindow.get(),
