@@ -4585,7 +4585,8 @@ void AudioPolicyManager::setStrategyMute(routing_strategy strategy,
                                              int delayMs,
                                              audio_devices_t device)
 {
-    ALOGVV("setStrategyMute() strategy %d, mute %d, output %d", strategy, on, output);
+    ALOGVV("setStrategyMute() strategy %d, mute %d, output ID %d",
+           strategy, on, outputDesc->getId());
     for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
         if (stream == AUDIO_STREAM_PATCH) {
             continue;
