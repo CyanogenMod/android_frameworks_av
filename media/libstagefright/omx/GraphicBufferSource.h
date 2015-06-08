@@ -160,6 +160,31 @@ protected:
     virtual void onSidebandStreamChanged();
 
 private:
+    // PersistentProxyListener is similar to BufferQueue::ProxyConsumerListener
+    // except that it returns (acquire/detach/re-attache/release) buffers
+    // in onFrameAvailable() if the actual consumer object is no longer valid.
+    //
+    // This class is used in persistent input surface case to prevent buffer
+    // loss when onFrameAvailable() is received while we don't have a valid
+    // consumer around.
+    class PersistentProxyListener : public BnConsumerListener {
+        public:
+            PersistentProxyListener(
+                    const wp<IGraphicBufferConsumer> &consumer,
+                    const wp<ConsumerListener>& consumerListener);
+            virtual ~PersistentProxyListener();
+            virtual void onFrameAvailable(const BufferItem& item) override;
+            virtual void onFrameReplaced(const BufferItem& item) override;
+            virtual void onBuffersReleased() override;
+            virtual void onSidebandStreamChanged() override;
+         private:
+            // mConsumerListener is a weak reference to the IConsumerListener.
+            wp<ConsumerListener> mConsumerListener;
+            // mConsumer is a weak reference to the IGraphicBufferConsumer, use
+            // a weak ref to avoid circular ref between mConsumer and this class
+            wp<IGraphicBufferConsumer> mConsumer;
+    };
+
     // Keep track of codec input buffers.  They may either be available
     // (mGraphicBuffer == NULL) or in use by the codec.
     struct CodecBuffer {
