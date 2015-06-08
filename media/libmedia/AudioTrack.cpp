@@ -986,15 +986,18 @@ status_t AudioTrack::getPosition(uint32_t *position)
         }
 
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
-            uint32_t halFrames;
-            AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
+            uint32_t halFrames; // actually unused
+            (void) AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
+            // FIXME: on getRenderPosition() error, we return OK with frame position 0.
         }
         // FIXME: dspFrames may not be zero in (mState == STATE_STOPPED || mState == STATE_FLUSHED)
         // due to hardware latency. We leave this behavior for now.
         *position = dspFrames;
     } else {
         if (mCblk->mFlags & CBLK_INVALID) {
-            restoreTrack_l("getPosition");
+            (void) restoreTrack_l("getPosition");
+            // FIXME: for compatibility with the Java API we ignore the restoreTrack_l()
+            // error here (e.g. DEAD_OBJECT) and return OK with the last recorded server position.
         }
 
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
@@ -2080,7 +2083,8 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     AudioSystem::clearAudioConfigCache();
 
     if (isOffloadedOrDirect_l() || mDoNotReconnect) {
-        // FIXME re-creation of offloaded tracks is not yet implemented
+        // FIXME re-creation of offloaded and direct tracks is not yet implemented;
+        // reconsider enabling for linear PCM encodings when position can be preserved.
         return DEAD_OBJECT;
     }
 
