@@ -1005,13 +1005,8 @@ bool ExtendedUtils::UseQCHWAACEncoder(audio_encoder Encoder,int32_t Channel,int3
             }
             break;
         case AUDIO_ENCODER_HE_AAC:// for AAC+ format
-            if (Channel == 1) {//mono
-                minBiteRate = MIN_BITERATE_AAC;
-                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*6)?MAX_BITERATE_AAC:(SampleRate*6);
-            } else if (Channel == 2) {//stereo
-                minBiteRate = MIN_BITERATE_AAC;
-                maxBiteRate = MAX_BITERATE_AAC<(SampleRate*12)?MAX_BITERATE_AAC:(SampleRate*12);
-            }
+            // Do not use HW AAC encoder for HE AAC(AAC+) formats.
+            mIsQCHWAACEncoder = false;
             break;
         default:
             ALOGV("encoder:%d not supported by QCOM HW AAC encoder",Encoder);
