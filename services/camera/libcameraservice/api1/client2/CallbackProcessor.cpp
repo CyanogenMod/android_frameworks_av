@@ -123,7 +123,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         // Check if stream parameters have to change
         uint32_t currentWidth, currentHeight, currentFormat;
         res = device->getStreamInfo(mCallbackStreamId,
-                &currentWidth, &currentHeight, &currentFormat);
+                &currentWidth, &currentHeight, &currentFormat, 0);
         if (res != OK) {
             ALOGE("%s: Camera %d: Error querying callback output stream info: "
                     "%s (%d)", __FUNCTION__, mId,

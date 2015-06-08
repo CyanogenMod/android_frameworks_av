@@ -45,6 +45,7 @@ class Camera3StreamInterface : public virtual RefBase {
     virtual uint32_t getWidth() const = 0;
     virtual uint32_t getHeight() const = 0;
     virtual int      getFormat() const = 0;
+    virtual android_dataspace getDataSpace() const = 0;
 
     /**
      * Start the stream configuration process. Returns a handle to the stream's
