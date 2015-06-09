@@ -134,12 +134,14 @@ status_t AudioEffect::set(const effect_uuid_t *type,
 
     if (iEffect == 0 || (mStatus != NO_ERROR && mStatus != ALREADY_EXISTS)) {
         ALOGE("set(): AudioFlinger could not create effect, status: %d", mStatus);
+        if (iEffect == 0) {
+            mStatus = NO_INIT;
+        }
         return mStatus;
     }
 
     mEnabled = (volatile int32_t)enabled;
 
-    mIEffect = iEffect;
     cblk = iEffect->getCblk();
     if (cblk == 0) {
         mStatus = NO_INIT;
@@ -147,6 +149,7 @@ status_t AudioEffect::set(const effect_uuid_t *type,
         return mStatus;
     }
 
+    mIEffect = iEffect;
     mCblkMemory = cblk;
     mCblk = static_cast<effect_param_cblk_t*>(cblk->pointer());
     int bufOffset = ((sizeof(effect_param_cblk_t) - 1) / sizeof(int) + 1) * sizeof(int);
@@ -177,11 +180,11 @@ AudioEffect::~AudioEffect()
             mIEffect->disconnect();
             IInterface::asBinder(mIEffect)->unlinkToDeath(mIEffectClient);
         }
+        mIEffect.clear();
+        mCblkMemory.clear();
+        mIEffectClient.clear();
         IPCThreadState::self()->flushCommands();
     }
-    mIEffect.clear();
-    mIEffectClient.clear();
-    mCblkMemory.clear();
 }
 
 
