@@ -191,7 +191,8 @@ struct MyOpusExtractor : public MyOggExtractor {
     MyOpusExtractor(const sp<DataSource> &source)
         : MyOggExtractor(source, MEDIA_MIMETYPE_AUDIO_OPUS, /*numHeaders*/ 2, kOpusSeekPreRollUs),
           mChannelCount(0),
-          mCodecDelay(0) {
+          mCodecDelay(0),
+          mStartGranulePosition(-1) {
     }
 
     virtual uint64_t approxBitrate() const {
@@ -211,6 +212,7 @@ private:
 
     uint8_t mChannelCount;
     uint16_t mCodecDelay;
+    int64_t mStartGranulePosition;
 };
 
 static void extractAlbumArt(
@@ -557,6 +559,37 @@ ssize_t MyOggExtractor::readPage(off64_t offset, Page *page) {
 }
 
 status_t MyOpusExtractor::readNextPacket(MediaBuffer **out) {
+    if (mOffset <= mFirstDataOffset && mStartGranulePosition < 0) {
+        // The first sample might not start at time 0; find out where by subtracting
+        // the number of samples on the first page from the granule position
+        // (position of last complete sample) of the first page. This happens
+        // the first time before we attempt to read a packet from the first page.
+        MediaBuffer *mBuf;
+        uint32_t numSamples = 0;
+        uint64_t curGranulePosition = 0;
+        while (true) {
+            status_t err = _readNextPacket(&mBuf, /* calcVorbisTimestamp = */false);
+            if (err != OK && err != ERROR_END_OF_STREAM) {
+                return err;
+            }
+            // First two pages are header pages.
+            if (err == ERROR_END_OF_STREAM || mCurrentPage.mPageNo > 2) {
+                break;
+            }
+            curGranulePosition = mCurrentPage.mGranulePosition;
+            numSamples += getNumSamplesInPacket(mBuf);
+            mBuf->release();
+            mBuf = NULL;
+        }
+
+        if (curGranulePosition > numSamples) {
+            mStartGranulePosition = curGranulePosition - numSamples;
+        } else {
+            mStartGranulePosition = 0;
+        }
+        seekToOffset(0);
+    }
+
     status_t err = _readNextPacket(out, /* calcVorbisTimestamp = */false);
     if (err != OK) {
         return err;
@@ -567,6 +600,10 @@ status_t MyOpusExtractor::readNextPacket(MediaBuffer **out) {
     // We assume that we only seek to page boundaries.
     if ((*out)->meta_data()->findInt32(kKeyValidSamples, &currentPageSamples)) {
         // first packet in page
+        if (mOffset == mFirstDataOffset) {
+            currentPageSamples -= mStartGranulePosition;
+            (*out)->meta_data()->setInt32(kKeyValidSamples, currentPageSamples);
+        }
         mCurGranulePosition = mCurrentPage.mGranulePosition - currentPageSamples;
     }
 
