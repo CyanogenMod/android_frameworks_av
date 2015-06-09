@@ -47,7 +47,7 @@ class CallbackProcessor:
     void onFrameAvailable(const BufferItem& item);
 
     // Set to NULL to disable the direct-to-app callback window
-    status_t setCallbackWindow(sp<ANativeWindow> callbackWindow);
+    status_t setCallbackWindow(sp<Surface> callbackWindow);
     status_t updateStream(const Parameters &params);
     status_t deleteStream();
     int getStreamId() const;
@@ -73,7 +73,7 @@ class CallbackProcessor:
     int mCallbackStreamId;
     static const size_t kCallbackHeapCount = 6;
     sp<CpuConsumer>    mCallbackConsumer;
-    sp<ANativeWindow>  mCallbackWindow;
+    sp<Surface>        mCallbackWindow;
     sp<Camera2Heap>    mCallbackHeap;
     int mCallbackHeapId;
     size_t mCallbackHeapHead, mCallbackHeapFree;

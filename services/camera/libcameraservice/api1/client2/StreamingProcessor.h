@@ -43,7 +43,7 @@ class StreamingProcessor:
     StreamingProcessor(sp<Camera2Client> client);
     ~StreamingProcessor();
 
-    status_t setPreviewWindow(sp<ANativeWindow> window);
+    status_t setPreviewWindow(sp<Surface> window);
 
     bool haveValidPreviewWindow() const;
 
@@ -108,7 +108,7 @@ class StreamingProcessor:
     int32_t mPreviewRequestId;
     int mPreviewStreamId;
     CameraMetadata mPreviewRequest;
-    sp<ANativeWindow> mPreviewWindow;
+    sp<Surface> mPreviewWindow;
 
     // Recording-related members
     static const nsecs_t kWaitDuration = 50000000; // 50 ms
@@ -117,7 +117,7 @@ class StreamingProcessor:
     int mRecordingStreamId;
     int mRecordingFrameCount;
     sp<BufferItemConsumer> mRecordingConsumer;
-    sp<ANativeWindow>  mRecordingWindow;
+    sp<Surface>  mRecordingWindow;
     CameraMetadata mRecordingRequest;
     sp<camera2::Camera2Heap> mRecordingHeap;
 

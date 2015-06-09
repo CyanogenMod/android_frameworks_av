@@ -55,7 +55,7 @@ void CallbackProcessor::onFrameAvailable(const BufferItem& /*item*/) {
 }
 
 status_t CallbackProcessor::setCallbackWindow(
-        sp<ANativeWindow> callbackWindow) {
+        sp<Surface> callbackWindow) {
     ATRACE_CALL();
     status_t res;
 
@@ -115,7 +115,7 @@ status_t CallbackProcessor::updateStream(const Parameters &params) {
         BufferQueue::createBufferQueue(&producer, &consumer);
         mCallbackConsumer = new CpuConsumer(consumer, kCallbackHeapCount);
         mCallbackConsumer->setFrameAvailableListener(this);
-        mCallbackConsumer->setName(String8("Camera2Client::CallbackConsumer"));
+        mCallbackConsumer->setName(String8("Camera2-CallbackConsumer"));
         mCallbackWindow = new Surface(producer);
     }
 

@@ -411,27 +411,28 @@ status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfi
             (consumerUsage & allowedFlags) != 0;
 
     sp<IBinder> binder = IInterface::asBinder(bufferProducer);
-    sp<ANativeWindow> anw = new Surface(bufferProducer, useAsync);
+    sp<Surface> surface = new Surface(bufferProducer, useAsync);
+    ANativeWindow *anw = surface.get();
 
     int width, height, format;
     android_dataspace dataSpace;
 
-    if ((res = anw->query(anw.get(), NATIVE_WINDOW_WIDTH, &width)) != OK) {
+    if ((res = anw->query(anw, NATIVE_WINDOW_WIDTH, &width)) != OK) {
         ALOGE("%s: Camera %d: Failed to query Surface width", __FUNCTION__,
               mCameraId);
         return res;
     }
-    if ((res = anw->query(anw.get(), NATIVE_WINDOW_HEIGHT, &height)) != OK) {
+    if ((res = anw->query(anw, NATIVE_WINDOW_HEIGHT, &height)) != OK) {
         ALOGE("%s: Camera %d: Failed to query Surface height", __FUNCTION__,
               mCameraId);
         return res;
     }
-    if ((res = anw->query(anw.get(), NATIVE_WINDOW_FORMAT, &format)) != OK) {
+    if ((res = anw->query(anw, NATIVE_WINDOW_FORMAT, &format)) != OK) {
         ALOGE("%s: Camera %d: Failed to query Surface format", __FUNCTION__,
               mCameraId);
         return res;
     }
-    if ((res = anw->query(anw.get(), NATIVE_WINDOW_DEFAULT_DATASPACE,
+    if ((res = anw->query(anw, NATIVE_WINDOW_DEFAULT_DATASPACE,
                             reinterpret_cast<int*>(&dataSpace))) != OK) {
         ALOGE("%s: Camera %d: Failed to query Surface dataSpace", __FUNCTION__,
               mCameraId);
@@ -456,7 +457,7 @@ status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfi
     }
 
     int streamId = -1;
-    res = mDevice->createStream(anw, width, height, format, dataSpace,
+    res = mDevice->createStream(surface, width, height, format, dataSpace,
                                 static_cast<camera3_stream_rotation_t>
                                         (outputConfiguration.getRotation()),
                                 &streamId);

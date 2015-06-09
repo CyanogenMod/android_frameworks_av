@@ -122,6 +122,7 @@ Camera3ZslStream::Camera3ZslStream(int id, uint32_t width, uint32_t height,
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
     mProducer = new RingBufferConsumer(consumer, GRALLOC_USAGE_HW_CAMERA_ZSL, bufferCount);
+    mProducer->setName(String8("Camera2-ZslRingBufferConsumer"));
     mConsumer = new Surface(producer);
 }
 

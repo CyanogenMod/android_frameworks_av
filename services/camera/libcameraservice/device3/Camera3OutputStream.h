@@ -38,7 +38,7 @@ class Camera3OutputStream :
     /**
      * Set up a stream for formats that have 2 dimensions, such as RAW and YUV.
      */
-    Camera3OutputStream(int id, sp<ANativeWindow> consumer,
+    Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
@@ -46,7 +46,7 @@ class Camera3OutputStream :
      * Set up a stream for formats that have a variable buffer size for the same
      * dimensions, such as compressed JPEG.
      */
-    Camera3OutputStream(int id, sp<ANativeWindow> consumer,
+    Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, size_t maxSize, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation);
 
@@ -81,13 +81,16 @@ class Camera3OutputStream :
 
     virtual status_t disconnectLocked();
 
-    sp<ANativeWindow> mConsumer;
+    sp<Surface> mConsumer;
   private:
     int               mTransform;
 
     virtual status_t  setTransformLocked(int transform);
 
     bool mTraceFirstBuffer;
+
+    // Name of Surface consumer
+    String8           mConsumerName;
 
     /**
      * Internal Camera3Stream interface

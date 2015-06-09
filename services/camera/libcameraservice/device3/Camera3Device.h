@@ -94,7 +94,7 @@ class Camera3Device :
     // Actual stream creation/deletion is delayed until first request is submitted
     // If adding streams while actively capturing, will pause device before adding
     // stream, reconfiguring device, and unpausing.
-    virtual status_t createStream(sp<ANativeWindow> consumer,
+    virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id);
     virtual status_t createInputStream(

@@ -817,7 +817,7 @@ status_t Camera3Device::createZslStream(
     return OK;
 }
 
-status_t Camera3Device::createStream(sp<ANativeWindow> consumer,
+status_t Camera3Device::createStream(sp<Surface> consumer,
         uint32_t width, uint32_t height, int format, android_dataspace dataSpace,
         camera3_stream_rotation_t rotation, int *id) {
     ATRACE_CALL();
