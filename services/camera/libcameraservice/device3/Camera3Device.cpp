@@ -57,6 +57,7 @@ namespace android {
 
 Camera3Device::Camera3Device(int id):
         mId(id),
+        mIsConstrainedHighSpeedConfiguration(false),
         mHal3Device(NULL),
         mStatus(STATUS_UNINITIALIZED),
         mUsePartialResult(false),
@@ -420,7 +421,7 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     }
     lines.appendFormat("    Stream configuration:\n");
     lines.appendFormat("    Operation mode: %s \n", mIsConstrainedHighSpeedConfiguration ?
-            "CONSTAINED HIGH SPEED VIDEO" : "NORMAL");
+            "CONSTRAINED HIGH SPEED VIDEO" : "NORMAL");
 
     if (mInputStream != NULL) {
         write(fd, lines.string(), lines.size());
