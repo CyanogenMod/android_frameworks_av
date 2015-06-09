@@ -70,8 +70,8 @@ class JpegProcessor:
 
     int mCaptureStreamId;
     sp<CpuConsumer>    mCaptureConsumer;
-    sp<ANativeWindow>  mCaptureWindow;
-    sp<MemoryHeapBase>    mCaptureHeap;
+    sp<Surface>        mCaptureWindow;
+    sp<MemoryHeapBase> mCaptureHeap;
 
     virtual bool threadLoop();
 

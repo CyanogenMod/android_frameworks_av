@@ -166,7 +166,7 @@ class CameraDeviceClientFlashControl : public FlashControlBase {
         sp<IGraphicBufferProducer> mProducer;
         sp<IGraphicBufferConsumer>  mConsumer;
         sp<GLConsumer> mSurfaceTexture;
-        sp<ANativeWindow> mAnw;
+        sp<Surface> mSurface;
         int32_t mStreamId;
 
         Mutex mLock;
@@ -215,7 +215,7 @@ class CameraHardwareInterfaceFlashControl : public FlashControlBase {
         sp<IGraphicBufferProducer> mProducer;
         sp<IGraphicBufferConsumer>  mConsumer;
         sp<GLConsumer> mSurfaceTexture;
-        sp<ANativeWindow> mAnw;
+        sp<Surface> mSurface;
 
         Mutex mLock;
 };

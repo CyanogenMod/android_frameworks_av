@@ -87,7 +87,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
         BufferQueue::createBufferQueue(&producer, &consumer);
         mCaptureConsumer = new CpuConsumer(consumer, 1);
         mCaptureConsumer->setFrameAvailableListener(this);
-        mCaptureConsumer->setName(String8("Camera2Client::CaptureConsumer"));
+        mCaptureConsumer->setName(String8("Camera2-JpegConsumer"));
         mCaptureWindow = new Surface(producer);
     }
 

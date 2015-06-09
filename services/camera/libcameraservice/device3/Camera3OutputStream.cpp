@@ -32,7 +32,7 @@ namespace android {
 namespace camera3 {
 
 Camera3OutputStream::Camera3OutputStream(int id,
-        sp<ANativeWindow> consumer,
+        sp<Surface> consumer,
         uint32_t width, uint32_t height, int format,
         android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
@@ -48,7 +48,7 @@ Camera3OutputStream::Camera3OutputStream(int id,
 }
 
 Camera3OutputStream::Camera3OutputStream(int id,
-        sp<ANativeWindow> consumer,
+        sp<Surface> consumer,
         uint32_t width, uint32_t height, size_t maxSize, int format,
         android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
@@ -229,6 +229,7 @@ void Camera3OutputStream::dump(int fd, const Vector<String16> &args) const {
     (void) args;
     String8 lines;
     lines.appendFormat("    Stream[%d]: Output\n", mId);
+    lines.appendFormat("      Consumer name: %s\n", mConsumerName.string());
     write(fd, lines.string(), lines.size());
 
     Camera3IOStreamBase::dump(fd, args);
@@ -278,6 +279,8 @@ status_t Camera3OutputStream::configureQueueLocked() {
         return res;
     }
 
+    mConsumerName = mConsumer->getConsumerName();
+
     res = native_window_set_usage(mConsumer.get(), camera3_stream::usage);
     if (res != OK) {
         ALOGE("%s: Unable to configure usage %08x for stream %d",
@@ -326,7 +329,8 @@ status_t Camera3OutputStream::configureQueueLocked() {
     }
 
     int maxConsumerBuffers;
-    res = mConsumer->query(mConsumer.get(),
+    res = static_cast<ANativeWindow*>(mConsumer.get())->query(
+            mConsumer.get(),
             NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &maxConsumerBuffers);
     if (res != OK) {
         ALOGE("%s: Unable to query consumer undequeued"
@@ -401,7 +405,7 @@ status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) const {
 
     status_t res;
     int32_t u = 0;
-    res = mConsumer->query(mConsumer.get(),
+    res = static_cast<ANativeWindow*>(mConsumer.get())->query(mConsumer.get(),
             NATIVE_WINDOW_CONSUMER_USAGE_BITS, &u);
 
     // If an opaque output stream's endpoint is ImageReader, add

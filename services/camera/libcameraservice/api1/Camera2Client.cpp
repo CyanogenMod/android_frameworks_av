@@ -529,7 +529,7 @@ status_t Camera2Client::setPreviewTarget(
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
     sp<IBinder> binder;
-    sp<ANativeWindow> window;
+    sp<Surface> window;
     if (bufferProducer != 0) {
         binder = IInterface::asBinder(bufferProducer);
         // Using controlledByApp flag to ensure that the buffer queue remains in
@@ -541,7 +541,7 @@ status_t Camera2Client::setPreviewTarget(
 }
 
 status_t Camera2Client::setPreviewWindowL(const sp<IBinder>& binder,
-        sp<ANativeWindow> window) {
+        sp<Surface> window) {
     ATRACE_CALL();
     status_t res;
 
@@ -666,7 +666,7 @@ status_t Camera2Client::setPreviewCallbackTarget(
     status_t res;
     if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
 
-    sp<ANativeWindow> window;
+    sp<Surface> window;
     if (callbackProducer != 0) {
         window = new Surface(callbackProducer);
     }

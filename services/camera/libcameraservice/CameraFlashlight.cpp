@@ -359,7 +359,7 @@ CameraDeviceClientFlashControl::~CameraDeviceClientFlashControl() {
         delete mMetadata;
     }
 
-    mAnw.clear();
+    mSurface.clear();
     mSurfaceTexture.clear();
     mProducer.clear();
     mConsumer.clear();
@@ -395,11 +395,11 @@ status_t CameraDeviceClientFlashControl::initializeSurface(
         return res;
     }
 
-    mAnw = new Surface(mProducer, /*useAsync*/ true);
-    if (mAnw == NULL) {
+    mSurface = new Surface(mProducer, /*useAsync*/ true);
+    if (mSurface == NULL) {
         return NO_MEMORY;
     }
-    res = device->createStream(mAnw, width, height, format,
+    res = device->createStream(mSurface, width, height, format,
             HAL_DATASPACE_UNKNOWN, CAMERA3_STREAM_ROTATION_0, &mStreamId);
     if (res) {
         return res;
@@ -653,7 +653,7 @@ CameraHardwareInterfaceFlashControl::CameraHardwareInterfaceFlashControl(
 CameraHardwareInterfaceFlashControl::~CameraHardwareInterfaceFlashControl() {
     disconnectCameraDevice();
 
-    mAnw.clear();
+    mSurface.clear();
     mSurfaceTexture.clear();
     mProducer.clear();
     mConsumer.clear();
@@ -810,18 +810,18 @@ status_t CameraHardwareInterfaceFlashControl::initializePreviewWindow(
         return res;
     }
 
-    mAnw = new Surface(mProducer, /*useAsync*/ true);
-    if (mAnw == NULL) {
+    mSurface = new Surface(mProducer, /*useAsync*/ true);
+    if (mSurface == NULL) {
         return NO_MEMORY;
     }
 
-    res = native_window_api_connect(mAnw.get(), NATIVE_WINDOW_API_CAMERA);
+    res = native_window_api_connect(mSurface.get(), NATIVE_WINDOW_API_CAMERA);
     if (res) {
         ALOGE("%s: Unable to connect to native window", __FUNCTION__);
         return res;
     }
 
-    return device->setPreviewWindow(mAnw);
+    return device->setPreviewWindow(mSurface);
 }
 
 status_t CameraHardwareInterfaceFlashControl::connectCameraDevice(
@@ -870,7 +870,7 @@ status_t CameraHardwareInterfaceFlashControl::disconnectCameraDevice() {
             CameraParameters::FLASH_MODE_OFF);
     mDevice->setParameters(mParameters);
     mDevice->stopPreview();
-    status_t res = native_window_api_disconnect(mAnw.get(),
+    status_t res = native_window_api_disconnect(mSurface.get(),
             NATIVE_WINDOW_API_CAMERA);
     if (res) {
         ALOGW("%s: native_window_api_disconnect failed: %s (%d)",
