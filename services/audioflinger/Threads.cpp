@@ -4458,6 +4458,17 @@ void AudioFlinger::DirectOutputThread::processVolume_l(Track *track, bool lastTr
     }
 }
 
+void AudioFlinger::DirectOutputThread::onAddNewTrack_l()
+{
+    sp<Track> previousTrack = mPreviousTrack.promote();
+    sp<Track> latestTrack = mLatestActiveTrack.promote();
+
+    if (previousTrack != 0 && latestTrack != 0 &&
+        (previousTrack->sessionId() != latestTrack->sessionId())) {
+        mFlushPending = true;
+    }
+    PlaybackThread::onAddNewTrack_l();
+}
 
 AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prepareTracks_l(
     Vector< sp<Track> > *tracksToRemove
@@ -4467,13 +4478,18 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     mixer_state mixerStatus = MIXER_IDLE;
     bool doHwPause = false;
     bool doHwResume = false;
-    bool flushPending = false;
 
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
         sp<Track> t = mActiveTracks[i].promote();
         // The track died recently
         if (t == 0) {
+            continue;
+        }
+
+        if (t->isInvalid()) {
+            ALOGW("An invalidated track shouldn't be in active list");
+            tracksToRemove->add(t);
             continue;
         }
 
@@ -4496,7 +4512,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         } else if (track->isFlushPending()) {
             track->flushAck();
             if (last) {
-                flushPending = true;
+                mFlushPending = true;
             }
         } else if (track->isResumePending()) {
             track->resumeAck();
@@ -4537,6 +4553,21 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             // compute volume for this track
             processVolume_l(track, last);
             if (last) {
+                sp<Track> previousTrack = mPreviousTrack.promote();
+                if (previousTrack != 0) {
+                    if (track != previousTrack.get()) {
+                        // Flush any data still being written from last track
+                        mBytesRemaining = 0;
+                        // flush data already sent if changing audio session as audio
+                        // comes from a different source. Also invalidate previous track to force a
+                        // seek when resuming.
+                        if (previousTrack->sessionId() != track->sessionId()) {
+                            previousTrack->invalidate();
+                        }
+                    }
+                }
+                mPreviousTrack = track;
+
                 // reset retry count
                 track->mRetryCount = kMaxTrackRetriesDirect;
                 mActiveTrack = t;
@@ -4603,11 +4634,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     }
 
     // if an active track did not command a flush, check for pending flush on stopped tracks
-    if (!flushPending) {
+    if (!mFlushPending) {
         for (size_t i = 0; i < mTracks.size(); i++) {
             if (mTracks[i]->isFlushPending()) {
                 mTracks[i]->flushAck();
-                flushPending = true;
+                mFlushPending = true;
             }
         }
     }
@@ -4617,10 +4648,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     // before flush and then resume HW. This can happen in case of pause/flush/resume
     // if resume is received before pause is executed.
     if (mHwSupportsPause && !mStandby &&
-            (doHwPause || (flushPending && !mHwPaused && (count != 0)))) {
+            (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         mOutput->stream->pause(mOutput->stream);
     }
-    if (flushPending) {
+    if (mFlushPending) {
         flushHw_l();
     }
     if (mHwSupportsPause && !mStandby && doHwResume) {
@@ -4679,14 +4710,13 @@ void AudioFlinger::DirectOutputThread::threadLoop_exit()
 {
     {
         Mutex::Autolock _l(mLock);
-        bool flushPending = false;
         for (size_t i = 0; i < mTracks.size(); i++) {
             if (mTracks[i]->isFlushPending()) {
                 mTracks[i]->flushAck();
-                flushPending = true;
+                mFlushPending = true;
             }
         }
-        if (flushPending) {
+        if (mFlushPending) {
             flushHw_l();
         }
     }
@@ -4824,6 +4854,7 @@ void AudioFlinger::DirectOutputThread::flushHw_l()
 {
     mOutput->flush();
     mHwPaused = false;
+    mFlushPending = false;
 }
 
 // ----------------------------------------------------------------------------
@@ -5145,7 +5176,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     }
     if (mFlushPending) {
         flushHw_l();
-        mFlushPending = false;
     }
     if (!mStandby && doHwResume) {
         mOutput->stream->resume(mOutput->stream);
@@ -5191,18 +5221,6 @@ void AudioFlinger::OffloadThread::flushHw_l()
         mCallbackThread->setWriteBlocked(mWriteAckSequence);
         mCallbackThread->setDraining(mDrainSequence);
     }
-}
-
-void AudioFlinger::OffloadThread::onAddNewTrack_l()
-{
-    sp<Track> previousTrack = mPreviousTrack.promote();
-    sp<Track> latestTrack = mLatestActiveTrack.promote();
-
-    if (previousTrack != 0 && latestTrack != 0 &&
-        (previousTrack->sessionId() != latestTrack->sessionId())) {
-        mFlushPending = true;
-    }
-    PlaybackThread::onAddNewTrack_l();
 }
 
 // ----------------------------------------------------------------------------
