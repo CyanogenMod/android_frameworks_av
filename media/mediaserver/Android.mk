@@ -11,13 +11,15 @@ endif
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-	main_mediaserver.cpp
+	main_mediaserver.cpp \
+	icuutils.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
 	libaudiopolicyservice \
 	libcamera_metadata\
 	libcameraservice \
+	libicuuc \
 	libmedialogservice \
 	libresourcemanagerservice \
 	libcutils \
