@@ -743,7 +743,8 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
 
 String8 channelMaskToString(audio_channel_mask_t mask, bool output) {
     String8 s;
-    const audio_channel_representation_t representation = audio_channel_mask_get_representation(mask);
+    const audio_channel_representation_t representation =
+            audio_channel_mask_get_representation(mask);
 
     switch (representation) {
     case AUDIO_CHANNEL_REPRESENTATION_POSITION: {
@@ -6709,11 +6710,8 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
 
     audio_format_t reqFormat = mFormat;
     uint32_t samplingRate = mSampleRate;
+    // TODO this may change if we want to support capture from HDMI PCM multi channel (e.g on TVs).
     audio_channel_mask_t channelMask = audio_channel_in_mask_from_count(mChannelCount);
-    // possible that we are > 2 channels, use channel index mask
-    if (channelMask == AUDIO_CHANNEL_INVALID && mChannelCount <= FCC_8) {
-        audio_channel_mask_for_index_assignment_from_count(mChannelCount);
-    }
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
