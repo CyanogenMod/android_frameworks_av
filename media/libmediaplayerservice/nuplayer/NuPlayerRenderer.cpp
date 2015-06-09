@@ -789,7 +789,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         if (written < 0) {
             // An error in AudioSink write. Perhaps the AudioSink was not properly opened.
             if (written == WOULD_BLOCK) {
-                ALOGW("AudioSink write would block when writing %zu bytes", copy);
+                ALOGV("AudioSink write would block when writing %zu bytes", copy);
             } else {
                 ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
                 notifyAudioTearDown();
