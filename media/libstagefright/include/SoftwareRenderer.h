@@ -19,8 +19,11 @@
 #define SOFTWARE_RENDERER_H_
 
 #include <media/stagefright/ColorConverter.h>
+#include <media/stagefright/FrameRenderTracker.h>
 #include <utils/RefBase.h>
 #include <system/window.h>
+
+#include <list>
 
 namespace android {
 
@@ -32,9 +35,10 @@ public:
 
     ~SoftwareRenderer();
 
-    void render(
-            const void *data, size_t size, int64_t timestampNs,
+    std::list<FrameRenderTracker::Info> render(
+            const void *data, size_t size, int64_t mediaTimeUs, nsecs_t renderTimeNs,
             void *platformPrivate, const sp<AMessage> &format);
+    void clearTracker();
 
 private:
     enum YUVMode {
@@ -48,6 +52,7 @@ private:
     int32_t mWidth, mHeight;
     int32_t mCropLeft, mCropTop, mCropRight, mCropBottom;
     int32_t mCropWidth, mCropHeight;
+    FrameRenderTracker mRenderTracker;
 
     SoftwareRenderer(const SoftwareRenderer &);
     SoftwareRenderer &operator=(const SoftwareRenderer &);

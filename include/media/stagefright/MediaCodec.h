@@ -22,6 +22,7 @@
 #include <media/hardware/CryptoAPI.h>
 #include <media/MediaResource.h>
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/FrameRenderTracker.h>
 #include <utils/Vector.h>
 
 namespace android {
@@ -75,6 +76,8 @@ struct MediaCodec : public AHandler {
             uint32_t flags);
 
     status_t setCallback(const sp<AMessage> &callback);
+
+    status_t setOnFrameRenderedNotification(const sp<AMessage> &notify);
 
     status_t createInputSurface(sp<IGraphicBufferProducer>* bufferProducer);
 
@@ -157,6 +160,12 @@ struct MediaCodec : public AHandler {
 
     status_t setParameters(const sp<AMessage> &params);
 
+    // Create a MediaCodec notification message from a list of rendered or dropped render infos
+    // by adding rendered frame information to a base notification message. Returns the number
+    // of frames that were rendered.
+    static size_t CreateFramesRenderedMessage(
+            std::list<FrameRenderTracker::Info> done, sp<AMessage> &msg);
+
 protected:
     virtual ~MediaCodec();
     virtual void onMessageReceived(const sp<AMessage> &msg);
@@ -212,6 +221,7 @@ private:
         kWhatGetName                        = 'getN',
         kWhatSetParameters                  = 'setP',
         kWhatSetCallback                    = 'setC',
+        kWhatSetNotification                = 'setN',
     };
 
     enum {
@@ -275,9 +285,11 @@ private:
     status_t mStickyError;
     sp<Surface> mSurface;
     SoftwareRenderer *mSoftRenderer;
+
     sp<AMessage> mOutputFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mCallback;
+    sp<AMessage> mOnFrameRenderedNotification;
     sp<MemoryDealer> mDealer;
 
     sp<IResourceManagerClient> mResourceManagerClient;

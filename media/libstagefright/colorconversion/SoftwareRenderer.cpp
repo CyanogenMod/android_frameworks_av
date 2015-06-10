@@ -196,17 +196,29 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
                 mNativeWindow.get(), transform));
 }
 
-void SoftwareRenderer::render(
-        const void *data, size_t size, int64_t timestampNs,
+void SoftwareRenderer::clearTracker() {
+    mRenderTracker.clear(-1 /* lastRenderTimeNs */);
+}
+
+std::list<FrameRenderTracker::Info> SoftwareRenderer::render(
+        const void *data, size_t size, int64_t mediaTimeUs, nsecs_t renderTimeNs,
         void* /*platformPrivate*/, const sp<AMessage>& format) {
     resetFormatIfChanged(format);
+    FrameRenderTracker::Info *info = NULL;
 
     ANativeWindowBuffer *buf;
-    int err;
-    if ((err = native_window_dequeue_buffer_and_wait(mNativeWindow.get(),
-            &buf)) != 0) {
+    int fenceFd = -1;
+    int err = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buf, &fenceFd);
+    if (err == 0 && fenceFd >= 0) {
+        info = mRenderTracker.updateInfoForDequeuedBuffer(buf, fenceFd, 0);
+        sp<Fence> fence = new Fence(fenceFd);
+        err = fence->waitForever("SoftwareRenderer::render");
+    }
+    if (err != 0) {
         ALOGW("Surface::dequeueBuffer returned error %d", err);
-        return;
+        // complete (drop) dequeued frame if fence wait failed; otherwise,
+        // this returns an empty list as no frames should have rendered and not yet returned.
+        return mRenderTracker.checkFencesAndGetRenderedFrames(info, false /* dropIncomplete */);
     }
 
     GraphicBufferMapper &mapper = GraphicBufferMapper::get();
@@ -342,16 +354,21 @@ void SoftwareRenderer::render(
 skip_copying:
     CHECK_EQ(0, mapper.unlock(buf->handle));
 
-    if ((err = native_window_set_buffers_timestamp(mNativeWindow.get(),
-            timestampNs)) != 0) {
-        ALOGW("Surface::set_buffers_timestamp returned error %d", err);
+    if (renderTimeNs >= 0) {
+        if ((err = native_window_set_buffers_timestamp(mNativeWindow.get(),
+                renderTimeNs)) != 0) {
+            ALOGW("Surface::set_buffers_timestamp returned error %d", err);
+        }
     }
 
-    if ((err = mNativeWindow->queueBuffer(mNativeWindow.get(), buf,
-            -1)) != 0) {
+    if ((err = mNativeWindow->queueBuffer(mNativeWindow.get(), buf, -1)) != 0) {
         ALOGW("Surface::queueBuffer returned error %d", err);
+    } else {
+        mRenderTracker.onFrameQueued(mediaTimeUs, (GraphicBuffer *)buf, Fence::NO_FENCE);
     }
+
     buf = NULL;
+    return mRenderTracker.checkFencesAndGetRenderedFrames(info, info != NULL /* dropIncomplete */);
 }
 
 }  // namespace android
