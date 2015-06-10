@@ -167,6 +167,7 @@ MediaCodecList::MediaCodecList()
       mUpdate(false),
       mGlobalSettings(new AMessage()) {
     parseTopLevelXMLFile("/etc/media_codecs.xml");
+    parseTopLevelXMLFile("/etc/media_codecs_performance.xml", true/* ignore_errors */);
     parseTopLevelXMLFile(kProfilingResults, true/* ignore_errors */);
 }
 
@@ -926,7 +927,7 @@ status_t MediaCodecList::addLimit(const char **attrs) {
     if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
             || name == "blocks-per-second" || name == "complexity"
             || name == "frame-rate" || name == "quality" || name == "size"
-            || name == "measured-blocks-per-second" || name == "measured-frame-rate") {
+            || name == "measured-blocks-per-second" || name.startsWith("measured-frame-rate-")) {
         AString min, max;
         if (msg->findString("min", &min) && msg->findString("max", &max)) {
             min.append("-");
