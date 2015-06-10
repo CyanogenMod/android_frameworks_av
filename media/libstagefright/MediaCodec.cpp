@@ -397,6 +397,12 @@ status_t MediaCodec::setCallback(const sp<AMessage> &callback) {
     return PostAndAwaitResponse(msg, &response);
 }
 
+status_t MediaCodec::setOnFrameRenderedNotification(const sp<AMessage> &notify) {
+    sp<AMessage> msg = new AMessage(kWhatSetNotification, this);
+    msg->setMessage("on-frame-rendered", notify);
+    return msg->post();
+}
+
 status_t MediaCodec::configure(
         const sp<AMessage> &format,
         const sp<Surface> &surface,
@@ -1333,6 +1339,18 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
 
+                case CodecBase::kWhatOutputFramesRendered:
+                {
+                    // ignore these in all states except running, and check that we have a
+                    // notification set
+                    if (mState == STARTED && mOnFrameRenderedNotification != NULL) {
+                        sp<AMessage> notify = mOnFrameRenderedNotification->dup();
+                        notify->setMessage("data", msg);
+                        notify->post();
+                    }
+                    break;
+                }
+
                 case CodecBase::kWhatFillThisBuffer:
                 {
                     /* size_t index = */updateBuffers(kPortIndexInput, msg);
@@ -1527,6 +1545,15 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             mCodec->initiateAllocateComponent(format);
+            break;
+        }
+
+        case kWhatSetNotification:
+        {
+            sp<AMessage> notify;
+            if (msg->findMessage("on-frame-rendered", &notify)) {
+                mOnFrameRenderedNotification = notify;
+            }
             break;
         }
 
@@ -2372,6 +2399,23 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     return OK;
 }
 
+//static
+size_t MediaCodec::CreateFramesRenderedMessage(
+        std::list<FrameRenderTracker::Info> done, sp<AMessage> &msg) {
+    size_t index = 0;
+
+    for (std::list<FrameRenderTracker::Info>::const_iterator it = done.cbegin();
+            it != done.cend(); ++it) {
+        if (it->getRenderTimeNs() < 0) {
+            continue; // dropped frame from tracking
+        }
+        msg->setInt64(AStringPrintf("%zu-media-time-us", index).c_str(), it->getMediaTimeUs());
+        msg->setInt64(AStringPrintf("%zu-system-nano", index).c_str(), it->getRenderTimeNs());
+        ++index;
+    }
+    return index;
+}
+
 status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
     size_t index;
     CHECK(msg->findSize("index", &index));
@@ -2404,26 +2448,37 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
     if (render && info->mData != NULL && info->mData->size() != 0) {
         info->mNotify->setInt32("render", true);
 
-        int64_t timestampNs = 0;
-        if (msg->findInt64("timestampNs", &timestampNs)) {
-            info->mNotify->setInt64("timestampNs", timestampNs);
+        int64_t mediaTimeUs = -1;
+        info->mData->meta()->findInt64("timeUs", &mediaTimeUs);
+
+        int64_t renderTimeNs = 0;
+        if (msg->findInt64("timestampNs", &renderTimeNs)) {
+            info->mNotify->setInt64("timestampNs", renderTimeNs);
         } else {
             // TODO: it seems like we should use the timestamp
             // in the (media)buffer as it potentially came from
             // an input surface, but we did not propagate it prior to
             // API 20.  Perhaps check for target SDK version.
 #if 0
-            if (info->mData->meta()->findInt64("timeUs", &timestampNs)) {
-                ALOGV("using buffer PTS of %" PRId64, timestampNs);
-                timestampNs *= 1000;
-            }
+            ALOGV("using buffer PTS of %" PRId64, timestampNs);
+            renderTimeNs = mediaTimeUs * 1000;
 #endif
         }
 
         if (mSoftRenderer != NULL) {
-            mSoftRenderer->render(
+            std::list<FrameRenderTracker::Info> doneFrames = mSoftRenderer->render(
                     info->mData->data(), info->mData->size(),
-                    timestampNs, NULL, info->mFormat);
+                    mediaTimeUs, renderTimeNs, NULL, info->mFormat);
+
+            // if we are running, notify rendered frames
+            if (!doneFrames.empty() && mState == STARTED && mOnFrameRenderedNotification != NULL) {
+                sp<AMessage> notify = mOnFrameRenderedNotification->dup();
+                sp<AMessage> data = new AMessage;
+                if (CreateFramesRenderedMessage(doneFrames, data)) {
+                    notify->setMessage("data", data);
+                    notify->post();
+                }
+            }
         }
     }
 

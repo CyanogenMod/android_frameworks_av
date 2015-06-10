@@ -24,6 +24,7 @@
 #include <media/IOMX.h>
 #include <media/stagefright/foundation/AHierarchicalStateMachine.h>
 #include <media/stagefright/CodecBase.h>
+#include <media/stagefright/FrameRenderTracker.h>
 #include <media/stagefright/SkipCutBuffer.h>
 #include <OMX_Audio.h>
 
@@ -162,6 +163,7 @@ private:
         sp<ABuffer> mData;
         sp<GraphicBuffer> mGraphicBuffer;
         int mFenceFd;
+        FrameRenderTracker::Info *mRenderInfo;
 
         // The following field and 4 methods are used for debugging only
         bool mIsReadFence;
@@ -214,6 +216,7 @@ private:
     sp<AMessage> mOutputFormat;
     sp<AMessage> mBaseOutputFormat;
 
+    FrameRenderTracker mRenderTracker; // render information for buffers rendered by ACodec
     Vector<BufferInfo> mBuffers[2];
     bool mPortEOS[2];
     status_t mInputEOSResult;
@@ -374,6 +377,23 @@ private:
 
     void deferMessage(const sp<AMessage> &msg);
     void processDeferredMessages();
+
+    void onFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano);
+    // called when we have dequeued a buffer |buf| from the native window to track render info.
+    // |fenceFd| is the dequeue fence, and |info| points to the buffer info where this buffer is
+    // stored.
+    void updateRenderInfoForDequeuedBuffer(
+            ANativeWindowBuffer *buf, int fenceFd, BufferInfo *info);
+
+    // Checks to see if any frames have rendered up until |until|, and to notify client
+    // (MediaCodec) of rendered frames up-until the frame pointed to by |until| or the first
+    // unrendered frame. These frames are removed from the render queue.
+    // If |dropIncomplete| is true, unrendered frames up-until |until| will be dropped from the
+    // queue, allowing all rendered framed up till then to be notified of.
+    // (This will effectively clear the render queue up-until (and including) |until|.)
+    // If |until| is NULL, or is not in the rendered queue, this method will check all frames.
+    void notifyOfRenderedFrames(
+            bool dropIncomplete = false, FrameRenderTracker::Info *until = NULL);
 
     void sendFormatChange(const sp<AMessage> &reply);
     status_t getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify);

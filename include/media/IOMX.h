@@ -198,7 +198,7 @@ struct omx_message {
         EVENT,
         EMPTY_BUFFER_DONE,
         FILL_BUFFER_DONE,
-
+        FRAME_RENDERED,
     } type;
 
     IOMX::node_id node;
@@ -226,6 +226,11 @@ struct omx_message {
             OMX_TICKS timestamp;
         } extended_buffer_data;
 
+        // if type == FRAME_RENDERED
+        struct {
+            OMX_TICKS timestamp;
+            OMX_S64 nanoTime;
+        } render_data;
     } u;
 };
 

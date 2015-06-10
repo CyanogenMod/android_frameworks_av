@@ -43,6 +43,7 @@ struct CodecBase : public AHandler {
         kWhatInputSurfaceAccepted = 'isfa',
         kWhatSignaledInputEOS    = 'seos',
         kWhatBuffersAllocated    = 'allc',
+        kWhatOutputFramesRendered = 'outR',
     };
 
     virtual void setNotificationMessage(const sp<AMessage> &msg) = 0;
