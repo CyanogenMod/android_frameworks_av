@@ -683,7 +683,7 @@ status_t OMXNodeInstance::useBuffer(
     }
 
     CLOG_BUFFER(useBuffer, NEW_BUFFER_FMT(
-            *buffer, portIndex, "%u@%p", allottedSize, params->pointer()));
+            *buffer, portIndex, "%u(%zu)@%p", allottedSize, params->size(), params->pointer()));
     return OK;
 }
 
@@ -1024,8 +1024,8 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
         bufferSource->addCodecBuffer(header);
     }
 
-    CLOG_BUFFER(allocateBufferWithBackup, NEW_BUFFER_FMT(*buffer, portIndex, "%u@%p :> %p",
-            allottedSize, params->pointer(), header->pBuffer));
+    CLOG_BUFFER(allocateBufferWithBackup, NEW_BUFFER_FMT(*buffer, portIndex, "%zu@%p :> %u@%p",
+            params->size(), params->pointer(), allottedSize, header->pBuffer));
 
     return OK;
 }
@@ -1087,18 +1087,6 @@ status_t OMXNodeInstance::emptyBuffer(
     Mutex::Autolock autoLock(mLock);
 
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
-    // rangeLength and rangeOffset must be a subset of the allocated data in the buffer.
-    // corner case: we permit rangeOffset == end-of-buffer with rangeLength == 0.
-    if (rangeOffset > header->nAllocLen
-            || rangeLength > header->nAllocLen - rangeOffset) {
-        if (fenceFd >= 0) {
-            ::close(fenceFd);
-        }
-        return BAD_VALUE;
-    }
-    header->nFilledLen = rangeLength;
-    header->nOffset = rangeOffset;
-
     BufferMeta *buffer_meta =
         static_cast<BufferMeta *>(header->pAppPrivate);
     sp<ABuffer> backup = buffer_meta->getBuffer(header, true /* backup */);
@@ -1112,11 +1100,25 @@ status_t OMXNodeInstance::emptyBuffer(
                     == kMetadataBufferTypeANWBuffer) {
         VideoNativeMetadata &backupMeta = *(VideoNativeMetadata *)backup->base();
         VideoGrallocMetadata &codecMeta = *(VideoGrallocMetadata *)codec->base();
-        ALOGV("converting ANWB %p to handle %p", backupMeta.pBuffer, backupMeta.pBuffer->handle);
+        CLOG_BUFFER(emptyBuffer, "converting ANWB %p to handle %p",
+                backupMeta.pBuffer, backupMeta.pBuffer->handle);
         codecMeta.pHandle = backupMeta.pBuffer->handle;
         codecMeta.eType = kMetadataBufferTypeGrallocSource;
-        header->nFilledLen = sizeof(codecMeta);
+        header->nFilledLen = rangeLength ? sizeof(codecMeta) : 0;
+        header->nOffset = 0;
     } else {
+        // rangeLength and rangeOffset must be a subset of the allocated data in the buffer.
+        // corner case: we permit rangeOffset == end-of-buffer with rangeLength == 0.
+        if (rangeOffset > header->nAllocLen
+                || rangeLength > header->nAllocLen - rangeOffset) {
+            if (fenceFd >= 0) {
+                ::close(fenceFd);
+            }
+            return BAD_VALUE;
+        }
+        header->nFilledLen = rangeLength;
+        header->nOffset = rangeOffset;
+
         buffer_meta->CopyToOMX(header);
     }
 
