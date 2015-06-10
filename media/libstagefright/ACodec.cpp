@@ -777,10 +777,13 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
             // If using gralloc or native source input metadata buffers, allocate largest
             // metadata size as we prefer to generate native source metadata, but component
-            // may require gralloc source.
+            // may require gralloc source. For camera source, allocate at least enough
+            // size for native metadata buffers.
             int32_t allottedSize = bufSize;
-            if (portIndex == kPortIndexInput && type > 0) {
+            if (portIndex == kPortIndexInput && type >= kMetadataBufferTypeGrallocSource) {
                 bufSize = max(sizeof(VideoGrallocMetadata), sizeof(VideoNativeMetadata));
+            } else if (portIndex == kPortIndexInput && type == kMetadataBufferTypeCameraSource) {
+                bufSize = max(bufSize, (int32_t)sizeof(VideoNativeMetadata));
             }
 
             ALOGV("[%s] Allocating %u buffers of size %d/%d (from %u using %s) on %s port",
