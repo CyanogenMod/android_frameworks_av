@@ -425,13 +425,13 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatDrainAudioQueue:
         {
+            mDrainAudioQueuePending = false;
+
             int32_t generation;
             CHECK(msg->findInt32("drainGeneration", &generation));
             if (generation != getDrainGeneration(true /* audio */)) {
                 break;
             }
-
-            mDrainAudioQueuePending = false;
 
             if (onDrainAudioQueue()) {
                 uint32_t numFramesPlayed;
@@ -1684,8 +1684,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 onDisableOffloadAudio();
                 mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
                 ALOGV("openAudioSink: offload failed");
+            } else {
+                mUseAudioCallback = true;  // offload mode transfers data through callback
+                ++mAudioDrainGeneration;  // discard pending kWhatDrainAudioQueue message.
             }
-            mUseAudioCallback = true;  // offload mode transfers data through callback
         }
     }
     if (!offloadOnly && !offloadingAudio()) {
@@ -1712,6 +1714,9 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         // Note: It is possible to set up the callback, but not use it to send audio data.
         // This requires a fix in AudioSink to explicitly specify the transfer mode.
         mUseAudioCallback = getUseAudioCallbackSetting();
+        if (mUseAudioCallback) {
+            ++mAudioDrainGeneration;  // discard pending kWhatDrainAudioQueue message.
+        }
 
         // Compute the desired buffer size.
         // For callback mode, the amount of time before wakeup is about half the buffer size.
