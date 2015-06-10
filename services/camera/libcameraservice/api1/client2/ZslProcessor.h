@@ -101,7 +101,7 @@ class ZslProcessor:
     int mZslStreamId;
     int mZslReprocessStreamId;
     sp<BufferItemConsumer> mZslConsumer;
-    sp<ANativeWindow>      mZslWindow;
+    sp<Surface>            mZslWindow;
 
     struct ZslPair {
         BufferItem buffer;
