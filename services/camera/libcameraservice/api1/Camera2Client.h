@@ -150,7 +150,7 @@ private:
     typedef camera2::Parameters Parameters;
 
     status_t setPreviewWindowL(const sp<IBinder>& binder,
-            sp<ANativeWindow> window);
+            sp<Surface> window);
     status_t startPreviewL(Parameters &params, bool restart);
     void     stopPreviewL();
     status_t startRecordingL(Parameters &params, bool restart);

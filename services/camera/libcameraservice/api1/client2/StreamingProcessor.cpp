@@ -64,7 +64,7 @@ StreamingProcessor::~StreamingProcessor() {
     deleteRecordingStream();
 }
 
-status_t StreamingProcessor::setPreviewWindow(sp<ANativeWindow> window) {
+status_t StreamingProcessor::setPreviewWindow(sp<Surface> window) {
     ATRACE_CALL();
     status_t res;
 
