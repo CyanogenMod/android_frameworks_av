@@ -18,6 +18,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libaudiopolicyservice \
 	libcamera_metadata\
 	libcameraservice \
+        libicuuc \
 	libmedialogservice \
 	libcutils \
 	libnbaio \
@@ -29,7 +30,8 @@ LOCAL_SHARED_LIBRARIES := \
 	libsoundtriggerservice
 
 LOCAL_STATIC_LIBRARIES := \
-	libregistermsext
+        libicuandroid_utils \
+        libregistermsext
 
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
