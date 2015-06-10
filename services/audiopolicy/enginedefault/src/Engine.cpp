@@ -498,6 +498,10 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
                 device2 = availableOutputDevices.types() & AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
             }
         }
+        if (isInCall() && (strategy == STRATEGY_MEDIA)) {
+            device = getDeviceForStrategy(STRATEGY_PHONE);
+            break;
+        }
         if ((device2 == AUDIO_DEVICE_NONE) &&
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_MEDIA] != AUDIO_POLICY_FORCE_NO_BT_A2DP) &&
                 (outputs.getA2dpOutput() != 0)) {
