@@ -34,6 +34,7 @@
 
 #include <OMX_AsString.h>
 #include <OMX_Component.h>
+#include <OMX_VideoExt.h>
 
 namespace android {
 
@@ -455,11 +456,34 @@ OMX_ERRORTYPE OMX::OnEvent(
         OMX_IN OMX_EVENTTYPE eEvent,
         OMX_IN OMX_U32 nData1,
         OMX_IN OMX_U32 nData2,
-        OMX_IN OMX_PTR /* pEventData */) {
+        OMX_IN OMX_PTR pEventData) {
     ALOGV("OnEvent(%d, %" PRIu32", %" PRIu32 ")", eEvent, nData1, nData2);
 
     // Forward to OMXNodeInstance.
     findInstance(node)->onEvent(eEvent, nData1, nData2);
+
+    sp<OMX::CallbackDispatcher> dispatcher = findDispatcher(node);
+
+    // output rendered events are not processed as regular events until they hit the observer
+    if (eEvent == OMX_EventOutputRendered) {
+        if (pEventData == NULL) {
+            return OMX_ErrorBadParameter;
+        }
+
+        // process data from array
+        OMX_VIDEO_RENDEREVENTTYPE *renderData = (OMX_VIDEO_RENDEREVENTTYPE *)pEventData;
+        for (size_t i = 0; i < nData1; ++i) {
+            omx_message msg;
+            msg.type = omx_message::FRAME_RENDERED;
+            msg.node = node;
+            msg.fenceFd = -1;
+            msg.u.render_data.timestamp = renderData[i].nMediaTimeUs;
+            msg.u.render_data.nanoTime = renderData[i].nSystemTimeNs;
+
+            dispatcher->post(msg, false /* realTime */);
+        }
+        return OMX_ErrorNone;
+    }
 
     omx_message msg;
     msg.type = omx_message::EVENT;
@@ -469,7 +493,7 @@ OMX_ERRORTYPE OMX::OnEvent(
     msg.u.event_data.data1 = nData1;
     msg.u.event_data.data2 = nData2;
 
-    findDispatcher(node)->post(msg);
+    dispatcher->post(msg, true /* realTime */);
 
     return OMX_ErrorNone;
 }
