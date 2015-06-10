@@ -1423,7 +1423,9 @@ void OMXNodeInstance::onMessages(std::list<omx_message> &messages) {
         }
     }
 
-    mObserver->onMessages(messages);
+    if (!messages.empty()) {
+        mObserver->onMessages(messages);
+    }
 }
 
 void OMXNodeInstance::onObserverDied(OMXMaster *master) {
