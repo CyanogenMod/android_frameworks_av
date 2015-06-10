@@ -31,6 +31,7 @@
 // from LOCAL_C_INCLUDES
 #include "AudioFlinger.h"
 #include "CameraService.h"
+#include "IcuUtils.h"
 #include "MediaLogService.h"
 #include "MediaPlayerService.h"
 #include "ResourceManagerService.h"
@@ -124,6 +125,7 @@ int main(int argc __unused, char** argv)
             prctl(PR_SET_PDEATHSIG, SIGKILL);   // if parent media.log dies before me, kill me also
             setpgid(0, 0);                      // but if I die first, don't kill my parent
         }
+        initializeIcuOrDie();
         sp<ProcessState> proc(ProcessState::self());
         sp<IServiceManager> sm = defaultServiceManager();
         ALOGI("ServiceManager: %p", sm.get());
