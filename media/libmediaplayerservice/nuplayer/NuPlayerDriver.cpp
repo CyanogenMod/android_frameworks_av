@@ -18,6 +18,7 @@
 #define LOG_TAG "NuPlayerDriver"
 #include <inttypes.h>
 #include <utils/Log.h>
+#include <cutils/properties.h>
 
 #include "NuPlayerDriver.h"
 
@@ -484,6 +485,13 @@ status_t NuPlayerDriver::reset() {
         notifyListener_l(MEDIA_STOPPED);
     }
 
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("persist.debug.sf.stats", value, NULL) &&
+            (!strcmp("1", value) || !strcasecmp("true", value))) {
+        Vector<String16> args;
+        dump(-1, args);
+    }
+
     mState = STATE_RESET_IN_PROGRESS;
     mPlayer->resetAsync();
 
@@ -656,27 +664,30 @@ status_t NuPlayerDriver::dump(
     Vector<sp<AMessage> > trackStats;
     mPlayer->getStats(&trackStats);
 
-    FILE *out = fdopen(dup(fd), "w");
+    AString logString(" NuPlayer\n");
+    char buf[256] = {0};
 
-    fprintf(out, " NuPlayer\n");
     for (size_t i = 0; i < trackStats.size(); ++i) {
         const sp<AMessage> &stats = trackStats.itemAt(i);
 
         AString mime;
         if (stats->findString("mime", &mime)) {
-            fprintf(out, "  mime(%s)\n", mime.c_str());
+            snprintf(buf, sizeof(buf), "  mime(%s)\n", mime.c_str());
+            logString.append(buf);
         }
 
         AString name;
         if (stats->findString("component-name", &name)) {
-            fprintf(out, "    decoder(%s)\n", name.c_str());
+            snprintf(buf, sizeof(buf), "    decoder(%s)\n", name.c_str());
+            logString.append(buf);
         }
 
         if (mime.startsWith("video/")) {
             int32_t width, height;
             if (stats->findInt32("width", &width)
                     && stats->findInt32("height", &height)) {
-                fprintf(out, "    resolution(%d x %d)\n", width, height);
+                snprintf(buf, sizeof(buf), "    resolution(%d x %d)\n", width, height);
+                logString.append(buf);
             }
 
             int64_t numFramesTotal = 0;
@@ -684,16 +695,24 @@ status_t NuPlayerDriver::dump(
 
             stats->findInt64("frames-total", &numFramesTotal);
             stats->findInt64("frames-dropped-output", &numFramesDropped);
-            fprintf(out, "    numFramesTotal(%lld), numFramesDropped(%lld), "
+            snprintf(buf, sizeof(buf), "    numFramesTotal(%lld), numFramesDropped(%lld), "
                      "percentageDropped(%.2f%%)\n",
                      (long long)numFramesTotal,
                      (long long)numFramesDropped,
                      numFramesTotal == 0
                             ? 0.0 : (double)(numFramesDropped * 100) / numFramesTotal);
+            logString.append(buf);
         }
     }
-    fclose(out);
-    out = NULL;
+
+    ALOGI("%s", logString.c_str());
+
+    if (fd >= 0) {
+        FILE *out = fdopen(dup(fd), "w");
+        fprintf(out, "%s", logString.c_str());
+        fclose(out);
+        out = NULL;
+    }
 
     return OK;
 }
