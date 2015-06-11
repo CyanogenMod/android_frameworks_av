@@ -4064,7 +4064,14 @@ audio_devices_t AudioPolicyManager::getDeviceForStrategy(routing_strategy strate
     for (size_t routeIndex = 0; routeIndex < mOutputRoutes.size(); routeIndex++) {
         sp<SessionRoute> route = mOutputRoutes.valueAt(routeIndex);
         routing_strategy strat = getStrategy(route->mStreamType);
-        if (strat == strategy && route->isActive()) {
+        // Special case for accessibility strategy which must follow any strategy it is
+        // currently remapped to
+        bool strategyMatch = (strat == strategy) ||
+                             ((strategy == STRATEGY_ACCESSIBILITY) &&
+                              ((mEngine->getStrategyForUsage(
+                                      AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY) == strat) ||
+                               (strat == STRATEGY_MEDIA)));
+        if (strategyMatch && route->isActive()) {
             return route->mDeviceDescriptor->type();
         }
     }
