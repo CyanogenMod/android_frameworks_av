@@ -110,6 +110,8 @@ static void InitOMXParams(T *params) {
 struct MessageList : public RefBase {
     MessageList() {
     }
+    virtual ~MessageList() {
+    }
     std::list<sp<AMessage> > &getList() { return mList; }
 private:
     std::list<sp<AMessage> > mList;
@@ -126,15 +128,19 @@ struct CodecObserver : public BnOMXObserver {
 
     // from IOMXObserver
     virtual void onMessages(const std::list<omx_message> &messages) {
-        sp<AMessage> notify;
+        if (messages.empty()) {
+            return;
+        }
+
+        sp<AMessage> notify = mNotify->dup();
         bool first = true;
         sp<MessageList> msgList = new MessageList();
         for (std::list<omx_message>::const_iterator it = messages.cbegin();
               it != messages.cend(); ++it) {
             const omx_message &omx_msg = *it;
             if (first) {
-                notify = mNotify->dup();
                 notify->setInt32("node", omx_msg.node);
+                first = false;
             }
 
             sp<AMessage> msg = new AMessage;
