@@ -156,7 +156,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
             mNativeWindow.get(),
             GRALLOC_USAGE_SW_READ_NEVER | GRALLOC_USAGE_SW_WRITE_OFTEN
             | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
-            | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY));
+            | GRALLOC_USAGE_HW_FIMC1));
 #else
     CHECK_EQ(0,
             native_window_set_usage(

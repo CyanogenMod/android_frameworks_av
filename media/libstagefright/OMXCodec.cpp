@@ -1931,7 +1931,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
             rotationDegrees,
 #ifdef EXYNOS4_ENHANCEMENTS
             usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP
-                | GRALLOC_USAGE_HW_FIMC1 | GRALLOC_USAGE_HWC_HWOVERLAY);
+                | GRALLOC_USAGE_HW_FIMC1);
 #else
             usage | GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP);
 #endif
