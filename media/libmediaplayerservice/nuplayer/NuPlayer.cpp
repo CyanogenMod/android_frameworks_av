@@ -1729,13 +1729,15 @@ status_t NuPlayer::getCurrentPosition(int64_t *mediaUs) {
     return renderer->getCurrentPosition(mediaUs);
 }
 
-void NuPlayer::getStats(int64_t *numFramesTotal, int64_t *numFramesDropped) {
-    sp<DecoderBase> decoder = getDecoder(false /* audio */);
-    if (decoder != NULL) {
-        decoder->getStats(numFramesTotal, numFramesDropped);
-    } else {
-        *numFramesTotal = 0;
-        *numFramesDropped = 0;
+void NuPlayer::getStats(Vector<sp<AMessage> > *mTrackStats) {
+    CHECK(mTrackStats != NULL);
+
+    mTrackStats->clear();
+    if (mVideoDecoder != NULL) {
+        mTrackStats->push_back(mVideoDecoder->getStats());
+    }
+    if (mAudioDecoder != NULL) {
+        mTrackStats->push_back(mAudioDecoder->getStats());
     }
 }
 

@@ -58,7 +58,10 @@ NuPlayer::Decoder::Decoder(
       mCCDecoder(ccDecoder),
       mSkipRenderingUntilMediaTimeUs(-1ll),
       mNumFramesTotal(0ll),
-      mNumFramesDropped(0ll),
+      mNumInputFramesDropped(0ll),
+      mNumOutputFramesDropped(0ll),
+      mVideoWidth(0),
+      mVideoHeight(0),
       mIsAudio(true),
       mIsVideoAVC(false),
       mIsSecure(false),
@@ -77,11 +80,11 @@ NuPlayer::Decoder::~Decoder() {
     releaseAndResetMediaBuffers();
 }
 
-void NuPlayer::Decoder::getStats(
-        int64_t *numFramesTotal,
-        int64_t *numFramesDropped) const {
-    *numFramesTotal = mNumFramesTotal;
-    *numFramesDropped = mNumFramesDropped;
+sp<AMessage> NuPlayer::Decoder::getStats() const {
+    mStats->setInt64("frames-total", mNumFramesTotal);
+    mStats->setInt64("frames-dropped-input", mNumInputFramesDropped);
+    mStats->setInt64("frames-dropped-output", mNumOutputFramesDropped);
+    return mStats;
 }
 
 void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
@@ -236,6 +239,18 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     // the following should work in configured state
     CHECK_EQ((status_t)OK, mCodec->getOutputFormat(&mOutputFormat));
     CHECK_EQ((status_t)OK, mCodec->getInputFormat(&mInputFormat));
+
+    mStats->setString("mime", mime.c_str());
+    mStats->setString("component-name", mComponentName.c_str());
+
+    if (!mIsAudio) {
+        int32_t width, height;
+        if (mOutputFormat->findInt32("width", &width)
+                && mOutputFormat->findInt32("height", &height)) {
+            mStats->setInt32("width", width);
+            mStats->setInt32("height", height);
+        }
+    }
 
     sp<AMessage> reply = new AMessage(kWhatCodecNotify, this);
     mCodec->setCallback(reply);
@@ -520,6 +535,8 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
         mSkipRenderingUntilMediaTimeUs = -1;
     }
 
+    mNumFramesTotal += !mIsAudio;
+
     // wait until 1st frame comes out to signal resume complete
     notifyResumeCompleteIfNecessary();
 
@@ -536,6 +553,12 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
 
 void NuPlayer::Decoder::handleOutputFormatChange(const sp<AMessage> &format) {
     if (!mIsAudio) {
+        int32_t width, height;
+        if (format->findInt32("width", &width)
+                && format->findInt32("height", &height)) {
+            mStats->setInt32("width", width);
+            mStats->setInt32("height", height);
+        }
         sp<AMessage> notify = mNotify->dup();
         notify->setInt32("what", kWhatVideoSizeChanged);
         notify->setMessage("format", format);
@@ -654,10 +677,6 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
             return ERROR_END_OF_STREAM;
         }
 
-        if (!mIsAudio) {
-            ++mNumFramesTotal;
-        }
-
         dropAccessUnit = false;
         if (!mIsAudio
                 && !mIsSecure
@@ -665,7 +684,7 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
                 && mIsVideoAVC
                 && !IsAVCReferenceFrame(accessUnit)) {
             dropAccessUnit = true;
-            ++mNumFramesDropped;
+            ++mNumInputFramesDropped;
         }
     } while (dropAccessUnit);
 
@@ -833,6 +852,7 @@ void NuPlayer::Decoder::onRenderBuffer(const sp<AMessage> &msg) {
         CHECK(msg->findInt64("timestampNs", &timestampNs));
         err = mCodec->renderOutputBufferAndRelease(bufferIx, timestampNs);
     } else {
+        mNumOutputFramesDropped += !mIsAudio;
         err = mCodec->releaseOutputBuffer(bufferIx);
     }
     if (err != OK) {

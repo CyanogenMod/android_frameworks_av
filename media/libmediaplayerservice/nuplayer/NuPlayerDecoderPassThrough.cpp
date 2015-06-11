@@ -59,12 +59,6 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
 NuPlayer::DecoderPassThrough::~DecoderPassThrough() {
 }
 
-void NuPlayer::DecoderPassThrough::getStats(
-        int64_t *numFramesTotal, int64_t *numFramesDropped) const {
-    *numFramesTotal = 0;
-    *numFramesDropped = 0;
-}
-
 void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure", mComponentName.c_str());
     mCachedBytes = 0;
