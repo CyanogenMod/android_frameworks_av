@@ -11,8 +11,7 @@ endif
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
-	main_mediaserver.cpp \
-	icuutils.cpp
+	main_mediaserver.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
@@ -33,6 +32,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libradioservice
 
 LOCAL_STATIC_LIBRARIES := \
+        libicuandroid_utils \
         libregistermsext
 
 LOCAL_C_INCLUDES := \
