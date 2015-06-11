@@ -20,7 +20,7 @@ ifeq ($(strip $(AUDIO_FEATURE_ENABLED_HDMI_SPK)),true)
 common_cflags += -DAUDIO_EXTN_HDMI_SPK_ENABLED
 endif
 
-ifneq ($(call is-board-platform-in-list, msm7x30 msm8660 msm8960),true)
+ifneq ($(strip $(BOARD_USES_LEGACY_ALSA_AUDIO)),true)
 ifneq ($(strip $(AUDIO_FEATURE_ENABLED_INCALL_MUSIC)),false)
 common_cflags += -DAUDIO_EXTN_INCALL_MUSIC_ENABLED
 endif
