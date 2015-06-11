@@ -29,10 +29,6 @@ struct NuPlayer::DecoderPassThrough : public DecoderBase {
                        const sp<Source> &source,
                        const sp<Renderer> &renderer);
 
-    virtual void getStats(
-            int64_t *mNumFramesTotal,
-            int64_t *mNumFramesDropped) const;
-
 protected:
 
     virtual ~DecoderPassThrough();

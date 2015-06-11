@@ -652,20 +652,46 @@ void NuPlayerDriver::notifySeekComplete_l() {
 
 status_t NuPlayerDriver::dump(
         int fd, const Vector<String16> & /* args */) const {
-    int64_t numFramesTotal;
-    int64_t numFramesDropped;
-    mPlayer->getStats(&numFramesTotal, &numFramesDropped);
+
+    Vector<sp<AMessage> > trackStats;
+    mPlayer->getStats(&trackStats);
 
     FILE *out = fdopen(dup(fd), "w");
 
     fprintf(out, " NuPlayer\n");
-    fprintf(out, "  numFramesTotal(%" PRId64 "), numFramesDropped(%" PRId64 "), "
-                 "percentageDropped(%.2f)\n",
-                 numFramesTotal,
-                 numFramesDropped,
-                 numFramesTotal == 0
-                    ? 0.0 : (double)numFramesDropped / numFramesTotal);
+    for (size_t i = 0; i < trackStats.size(); ++i) {
+        const sp<AMessage> &stats = trackStats.itemAt(i);
 
+        AString mime;
+        if (stats->findString("mime", &mime)) {
+            fprintf(out, "  mime(%s)\n", mime.c_str());
+        }
+
+        AString name;
+        if (stats->findString("component-name", &name)) {
+            fprintf(out, "    decoder(%s)\n", name.c_str());
+        }
+
+        if (mime.startsWith("video/")) {
+            int32_t width, height;
+            if (stats->findInt32("width", &width)
+                    && stats->findInt32("height", &height)) {
+                fprintf(out, "    resolution(%d x %d)\n", width, height);
+            }
+
+            int64_t numFramesTotal = 0;
+            int64_t numFramesDropped = 0;
+
+            stats->findInt64("frames-total", &numFramesTotal);
+            stats->findInt64("frames-dropped-output", &numFramesDropped);
+            fprintf(out, "    numFramesTotal(%lld), numFramesDropped(%lld), "
+                     "percentageDropped(%.2f%%)\n",
+                     (long long)numFramesTotal,
+                     (long long)numFramesDropped,
+                     numFramesTotal == 0
+                            ? 0.0 : (double)(numFramesDropped * 100) / numFramesTotal);
+        }
+    }
     fclose(out);
     out = NULL;
 

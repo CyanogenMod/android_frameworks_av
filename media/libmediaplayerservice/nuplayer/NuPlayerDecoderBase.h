@@ -42,9 +42,9 @@ struct NuPlayer::DecoderBase : public AHandler {
     void signalResume(bool notifyComplete);
     void initiateShutdown();
 
-    virtual void getStats(
-            int64_t *mNumFramesTotal,
-            int64_t *mNumFramesDropped) const = 0;
+    virtual sp<AMessage> getStats() const {
+        return mStats;
+    }
 
     enum {
         kWhatInputDiscontinuity  = 'inDi',
@@ -76,6 +76,7 @@ protected:
 
     sp<AMessage> mNotify;
     int32_t mBufferGeneration;
+    sp<AMessage> mStats;
 
 private:
     enum {

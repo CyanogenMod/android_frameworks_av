@@ -30,9 +30,7 @@ struct NuPlayer::Decoder : public DecoderBase {
             const sp<Surface> &surface = NULL,
             const sp<CCDecoder> &ccDecoder = NULL);
 
-    virtual void getStats(
-            int64_t *mNumFramesTotal,
-            int64_t *mNumFramesDropped) const;
+    virtual sp<AMessage> getStats() const;
 
 protected:
     virtual ~Decoder();
@@ -77,7 +75,10 @@ private:
 
     int64_t mSkipRenderingUntilMediaTimeUs;
     int64_t mNumFramesTotal;
-    int64_t mNumFramesDropped;
+    int64_t mNumInputFramesDropped;
+    int64_t mNumOutputFramesDropped;
+    int32_t mVideoWidth;
+    int32_t mVideoHeight;
     bool mIsAudio;
     bool mIsVideoAVC;
     bool mIsSecure;
