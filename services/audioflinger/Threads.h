@@ -941,6 +941,8 @@ protected:
     virtual     void        threadLoop_exit();
     virtual     bool        shouldStandby_l();
 
+    virtual     void        onAddNewTrack_l();
+
     // volumes last sent to audio HAL with stream->set_volume()
     float mLeftVolFloat;
     float mRightVolFloat;
@@ -952,6 +954,9 @@ protected:
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
     sp<Track>               mActiveTrack;
+
+    wp<Track>               mPreviousTrack;         // used to detect track switch
+
 public:
     virtual     bool        hasFastMixer() const { return false; }
 };
@@ -971,12 +976,10 @@ protected:
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
-    virtual     void        onAddNewTrack_l();
 
 private:
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
-    wp<Track>   mPreviousTrack;         // used to detect track switch
 };
 
 class AsyncCallbackThread : public Thread {
