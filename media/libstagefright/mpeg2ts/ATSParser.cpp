@@ -694,7 +694,8 @@ status_t ATSParser::Stream::parse(
             status_t err = flush(event);
 
             if (err != OK) {
-                return err;
+                ALOGW("Error (%08x) happened while flushing; we simply discard "
+                      "the PES packet and continue.", err);
             }
         }
 
@@ -993,10 +994,6 @@ status_t ATSParser::Stream::parsePES(ABitReader *br, SyncEvent *event) {
                      "payload. (numBitsLeft = %zu, required = %u)",
                      br->numBitsLeft(), dataLength * 8);
 
-                return ERROR_MALFORMED;
-            }
-
-            if (br->numBitsLeft() < dataLength * 8) {
                 return ERROR_MALFORMED;
             }
 
