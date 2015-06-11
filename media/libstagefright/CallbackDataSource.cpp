@@ -109,7 +109,8 @@ ssize_t TinyCacheSource::readAt(off64_t offset, void* data, size_t size) {
     }
 
     // Check if the cache satisfies the read.
-    if (mCachedOffset <= offset && offset < mCachedOffset + mCachedSize) {
+    if (mCachedOffset <= offset
+            && offset < (off64_t) (mCachedOffset + mCachedSize)) {
         if (offset + size <= mCachedOffset + mCachedSize) {
             memcpy(data, &mCache[offset - mCachedOffset], size);
             return size;
