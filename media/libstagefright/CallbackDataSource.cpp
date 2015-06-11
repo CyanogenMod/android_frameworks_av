@@ -109,9 +109,25 @@ ssize_t TinyCacheSource::readAt(off64_t offset, void* data, size_t size) {
     }
 
     // Check if the cache satisfies the read.
-    if (offset >= mCachedOffset && offset + size <= mCachedOffset + mCachedSize) {
-        memcpy(data, &mCache[offset - mCachedOffset], size);
-        return size;
+    if (mCachedOffset <= offset && offset < mCachedOffset + mCachedSize) {
+        if (offset + size <= mCachedOffset + mCachedSize) {
+            memcpy(data, &mCache[offset - mCachedOffset], size);
+            return size;
+        } else {
+            // If the cache hits only partially, flush the cache and read the
+            // remainder.
+
+            // This value is guaranteed to be greater than 0 because of the
+            // enclosing if statement.
+            const ssize_t remaining = mCachedOffset + mCachedSize - offset;
+            memcpy(data, &mCache[offset - mCachedOffset], remaining);
+            const ssize_t readMore = readAt(offset + remaining,
+                    (uint8_t*)data + remaining, size - remaining);
+            if (readMore < 0) {
+                return readMore;
+            }
+            return remaining + readMore;
+        }
     }
 
     // Fill the cache and copy to the caller.
