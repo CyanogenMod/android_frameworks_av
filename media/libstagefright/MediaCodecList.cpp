@@ -79,6 +79,8 @@ sp<IMediaCodecList> MediaCodecList::sCodecList;
 // static
 void *MediaCodecList::profilerThreadWrapper(void * /*arg*/) {
     ALOGV("Enter profilerThreadWrapper.");
+    remove(kProfilingResults);  // remove previous result so that it won't be loaded to
+                                // the new MediaCodecList
     MediaCodecList *codecList = new MediaCodecList();
     if (codecList->initCheck() != OK) {
         ALOGW("Failed to create a new MediaCodecList, skipping codec profiling.");
