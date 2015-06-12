@@ -169,10 +169,8 @@ OMXNodeInstance::OMXNodeInstance(
       mNodeID(0),
       mHandle(NULL),
       mObserver(observer),
-      mDying(false)
-#ifdef __LP64__
-      , mBufferIDCount(0)
-#endif
+      mDying(false),
+      mBufferIDCount(0)
 {
     mName = ADebug::GetDebugName(name);
     DEBUG = ADebug::GetDebugLevelFromProperty(name, "debug.stagefright.omx-debug");
