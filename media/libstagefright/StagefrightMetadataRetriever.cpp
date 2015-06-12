@@ -308,7 +308,7 @@ static VideoFrame *extractVideoFrame(
                 err = decoder->getOutputBuffers(&outputBuffers);
             } else {
                 if (err == -EAGAIN /* INFO_TRY_AGAIN_LATER */ && --retriesLeft > 0) {
-                    ALOGV("Timed-out waiting for output.. retries left = %d", retriesLeft);
+                    ALOGV("Timed-out waiting for output.. retries left = %zu", retriesLeft);
                     err = OK;
                 } else if (err == OK) {
                     ALOGV("Received an output buffer");
