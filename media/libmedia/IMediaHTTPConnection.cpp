@@ -70,7 +70,7 @@ struct BpMediaHTTPConnection : public BpInterface<IMediaHTTPConnection> {
         int32_t exceptionCode = reply.readExceptionCode();
 
         if (exceptionCode) {
-            return UNKNOWN_ERROR;
+            return false;
         }
 
         sp<IBinder> binder = reply.readStrongBinder();
