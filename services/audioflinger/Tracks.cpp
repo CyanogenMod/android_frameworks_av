@@ -50,6 +50,10 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+// TODO move to a common header  (Also shared with AudioTrack.cpp)
+#define NANOS_PER_SECOND    1000000000
+#define TIME_TO_NANOS(time) ((uint64_t)time.tv_sec * NANOS_PER_SECOND + time.tv_nsec)
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -357,6 +361,9 @@ AudioFlinger::PlaybackThread::Track::Track(
     mAuxBuffer(NULL),
     mAuxEffectId(0), mHasVolumeController(false),
     mPresentationCompleteFrames(0),
+    mFrameMap(16 /* sink-frame-to-track-frame map memory */),
+    mSinkTimestampValid(false),
+    // mSinkTimestamp
     mFastIndex(-1),
     mCachedVolume(1.0),
     mIsInvalid(false),
@@ -652,6 +659,11 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             ALOGV("? => ACTIVE (%d) on thread %p", mName, this);
         }
 
+        // states to reset position info for non-offloaded/direct tracks
+        if (!isOffloaded() && !isDirect()
+                && (state == IDLE || state == STOPPED || state == FLUSHED)) {
+            mFrameMap.reset();
+        }
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
         if (isFastTrack()) {
             // refresh fast track underruns on start because that field is never cleared
@@ -858,36 +870,31 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
 
-    status_t result = INVALID_OPERATION;
-    if (!isOffloaded() && !isDirect()) {
-        if (!playbackThread->mLatchQValid) {
-            return INVALID_OPERATION;
-        }
-        // FIXME Not accurate under dynamic changes of sample rate and speed.
-        // Do not use track's mSampleRate as it is not current for mixer tracks.
-        uint32_t sampleRate = mAudioTrackServerProxy->getSampleRate();
-        AudioPlaybackRate playbackRate = mAudioTrackServerProxy->getPlaybackRate();
-        uint32_t unpresentedFrames = ((double) playbackThread->mLatchQ.mUnpresentedFrames *
-                sampleRate * playbackRate.mSpeed)/ playbackThread->mSampleRate;
-        // FIXME Since we're using a raw pointer as the key, it is theoretically possible
-        //       for a brand new track to share the same address as a recently destroyed
-        //       track, and thus for us to get the frames released of the wrong track.
-        //       It is unlikely that we would be able to call getTimestamp() so quickly
-        //       right after creating a new track.  Nevertheless, the index here should
-        //       be changed to something that is unique.  Or use a completely different strategy.
-        ssize_t i = playbackThread->mLatchQ.mFramesReleased.indexOfKey(this);
-        uint32_t framesWritten = i >= 0 ?
-                playbackThread->mLatchQ.mFramesReleased[i] :
-                mAudioTrackServerProxy->framesReleased();
-        if (framesWritten >= unpresentedFrames) {
-            timestamp.mPosition = framesWritten - unpresentedFrames;
-            timestamp.mTime = playbackThread->mLatchQ.mTimestamp.mTime;
-            result = NO_ERROR;
-        }
-    } else { // offloaded or direct
-        result = playbackThread->getTimestamp_l(timestamp);
+    if (isOffloaded() || isDirect()) {
+        return playbackThread->getTimestamp_l(timestamp);
     }
 
+    if (!mFrameMap.hasData()) {
+        // WOULD_BLOCK is consistent with AudioTrack::getTimestamp() in the
+        // FLUSHED and STOPPED state.  We should only return INVALID_OPERATION
+        // when this method is not permitted due to configuration or device.
+        return WOULD_BLOCK;
+    }
+    status_t result = OK;
+    if (!mSinkTimestampValid) { // if no sink position, try to fetch again
+        result = playbackThread->getTimestamp_l(mSinkTimestamp);
+    }
+
+    if (result == OK) {
+        // Lookup the track frame corresponding to the sink frame position.
+        timestamp.mPosition = mFrameMap.findX(mSinkTimestamp.mPosition);
+        timestamp.mTime = mSinkTimestamp.mTime;
+        // ALOGD("track (server-side) timestamp: mPosition(%u)  mTime(%llu)",
+        //        timestamp.mPosition, TIME_TO_NANOS(timestamp.mTime));
+    }
+    // (Possible) FIXME: mSinkTimestamp is updated only when the track is on
+    // the Thread active list. If the track is no longer on the thread active
+    // list should we use current time?
     return result;
 }
 
@@ -1077,6 +1084,19 @@ void AudioFlinger::PlaybackThread::Track::resumeAck() {
         mResumeToStopping = false;
     }
 }
+
+//To be called with thread lock held
+void AudioFlinger::PlaybackThread::Track::updateTrackFrameInfo(
+        uint32_t trackFramesReleased, uint32_t sinkFramesWritten, AudioTimestamp *timeStamp) {
+    mFrameMap.push(trackFramesReleased, sinkFramesWritten);
+    if (timeStamp == NULL) {
+        mSinkTimestampValid = false;
+    } else {
+        mSinkTimestampValid = true;
+        mSinkTimestamp = *timeStamp;
+    }
+}
+
 // ----------------------------------------------------------------------------
 
 AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(

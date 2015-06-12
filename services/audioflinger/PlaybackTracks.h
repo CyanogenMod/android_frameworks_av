@@ -100,6 +100,8 @@ protected:
     void flushAck();
     bool isResumePending();
     void resumeAck();
+    void updateTrackFrameInfo(uint32_t trackFramesReleased, uint32_t sinkFramesWritten,
+            AudioTimestamp *timeStamp = NULL);
 
     sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
@@ -137,6 +139,12 @@ protected:
     size_t              mPresentationCompleteFrames; // number of frames written to the
                                     // audio HAL when this track will be fully rendered
                                     // zero means not monitoring
+
+    // access these three variables only when holding thread lock.
+    LinearMap<uint32_t> mFrameMap;           // track frame to server frame mapping
+    bool                mSinkTimestampValid; // valid cached timestamp
+    AudioTimestamp      mSinkTimestamp;
+
 private:
     // The following fields are only for fast tracks, and should be in a subclass
     int                 mFastIndex; // index within FastMixerState::mFastTracks[];

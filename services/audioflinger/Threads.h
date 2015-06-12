@@ -841,19 +841,6 @@ protected:
                 bool        mHwSupportsPause;
                 bool        mHwPaused;
                 bool        mFlushPending;
-private:
-    // timestamp latch:
-    //  D input is written by threadLoop_write while mutex is unlocked, and read while locked
-    //  Q output is written while locked, and read while locked
-    struct {
-        AudioTimestamp  mTimestamp;
-        uint32_t        mUnpresentedFrames;
-        KeyedVector<Track *, uint32_t> mFramesReleased;
-    } mLatchD, mLatchQ;
-    bool mLatchDValid;  // true means mLatchD is valid
-                        //     (except for mFramesReleased which is filled in later),
-                        //     and clock it into latch at next opportunity
-    bool mLatchQValid;  // true means mLatchQ is valid
 };
 
 class MixerThread : public PlaybackThread {
