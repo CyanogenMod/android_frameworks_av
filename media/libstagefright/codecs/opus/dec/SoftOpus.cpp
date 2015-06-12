@@ -34,6 +34,12 @@ namespace android {
 
 static const int kRate = 48000;
 
+// Opus uses Vorbis channel mapping, and Vorbis channel mapping specifies
+// mappings for up to 8 channels. This information is part of the Vorbis I
+// Specification:
+// http://www.xiph.org/vorbis/doc/Vorbis_I_spec.html
+static const int kMaxChannels = 8;
+
 template<class T>
 static void InitOMXParams(T *params) {
     params->nSize = sizeof(T);
@@ -101,7 +107,7 @@ void SoftOpus::initPorts() {
     def.eDir = OMX_DirOutput;
     def.nBufferCountMin = kNumBuffers;
     def.nBufferCountActual = def.nBufferCountMin;
-    def.nBufferSize = kMaxNumSamplesPerBuffer * sizeof(int16_t);
+    def.nBufferSize = kMaxNumSamplesPerBuffer * sizeof(int16_t) * kMaxChannels;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainAudio;
@@ -224,12 +230,6 @@ static uint16_t ReadLE16(const uint8_t *data, size_t data_size,
     val |= data[read_offset + 1] << 8;
     return val;
 }
-
-// Opus uses Vorbis channel mapping, and Vorbis channel mapping specifies
-// mappings for up to 8 channels. This information is part of the Vorbis I
-// Specification:
-// http://www.xiph.org/vorbis/doc/Vorbis_I_spec.html
-static const int kMaxChannels = 8;
 
 // Maximum packet size used in Xiph's opusdec.
 static const int kMaxOpusOutputPacketSizeSamples = 960 * 6;
