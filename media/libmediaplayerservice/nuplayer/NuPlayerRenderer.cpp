@@ -771,6 +771,33 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
     return sizeCopied;
 }
 
+void NuPlayer::Renderer::drainAudioQueueUntilLastEOS() {
+    List<QueueEntry>::iterator it = mAudioQueue.begin(), itEOS = it;
+    bool foundEOS = false;
+    while (it != mAudioQueue.end()) {
+        int32_t eos;
+        QueueEntry *entry = &*it++;
+        if (entry->mBuffer == NULL
+                || (entry->mNotifyConsumed->findInt32("eos", &eos) && eos != 0)) {
+            itEOS = it;
+            foundEOS = true;
+        }
+    }
+
+    if (foundEOS) {
+        // post all replies before EOS and drop the samples
+        for (it = mAudioQueue.begin(); it != itEOS; it++) {
+            if (it->mBuffer == NULL) {
+                // delay doesn't matter as we don't even have an AudioTrack
+                notifyEOS(true /* audio */, it->mFinalResult);
+            } else {
+                it->mNotifyConsumed->post();
+            }
+        }
+        mAudioQueue.erase(mAudioQueue.begin(), itEOS);
+    }
+}
+
 bool NuPlayer::Renderer::onDrainAudioQueue() {
     // TODO: This call to getPosition checks if AudioTrack has been created
     // in AudioSink before draining audio. If AudioTrack doesn't exist, then
@@ -784,6 +811,13 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     // "vorbis_dsp_synthesis returned -135", along with RTSP.
     uint32_t numFramesPlayed;
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
+        // When getPosition fails, renderer will not reschedule the draining
+        // unless new samples are queued.
+        // If we have pending EOS (or "eos" marker for discontinuities), we need
+        // to post these now as NuPlayerDecoder might be waiting for it.
+        drainAudioQueueUntilLastEOS();
+
+        ALOGW("onDrainAudioQueue(): audio sink is not ready");
         return false;
     }
 
