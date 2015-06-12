@@ -242,7 +242,7 @@ status_t NuPlayerDriver::prepareAsync() {
 }
 
 status_t NuPlayerDriver::start() {
-    ALOGD("start(%p)", this);
+    ALOGD("start(%p), state is %d, eos is %d", this, mState, mAtEOS);
     Mutex::Autolock autoLock(mLock);
 
     switch (mState) {
@@ -725,6 +725,7 @@ void NuPlayerDriver::notifyListener(
 
 void NuPlayerDriver::notifyListener_l(
         int msg, int ext1, int ext2, const Parcel *in) {
+    ALOGD("notifyListener_l(%p), (%d, %d, %d)", this, msg, ext1, ext2);
     switch (msg) {
         case MEDIA_PLAYBACK_COMPLETE:
         {
