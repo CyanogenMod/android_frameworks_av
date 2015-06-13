@@ -63,6 +63,7 @@ private:
     virtual ~MetadataRetrieverClient();
 
     mutable Mutex                          mLock;
+    static  Mutex                          sLock;
     sp<MediaMetadataRetrieverBase>         mRetriever;
     pid_t                                  mPid;
 
