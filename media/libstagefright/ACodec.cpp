@@ -5202,16 +5202,11 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
 
         int64_t timestampNs = 0;
         if (!msg->findInt64("timestampNs", &timestampNs)) {
-            // TODO: it seems like we should use the timestamp
-            // in the (media)buffer as it potentially came from
-            // an input surface, but we did not propagate it prior to
-            // API 20.  Perhaps check for target SDK version.
-#if 0
+            // use media timestamp if client did not request a specific render timestamp
             if (info->mData->meta()->findInt64("timeUs", &timestampNs)) {
-                ALOGV("using buffer PTS of %" PRId64, timestampNs);
+                ALOGV("using buffer PTS of %lld", (long long)timestampNs);
                 timestampNs *= 1000;
             }
-#endif
         }
 
         status_t err;
