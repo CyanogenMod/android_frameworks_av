@@ -191,10 +191,13 @@ status_t MetadataRetrieverClient::setDataSource(
     return ret;
 }
 
+Mutex MetadataRetrieverClient::sLock;
+
 sp<IMemory> MetadataRetrieverClient::getFrameAtTime(int64_t timeUs, int option)
 {
     ALOGV("getFrameAtTime: time(%lld us) option(%d)", timeUs, option);
     Mutex::Autolock lock(mLock);
+    Mutex::Autolock glock(sLock);
     mThumbnail.clear();
     if (mRetriever == NULL) {
         ALOGE("retriever is not initialized");
