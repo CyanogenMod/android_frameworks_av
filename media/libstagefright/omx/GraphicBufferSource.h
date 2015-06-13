@@ -228,6 +228,11 @@ private:
     // doing anything if we don't have a codec buffer available.
     void submitEndOfInputStream_l();
 
+    // Release buffer to the consumer
+    void releaseBuffer(
+            int &id, uint64_t frameNum,
+            const sp<GraphicBuffer> buffer, const sp<Fence> &fence);
+
     void setLatestBuffer_l(const BufferItem &item, bool dropped);
     bool repeatLatestBuffer_l();
     int64_t getTimestamp(const BufferItem &item);
@@ -256,6 +261,9 @@ private:
     // Number of frames pending in BufferQueue that haven't yet been
     // forwarded to the codec.
     size_t mNumFramesAvailable;
+
+    // Number of frames acquired from consumer (debug only)
+    int32_t mNumBufferAcquired;
 
     // Set to true if we want to send end-of-stream after we run out of
     // frames in BufferQueue.
