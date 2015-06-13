@@ -2452,18 +2452,12 @@ status_t MediaCodec::onReleaseOutputBuffer(const sp<AMessage> &msg) {
         info->mData->meta()->findInt64("timeUs", &mediaTimeUs);
 
         int64_t renderTimeNs = 0;
-        if (msg->findInt64("timestampNs", &renderTimeNs)) {
-            info->mNotify->setInt64("timestampNs", renderTimeNs);
-        } else {
-            // TODO: it seems like we should use the timestamp
-            // in the (media)buffer as it potentially came from
-            // an input surface, but we did not propagate it prior to
-            // API 20.  Perhaps check for target SDK version.
-#if 0
-            ALOGV("using buffer PTS of %" PRId64, timestampNs);
+        if (!msg->findInt64("timestampNs", &renderTimeNs)) {
+            // use media timestamp if client did not request a specific render timestamp
+            ALOGV("using buffer PTS of %lld", (long long)mediaTimeUs);
             renderTimeNs = mediaTimeUs * 1000;
-#endif
         }
+        info->mNotify->setInt64("timestampNs", renderTimeNs);
 
         if (mSoftRenderer != NULL) {
             std::list<FrameRenderTracker::Info> doneFrames = mSoftRenderer->render(
