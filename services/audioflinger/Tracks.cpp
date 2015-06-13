@@ -1951,7 +1951,9 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
                           ((buffer == NULL) ? ALLOC_LOCAL : ALLOC_NONE),
                   type),
         mOverflow(false),
-        mFramesToDrop(0)
+        mFramesToDrop(0),
+        mResamplerBufferProvider(NULL), // initialize in case of early constructor exit
+        mRecordBufferConverter(NULL)
 {
     if (mCblk == NULL) {
         return;
