@@ -77,7 +77,8 @@ void ALooperRoster::unregisterStaleHandlers() {
     {
         Mutex::Autolock autoLock(mLock);
 
-        for (size_t i = mHandlers.size(); i-- > 0;) {
+        for (size_t i = mHandlers.size(); i > 0;) {
+            i--;
             const HandlerInfo &info = mHandlers.valueAt(i);
 
             sp<ALooper> looper = info.mLooper.promote();
