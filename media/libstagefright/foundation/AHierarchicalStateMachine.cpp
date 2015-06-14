@@ -109,7 +109,8 @@ void AHierarchicalStateMachine::changeState(const sp<AState> &state) {
         A.editItemAt(i)->stateExited();
     }
 
-    for (size_t i = B.size(); i-- > 0;) {
+    for (size_t i = B.size(); i > 0;) {
+        i--;
         B.editItemAt(i)->stateEntered();
     }
 }

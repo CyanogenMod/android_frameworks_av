@@ -1003,7 +1003,8 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
 }
 
 status_t ACodec::freeBuffersOnPort(OMX_U32 portIndex) {
-    for (size_t i = mBuffers[portIndex].size(); i-- > 0;) {
+    for (size_t i = mBuffers[portIndex].size(); i > 0;) {
+        i--;
         CHECK_EQ((status_t)OK, freeBuffer(portIndex, i));
     }
 
@@ -1013,7 +1014,8 @@ status_t ACodec::freeBuffersOnPort(OMX_U32 portIndex) {
 }
 
 status_t ACodec::freeOutputBuffersNotOwnedByComponent() {
-    for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
+    for (size_t i = mBuffers[kPortIndexOutput].size(); i > 0;) {
+        i--;
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
 
