@@ -220,7 +220,8 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_er
         }
     }
 
-    for (size_t i = mCodecInfos.size(); i-- > 0;) {
+    for (size_t i = mCodecInfos.size(); i > 0;) {
+        i--;
         const MediaCodecInfo &info = *mCodecInfos.itemAt(i).get();
         if (info.mCaps.size() == 0) {
             // No types supported by this component???
