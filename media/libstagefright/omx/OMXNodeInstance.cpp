@@ -121,10 +121,9 @@ struct BufferMeta {
             return;
         }
 
-        // check component returns proper range
-        sp<ABuffer> codec = getBuffer(header, false /* backup */, true /* limit */);
-
-        memcpy((OMX_U8 *)mMem->pointer() + header->nOffset, codec->data(), codec->size());
+        memcpy((OMX_U8 *)mMem->pointer() + header->nOffset,
+                header->pBuffer + header->nOffset,
+                header->nFilledLen);
     }
 
     void CopyToOMX(const OMX_BUFFERHEADERTYPE *header) {
@@ -138,16 +137,14 @@ struct BufferMeta {
     }
 
     // return either the codec or the backup buffer
-    sp<ABuffer> getBuffer(const OMX_BUFFERHEADERTYPE *header, bool backup, bool limit) {
+    sp<ABuffer> getBuffer(const OMX_BUFFERHEADERTYPE *header, bool backup) {
         sp<ABuffer> buf;
         if (backup && mMem != NULL) {
             buf = new ABuffer(mMem->pointer(), mMem->size());
         } else {
             buf = new ABuffer(header->pBuffer, header->nAllocLen);
         }
-        if (limit) {
-            buf->setRange(header->nOffset, header->nFilledLen);
-        }
+        buf->setRange(header->nOffset, header->nFilledLen);
         return buf;
     }
 
@@ -1092,11 +1089,10 @@ status_t OMXNodeInstance::emptyBuffer(
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
     BufferMeta *buffer_meta =
         static_cast<BufferMeta *>(header->pAppPrivate);
-    sp<ABuffer> backup = buffer_meta->getBuffer(header, true /* backup */, false /* limit */);
-    sp<ABuffer> codec = buffer_meta->getBuffer(header, false /* backup */, false /* limit */);
+    sp<ABuffer> backup = buffer_meta->getBuffer(header, true /* backup */);
+    sp<ABuffer> codec = buffer_meta->getBuffer(header, false /* backup */);
 
     // convert incoming ANW meta buffers if component is configured for gralloc metadata mode
-    // ignore rangeOffset in this case
     if (mMetadataType[kPortIndexInput] == kMetadataBufferTypeGrallocSource
             && backup->capacity() >= sizeof(VideoNativeMetadata)
             && codec->capacity() >= sizeof(VideoGrallocMetadata)
@@ -1106,7 +1102,7 @@ status_t OMXNodeInstance::emptyBuffer(
         VideoGrallocMetadata &codecMeta = *(VideoGrallocMetadata *)codec->base();
         CLOG_BUFFER(emptyBuffer, "converting ANWB %p to handle %p",
                 backupMeta.pBuffer, backupMeta.pBuffer->handle);
-        codecMeta.pHandle = backupMeta.pBuffer != NULL ? backupMeta.pBuffer->handle : NULL;
+        codecMeta.pHandle = backupMeta.pBuffer->handle;
         codecMeta.eType = kMetadataBufferTypeGrallocSource;
         header->nFilledLen = rangeLength ? sizeof(codecMeta) : 0;
         header->nOffset = 0;
