@@ -16,6 +16,10 @@
 
 #include <img_utils/DngUtils.h>
 
+#include <inttypes.h>
+
+#include <math.h>
+
 namespace android {
 namespace img_utils {
 
@@ -229,7 +233,7 @@ status_t OpcodeListBuilder::addGainMap(uint32_t top,
     err = mEndianOut.write(version, 0, NELEMS(version));
     if (err != OK) return err;
 
-    // Do not include optional flag for preview, as this can have a large effect on the output.
+    // Allow this opcode to be skipped if not supported
     uint32_t flags = FLAG_OPTIONAL;
 
     err = mEndianOut.write(&flags, 0, 1);
@@ -271,6 +275,97 @@ status_t OpcodeListBuilder::addGainMap(uint32_t top,
     if (err != OK) return err;
 
     err = mEndianOut.write(mapGains, 0, mapPointsV * mapPointsH * mapPlanes);
+    if (err != OK) return err;
+
+    mCount++;
+
+    return OK;
+}
+
+status_t OpcodeListBuilder::addWarpRectilinearForMetadata(const float* kCoeffs,
+                                                          uint32_t activeArrayWidth,
+                                                          uint32_t activeArrayHeight,
+                                                          float opticalCenterX,
+                                                          float opticalCenterY) {
+    if (activeArrayWidth <= 1 || activeArrayHeight <= 1) {
+        ALOGE("%s: Cannot add opcode for active array with dimensions w=%" PRIu32 ", h=%" PRIu32,
+                __FUNCTION__, activeArrayWidth, activeArrayHeight);
+        return BAD_VALUE;
+    }
+
+    double normalizedOCX = opticalCenterX / static_cast<double>(activeArrayWidth - 1);
+    double normalizedOCY = opticalCenterY / static_cast<double>(activeArrayHeight - 1);
+
+    normalizedOCX = CLAMP(normalizedOCX, 0, 1);
+    normalizedOCY = CLAMP(normalizedOCY, 0, 1);
+
+    // Conversion factors from Camera2 K factors to DNG spec. K factors:
+    //
+    //      Note: these are necessary because our unit system assumes a
+    //      normalized max radius of sqrt(2), whereas the DNG spec's
+    //      WarpRectilinear opcode assumes a normalized max radius of 1.
+    //      Thus, each K coefficient must include the domain scaling
+    //      factor (the DNG domain is scaled by sqrt(2) to emulate the
+    //      domain used by the Camera2 specification).
+
+    const double c_0 = sqrt(2);
+    const double c_1 = 2 * sqrt(2);
+    const double c_2 = 4 * sqrt(2);
+    const double c_3 = 8 * sqrt(2);
+    const double c_4 = 2;
+    const double c_5 = 2;
+
+    const double coeffs[] = { c_0 * kCoeffs[0],
+                              c_1 * kCoeffs[1],
+                              c_2 * kCoeffs[2],
+                              c_3 * kCoeffs[3],
+                              c_4 * kCoeffs[4],
+                              c_5 * kCoeffs[5] };
+
+
+    return addWarpRectilinear(/*numPlanes*/1,
+                              /*opticalCenterX*/normalizedOCX,
+                              /*opticalCenterY*/normalizedOCY,
+                              coeffs);
+}
+
+status_t OpcodeListBuilder::addWarpRectilinear(uint32_t numPlanes,
+                                               double opticalCenterX,
+                                               double opticalCenterY,
+                                               const double* kCoeffs) {
+
+    uint32_t opcodeId = WARP_RECTILINEAR_ID;
+
+    status_t err = mEndianOut.write(&opcodeId, 0, 1);
+    if (err != OK) return err;
+
+    uint8_t version[] = {1, 3, 0, 0};
+    err = mEndianOut.write(version, 0, NELEMS(version));
+    if (err != OK) return err;
+
+    // Allow this opcode to be skipped if not supported
+    uint32_t flags = FLAG_OPTIONAL;
+
+    err = mEndianOut.write(&flags, 0, 1);
+    if (err != OK) return err;
+
+    const uint32_t NUMBER_CENTER_ARGS = 2;
+    const uint32_t NUMBER_COEFFS = numPlanes * 6;
+    uint32_t totalSize = (NUMBER_CENTER_ARGS + NUMBER_COEFFS) * sizeof(double) + sizeof(uint32_t);
+
+    err = mEndianOut.write(&totalSize, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&numPlanes, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(kCoeffs, 0, NUMBER_COEFFS);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&opticalCenterX, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&opticalCenterY, 0, 1);
     if (err != OK) return err;
 
     mCount++;
