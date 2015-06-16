@@ -151,7 +151,7 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
             }
 
             outHeader->nOffset = 0;
-            outHeader->nFilledLen = (width * height * 3) / 2;
+            outHeader->nFilledLen = (mWidth * mHeight * 3) / 2;
             outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
             outHeader->nTimeStamp = inHeader->nTimeStamp;
 
