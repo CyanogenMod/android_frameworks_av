@@ -53,6 +53,10 @@ static bool ContainsTag(uint32_t* tagArray, size_t size, uint32_t tag) {
 
 extern "C" {
 
+static int zero_get_tag_count(const vendor_tag_ops_t* vOps) {
+    return 0;
+}
+
 static int default_get_tag_count(const vendor_tag_ops_t* vOps) {
     return VENDOR_TAG_COUNT_ERR;
 }
@@ -173,10 +177,13 @@ TEST(VendorTagDescriptorTest, ErrorConditions) {
     vendor_tag_ops_t vOps;
     FillWithDefaults(&vOps);
 
+    // Make empty tag count
+    vOps.get_tag_count = zero_get_tag_count;
+
     // Ensure create fails when using null vOps
     EXPECT_EQ(BAD_VALUE, VendorTagDescriptor::createDescriptorFromOps(/*vOps*/NULL, vDesc));
 
-    // Ensure create works when there are no vtags defined in a well-formed vOps
+    // Ensure creat succeeds for empty vendor tag ops
     ASSERT_EQ(OK, VendorTagDescriptor::createDescriptorFromOps(&vOps, vDesc));
 
     // Ensure defaults are returned when no vtags are defined, or tag is unknown

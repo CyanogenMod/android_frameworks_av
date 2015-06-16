@@ -1292,7 +1292,7 @@ void CameraService::notifySystemEvent(int32_t eventId, const int32_t* args, size
 status_t CameraService::addListener(const sp<ICameraServiceListener>& listener) {
     ALOGV("%s: Add listener %p", __FUNCTION__, listener.get());
 
-    if (listener == 0) {
+    if (listener == nullptr) {
         ALOGE("%s: Listener must not be null", __FUNCTION__);
         return BAD_VALUE;
     }
