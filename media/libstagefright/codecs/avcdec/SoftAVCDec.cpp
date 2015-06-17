@@ -787,7 +787,7 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             }
 
             if (s_dec_op.u4_output_present) {
-                outHeader->nFilledLen = (mWidth * mHeight * 3) / 2;
+                outHeader->nFilledLen = (outputBufferWidth() * outputBufferHeight() * 3) / 2;
 
                 outHeader->nTimeStamp = mTimeStamps[s_dec_op.u4_ts];
                 mTimeStampsValid[s_dec_op.u4_ts] = false;
