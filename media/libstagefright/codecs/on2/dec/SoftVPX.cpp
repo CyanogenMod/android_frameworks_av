@@ -146,8 +146,8 @@ bool SoftVPX::outputBuffers(bool flushDecoder, bool display, bool eos, bool *por
         }
 
         outHeader->nOffset = 0;
-        outHeader->nFilledLen = (width * height * 3) / 2;
         outHeader->nFlags = 0;
+        outHeader->nFilledLen = (outputBufferWidth() * outputBufferHeight() * 3) / 2;
         outHeader->nTimeStamp = *(OMX_TICKS *)mImg->user_priv;
 
         uint8_t *dst = outHeader->pBuffer;
