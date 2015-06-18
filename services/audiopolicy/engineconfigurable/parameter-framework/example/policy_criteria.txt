@@ -1,0 +1,9 @@
+ExclusiveCriterion TelephonyMode                :   Normal          RingTone                InCall              InCommunication
+InclusiveCriterion AvailableInputDevices        :   Communication Ambient BuiltinMic BluetoothScoHeadset WiredHeadset Hdmi TelephonyRx BackMic RemoteSubmix AnlgDockHeadset DgtlDockHeadset UsbAccessory UsbDevice FmTuner TvTuner Line Spdif BluetoothA2dp Loopback
+InclusiveCriterion AvailableOutputDevices       :   Earpiece Speaker WiredSpeaker WiredHeadset WiredHeadphone BluetoothSco BluetoothScoHeadset BluetoothScoCarkit BluetoothA2dp BluetoothA2dpHeadphones BluetoothA2dpSpeaker Hdmi AnlgDockHeadset DgtlDockHeadset UsbAccessory UsbDevice RemoteSubmix TelephonyTx Line HdmiArc Spdif Fm AuxLine SpeakerSafe
+ExclusiveCriterion ForceUseForCommunication     :   ForceNone       ForceSpeaker            ForceBtSco
+ExclusiveCriterion ForceUseForMedia             :   ForceNone       ForceSpeaker			ForceHeadphones         ForceBtA2dp         ForceWiredAccessory ForceAnalogDock ForceDigitalDock    ForceNoBtA2dp       ForceSystemEnforced
+ExclusiveCriterion ForceUseForRecord            :   ForceNone       ForceBtSco              ForceWiredAccessory
+ExclusiveCriterion ForceUseForDock              :   ForceNone       ForceWiredAccessory     ForceBtCarDock      ForceBtDeskDock     ForceAnalogDock ForceDigitalDock
+ExclusiveCriterion ForceUseForSystem            :   ForceNone       ForceSystemEnforced
+ExclusiveCriterion ForceUseForHdmiSystemAudio   :   ForceNone       ForceHdmiSystemEnforced

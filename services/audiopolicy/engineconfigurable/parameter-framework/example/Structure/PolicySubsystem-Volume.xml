@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ComponentTypeSet xmlns:xi="http://www.w3.org/2001/XInclude"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:noNamespaceSchemaLocation="Schemas/ComponentTypeSet.xsd">
+  <ComponentType Name="VolumeCurvePoints">
+    <ParameterBlock Name="curve_points" ArrayLength="4" Mapping="VolumeProfile:'%1'"
+        Description="4 points to define the volume attenuation curve, each
+                     characterized by the volume index (from 0 to 100) at which
+                     they apply, and the attenuation in dB at that index.
+                     We use 100 steps to avoid rounding errors when computing
+                     the volume">
+        <IntegerParameter Name="index" Size="32"/>
+        <FixedPointParameter Name="db_attenuation" Size="16" Integral="7" Fractional="8"/>
+     </ParameterBlock>
+    </ComponentType>
+
+    <ComponentType Name="VolumeCurvesCategories">
+        <Component Name="headset_device_category" Type="VolumeCurvePoints" Mapping="Category:0"/>
+        <Component Name="speaker_device_category" Type="VolumeCurvePoints" Mapping="Category:1"/>
+        <Component Name="earpiece_device_category" Type="VolumeCurvePoints" Mapping="Category:2"/>
+        <Component Name="extmedia_device_category" Type="VolumeCurvePoints" Mapping="Category:3"/>
+    </ComponentType>
+
+</ComponentTypeSet>
+
+
