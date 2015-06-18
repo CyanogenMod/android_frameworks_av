@@ -7045,8 +7045,7 @@ bool AudioPolicyManager::isInCall()
 }
 
 bool AudioPolicyManager::isStateInCall(int state) {
-    return ((state == AUDIO_MODE_IN_CALL) || (state == AUDIO_MODE_IN_COMMUNICATION) ||
-       ((state == AUDIO_MODE_RINGTONE) && (mPrevPhoneState == AUDIO_MODE_IN_CALL)));
+    return ((state == AUDIO_MODE_IN_CALL) || (state == AUDIO_MODE_IN_COMMUNICATION));
 }
 
 uint32_t AudioPolicyManager::getMaxEffectsCpuLoad()
