@@ -213,7 +213,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
                       device);
                 return INVALID_OPERATION;
             }
-            if (checkInputsForDevice(device, state, inputs, devDesc->mAddress) != NO_ERROR) {
+            if (checkInputsForDevice(devDesc, state, inputs, devDesc->mAddress) != NO_ERROR) {
                 return INVALID_OPERATION;
             }
 
@@ -247,7 +247,7 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
             param.addInt(String8(AUDIO_PARAMETER_DEVICE_DISCONNECT), device);
             mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
 
-            checkInputsForDevice(device, state, inputs, devDesc->mAddress);
+            checkInputsForDevice(devDesc, state, inputs, devDesc->mAddress);
             mAvailableInputDevices.remove(devDesc);
 
             // Propagate device availability to Engine
@@ -3196,7 +3196,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                 if (!desc->isDuplicated() && desc->mProfile == profile) {
                     // matching profile: save the sample rates, format and channel masks supported
                     // by the profile in our device descriptor
-                    devDesc->importAudioPort(profile);
+                    if (audio_device_is_digital(device)) {
+                        devDesc->importAudioPort(profile);
+                    }
                     break;
                 }
             }
@@ -3359,7 +3361,10 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                 profile_index--;
             } else {
                 outputs.add(output);
-                devDesc->importAudioPort(profile);
+                // Load digital format info only for digital devices
+                if (audio_device_is_digital(device)) {
+                    devDesc->importAudioPort(profile);
+                }
 
                 if (device_distinguishes_on_address(device)) {
                     ALOGV("checkOutputsForDevice(): setOutputDevice(dev=0x%x, addr=%s)",
@@ -3422,11 +3427,13 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
     return NO_ERROR;
 }
 
-status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
+status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> devDesc,
                                                   audio_policy_dev_state_t state,
                                                   SortedVector<audio_io_handle_t>& inputs,
                                                   const String8 address)
 {
+    audio_devices_t device = devDesc->type();
+
     sp<AudioInputDescriptor> desc;
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
         // first list already open inputs that can be routed to this device
@@ -3477,6 +3484,9 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
             for (input_index = 0; input_index < mInputs.size(); input_index++) {
                 desc = mInputs.valueAt(input_index);
                 if (desc->mProfile == profile) {
+                    if (audio_device_is_digital(device)) {
+                        devDesc->importAudioPort(profile);
+                    }
                     break;
                 }
             }
@@ -3562,6 +3572,9 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
                 profile_index--;
             } else {
                 inputs.add(input);
+                if (audio_device_is_digital(device)) {
+                    devDesc->importAudioPort(profile);
+                }
                 ALOGV("checkInputsForDevice(): adding input %d", input);
             }
         } // end scan profiles
@@ -3591,7 +3604,7 @@ status_t AudioPolicyManager::checkInputsForDevice(audio_devices_t device,
                  profile_index < mHwModules[module_index]->mInputProfiles.size();
                  profile_index++) {
                 sp<IOProfile> profile = mHwModules[module_index]->mInputProfiles[profile_index];
-                if (profile->mSupportedDevices.types() & device & ~AUDIO_DEVICE_BIT_IN) {
+                if (profile->mSupportedDevices.types() & (device & ~AUDIO_DEVICE_BIT_IN)) {
                     ALOGV("checkInputsForDevice(): clearing direct input profile %zu on module %zu",
                           profile_index, module_index);
                     if (profile->mSamplingRates[0] == 0) {
