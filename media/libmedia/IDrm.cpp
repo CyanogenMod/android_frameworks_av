@@ -67,7 +67,10 @@ struct BpDrm : public BpInterface<IDrm> {
     virtual status_t initCheck() const {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
-        remote()->transact(INIT_CHECK, data, &reply);
+        status_t status = remote()->transact(INIT_CHECK, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -77,7 +80,11 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
         data.write(uuid, 16);
         data.writeString8(mimeType);
-        remote()->transact(IS_CRYPTO_SUPPORTED, data, &reply);
+        status_t status = remote()->transact(IS_CRYPTO_SUPPORTED, data, &reply);
+        if (status != OK) {
+            ALOGE("isCryptoSchemeSupported: binder call failed: %d", status);
+            return false;
+        }
 
         return reply.readInt32() != 0;
     }
@@ -87,7 +94,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
         data.write(uuid, 16);
 
-        remote()->transact(CREATE_PLUGIN, data, &reply);
+        status_t status = remote()->transact(CREATE_PLUGIN, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -95,7 +105,10 @@ struct BpDrm : public BpInterface<IDrm> {
     virtual status_t destroyPlugin() {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
-        remote()->transact(DESTROY_PLUGIN, data, &reply);
+        status_t status = remote()->transact(DESTROY_PLUGIN, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -104,7 +117,10 @@ struct BpDrm : public BpInterface<IDrm> {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
-        remote()->transact(OPEN_SESSION, data, &reply);
+        status_t status = remote()->transact(OPEN_SESSION, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         readVector(reply, sessionId);
 
         return reply.readInt32();
@@ -115,7 +131,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, sessionId);
-        remote()->transact(CLOSE_SESSION, data, &reply);
+        status_t status = remote()->transact(CLOSE_SESSION, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -140,7 +159,11 @@ struct BpDrm : public BpInterface<IDrm> {
             data.writeString8(optionalParameters.keyAt(i));
             data.writeString8(optionalParameters.valueAt(i));
         }
-        remote()->transact(GET_KEY_REQUEST, data, &reply);
+
+        status_t status = remote()->transact(GET_KEY_REQUEST, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         readVector(reply, request);
         defaultUrl = reply.readString8();
@@ -156,7 +179,12 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
         writeVector(data, sessionId);
         writeVector(data, response);
-        remote()->transact(PROVIDE_KEY_RESPONSE, data, &reply);
+
+        status_t status = remote()->transact(PROVIDE_KEY_RESPONSE, data, &reply);
+        if (status != OK) {
+            return status;
+        }
+
         readVector(reply, keySetId);
 
         return reply.readInt32();
@@ -167,7 +195,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, keySetId);
-        remote()->transact(REMOVE_KEYS, data, &reply);
+        status_t status = remote()->transact(REMOVE_KEYS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -179,7 +210,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         writeVector(data, sessionId);
         writeVector(data, keySetId);
-        remote()->transact(RESTORE_KEYS, data, &reply);
+        status_t status = remote()->transact(RESTORE_KEYS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -190,7 +224,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, sessionId);
-        remote()->transact(QUERY_KEY_STATUS, data, &reply);
+        status_t status = remote()->transact(QUERY_KEY_STATUS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         infoMap.clear();
         size_t count = reply.readInt32();
@@ -211,7 +248,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         data.writeString8(certType);
         data.writeString8(certAuthority);
-        remote()->transact(GET_PROVISION_REQUEST, data, &reply);
+        status_t status = remote()->transact(GET_PROVISION_REQUEST, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         readVector(reply, request);
         defaultUrl = reply.readString8();
@@ -226,7 +266,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, response);
-        remote()->transact(PROVIDE_PROVISION_RESPONSE, data, &reply);
+        status_t status = remote()->transact(PROVIDE_PROVISION_RESPONSE, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         readVector(reply, certificate);
         readVector(reply, wrappedKey);
@@ -238,7 +281,10 @@ struct BpDrm : public BpInterface<IDrm> {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
-        remote()->transact(UNPROVISION_DEVICE, data, &reply);
+        status_t status = remote()->transact(UNPROVISION_DEVICE, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -247,7 +293,10 @@ struct BpDrm : public BpInterface<IDrm> {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
-        remote()->transact(GET_SECURE_STOPS, data, &reply);
+        status_t status = remote()->transact(GET_SECURE_STOPS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         secureStops.clear();
         uint32_t count = reply.readInt32();
@@ -264,7 +313,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, ssid);
-        remote()->transact(GET_SECURE_STOP, data, &reply);
+        status_t status = remote()->transact(GET_SECURE_STOP, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         readVector(reply, secureStop);
         return reply.readInt32();
@@ -275,7 +327,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         writeVector(data, ssRelease);
-        remote()->transact(RELEASE_SECURE_STOPS, data, &reply);
+        status_t status = remote()->transact(RELEASE_SECURE_STOPS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -284,7 +339,10 @@ struct BpDrm : public BpInterface<IDrm> {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
-        remote()->transact(RELEASE_ALL_SECURE_STOPS, data, &reply);
+        status_t status = remote()->transact(RELEASE_ALL_SECURE_STOPS, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -294,7 +352,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         data.writeString8(name);
-        remote()->transact(GET_PROPERTY_STRING, data, &reply);
+        status_t status = remote()->transact(GET_PROPERTY_STRING, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         value = reply.readString8();
         return reply.readInt32();
@@ -305,7 +366,10 @@ struct BpDrm : public BpInterface<IDrm> {
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
 
         data.writeString8(name);
-        remote()->transact(GET_PROPERTY_BYTE_ARRAY, data, &reply);
+        status_t status = remote()->transact(GET_PROPERTY_BYTE_ARRAY, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         readVector(reply, value);
         return reply.readInt32();
@@ -317,7 +381,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         data.writeString8(name);
         data.writeString8(value);
-        remote()->transact(SET_PROPERTY_STRING, data, &reply);
+        status_t status = remote()->transact(SET_PROPERTY_STRING, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -329,7 +396,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         data.writeString8(name);
         writeVector(data, value);
-        remote()->transact(SET_PROPERTY_BYTE_ARRAY, data, &reply);
+        status_t status = remote()->transact(SET_PROPERTY_BYTE_ARRAY, data, &reply);
+        if (status != OK) {
+            return status;
+        }
 
         return reply.readInt32();
     }
@@ -342,7 +412,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         writeVector(data, sessionId);
         data.writeString8(algorithm);
-        remote()->transact(SET_CIPHER_ALGORITHM, data, &reply);
+        status_t status = remote()->transact(SET_CIPHER_ALGORITHM, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         return reply.readInt32();
     }
 
@@ -353,7 +426,10 @@ struct BpDrm : public BpInterface<IDrm> {
 
         writeVector(data, sessionId);
         data.writeString8(algorithm);
-        remote()->transact(SET_MAC_ALGORITHM, data, &reply);
+        status_t status = remote()->transact(SET_MAC_ALGORITHM, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         return reply.readInt32();
     }
 
@@ -370,7 +446,10 @@ struct BpDrm : public BpInterface<IDrm> {
         writeVector(data, input);
         writeVector(data, iv);
 
-        remote()->transact(ENCRYPT, data, &reply);
+        status_t status = remote()->transact(ENCRYPT, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         readVector(reply, output);
 
         return reply.readInt32();
@@ -389,7 +468,10 @@ struct BpDrm : public BpInterface<IDrm> {
         writeVector(data, input);
         writeVector(data, iv);
 
-        remote()->transact(DECRYPT, data, &reply);
+        status_t status = remote()->transact(DECRYPT, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         readVector(reply, output);
 
         return reply.readInt32();
@@ -406,7 +488,10 @@ struct BpDrm : public BpInterface<IDrm> {
         writeVector(data, keyId);
         writeVector(data, message);
 
-        remote()->transact(SIGN, data, &reply);
+        status_t status = remote()->transact(SIGN, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         readVector(reply, signature);
 
         return reply.readInt32();
@@ -425,7 +510,10 @@ struct BpDrm : public BpInterface<IDrm> {
         writeVector(data, message);
         writeVector(data, signature);
 
-        remote()->transact(VERIFY, data, &reply);
+        status_t status = remote()->transact(VERIFY, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         match = (bool)reply.readInt32();
         return reply.readInt32();
     }
@@ -443,7 +531,10 @@ struct BpDrm : public BpInterface<IDrm> {
         writeVector(data, message);
         writeVector(data, wrappedKey);
 
-        remote()->transact(SIGN_RSA, data, &reply);
+        status_t status = remote()->transact(SIGN_RSA, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         readVector(reply, signature);
 
         return reply.readInt32();
@@ -453,7 +544,10 @@ struct BpDrm : public BpInterface<IDrm> {
         Parcel data, reply;
         data.writeInterfaceToken(IDrm::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(listener));
-        remote()->transact(SET_LISTENER, data, &reply);
+        status_t status = remote()->transact(SET_LISTENER, data, &reply);
+        if (status != OK) {
+            return status;
+        }
         return reply.readInt32();
     }
 
