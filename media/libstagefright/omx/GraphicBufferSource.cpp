@@ -118,6 +118,7 @@ GraphicBufferSource::GraphicBufferSource(
     mIsPersistent(false),
     mConsumer(consumer),
     mNumFramesAvailable(0),
+    mNumBufferAcquired(0),
     mEndOfStream(false),
     mEndOfStreamSent(false),
     mMaxTimestampGapUs(-1ll),
@@ -185,7 +186,14 @@ GraphicBufferSource::GraphicBufferSource(
 }
 
 GraphicBufferSource::~GraphicBufferSource() {
-    ALOGV("~GraphicBufferSource");
+    if (mLatestBufferId >= 0) {
+        releaseBuffer(
+                mLatestBufferId, mLatestBufferFrameNum,
+                mBufferSlot[mLatestBufferId], mLatestBufferFence);
+    }
+    if (mNumBufferAcquired != 0) {
+        ALOGW("potential buffer leak (acquired %d)", mNumBufferAcquired);
+    }
     if (mConsumer != NULL && !mIsPersistent) {
         status_t err = mConsumer->consumerDisconnect();
         if (err != NO_ERROR) {
@@ -377,17 +385,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int f
         if (id == mLatestBufferId) {
             CHECK_GT(mLatestBufferUseCount--, 0);
         } else {
-            if (mIsPersistent) {
-                mConsumer->detachBuffer(id);
-                int outSlot;
-                mConsumer->attachBuffer(&outSlot, mBufferSlot[id]);
-                mConsumer->releaseBuffer(outSlot, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
-                mBufferSlot[id] = NULL;
-            } else {
-                mConsumer->releaseBuffer(id, codecBuffer.mFrameNumber,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
-            }
+            releaseBuffer(id, codecBuffer.mFrameNumber, mBufferSlot[id], fence);
         }
     } else {
         ALOGV("codecBufferEmptied: no match for emptied buffer in cbi %d",
@@ -468,18 +466,11 @@ void GraphicBufferSource::suspend(bool suspend) {
                 break;
             }
 
+            ++mNumBufferAcquired;
             --mNumFramesAvailable;
 
-            if (mIsPersistent) {
-                mConsumer->detachBuffer(item.mBuf);
-                mBufferSlot[item.mBuf] = NULL;
-                mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
-                mConsumer->releaseBuffer(item.mBuf, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-            } else {
-                mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-            }
+            releaseBuffer(item.mBuf, item.mFrameNumber,
+                    item.mGraphicBuffer, item.mFence);
         }
         return;
     }
@@ -526,6 +517,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         return false;
     }
 
+    mNumBufferAcquired++;
     mNumFramesAvailable--;
 
     // If this is the first time we're seeing this buffer, add it to our
@@ -559,17 +551,7 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
 
     if (err != OK) {
         ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-        if (mIsPersistent) {
-            mConsumer->detachBuffer(item.mBuf);
-            mBufferSlot[item.mBuf] = NULL;
-            mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
-            mConsumer->releaseBuffer(item.mBuf, 0,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-        } else {
-            mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                    EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-        }
-        // item.mFence is released at the end of this method
+        releaseBuffer(item.mBuf, item.mFrameNumber, item.mGraphicBuffer, item.mFence);
     } else {
         ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
         setLatestBuffer_l(item, dropped);
@@ -647,19 +629,8 @@ void GraphicBufferSource::setLatestBuffer_l(
 
     if (mLatestBufferId >= 0) {
         if (mLatestBufferUseCount == 0) {
-            if (mIsPersistent) {
-                mConsumer->detachBuffer(mLatestBufferId);
-
-                int outSlot;
-                mConsumer->attachBuffer(&outSlot, mBufferSlot[mLatestBufferId]);
-                mConsumer->releaseBuffer(outSlot, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, mLatestBufferFence);
-                mBufferSlot[mLatestBufferId] = NULL;
-            } else {
-                mConsumer->releaseBuffer(
-                        mLatestBufferId, mLatestBufferFrameNum,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, mLatestBufferFence);
-            }
+            releaseBuffer(mLatestBufferId, mLatestBufferFrameNum,
+                    mBufferSlot[mLatestBufferId], mLatestBufferFence);
             // mLatestBufferFence will be set to new fence just below
         }
     }
@@ -848,6 +819,33 @@ int GraphicBufferSource::findMatchingCodecBuffer_l(
     return -1;
 }
 
+/*
+ * Releases an acquired buffer back to the consumer for either persistent
+ * or non-persistent surfaces.
+ *
+ * id: buffer slot to release (in persistent case the id might be changed)
+ * frameNum: frame number of the frame being released
+ * buffer: GraphicBuffer pointer to release (note this must not be & as we
+ *         will clear the original mBufferSlot in persistent case)
+ * fence: fence of the frame being released
+ */
+void GraphicBufferSource::releaseBuffer(
+        int &id, uint64_t frameNum,
+        const sp<GraphicBuffer> buffer, const sp<Fence> &fence) {
+    if (mIsPersistent) {
+        mConsumer->detachBuffer(id);
+        mBufferSlot[id] = NULL;
+
+        mConsumer->attachBuffer(&id, buffer);
+        mConsumer->releaseBuffer(
+                id, 0, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+    } else {
+        mConsumer->releaseBuffer(
+                id, frameNum, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+    }
+    mNumBufferAcquired--;
+}
+
 // BufferQueue::ConsumerListener callback
 void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
     Mutex::Autolock autoLock(mMutex);
@@ -868,6 +866,8 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
         BufferItem item;
         status_t err = mConsumer->acquireBuffer(&item, 0);
         if (err == OK) {
+            mNumBufferAcquired++;
+
             // If this is the first time we're seeing this buffer, add it to our
             // slot table.
             if (item.mGraphicBuffer != NULL) {
@@ -875,16 +875,8 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
                 mBufferSlot[item.mBuf] = item.mGraphicBuffer;
             }
 
-            if (mIsPersistent) {
-                mConsumer->detachBuffer(item.mBuf);
-                mBufferSlot[item.mBuf] = NULL;
-                mConsumer->attachBuffer(&item.mBuf, item.mGraphicBuffer);
-                mConsumer->releaseBuffer(item.mBuf, 0,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-            } else {
-                mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
-                        EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, item.mFence);
-            }
+            releaseBuffer(item.mBuf, item.mFrameNumber,
+                    item.mGraphicBuffer, item.mFence);
         }
         return;
     }
