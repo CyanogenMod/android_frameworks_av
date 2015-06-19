@@ -61,7 +61,7 @@ public:
     void endBox();
     uint32_t interleaveDuration() const { return mInterleaveDurationUs; }
     status_t setInterleaveDuration(uint32_t duration);
-    int32_t getTimeScale() const { return mTimeScale; }
+    int32_t getTimeScale() const { return (mTimeScale / mHFRRatio); }
 
     status_t setGeoData(int latitudex10000, int longitudex10000);
     virtual void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
