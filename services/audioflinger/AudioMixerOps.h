@@ -164,13 +164,12 @@ inline int32_t MixMul<int32_t, int16_t, float>(int16_t value, float volume) {
 template <>
 inline int16_t MixMul<int16_t, int16_t, float>(int16_t value, float volume) {
     LOG_ALWAYS_FATAL("MixMul<int16_t, int16_t, float> Runtime Should not be here");
-    return value * volume;
+    return clamp16_from_float(MixMul<float, int16_t, float>(value, volume));
 }
 
 template <>
 inline int16_t MixMul<int16_t, float, float>(float value, float volume) {
-    static const float q_15_from_float = (1 << 15);
-    return value * volume * q_15_from_float;
+    return clamp16_from_float(value * volume);
 }
 
 /*
