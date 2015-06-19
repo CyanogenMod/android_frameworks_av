@@ -456,7 +456,7 @@ protected:
                                        SortedVector<audio_io_handle_t>& outputs,
                                        const String8 address);
 
-        status_t checkInputsForDevice(audio_devices_t device,
+        status_t checkInputsForDevice(const sp<DeviceDescriptor> devDesc,
                                       audio_policy_dev_state_t state,
                                       SortedVector<audio_io_handle_t>& inputs,
                                       const String8 address);
