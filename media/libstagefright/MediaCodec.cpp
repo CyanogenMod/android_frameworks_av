@@ -1160,6 +1160,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                 case CodecBase::kWhatComponentConfigured:
                 {
+                    if (mState == UNINITIALIZED || mState == INITIALIZED) {
+                        // In case a kWhatError message came in and replied with error,
+                        // we log a warning and ignore.
+                        ALOGW("configure interrupted by error, current state %d", mState);
+                        break;
+                    }
                     CHECK_EQ(mState, CONFIGURING);
 
                     // reset input surface flag
