@@ -1,0 +1,20 @@
+domain: StrategyForStream
+
+	conf: Calibration
+		/Policy/policy/streams/voice_call/applicable_strategy/strategy = phone
+		#
+		# NOTE: SYSTEM stream uses MEDIA strategy because muting music and switching outputs
+		# while key clicks are played produces a poor result
+		#
+		/Policy/policy/streams/system/applicable_strategy/strategy = media
+		/Policy/policy/streams/ring/applicable_strategy/strategy = sonification
+		/Policy/policy/streams/music/applicable_strategy/strategy = media
+		/Policy/policy/streams/alarm/applicable_strategy/strategy = sonification
+		/Policy/policy/streams/notification/applicable_strategy/strategy = sonification_respectful
+		/Policy/policy/streams/bluetooth_sco/applicable_strategy/strategy = phone
+		/Policy/policy/streams/enforced_audible/applicable_strategy/strategy = enforced_audible
+		/Policy/policy/streams/dtmf/applicable_strategy/strategy = dtmf
+		/Policy/policy/streams/tts/applicable_strategy/strategy = transmitted_through_speaker
+		/Policy/policy/streams/accessibility/applicable_strategy/strategy = accessibility
+		/Policy/policy/streams/rerouting/applicable_strategy/strategy = rerouting
+
