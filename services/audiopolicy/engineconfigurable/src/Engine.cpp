@@ -87,11 +87,6 @@ Engine::Engine()
       mPolicyParameterMgr(new ParameterManagerWrapper()),
       mApmObserver(NULL)
 {
-    if (mPolicyParameterMgr->start() != NO_ERROR) {
-        ALOGE("%s: could not start Policy PFW", __FUNCTION__);
-        delete mPolicyParameterMgr;
-        mPolicyParameterMgr = NULL;
-    }
 }
 
 Engine::~Engine()
@@ -111,10 +106,13 @@ void Engine::setObserver(AudioPolicyManagerObserver *observer)
 
 status_t Engine::initCheck()
 {
-    return (mPolicyParameterMgr != NULL) &&
-            mPolicyParameterMgr->isStarted() &&
-            (mApmObserver != NULL)?
-                NO_ERROR : NO_INIT;
+    if (mPolicyParameterMgr != NULL && mPolicyParameterMgr->start() != NO_ERROR) {
+        ALOGE("%s: could not start Policy PFW", __FUNCTION__);
+        delete mPolicyParameterMgr;
+        mPolicyParameterMgr = NULL;
+        return NO_INIT;
+    }
+    return (mApmObserver != NULL)? NO_ERROR : NO_INIT;
 }
 
 bool Engine::setVolumeProfileForStream(const audio_stream_type_t &streamType,
@@ -143,19 +141,6 @@ status_t Engine::add(const std::string &name, const Key &key)
     return collection.add(name, key);
 }
 
-template <>
-routing_strategy Engine::getPropertyForKey<routing_strategy, audio_usage_t>(audio_usage_t usage) const
-{
-    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
-
-    if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY &&
-            (outputs.isStreamActive(AUDIO_STREAM_RING) ||
-             outputs.isStreamActive(AUDIO_STREAM_ALARM))) {
-        return STRATEGY_SONIFICATION;
-    }
-    return getPropertyForKey<routing_strategy, audio_usage_t>(usage);
-}
-
 template <typename Property, typename Key>
 Property Engine::getPropertyForKey(Key key) const
 {
@@ -167,10 +152,21 @@ Property Engine::getPropertyForKey(Key key) const
     return element->template get<Property>();
 }
 
-template <>
-audio_devices_t Engine::getPropertyForKey<audio_devices_t, routing_strategy>(routing_strategy strategy) const
+routing_strategy Engine::ManagerInterfaceImpl::getStrategyForUsage(audio_usage_t usage)
 {
-    const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
+    const SwAudioOutputCollection &outputs = mPolicyEngine->mApmObserver->getOutputs();
+
+    if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY &&
+            (outputs.isStreamActive(AUDIO_STREAM_RING) ||
+             outputs.isStreamActive(AUDIO_STREAM_ALARM))) {
+        return STRATEGY_SONIFICATION;
+    }
+    return mPolicyEngine->getPropertyForKey<routing_strategy, audio_usage_t>(usage);
+}
+
+audio_devices_t Engine::ManagerInterfaceImpl::getDeviceForStrategy(routing_strategy strategy) const
+{
+    const SwAudioOutputCollection &outputs = mPolicyEngine->mApmObserver->getOutputs();
 
     /** This is the only case handled programmatically because the PFW is unable to know the
      * activity of streams.
@@ -187,19 +183,9 @@ audio_devices_t Engine::getPropertyForKey<audio_devices_t, routing_strategy>(rou
             !outputs.isStreamActiveRemotely(AUDIO_STREAM_MUSIC,
                                     SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY) &&
             outputs.isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY)) {
-        return getPropertyForKey<audio_devices_t, routing_strategy>(STRATEGY_MEDIA);
+        return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(STRATEGY_MEDIA);
     }
-    return getPropertyForKey<audio_devices_t, routing_strategy>(strategy);
-}
-
-routing_strategy Engine::ManagerInterfaceImpl::getStrategyForUsage(audio_usage_t usage)
-{
-    return mPolicyEngine->getPropertyForKey<routing_strategy, audio_usage_t>(usage);
-}
-
-audio_devices_t Engine::ManagerInterfaceImpl::getDeviceForStrategy(routing_strategy stategy) const
-{
-    return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(stategy);
+    return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(strategy);
 }
 
 template <typename Property, typename Key>
@@ -233,6 +219,9 @@ status_t Engine::initStreamVolume(audio_stream_type_t streamType,
         ALOGE("%s: Stream Type %d not found", __FUNCTION__, streamType);
         return BAD_TYPE;
     }
+    mApmObserver->getStreamDescriptors().setVolumeIndexMin(streamType, indexMin);
+    mApmObserver->getStreamDescriptors().setVolumeIndexMax(streamType, indexMax);
+
     return stream->initVolume(indexMin, indexMax);
 }
 

@@ -145,7 +145,7 @@ void ParameterManagerWrapper::loadCriterionType(cnode *root, bool isInclusive)
 
         ALOG_ASSERT(node != NULL, "error in parsing file");
         const char *typeName = node->name;
-        char *valueNames = (char *)node->value;
+        char *valueNames = strndup(node->value, strlen(node->value));
 
         addCriterionType(typeName, isInclusive);
 
@@ -178,6 +178,7 @@ void ParameterManagerWrapper::loadCriterionType(cnode *root, bool isInclusive)
             }
             valueName = strtok_r(NULL, ",", &ctx);
         }
+        free(valueNames);
     }
 }
 
