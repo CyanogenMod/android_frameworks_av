@@ -1033,7 +1033,11 @@ status_t Camera3Device::configureStreams(bool isConstrainedHighSpeed) {
 
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
-    mIsConstrainedHighSpeedConfiguration = isConstrainedHighSpeed;
+
+    if (mIsConstrainedHighSpeedConfiguration != isConstrainedHighSpeed) {
+        mNeedConfig = true;
+        mIsConstrainedHighSpeedConfiguration = isConstrainedHighSpeed;
+    }
 
     return configureStreamsLocked();
 }
