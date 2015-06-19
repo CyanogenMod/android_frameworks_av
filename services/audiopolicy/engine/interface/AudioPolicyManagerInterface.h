@@ -107,8 +107,8 @@ public:
      * @param[in] usage for which a configuration shall be forced.
      * @param[in] config wished to be forced for the given usage.
      *
-     * @return NO_ERROR if the Force Use config was set correctly, error code otherwise (e.g. config not
-     * allowed a given usage...)
+     * @return NO_ERROR if the Force Use config was set correctly, error code otherwise (e.g. config
+     * not allowed a given usage...)
      */
     virtual status_t setForceUse(audio_policy_force_use_t usage,
                                  audio_policy_forced_cfg_t config) = 0;

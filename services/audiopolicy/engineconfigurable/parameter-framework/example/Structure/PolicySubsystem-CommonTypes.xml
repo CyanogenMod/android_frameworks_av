@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ComponentTypeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xmlns:xi="http://www.w3.org/2001/XInclude"
+              xsi:noNamespaceSchemaLocation="Schemas/ComponentTypeSet.xsd">
+    <!-- Output devices definition as a bitfield for the supported devices per output
+    profile. It must match with the output device enum parameter.
+    -->
+     <!--#################### GLOBAL COMPONENTS BEGIN ####################-->
+     <!-- Common Types defintion -->
+     <xi:include href="PolicySubsystem-Volume.xml"/>
+
+     <!--#################### GLOBAL COMPONENTS END ####################-->
+
+    <ComponentType Name="OutputDevicesMask" Description="32th bit is not allowed as dedicated
+                                                     for input devices detection">
+        <BitParameterBlock Name="mask" Size="32">
+            <BitParameter Name="earpiece" Size="1" Pos="0"/>
+            <BitParameter Name="speaker" Size="1" Pos="1"/>
+            <BitParameter Name="wired_headset" Size="1" Pos="2"/>
+            <BitParameter Name="wired_headphone" Size="1" Pos="3"/>
+            <BitParameter Name="bluetooth_sco" Size="1" Pos="4"/>
+            <BitParameter Name="bluetooth_sco_headset" Size="1" Pos="5"/>
+            <BitParameter Name="bluetooth_sco_carkit" Size="1" Pos="6"/>
+            <BitParameter Name="bluetooth_a2dp" Size="1" Pos="7"/>
+            <BitParameter Name="bluetooth_a2dp_headphones" Size="1" Pos="8"/>
+            <BitParameter Name="bluetooth_a2dp_speaker" Size="1" Pos="9"/>
+            <BitParameter Name="hdmi" Size="1" Pos="10"/>
+            <BitParameter Name="angl_dock_headset" Size="1" Pos="11"/>
+            <BitParameter Name="dgtl_dock_headset" Size="1" Pos="12"/>
+            <BitParameter Name="usb_accessory" Size="1" Pos="13"/>
+            <BitParameter Name="usb_device" Size="1" Pos="14"/>
+            <BitParameter Name="remote_submix" Size="1" Pos="15"/>
+            <BitParameter Name="telephony_tx" Size="1" Pos="26"/>
+            <BitParameter Name="line" Size="1" Pos="17"/>
+            <BitParameter Name="hdmi_arc" Size="1" Pos="18"/>
+            <BitParameter Name="spdif" Size="1" Pos="19"/>
+            <BitParameter Name="fm" Size="1" Pos="20"/>
+            <BitParameter Name="aux_line" Size="1" Pos="21"/>
+            <BitParameter Name="speaker_safe" Size="1" Pos="22"/>
+        </BitParameterBlock>
+    </ComponentType>
+
+    <!-- Input devices definition as a bitfield for the supported devices per Input
+    profile. It must match with the Input device enum parameter.
+    -->
+    <ComponentType Name="InputDevicesMask">
+        <BitParameterBlock Name="mask" Size="32">
+            <BitParameter Name="communication" Size="1" Pos="0"/>
+            <BitParameter Name="ambient" Size="1" Pos="1"/>
+            <BitParameter Name="builtin_mic" Size="1" Pos="2"/>
+            <BitParameter Name="bluetooth_sco_headset" Size="1" Pos="3"/>
+            <BitParameter Name="wired_headset" Size="1" Pos="4"/>
+            <BitParameter Name="hdmi" Size="1" Pos="5"/>
+            <BitParameter Name="telephony_rx" Size="1" Pos="6"/>
+            <BitParameter Name="back_mic" Size="1" Pos="7"/>
+            <BitParameter Name="remote_submix" Size="1" Pos="8"/>
+            <BitParameter Name="anlg_dock_headset" Size="1" Pos="9"/>
+            <BitParameter Name="dgtl_dock_headset" Size="1" Pos="10"/>
+            <BitParameter Name="usb_accessory" Size="1" Pos="11"/>
+            <BitParameter Name="usb_device" Size="1" Pos="12"/>
+            <BitParameter Name="fm_tuner" Size="1" Pos="13"/>
+            <BitParameter Name="tv_tuner" Size="1" Pos="14"/>
+            <BitParameter Name="line" Size="1" Pos="15"/>
+            <BitParameter Name="spdif" Size="1" Pos="16"/>
+            <BitParameter Name="bluetooth_a2dp" Size="1" Pos="17"/>
+            <BitParameter Name="loopback" Size="1" Pos="18"/>
+            <BitParameter Name="in" Size="1" Pos="31"/>
+        </BitParameterBlock>
+    </ComponentType>
+
+    <ComponentType Name="OutputFlags"
+                   Description="the audio output flags serve two purposes:
+                    - when an AudioTrack is created they indicate a wish to be connected to an
+                      output stream with attributes corresponding to the specified flags.
+                    - when present in an output profile descriptor listed for a particular audio
+                      hardware module, they indicate that an output stream can be opened that
+                      supports the attributes indicated by the flags.
+                    The audio policy manager will try to match the flags in the request
+                    (when getOuput() is called) to an available output stream.">
+        <BitParameterBlock Name="mask" Size="32">
+            <BitParameter Name="direct" Size="1" Pos="0"/>
+            <BitParameter Name="primary" Size="1" Pos="1"/>
+            <BitParameter Name="fast" Size="1" Pos="2"/>
+            <BitParameter Name="deep_buffer" Size="1" Pos="3"/>
+            <BitParameter Name="compress_offload" Size="1" Pos="4"/>
+            <BitParameter Name="non_blocking" Size="1" Pos="5"/>
+            <BitParameter Name="hw_av_sync" Size="1" Pos="6"/>
+        </BitParameterBlock>
+    </ComponentType>
+
+    <ComponentType Name="InputFlags"
+                   Description="The audio input flags are analogous to audio output flags.
+                                Currently they are used only when an AudioRecord is created,
+                                to indicate a preference to be connected to an input stream with
+                                attributes corresponding to the specified flags.">
+        <BitParameterBlock Name="mask" Size="32">
+            <BitParameter Name="fast" Size="1" Pos="0"/>
+            <BitParameter Name="hw_hotword" Size="1" Pos="2"/>
+        </BitParameterBlock>
+    </ComponentType>
+
+    <ComponentType Name="InputSourcesMask" Description="The audio input source is also known
+                                                        as the use case.">
+        <BitParameterBlock Name="mask" Size="32">
+            <BitParameter Name="default" Size="1" Pos="0"/>
+            <BitParameter Name="mic" Size="1" Pos="1"/>
+            <BitParameter Name="voice_uplink" Size="1" Pos="2"/>
+            <BitParameter Name="voice_downlink" Size="1" Pos="3"/>
+            <BitParameter Name="voice_call" Size="1" Pos="4"/>
+            <BitParameter Name="camcorder" Size="1" Pos="5"/>
+            <BitParameter Name="voice_recognition" Size="1" Pos="6"/>
+            <BitParameter Name="voice_communication" Size="1" Pos="7"/>
+            <BitParameter Name="remote_submix" Size="1" Pos="8"/>
+            <BitParameter Name="fm_tuner" Size="1" Pos="9"/>
+            <BitParameter Name="hotword" Size="1" Pos="10"/>
+        </BitParameterBlock>
+    </ComponentType>
+
+    <!-- Routing Strategy definition as an enumeration. Numerical value must match the value
+         of the routing strategy in policy header file. -->
+    <ComponentType Name="Strategy">
+        <EnumParameter Name="strategy" Size="32">
+            <ValuePair Literal="media" Numerical="0"/>
+            <ValuePair Literal="phone" Numerical="1"/>
+            <ValuePair Literal="sonification" Numerical="2"/>
+            <ValuePair Literal="sonification_respectful" Numerical="3"/>
+            <ValuePair Literal="dtmf" Numerical="4"/>
+            <ValuePair Literal="enforced_audible" Numerical="5"/>
+            <ValuePair Literal="transmitted_through_speaker" Numerical="6"/>
+            <ValuePair Literal="accessibility" Numerical="7"/>
+            <ValuePair Literal="rerouting" Numerical="8"/>
+        </EnumParameter>
+    </ComponentType>
+
+    <!--#################### STRATEGY COMMON TYPES BEGIN ####################-->
+
+    <ComponentType Name="StrategyConfig" Mapping="Strategy:'%1'">
+        <Component Name="selected_output_devices" Type="OutputDevicesMask"/>
+    </ComponentType>
+
+    <!--#################### STRATEGY COMMON TYPES END ####################-->
+
+    <!--#################### STREAM COMMON TYPES BEGIN ####################-->
+
+    <ComponentType Name="Stream">
+        <Component Name="applicable_strategy" Type="Strategy" Mapping="Stream:'%1'"/>
+        <Component Name="volume_profiles" Type="VolumeCurvesCategories"
+                   Description="A volume profile is refered by the stream type."/>
+    </ComponentType>
+
+    <!--#################### STREAM COMMON TYPES END ####################-->
+
+    <!--#################### USAGE COMMON TYPES BEGIN ####################-->
+
+    <ComponentType Name="Usage">
+        <Component Name="applicable_strategy" Type="Strategy" Mapping="Usage:'%1'"/>
+    </ComponentType>
+
+    <!--#################### USAGE COMMON TYPES END ####################-->
+
+    <!--#################### INPUT SOURCE COMMON TYPES BEGIN ####################-->
+
+    <ComponentType Name="InputSource">
+        <Component Name="applicable_input_device" Type="InputDevicesMask"
+                   Mapping="InputSource:'%1'" Description="Selected Input device"/>
+    </ComponentType>
+
+    <!--#################### INPUT SOURCE COMMON TYPES END ####################-->
+
+</ComponentTypeSet>
