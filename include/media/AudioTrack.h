@@ -644,6 +644,12 @@ public:
      *      BAD_VALUE           size is invalid
      *      WOULD_BLOCK         when obtainBuffer() returns same, or
      *                          AudioTrack was stopped during the write
+     *      DEAD_OBJECT         when AudioFlinger dies or the output device changes and
+     *                          the track cannot be automatically restored.
+     *                          The application needs to recreate the AudioTrack
+     *                          because the audio device changed or AudioFlinger died.
+     *                          This typically occurs for direct or offload tracks
+     *                          or if mDoNotReconnect is true.
      *      or any other error code returned by IAudioTrack::start() or restoreTrack_l().
      * Default behavior is to only return when all data has been transferred. Set 'blocking' to
      * false for the method to return immediately without waiting to try multiple times to write
