@@ -119,8 +119,9 @@ struct FrameRenderTracker : public RefBase {
     std::list<Info> checkFencesAndGetRenderedFrames(const Info *until, bool dropIncomplete);
 
     // Stop tracking a queued frame (e.g. if the frame has been discarded). If |info| is NULL or is
-    // not tracked, this method is a no-op.
-    void untrackFrame(const Info *info);
+    // not tracked, this method is a no-op. If |index| is specified, all indices larger that |index|
+    // are decremented. This is useful if the untracked frame is deleted from the frame vector.
+    void untrackFrame(const Info *info, ssize_t index = SSIZE_MAX);
 
     void dumpRenderQueue() const;
 
