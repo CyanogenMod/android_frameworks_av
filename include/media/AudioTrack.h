@@ -690,6 +690,12 @@ public:
      *                     overall hardware latency to physical output. In WOULD_BLOCK cases,
      *                     one might poll again, or use getPosition(), or use 0 position and
      *                     current time for the timestamp.
+     *         DEAD_OBJECT if AudioFlinger dies or the output device changes and
+     *                     the track cannot be automatically restored.
+     *                     The application needs to recreate the AudioTrack
+     *                     because the audio device changed or AudioFlinger died.
+     *                     This typically occurs for direct or offload tracks
+     *                     or if mDoNotReconnect is true.
      *         INVALID_OPERATION  if called on a FastTrack, wrong state, or some other error.
      *
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.

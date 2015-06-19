@@ -2207,7 +2207,12 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     }
 
     if (mCblk->mFlags & CBLK_INVALID) {
-        restoreTrack_l("getTimestamp");
+        const status_t status = restoreTrack_l("getTimestamp");
+        if (status != OK) {
+            // per getTimestamp() API doc in header, we return DEAD_OBJECT here,
+            // recommending that the track be recreated.
+            return DEAD_OBJECT;
+        }
     }
 
     // The presented frame count must always lag behind the consumed frame count.
