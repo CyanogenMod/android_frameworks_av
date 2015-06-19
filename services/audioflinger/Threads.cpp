@@ -2194,6 +2194,8 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
 
     // Check if we want to throttle the processing to no more than 2x normal rate
     mThreadThrottle = property_get_bool("af.thread.throttle", true /* default_value */);
+    mThreadThrottleTimeMs = 0;
+    mThreadThrottleEndMs = 0;
     mHalfBufferMs = mNormalFrameCount * 1000 / (2 * mSampleRate);
 
     // mSinkBuffer is the sink buffer.  Size is always multiple-of-16 frames.
@@ -2960,8 +2962,19 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         const int32_t throttleMs = mHalfBufferMs - deltaMs;
                         if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
                             usleep(throttleMs * 1000);
-                            ALOGD("mixer(%p) throttle: ret(%zd) deltaMs(%d) requires sleep %d ms",
+                            // notify of throttle start on verbose log
+                            ALOGV_IF(mThreadThrottleEndMs == mThreadThrottleTimeMs,
+                                    "mixer(%p) throttle begin:"
+                                    " ret(%zd) deltaMs(%d) requires sleep %d ms",
                                     this, ret, deltaMs, throttleMs);
+                            mThreadThrottleTimeMs += throttleMs;
+                        } else {
+                            uint32_t diff = mThreadThrottleTimeMs - mThreadThrottleEndMs;
+                            if (diff > 0) {
+                                // notify of throttle end on debug log
+                                ALOGD("mixer(%p) throttle end: throttle time(%u)", this, diff);
+                                mThreadThrottleEndMs = mThreadThrottleTimeMs;
+                            }
                         }
                     }
                 }
@@ -4340,7 +4353,7 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
     String8 result;
 
     PlaybackThread::dumpInternals(fd, args);
-
+    dprintf(fd, "  Thread throttle time (msecs): %u\n", mThreadThrottleTimeMs);
     dprintf(fd, "  AudioMixer tracks: 0x%08x\n", mAudioMixer->trackNames());
 
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
