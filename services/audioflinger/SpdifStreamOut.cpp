@@ -128,7 +128,7 @@ status_t SpdifStreamOut::getRenderPosition(uint32_t *frames)
 
 int SpdifStreamOut::flush()
 {
-    // FIXME Is there an issue here with flush being asynchronous?
+    mSpdifEncoder.reset();
     mRenderPositionHal = 0;
     mPreviousHalPosition32 = 0;
     return AudioStreamOut::flush();
@@ -136,6 +136,7 @@ int SpdifStreamOut::flush()
 
 int SpdifStreamOut::standby()
 {
+    mSpdifEncoder.reset();
     mRenderPositionHal = 0;
     mPreviousHalPosition32 = 0;
     return AudioStreamOut::standby();
