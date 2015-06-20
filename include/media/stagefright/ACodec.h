@@ -110,6 +110,9 @@ private:
     enum {
         kWhatSetup                   = 'setu',
         kWhatOMXMessage              = 'omx ',
+        // same as kWhatOMXMessage - but only used with
+        // handleMessage during OMX message-list handling
+        kWhatOMXMessageItem          = 'omxI',
         kWhatOMXMessageList          = 'omxL',
         kWhatInputBufferFilled       = 'inpF',
         kWhatOutputBufferDrained     = 'outD',
