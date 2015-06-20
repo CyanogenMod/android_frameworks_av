@@ -18,6 +18,7 @@
 #define LOG_TAG "StagefrightPlayer"
 #include <utils/Log.h>
 
+#include <inttypes.h>
 #include "StagefrightPlayer.h"
 
 #include "AwesomePlayer.h"
@@ -63,7 +64,7 @@ status_t StagefrightPlayer::setDataSource(
 // Warning: The filedescriptor passed into this method will only be valid until
 // the method returns, if you want to keep it, dup it!
 status_t StagefrightPlayer::setDataSource(int fd, int64_t offset, int64_t length) {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     return mPlayer->setDataSource(dup(fd), offset, length);
 }
 

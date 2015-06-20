@@ -257,8 +257,7 @@ void VideoFrameScheduler::PLL::prime(size_t numSamplesToUse) {
             mPhase = firstTime;
         }
     }
-    ALOGV("priming[%zu] phase:%lld period:%lld",
-            numSamplesToUse, (long long)mPhase, (long long)mPeriod);
+    ALOGV("priming[%zu] phase:%lld period:%lld ", numSamplesToUse, (long long)mPhase, (long long)mPeriod);
 }
 
 nsecs_t VideoFrameScheduler::PLL::addSample(nsecs_t time) {
