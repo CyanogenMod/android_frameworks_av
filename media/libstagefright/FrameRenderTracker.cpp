@@ -149,14 +149,21 @@ std::list<FrameRenderTracker::Info> FrameRenderTracker::checkFencesAndGetRendere
     return done;
 }
 
-void FrameRenderTracker::untrackFrame(const FrameRenderTracker::Info *info) {
-    if (info != NULL) {
-        for (std::list<Info>::iterator it = mRenderQueue.begin();
-                it != mRenderQueue.end(); ++it) {
-            if (&*it == info) {
-                mRenderQueue.erase(it);
-                return;
+void FrameRenderTracker::untrackFrame(const FrameRenderTracker::Info *info, ssize_t index) {
+    if (info == NULL && index == SSIZE_MAX) {
+        // nothing to do
+        return;
+    }
+
+    for (std::list<Info>::iterator it = mRenderQueue.begin();
+            it != mRenderQueue.end(); ) {
+        if (&*it == info) {
+            mRenderQueue.erase(it++);
+        } else {
+            if (it->mIndex > index) {
+                --(it->mIndex);
             }
+            ++it;
         }
     }
 }

@@ -1271,8 +1271,12 @@ void ACodec::notifyOfRenderedFrames(bool dropIncomplete, FrameRenderTracker::Inf
     // unlink untracked frames
     for (std::list<FrameRenderTracker::Info>::const_iterator it = done.cbegin();
             it != done.cend(); ++it) {
-        if (it->getIndex() >= 0) {
-            mBuffers[kPortIndexOutput].editItemAt(it->getIndex()).mRenderInfo = NULL;
+        ssize_t index = it->getIndex();
+        if (index >= 0 && (size_t)index < mBuffers[kPortIndexOutput].size()) {
+            mBuffers[kPortIndexOutput].editItemAt(index).mRenderInfo = NULL;
+        } else if (index >= 0) {
+            // THIS SHOULD NEVER HAPPEN
+            ALOGE("invalid index %zd in %zu", index, mBuffers[kPortIndexOutput].size());
         }
     }
 
@@ -1467,12 +1471,13 @@ status_t ACodec::freeBuffer(OMX_U32 portIndex, size_t i) {
         ::close(info->mFenceFd);
     }
 
-    mRenderTracker.untrackFrame(info->mRenderInfo);
-    info->mRenderInfo = NULL;
+    if (portIndex == kPortIndexOutput) {
+        mRenderTracker.untrackFrame(info->mRenderInfo, i);
+        info->mRenderInfo = NULL;
+    }
 
     // remove buffer even if mOMX->freeBuffer fails
     mBuffers[portIndex].removeAt(i);
-
     return err;
 }
 
