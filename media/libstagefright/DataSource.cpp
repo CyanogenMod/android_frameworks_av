@@ -179,7 +179,7 @@ bool Sniffer::sniff(
     }
 
     /* Only do the deeper sniffers if the results are null or in doubt */
-    if (mimeType->length() == 0 || *confidence <= 0.2f || forceExtraSniffers) {
+    if (mimeType->length() == 0 || *confidence < 0.21f || forceExtraSniffers) {
         for (List<SnifferFunc>::iterator it = mExtraSniffers.begin();
                 it != mExtraSniffers.end(); ++it) {
             String8 newMimeType;
