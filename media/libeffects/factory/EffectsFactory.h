@@ -26,6 +26,7 @@
 extern "C" {
 #endif
 
+#define PROPERTY_IGNORE_EFFECTS "ro.audio.ignore_effects"
 
 typedef struct list_elem_s {
     void *object;

@@ -24,6 +24,7 @@
 
 #include <cutils/misc.h>
 #include <cutils/config_utils.h>
+#include <cutils/properties.h>
 #include <audio_effects/audio_effects_conf.h>
 
 static list_elem_t *gEffectList; // list of effect_entry_t: all currently created effects
@@ -447,12 +448,19 @@ int init() {
         return 0;
     }
 
+    // ignore effects or not?
+    const bool ignoreFxConfFiles = property_get_bool(PROPERTY_IGNORE_EFFECTS, false);
+
     pthread_mutex_init(&gLibLock, NULL);
 
-    if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
-        loadEffectConfigFile(AUDIO_EFFECT_VENDOR_CONFIG_FILE);
-    } else if (access(AUDIO_EFFECT_DEFAULT_CONFIG_FILE, R_OK) == 0) {
-        loadEffectConfigFile(AUDIO_EFFECT_DEFAULT_CONFIG_FILE);
+    if (ignoreFxConfFiles) {
+        ALOGI("Audio effects in configuration files will be ignored");
+    } else {
+        if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
+            loadEffectConfigFile(AUDIO_EFFECT_VENDOR_CONFIG_FILE);
+        } else if (access(AUDIO_EFFECT_DEFAULT_CONFIG_FILE, R_OK) == 0) {
+            loadEffectConfigFile(AUDIO_EFFECT_DEFAULT_CONFIG_FILE);
+        }
     }
 
     updateNumEffects();
