@@ -54,12 +54,8 @@ Visualizer::Visualizer (const String16& opPackageName,
 Visualizer::~Visualizer()
 {
     ALOGV("Visualizer::~Visualizer()");
-    if (mCaptureThread != NULL) {
-        mCaptureThread->requestExitAndWait();
-        mCaptureThread.clear();
-    }
-    mCaptureCallBack = NULL;
-    mCaptureFlags = 0;
+    setEnabled(false);
+    setCaptureCallBack(NULL, NULL, 0, 0, true);
 }
 
 status_t Visualizer::setEnabled(bool enabled)
@@ -99,14 +95,14 @@ status_t Visualizer::setEnabled(bool enabled)
 }
 
 status_t Visualizer::setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t flags,
-        uint32_t rate)
+        uint32_t rate, bool force)
 {
     if (rate > CAPTURE_RATE_MAX) {
         return BAD_VALUE;
     }
     Mutex::Autolock _l(mCaptureLock);
 
-    if (mEnabled) {
+    if (force || mEnabled) {
         return INVALID_OPERATION;
     }
 
