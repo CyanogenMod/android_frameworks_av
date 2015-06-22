@@ -4511,6 +4511,12 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             return checkOMXMessage(msg) ? onOMXMessageList(msg) : true;
         }
 
+        case ACodec::kWhatOMXMessageItem:
+        {
+            // no need to check as we already did it for kWhatOMXMessageList
+            return onOMXMessage(msg);
+        }
+
         case ACodec::kWhatOMXMessage:
         {
             return checkOMXMessage(msg) ? onOMXMessage(msg) : true;
@@ -4598,7 +4604,8 @@ bool ACodec::BaseState::onOMXMessageList(const sp<AMessage> &msg) {
     bool receivedRenderedEvents = false;
     for (std::list<sp<AMessage>>::const_iterator it = msgList->getList().cbegin();
           it != msgList->getList().cend(); ++it) {
-        onOMXMessage(*it);
+        (*it)->setWhat(ACodec::kWhatOMXMessageItem);
+        mCodec->handleMessage(*it);
         int32_t type;
         CHECK((*it)->findInt32("type", &type));
         if (type == omx_message::FRAME_RENDERED) {
