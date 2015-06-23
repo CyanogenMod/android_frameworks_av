@@ -733,13 +733,9 @@ void AudioMixer::setParameter(int name, int target, int param, void *value)
             case PLAYBACK_RATE: {
                 const AudioPlaybackRate *playbackRate =
                         reinterpret_cast<AudioPlaybackRate*>(value);
-                ALOG_ASSERT(AUDIO_TIMESTRETCH_SPEED_MIN <= playbackRate->mSpeed
-                        && playbackRate->mSpeed <= AUDIO_TIMESTRETCH_SPEED_MAX,
-                        "bad speed %f", playbackRate->mSpeed);
-                ALOG_ASSERT(AUDIO_TIMESTRETCH_PITCH_MIN <= playbackRate->mPitch
-                        && playbackRate->mPitch <= AUDIO_TIMESTRETCH_PITCH_MAX,
-                        "bad pitch %f", playbackRate->mPitch);
-                //TODO: use function from AudioResamplerPublic.h to test validity.
+                ALOGW_IF(!isAudioPlaybackRateValid(*playbackRate),
+                        "bad parameters speed %f, pitch %f",playbackRate->mSpeed,
+                        playbackRate->mPitch);
                 if (track.setPlaybackRate(*playbackRate)) {
                     ALOGV("setParameter(TIMESTRETCH, PLAYBACK_RATE, STRETCH_MODE, FALLBACK_MODE "
                             "%f %f %d %d",
