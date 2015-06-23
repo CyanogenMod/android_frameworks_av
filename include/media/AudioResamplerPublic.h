@@ -108,6 +108,23 @@ static inline bool isAudioPlaybackRateEqual(const AudioPlaybackRate &pr1,
            pr2.mFallbackMode == pr2.mFallbackMode;
 }
 
+static inline bool isAudioPlaybackRateValid(const AudioPlaybackRate &playbackRate) {
+    if (playbackRate.mFallbackMode == AUDIO_TIMESTRETCH_FALLBACK_FAIL &&
+            (playbackRate.mStretchMode == AUDIO_TIMESTRETCH_STRETCH_SPEECH ||
+                    playbackRate.mStretchMode == AUDIO_TIMESTRETCH_STRETCH_DEFAULT)) {
+        //test sonic specific constraints
+        return playbackRate.mSpeed >= TIMESTRETCH_SONIC_SPEED_MIN &&
+                playbackRate.mSpeed <= TIMESTRETCH_SONIC_SPEED_MAX &&
+                playbackRate.mPitch >= AUDIO_TIMESTRETCH_PITCH_MIN &&
+                playbackRate.mPitch <= AUDIO_TIMESTRETCH_PITCH_MAX;
+    } else {
+        return playbackRate.mSpeed >= AUDIO_TIMESTRETCH_SPEED_MIN &&
+                playbackRate.mSpeed <= AUDIO_TIMESTRETCH_SPEED_MAX &&
+                playbackRate.mPitch >= AUDIO_TIMESTRETCH_PITCH_MIN &&
+                playbackRate.mPitch <= AUDIO_TIMESTRETCH_PITCH_MAX;
+    }
+}
+
 // TODO: Consider putting these inlines into a class scope
 
 // Returns the source frames needed to resample to destination frames.  This is not a precise

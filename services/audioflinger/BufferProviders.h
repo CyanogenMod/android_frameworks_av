@@ -188,6 +188,7 @@ private:
     sonicStream          mSonicStream;            // handle to sonic timestretch object
     //FIXME: this dependency should be abstracted out
     bool                 mFallbackFailErrorShown; // log fallback error only once
+    bool                 mAudioPlaybackRateValid; // flag for current parameters validity
 };
 
 // ----------------------------------------------------------------------------
