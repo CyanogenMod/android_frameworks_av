@@ -188,8 +188,8 @@ int Reverb_LoadPreset       (ReverbContext   *pContext);
 /* Effect Library Interface Implementation */
 
 extern "C" int EffectCreate(const effect_uuid_t *uuid,
-                            int32_t             sessionId,
-                            int32_t             ioId,
+                            int32_t             sessionId __unused,
+                            int32_t             ioId __unused,
                             effect_handle_t  *pHandle){
     int ret;
     int i;
@@ -1912,7 +1912,7 @@ int Reverb_command(effect_handle_t  self,
             //ALOGV("\tReverb_command cmdCode Case: "
             //        "EFFECT_CMD_INIT start");
 
-            if (pReplyData == NULL || *replySize != sizeof(int)){
+            if (pReplyData == NULL || replySize == NULL || *replySize != sizeof(int)){
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_INIT: ERROR");
                 return -EINVAL;
@@ -1923,10 +1923,8 @@ int Reverb_command(effect_handle_t  self,
         case EFFECT_CMD_SET_CONFIG:
             //ALOGV("\tReverb_command cmdCode Case: "
             //        "EFFECT_CMD_SET_CONFIG start");
-            if (pCmdData == NULL ||
-                cmdSize != sizeof(effect_config_t) ||
-                pReplyData == NULL ||
-                *replySize != sizeof(int)) {
+            if (pCmdData == NULL || cmdSize != sizeof(effect_config_t) ||
+                    pReplyData == NULL || replySize == NULL || *replySize != sizeof(int)) {
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_SET_CONFIG: ERROR");
                 return -EINVAL;
@@ -1936,8 +1934,7 @@ int Reverb_command(effect_handle_t  self,
             break;
 
         case EFFECT_CMD_GET_CONFIG:
-            if (pReplyData == NULL ||
-                *replySize != sizeof(effect_config_t)) {
+            if (pReplyData == NULL || replySize == NULL || *replySize != sizeof(effect_config_t)) {
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_GET_CONFIG: ERROR");
                 return -EINVAL;
@@ -1955,15 +1952,16 @@ int Reverb_command(effect_handle_t  self,
         case EFFECT_CMD_GET_PARAM:{
             //ALOGV("\tReverb_command cmdCode Case: "
             //        "EFFECT_CMD_GET_PARAM start");
-            if (pCmdData == NULL ||
-                    cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)) ||
-                    pReplyData == NULL ||
-                    *replySize < (int) (sizeof(effect_param_t) + sizeof(int32_t))){
+            effect_param_t *p = (effect_param_t *)pCmdData;
+
+            if (pCmdData == NULL || cmdSize < sizeof(effect_param_t) ||
+                    cmdSize < (sizeof(effect_param_t) + p->psize) ||
+                    pReplyData == NULL || replySize == NULL ||
+                    *replySize < (sizeof(effect_param_t) + p->psize)) {
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_GET_PARAM: ERROR");
                 return -EINVAL;
             }
-            effect_param_t *p = (effect_param_t *)pCmdData;
 
             memcpy(pReplyData, pCmdData, sizeof(effect_param_t) + p->psize);
 
@@ -1994,8 +1992,8 @@ int Reverb_command(effect_handle_t  self,
             //        *replySize,
             //        *(int16_t *)((char *)pCmdData + sizeof(effect_param_t) + sizeof(int32_t)));
 
-            if (pCmdData == NULL || (cmdSize < (int)(sizeof(effect_param_t) + sizeof(int32_t)))
-                    || pReplyData == NULL || *replySize != (int)sizeof(int32_t)) {
+            if (pCmdData == NULL || (cmdSize < (sizeof(effect_param_t) + sizeof(int32_t))) ||
+                    pReplyData == NULL ||  replySize == NULL || *replySize != sizeof(int32_t)) {
                 ALOGV("\tLVM_ERROR : Reverb_command cmdCode Case: "
                         "EFFECT_CMD_SET_PARAM: ERROR");
                 return -EINVAL;
