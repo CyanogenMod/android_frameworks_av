@@ -78,7 +78,7 @@ static inline uint32_t adjustSampleRate(uint32_t sampleRate, float pitch)
 
 static inline float adjustSpeed(float speed, float pitch)
 {
-    return kFixPitch ? (speed / pitch) : speed;
+    return kFixPitch ? speed / max(pitch, AUDIO_TIMESTRETCH_PITCH_MIN_DELTA) : speed;
 }
 
 static inline float adjustPitch(float pitch)
@@ -809,25 +809,33 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     const uint32_t effectiveRate = adjustSampleRate(mSampleRate, playbackRate.mPitch);
     const float effectiveSpeed = adjustSpeed(playbackRate.mSpeed, playbackRate.mPitch);
     const float effectivePitch = adjustPitch(playbackRate.mPitch);
-    if (effectiveSpeed < AUDIO_TIMESTRETCH_SPEED_MIN
-            || effectiveSpeed > AUDIO_TIMESTRETCH_SPEED_MAX
-            || effectivePitch < AUDIO_TIMESTRETCH_PITCH_MIN
-            || effectivePitch > AUDIO_TIMESTRETCH_PITCH_MAX) {
+    AudioPlaybackRate playbackRateTemp = playbackRate;
+    playbackRateTemp.mSpeed = effectiveSpeed;
+    playbackRateTemp.mPitch = effectivePitch;
+
+    if (!isAudioPlaybackRateValid(playbackRateTemp)) {
         return BAD_VALUE;
-        //TODO: add function in AudioResamplerPublic.h to check for validity.
     }
     // Check if the buffer size is compatible.
     if (!isSampleRateSpeedAllowed_l(effectiveRate, effectiveSpeed)) {
         ALOGV("setPlaybackRate(%f, %f) failed", playbackRate.mSpeed, playbackRate.mPitch);
         return BAD_VALUE;
     }
-    mPlaybackRate = playbackRate;
-    mProxy->setPlaybackRate(playbackRate);
 
-    //modify this
-    AudioPlaybackRate playbackRateTemp = playbackRate;
-    playbackRateTemp.mSpeed = effectiveSpeed;
-    playbackRateTemp.mPitch = effectivePitch;
+    // Check resampler ratios are within bounds
+    if (effectiveRate > mSampleRate * AUDIO_RESAMPLER_DOWN_RATIO_MAX) {
+        ALOGV("setPlaybackRate(%f, %f) failed. Resample rate exceeds max accepted value",
+                playbackRate.mSpeed, playbackRate.mPitch);
+        return BAD_VALUE;
+    }
+
+    if (effectiveRate * AUDIO_RESAMPLER_UP_RATIO_MAX < mSampleRate) {
+        ALOGV("setPlaybackRate(%f, %f) failed. Resample rate below min accepted value",
+                        playbackRate.mSpeed, playbackRate.mPitch);
+        return BAD_VALUE;
+    }
+    mPlaybackRate = playbackRate;
+    //set effective rates
     mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
     return NO_ERROR;
