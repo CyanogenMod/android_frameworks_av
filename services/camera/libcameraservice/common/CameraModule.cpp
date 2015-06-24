@@ -132,6 +132,15 @@ void CameraModule::deriveCameraCharacteristicsKeys(
                     highSpeedConfig);
         }
     }
+
+    // Always add a default for the pre-correction active array if the vendor chooses to omit this
+    camera_metadata_entry entry = chars.find(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
+    if (entry.count == 0) {
+        entry = chars.find(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+        chars.update(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE, entry.data.i32,
+                entry.count);
+    }
+
     return;
 }
 
