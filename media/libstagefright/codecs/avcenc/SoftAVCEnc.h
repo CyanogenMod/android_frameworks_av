@@ -17,7 +17,7 @@
 #ifndef __SOFT_AVC_ENC_H__
 #define __SOFT_AVC_ENC_H__
 
-#include <media/stagefright/MediaBuffer.h>
+
 #include <media/stagefright/foundation/ABase.h>
 #include <utils/Vector.h>
 
@@ -25,14 +25,14 @@
 
 namespace android {
 
-class MediaBuffer;
-
+#define MAX_INPUT_BUFFER_HEADERS 4
+#define MAX_CONVERSION_BUFFERS   4
 #define CODEC_MAX_CORES          4
 #define LEN_STATUS_BUFFER        (10  * 1024)
 #define MAX_VBV_BUFF_SIZE        (120 * 16384)
 #define MAX_NUM_IO_BUFS           3
 
-#define DEFAULT_MAX_REF_FRM         1
+#define DEFAULT_MAX_REF_FRM         2
 #define DEFAULT_MAX_REORDER_FRM     0
 #define DEFAULT_QP_MIN              10
 #define DEFAULT_QP_MAX              40
@@ -57,7 +57,7 @@ class MediaBuffer;
 #define DEFAULT_TGT_FRAME_RATE      30
 #define DEFAULT_MAX_WD              1920
 #define DEFAULT_MAX_HT              1920
-#define DEFAULT_MAX_LEVEL           40
+#define DEFAULT_MAX_LEVEL           41
 #define DEFAULT_STRIDE              0
 #define DEFAULT_WD                  1280
 #define DEFAULT_HT                  720
@@ -88,6 +88,7 @@ class MediaBuffer;
 #define DEFAULT_QPEL                1
 #define DEFAULT_I4                  1
 #define DEFAULT_EPROFILE            IV_PROFILE_BASE
+#define DEFAULT_ENTROPY_MODE        0
 #define DEFAULT_SLICE_MODE          IVE_SLICE_MODE_NONE
 #define DEFAULT_SLICE_PARAM         256
 #define DEFAULT_ARCH                ARCH_ARM_A9Q
@@ -149,8 +150,6 @@ private:
 
     int32_t  mStride;
 
-    uint32_t mFrameRate;
-
     struct timeval mTimeStart;   // Time at the start of decode()
     struct timeval mTimeEnd;     // Time at the end of decode()
 
@@ -167,32 +166,32 @@ private:
 
     IV_COLOR_FORMAT_T mIvVideoColorFormat;
 
-    int32_t  mIDRFrameRefreshIntervalInSec;
     IV_PROFILE_T mAVCEncProfile;
     WORD32   mAVCEncLevel;
-    int64_t  mNumInputFrames;
-    int64_t  mPrevTimestampUs;
     bool     mStarted;
     bool     mSpsPpsHeaderReceived;
 
     bool     mSawInputEOS;
+    bool     mSawOutputEOS;
     bool     mSignalledError;
     bool     mIntra4x4;
     bool     mEnableFastSad;
     bool     mEnableAltRef;
-    bool    mReconEnable;
-    bool    mPSNREnable;
+    bool     mReconEnable;
+    bool     mPSNREnable;
+    bool     mEntropyMode;
     IVE_SPEED_CONFIG     mEncSpeed;
 
-    uint8_t *mConversionBuffer;
-
+    uint8_t *mConversionBuffers[MAX_CONVERSION_BUFFERS];
+    bool     mConversionBuffersFree[MAX_CONVERSION_BUFFERS];
+    BufferInfo *mInputBufferInfo[MAX_INPUT_BUFFER_HEADERS];
     iv_obj_t *mCodecCtx;         // Codec context
     iv_mem_rec_t *mMemRecords;   // Memory records requested by the codec
     size_t mNumMemRecords;       // Number of memory records requested by codec
     size_t mNumCores;            // Number of cores used by the codec
 
     UWORD32 mHeaderGenerated;
-
+    UWORD32 mBframes;
     IV_ARCH_T mArch;
     IVE_SLICE_MODE_T mSliceMode;
     UWORD32 mSliceParam;
@@ -203,7 +202,7 @@ private:
     IVE_AIR_MODE_T mAIRMode;
     UWORD32 mAIRRefreshPeriod;
 
-    OMX_ERRORTYPE initEncParams();
+    void initEncParams();
     OMX_ERRORTYPE initEncoder();
     OMX_ERRORTYPE releaseEncoder();
 
@@ -292,6 +291,8 @@ private:
         fclose(fp);                                     \
     } else {                                            \
         ALOGD("Could not write to file %s", m_filename);\
+        if (fp != NULL)                                 \
+            fclose(fp);                                 \
     }                                                   \
 }
 #else /* FILE_DUMP_ENABLE */

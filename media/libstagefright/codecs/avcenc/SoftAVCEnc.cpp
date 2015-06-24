@@ -49,10 +49,10 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
-typedef struct LevelConversion {
+struct LevelConversion {
     OMX_VIDEO_AVCLEVELTYPE omxLevel;
     WORD32 avcLevel;
-} LevelConcersion;
+};
 
 static LevelConversion ConversionTable[] = {
     { OMX_VIDEO_AVCLevel1,  10 },
@@ -87,8 +87,21 @@ static const CodecProfileLevel kProfileLevels[] = {
     { OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel32 },
     { OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel4  },
     { OMX_VIDEO_AVCProfileBaseline, OMX_VIDEO_AVCLevel41 },
-};
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel1  },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel1b },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel11 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel12 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel13 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel2  },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel21 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel22 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel3  },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel31 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel32 },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel4  },
+    { OMX_VIDEO_AVCProfileMain, OMX_VIDEO_AVCLevel41 },
 
+};
 
 static size_t GetCPUCoreCount() {
     long cpuCoreCount = 1;
@@ -99,7 +112,7 @@ static size_t GetCPUCoreCount() {
     cpuCoreCount = sysconf(_SC_NPROC_ONLN);
 #endif
     CHECK(cpuCoreCount >= 1);
-    ALOGD("Number of CPU cores: %ld", cpuCoreCount);
+    ALOGV("Number of CPU cores: %ld", cpuCoreCount);
     return (size_t)cpuCoreCount;
 }
 
@@ -144,15 +157,15 @@ SoftAVC::SoftAVC(
             kProfileLevels, NELEM(kProfileLevels),
             176 /* width */, 144 /* height */,
             callbacks, appData, component),
+      mBitrateUpdated(false),
+      mKeyFrameRequested(false),
       mIvVideoColorFormat(IV_YUV_420P),
-      mIDRFrameRefreshIntervalInSec(1),
       mAVCEncProfile(IV_PROFILE_BASE),
-      mAVCEncLevel(31),
-      mPrevTimestampUs(-1),
+      mAVCEncLevel(41),
       mStarted(false),
       mSawInputEOS(false),
+      mSawOutputEOS(false),
       mSignalledError(false),
-      mConversionBuffer(NULL),
       mCodecCtx(NULL) {
 
     initPorts(kNumBuffers, kNumBuffers, ((mWidth * mHeight * 3) >> 1),
@@ -162,6 +175,10 @@ SoftAVC::SoftAVC(
     GENERATE_FILE_NAMES();
     CREATE_DUMP_FILE(mInFile);
     CREATE_DUMP_FILE(mOutFile);
+    memset(mConversionBuffers, 0, sizeof(mConversionBuffers));
+    memset(mInputBufferInfo, 0, sizeof(mInputBufferInfo));
+
+    initEncParams();
 
 }
 
@@ -173,7 +190,7 @@ SoftAVC::~SoftAVC() {
     CHECK(inQueue.empty());
 }
 
-OMX_ERRORTYPE SoftAVC::initEncParams() {
+void  SoftAVC::initEncParams() {
     mCodecCtx = NULL;
     mMemRecords = NULL;
     mNumMemRecords = DEFAULT_MEM_REC_CNT;
@@ -186,7 +203,6 @@ OMX_ERRORTYPE SoftAVC::initEncParams() {
     mIInterval = DEFAULT_I_INTERVAL;
     mIDRInterval = DEFAULT_IDR_INTERVAL;
     mDisableDeblkLevel = DEFAULT_DISABLE_DEBLK_LEVEL;
-    mFrameRate = DEFAULT_SRC_FRAME_RATE;
     mEnableFastSad = DEFAULT_ENABLE_FAST_SAD;
     mEnableAltRef = DEFAULT_ENABLE_ALT_REF;
     mEncSpeed = DEFAULT_ENC_SPEED;
@@ -195,11 +211,12 @@ OMX_ERRORTYPE SoftAVC::initEncParams() {
     mAIRRefreshPeriod = DEFAULT_AIR_REFRESH_PERIOD;
     mPSNREnable = DEFAULT_PSNR_ENABLE;
     mReconEnable = DEFAULT_RECON_ENABLE;
+    mEntropyMode = DEFAULT_ENTROPY_MODE;
+    mBframes = DEFAULT_B_FRAMES;
 
     gettimeofday(&mTimeStart, NULL);
     gettimeofday(&mTimeEnd, NULL);
 
-    return OMX_ErrorNone;
 }
 
 
@@ -260,8 +277,8 @@ OMX_ERRORTYPE SoftAVC::setFrameRate() {
     s_frame_rate_ip.e_cmd = IVE_CMD_VIDEO_CTL;
     s_frame_rate_ip.e_sub_cmd = IVE_CMD_CTL_SET_FRAMERATE;
 
-    s_frame_rate_ip.u4_src_frame_rate = mFrameRate;
-    s_frame_rate_ip.u4_tgt_frame_rate = mFrameRate;
+    s_frame_rate_ip.u4_src_frame_rate = mFramerate >> 16;
+    s_frame_rate_ip.u4_tgt_frame_rate = mFramerate >> 16;
 
     s_frame_rate_ip.u4_timestamp_high = -1;
     s_frame_rate_ip.u4_timestamp_low = -1;
@@ -332,7 +349,6 @@ OMX_ERRORTYPE SoftAVC::setFrameType(IV_PICTURE_CODING_TYPE_T e_frame_type) {
     ive_ctl_set_frame_type_ip_t s_frame_type_ip;
     ive_ctl_set_frame_type_op_t s_frame_type_op;
     IV_STATUS_T status;
-
     s_frame_type_ip.e_cmd = IVE_CMD_VIDEO_CTL;
     s_frame_type_ip.e_sub_cmd = IVE_CMD_CTL_SET_FRAMETYPE;
 
@@ -503,7 +519,6 @@ OMX_ERRORTYPE SoftAVC::setGopParams() {
 
     s_gop_params_ip.u4_i_frm_interval = mIInterval;
     s_gop_params_ip.u4_idr_frm_interval = mIDRInterval;
-    s_gop_params_ip.u4_num_b_frames = DEFAULT_B_FRAMES;
 
     s_gop_params_ip.u4_timestamp_high = -1;
     s_gop_params_ip.u4_timestamp_low = -1;
@@ -529,7 +544,7 @@ OMX_ERRORTYPE SoftAVC::setProfileParams() {
     s_profile_params_ip.e_sub_cmd = IVE_CMD_CTL_SET_PROFILE_PARAMS;
 
     s_profile_params_ip.e_profile = DEFAULT_EPROFILE;
-
+    s_profile_params_ip.u4_entropy_coding_mode = mEntropyMode;
     s_profile_params_ip.u4_timestamp_high = -1;
     s_profile_params_ip.u4_timestamp_low = -1;
 
@@ -595,7 +610,6 @@ void SoftAVC::logVersion() {
 
 OMX_ERRORTYPE SoftAVC::initEncoder() {
     IV_STATUS_T status;
-    size_t i;
     WORD32 level;
     uint32_t displaySizeY;
     CHECK(!mStarted);
@@ -618,31 +632,27 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
     }
     mAVCEncLevel = MAX(level, mAVCEncLevel);
 
-    if (OMX_ErrorNone != (errType = initEncParams())) {
-        ALOGE("Failed to initialize encoder params");
-        mSignalledError = true;
-        notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
-        return errType;
-    }
-
     mStride = mWidth;
 
     if (mInputDataIsMeta) {
-        if (mConversionBuffer) {
-            free(mConversionBuffer);
-            mConversionBuffer = NULL;
-        }
+        for (size_t i = 0; i < MAX_CONVERSION_BUFFERS; i++) {
+            if (mConversionBuffers[i] != NULL) {
+                free(mConversionBuffers[i]);
+                mConversionBuffers[i] = 0;
+            }
 
-        if (mConversionBuffer == NULL) {
             if (((uint64_t)mStride * mHeight) > (((uint64_t)INT32_MAX / 3) * 2)) {
                 ALOGE("Buffer size is too big.");
                 return OMX_ErrorUndefined;
             }
-            mConversionBuffer = (uint8_t *)malloc(mStride * mHeight * 3 / 2);
-            if (mConversionBuffer == NULL) {
+            mConversionBuffers[i] = (uint8_t *)malloc(mStride * mHeight * 3 / 2);
+
+            if (mConversionBuffers[i] == NULL) {
                 ALOGE("Allocating conversion buffer failed.");
                 return OMX_ErrorUndefined;
             }
+
+            mConversionBuffersFree[i] = 1;
         }
     }
 
@@ -658,7 +668,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
             break;
     }
 
-    ALOGV("Params width %d height %d level %d colorFormat %d", mWidth,
+    ALOGD("Params width %d height %d level %d colorFormat %d", mWidth,
             mHeight, mAVCEncLevel, mIvVideoColorFormat);
 
     /* Getting Number of MemRecords */
@@ -699,7 +709,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
     {
         iv_mem_rec_t *ps_mem_rec;
         ps_mem_rec = mMemRecords;
-        for (i = 0; i < mNumMemRecords; i++) {
+        for (size_t i = 0; i < mNumMemRecords; i++) {
             ps_mem_rec->u4_size = sizeof(iv_mem_rec_t);
             ps_mem_rec->pv_base = NULL;
             ps_mem_rec->u4_mem_size = 0;
@@ -746,9 +756,9 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
         WORD32 total_size;
         iv_mem_rec_t *ps_mem_rec;
         total_size = 0;
-
         ps_mem_rec = mMemRecords;
-        for (i = 0; i < mNumMemRecords; i++) {
+
+        for (size_t i = 0; i < mNumMemRecords; i++) {
             ps_mem_rec->pv_base = ive_aligned_malloc(
                     ps_mem_rec->u4_mem_alignment, ps_mem_rec->u4_mem_size);
             if (ps_mem_rec->pv_base == NULL) {
@@ -763,7 +773,6 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
 
             ps_mem_rec++;
         }
-        printf("\nTotal memory for codec %d\n", total_size);
     }
 
     /* Codec Instance Creation */
@@ -797,7 +806,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
         s_init_ip.e_rc_mode = DEFAULT_RC_MODE;
         s_init_ip.u4_max_framerate = DEFAULT_MAX_FRAMERATE;
         s_init_ip.u4_max_bitrate = DEFAULT_MAX_BITRATE;
-        s_init_ip.u4_max_num_bframes = DEFAULT_B_FRAMES;
+        s_init_ip.u4_num_bframes = mBframes;
         s_init_ip.e_content_type = IV_PROGRESSIVE;
         s_init_ip.u4_max_srch_rng_x = DEFAULT_MAX_SRCH_RANGE_X;
         s_init_ip.u4_max_srch_rng_y = DEFAULT_MAX_SRCH_RANGE_Y;
@@ -872,7 +881,6 @@ OMX_ERRORTYPE SoftAVC::releaseEncoder() {
     iv_retrieve_mem_rec_ip_t s_retrieve_mem_ip;
     iv_retrieve_mem_rec_op_t s_retrieve_mem_op;
     iv_mem_rec_t *ps_mem_rec;
-    UWORD32 i;
 
     if (!mStarted) {
         return OMX_ErrorNone;
@@ -893,16 +901,18 @@ OMX_ERRORTYPE SoftAVC::releaseEncoder() {
 
     /* Free memory records */
     ps_mem_rec = mMemRecords;
-    for (i = 0; i < s_retrieve_mem_op.u4_num_mem_rec_filled; i++) {
+    for (size_t i = 0; i < s_retrieve_mem_op.u4_num_mem_rec_filled; i++) {
         ive_aligned_free(ps_mem_rec->pv_base);
         ps_mem_rec++;
     }
 
     free(mMemRecords);
 
-    if (mConversionBuffer != NULL) {
-        free(mConversionBuffer);
-        mConversionBuffer = NULL;
+    for (size_t i = 0; i < MAX_CONVERSION_BUFFERS; i++) {
+        if (mConversionBuffers[i]) {
+            free(mConversionBuffers[i]);
+            mConversionBuffers[i] = NULL;
+        }
     }
 
     mStarted = false;
@@ -934,23 +944,21 @@ OMX_ERRORTYPE SoftAVC::internalGetParameter(OMX_INDEXTYPE index, OMX_PTR params)
                 return OMX_ErrorUndefined;
             }
 
-            avcParams->eProfile = OMX_VIDEO_AVCProfileBaseline;
-            OMX_VIDEO_AVCLEVELTYPE omxLevel = OMX_VIDEO_AVCLevel31;
+            OMX_VIDEO_AVCLEVELTYPE omxLevel = OMX_VIDEO_AVCLevel41;
             if (OMX_ErrorNone
                     != ConvertAvcSpecLevelToOmxAvcLevel(mAVCEncLevel, &omxLevel)) {
                 return OMX_ErrorUndefined;
             }
 
+            avcParams->eProfile = OMX_VIDEO_AVCProfileBaseline;
             avcParams->eLevel = omxLevel;
             avcParams->nRefFrames = 1;
-            avcParams->nBFrames = 0;
             avcParams->bUseHadamard = OMX_TRUE;
             avcParams->nAllowedPictureTypes = (OMX_VIDEO_PictureTypeI
-                    | OMX_VIDEO_PictureTypeP);
+                    | OMX_VIDEO_PictureTypeP | OMX_VIDEO_PictureTypeB);
             avcParams->nRefIdx10ActiveMinus1 = 0;
             avcParams->nRefIdx11ActiveMinus1 = 0;
             avcParams->bWeightedPPrediction = OMX_FALSE;
-            avcParams->bEntropyCodingCABAC = OMX_FALSE;
             avcParams->bconstIpred = OMX_FALSE;
             avcParams->bDirect8x8Inference = OMX_FALSE;
             avcParams->bDirectSpatialTemporal = OMX_FALSE;
@@ -981,14 +989,26 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
                 return OMX_ErrorUndefined;
             }
 
-            if (avcType->eProfile != OMX_VIDEO_AVCProfileBaseline
-                    || avcType->nRefFrames != 1 || avcType->nBFrames != 0
+            mEntropyMode = 0;
+
+            if (OMX_TRUE == avcType->bEntropyCodingCABAC)
+                mEntropyMode = 1;
+
+            if ((avcType->nAllowedPictureTypes & OMX_VIDEO_PictureTypeB) &&
+                    avcType->nPFrames) {
+                mBframes = avcType->nBFrames / avcType->nPFrames;
+            }
+
+            mIInterval = avcType->nPFrames + avcType->nBFrames;
+
+            if (OMX_VIDEO_AVCLoopFilterDisable == avcType->eLoopFilterMode)
+                mDisableDeblkLevel = 4;
+
+            if (avcType->nRefFrames != 1
                     || avcType->bUseHadamard != OMX_TRUE
-                    || (avcType->nAllowedPictureTypes & OMX_VIDEO_PictureTypeB) != 0
                     || avcType->nRefIdx10ActiveMinus1 != 0
                     || avcType->nRefIdx11ActiveMinus1 != 0
                     || avcType->bWeightedPPrediction != OMX_FALSE
-                    || avcType->bEntropyCodingCABAC != OMX_FALSE
                     || avcType->bconstIpred != OMX_FALSE
                     || avcType->bDirect8x8Inference != OMX_FALSE
                     || avcType->bDirectSpatialTemporal != OMX_FALSE
@@ -1083,14 +1103,27 @@ OMX_ERRORTYPE SoftAVC::setEncodeArgs(
 
     /* Initialize color formats */
     ps_inp_raw_buf->e_color_fmt = mIvVideoColorFormat;
-
     source = NULL;
-    if (inputBufferHeader) {
+    if ((inputBufferHeader != NULL) && inputBufferHeader->nFilledLen) {
         source = inputBufferHeader->pBuffer + inputBufferHeader->nOffset;
 
         if (mInputDataIsMeta) {
+            uint8_t *conversionBuffer = NULL;
+            for (size_t i = 0; i < MAX_CONVERSION_BUFFERS; i++) {
+                if (mConversionBuffersFree[i]) {
+                    mConversionBuffersFree[i] = 0;
+                    conversionBuffer = mConversionBuffers[i];
+                    break;
+                }
+            }
+
+            if (NULL == conversionBuffer) {
+                ALOGE("No free buffers to hold conversion data");
+                return OMX_ErrorUndefined;
+            }
+
             source = extractGraphicBuffer(
-                    mConversionBuffer, (mWidth * mHeight * 3 / 2), source,
+                    conversionBuffer, (mWidth * mHeight * 3 / 2), source,
                     inputBufferHeader->nFilledLen, mWidth, mHeight);
 
             if (source == NULL) {
@@ -1099,6 +1132,18 @@ OMX_ERRORTYPE SoftAVC::setEncodeArgs(
                 return OMX_ErrorUndefined;
             }
         }
+        ps_encode_ip->u4_is_last = 0;
+        ps_encode_ip->u4_timestamp_high = (inputBufferHeader->nTimeStamp) >> 32;
+        ps_encode_ip->u4_timestamp_low = (inputBufferHeader->nTimeStamp) & 0xFFFFFFFF;
+    }
+    else {
+        if (mSawInputEOS){
+            ps_encode_ip->u4_is_last = 1;
+        }
+        memset(ps_inp_raw_buf, 0, sizeof(iv_raw_buf_t));
+        ps_inp_raw_buf->e_color_fmt = mIvVideoColorFormat;
+        ps_inp_raw_buf->u4_size = sizeof(iv_raw_buf_t);
+        return OMX_ErrorNone;
     }
 
     pu1_buf = (UWORD8 *)source;
@@ -1153,14 +1198,6 @@ OMX_ERRORTYPE SoftAVC::setEncodeArgs(
             break;
         }
     }
-
-    ps_encode_ip->u4_is_last = 0;
-
-    if (inputBufferHeader) {
-        ps_encode_ip->u4_timestamp_high = (inputBufferHeader->nTimeStamp) >> 32;
-        ps_encode_ip->u4_timestamp_low = (inputBufferHeader->nTimeStamp) & 0xFFFFFFFF;
-    }
-
     return OMX_ErrorNone;
 }
 
@@ -1178,38 +1215,31 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             return;
         }
     }
-    if (mSignalledError || mSawInputEOS) {
+    if (mSignalledError) {
         return;
     }
 
     List<BufferInfo *> &inQueue = getPortQueue(0);
     List<BufferInfo *> &outQueue = getPortQueue(1);
 
-    while (!mSawInputEOS && !inQueue.empty() && !outQueue.empty()) {
+    while (!mSawOutputEOS && !outQueue.empty()) {
+
         OMX_ERRORTYPE error;
         ive_video_encode_ip_t s_encode_ip;
         ive_video_encode_op_t s_encode_op;
-
-        BufferInfo *inputBufferInfo = *inQueue.begin();
-        OMX_BUFFERHEADERTYPE *inputBufferHeader = inputBufferInfo->mHeader;
-
         BufferInfo *outputBufferInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outputBufferHeader = outputBufferInfo->mHeader;
 
-        if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS &&
-                inputBufferHeader->nFilledLen == 0) {
-            mSawInputEOS = true;
+        BufferInfo *inputBufferInfo;
+        OMX_BUFFERHEADERTYPE *inputBufferHeader;
 
-            inQueue.erase(inQueue.begin());
-            inputBufferInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inputBufferHeader);
-
-            outputBufferHeader->nFilledLen = 0;
-            outputBufferHeader->nFlags = OMX_BUFFERFLAG_EOS;
-
-            outQueue.erase(outQueue.begin());
-            outputBufferInfo->mOwnedByUs = false;
-            notifyFillBufferDone(outputBufferHeader);
+        if (mSawInputEOS) {
+            inputBufferHeader = NULL;
+            inputBufferInfo = NULL;
+        } else if (!inQueue.empty()) {
+            inputBufferInfo = *inQueue.begin();
+            inputBufferHeader = inputBufferInfo->mHeader;
+        } else {
             return;
         }
 
@@ -1218,6 +1248,10 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         outputBufferHeader->nOffset = 0;
         outputBufferHeader->nFilledLen = 0;
         outputBufferHeader->nOffset = 0;
+
+        if (inputBufferHeader != NULL) {
+            outputBufferHeader->nFlags = inputBufferHeader->nFlags;
+        }
 
         uint8_t *outPtr = (uint8_t *)outputBufferHeader->pBuffer;
 
@@ -1242,10 +1276,13 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
 
             outputBufferHeader->nFlags = OMX_BUFFERFLAG_CODECCONFIG;
             outputBufferHeader->nFilledLen = s_encode_op.s_out_buf.u4_bytes;
-            outputBufferHeader->nTimeStamp = inputBufferHeader->nTimeStamp;
+            if (inputBufferHeader != NULL) {
+                outputBufferHeader->nTimeStamp = inputBufferHeader->nTimeStamp;
+            }
 
             outQueue.erase(outQueue.begin());
             outputBufferInfo->mOwnedByUs = false;
+
             DUMP_TO_FILE(
                     mOutFile, outputBufferHeader->pBuffer,
                     outputBufferHeader->nFilledLen);
@@ -1263,14 +1300,24 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             setFrameType(IV_IDR_FRAME);
         }
 
-        mPrevTimestampUs = inputBufferHeader->nTimeStamp;
-
-        if (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+        if ((inputBufferHeader != NULL)
+                && (inputBufferHeader->nFlags & OMX_BUFFERFLAG_EOS)) {
             mSawInputEOS = true;
         }
 
+        /* In normal mode, store inputBufferInfo and this will be returned
+           when encoder consumes this input */
+        if (!mInputDataIsMeta && (inputBufferInfo != NULL)) {
+            for (size_t i = 0; i < MAX_INPUT_BUFFER_HEADERS; i++) {
+                if (NULL == mInputBufferInfo[i]) {
+                    mInputBufferInfo[i] = inputBufferInfo;
+                    break;
+                }
+            }
+        }
         error = setEncodeArgs(
                 &s_encode_ip, &s_encode_op, inputBufferHeader, outputBufferHeader);
+
         if (error != OMX_ErrorNone) {
             mSignalledError = true;
             notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
@@ -1280,14 +1327,11 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         DUMP_TO_FILE(
                 mInFile, s_encode_ip.s_inp_buf.apv_bufs[0],
                 (mHeight * mStride * 3 / 2));
-        //DUMP_TO_FILE(mInFile, inputBufferHeader->pBuffer + inputBufferHeader->nOffset,
-        //    inputBufferHeader->nFilledLen);
 
         GETTIME(&mTimeStart, NULL);
         /* Compute time elapsed between end of previous decode()
          * to start of current decode() */
         TIME_DIFF(mTimeEnd, mTimeStart, timeDelay);
-
         status = ive_api_function(mCodecCtx, &s_encode_ip, &s_encode_op);
 
         if (IV_SUCCESS != status) {
@@ -1305,37 +1349,76 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         ALOGV("timeTaken=%6d delay=%6d numBytes=%6d", timeTaken, timeDelay,
                 s_encode_op.s_out_buf.u4_bytes);
 
+        /* In encoder frees up an input buffer, mark it as free */
+        if (s_encode_op.s_inp_buf.apv_bufs[0] != NULL) {
+            if (mInputDataIsMeta) {
+                for (size_t i = 0; i < MAX_CONVERSION_BUFFERS; i++) {
+                    if (mConversionBuffers[i] == s_encode_op.s_inp_buf.apv_bufs[0]) {
+                        mConversionBuffersFree[i] = 1;
+                        break;
+                    }
+                }
+            } else {
+                /* In normal mode, call EBD on inBuffeHeader that is freed by the codec */
+                for (size_t i = 0; i < MAX_INPUT_BUFFER_HEADERS; i++) {
+                    uint8_t *buf = NULL;
+                    OMX_BUFFERHEADERTYPE *bufHdr = NULL;
+                    if (mInputBufferInfo[i] != NULL) {
+                        bufHdr = mInputBufferInfo[i]->mHeader;
+                        buf = bufHdr->pBuffer + bufHdr->nOffset;
+                    }
+                    if (s_encode_op.s_inp_buf.apv_bufs[0] == buf) {
+                        mInputBufferInfo[i]->mOwnedByUs = false;
+                        notifyEmptyBufferDone(bufHdr);
+                        mInputBufferInfo[i] = NULL;
+                        break;
+                    }
+                }
+            }
+        }
 
-        outputBufferHeader->nFlags = inputBufferHeader->nFlags;
         outputBufferHeader->nFilledLen = s_encode_op.s_out_buf.u4_bytes;
-        outputBufferHeader->nTimeStamp = inputBufferHeader->nTimeStamp;
 
-        if (IV_IDR_FRAME
-                == s_encode_op.u4_encoded_frame_type) {
+        if (IV_IDR_FRAME == s_encode_op.u4_encoded_frame_type) {
             outputBufferHeader->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
         }
 
-        inQueue.erase(inQueue.begin());
-        inputBufferInfo->mOwnedByUs = false;
+        if (inputBufferHeader != NULL) {
+            inQueue.erase(inQueue.begin());
 
-        notifyEmptyBufferDone(inputBufferHeader);
-
-        if (mSawInputEOS) {
-            outputBufferHeader->nFlags |= OMX_BUFFERFLAG_EOS;
+            /* If in meta data, call EBD on input */
+            /* In case of normal mode, EBD will be done once encoder
+            releases the input buffer */
+            if (mInputDataIsMeta) {
+                inputBufferInfo->mOwnedByUs = false;
+                notifyEmptyBufferDone(inputBufferHeader);
+            }
         }
 
-        outputBufferInfo->mOwnedByUs = false;
-        outQueue.erase(outQueue.begin());
+        if (s_encode_op.u4_is_last) {
+            outputBufferHeader->nFlags |= OMX_BUFFERFLAG_EOS;
+            mSawOutputEOS = true;
+        } else {
+            outputBufferHeader->nFlags &= ~OMX_BUFFERFLAG_EOS;
+        }
 
-        DUMP_TO_FILE(
-                mOutFile, outputBufferHeader->pBuffer,
-                outputBufferHeader->nFilledLen);
-        notifyFillBufferDone(outputBufferHeader);
+        if (outputBufferHeader->nFilledLen || s_encode_op.u4_is_last) {
+            outputBufferHeader->nTimeStamp = s_encode_op.u4_timestamp_high;
+            outputBufferHeader->nTimeStamp <<= 32;
+            outputBufferHeader->nTimeStamp |= s_encode_op.u4_timestamp_low;
+            outputBufferInfo->mOwnedByUs = false;
+            outQueue.erase(outQueue.begin());
+            DUMP_TO_FILE(mOutFile, outputBufferHeader->pBuffer,
+                    outputBufferHeader->nFilledLen);
+            notifyFillBufferDone(outputBufferHeader);
+        }
 
+        if (s_encode_op.u4_is_last == 1) {
+            return;
+        }
     }
     return;
 }
-
 
 }  // namespace android
 
