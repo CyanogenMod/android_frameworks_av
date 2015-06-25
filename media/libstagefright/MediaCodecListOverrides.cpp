@@ -291,7 +291,9 @@ void profileCodecs(
         for (size_t i = 0; i < mimes.size(); ++i) {
             const sp<MediaCodecInfo::Capabilities> &caps =
                     info->getCapabilitiesFor(mimes[i].c_str());
-            if (!forceToMeasure && caps->getDetails()->contains("max-supported-instances")) {
+            if (!forceToMeasure &&
+                (caps->getDetails()->contains("max-supported-instances") ||
+                 caps->getDetails()->contains("max-concurrent-instances"))) {
                 continue;
             }
 

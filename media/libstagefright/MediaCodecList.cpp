@@ -993,7 +993,7 @@ status_t MediaCodecList::addLimit(const char **attrs) {
             return limitFoundMissingAttr(name, "default");
         } else if (msg->contains("in")) {
             return limitFoundMissingAttr(name, "in");
-        } else if ((name == "channel-count") ^
+        } else if ((name == "channel-count" || name == "concurrent-instances") ^
                 (found = msg->findString("max", &max))) {
             return limitFoundMissingAttr(name, "max", found);
         } else if (msg->contains("min")) {
