@@ -315,6 +315,13 @@ status_t convertMetaDataToMessage(
 
                 CHECK(size >= length);
 
+                if ((buffer->size() + 4 + length) > buffer->capacity()) {
+                    sp<ABuffer> tmpBuffer = new ABuffer(buffer->capacity() + 1024);
+                    memcpy(tmpBuffer->data(), buffer->data(), buffer->size());
+                    tmpBuffer->setRange(0, buffer->size());
+                    buffer = tmpBuffer;
+                }
+
                 memcpy(buffer->data() + buffer->size(), "\x00\x00\x00\x01", 4);
                 memcpy(buffer->data() + buffer->size() + 4, ptr, length);
                 buffer->setRange(0, buffer->size() + 4 + length);
