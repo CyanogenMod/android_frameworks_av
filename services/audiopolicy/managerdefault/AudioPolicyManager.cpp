@@ -3140,8 +3140,11 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
 {
     audio_devices_t device = devDesc->type();
     sp<SwAudioOutputDescriptor> desc;
-    // erase all current sample rates, formats and channel masks
-    devDesc->clearCapabilities();
+
+    if (audio_device_is_digital(device)) {
+        // erase all current sample rates, formats and channel masks
+        devDesc->clearCapabilities();
+    }
 
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
         // first list already open outputs that can be routed to this device
@@ -3433,8 +3436,13 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                                                   const String8 address)
 {
     audio_devices_t device = devDesc->type();
-
     sp<AudioInputDescriptor> desc;
+
+    if (audio_device_is_digital(device)) {
+        // erase all current sample rates, formats and channel masks
+        devDesc->clearCapabilities();
+    }
+
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
         // first list already open inputs that can be routed to this device
         for (size_t input_index = 0; input_index < mInputs.size(); input_index++) {
