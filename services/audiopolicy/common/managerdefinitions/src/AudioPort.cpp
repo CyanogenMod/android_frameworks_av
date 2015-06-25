@@ -151,28 +151,12 @@ void AudioPort::importAudioPort(const sp<AudioPort> port) {
             }
         }
     }
-    for (size_t k = 0 ; k < port->mGains.size() ; k++) {
-        sp<AudioGain> gain = port->mGains.itemAt(k);
-        if (gain != 0) {
-            bool hasGain = false;
-            for (size_t l = 0 ; l < mGains.size() ; l++) {
-                if (gain == mGains.itemAt(l)) {
-                    hasGain = true;
-                    break;
-                }
-            }
-            if (!hasGain) { // never import a gain twice
-                mGains.add(gain);
-            }
-        }
-    }
 }
 
 void AudioPort::clearCapabilities() {
     mChannelMasks.clear();
     mFormats.clear();
     mSamplingRates.clear();
-    mGains.clear();
 }
 
 void AudioPort::loadSamplingRates(char *name)
