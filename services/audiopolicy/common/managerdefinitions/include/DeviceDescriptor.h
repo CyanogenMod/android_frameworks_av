@@ -44,6 +44,7 @@ public:
     virtual void attach(const sp<HwModule>& module);
     virtual void loadGains(cnode *root);
     virtual void toAudioPort(struct audio_port *port) const;
+    virtual void importAudioPort(const sp<AudioPort> port);
 
     audio_port_handle_t getId() const;
     audio_devices_t type() const { return mDeviceType; }
