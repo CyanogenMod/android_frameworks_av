@@ -301,6 +301,13 @@ void DeviceDescriptor::toAudioPort(struct audio_port *port) const
     strncpy(port->ext.device.address, mAddress.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN);
 }
 
+void DeviceDescriptor::importAudioPort(const sp<AudioPort> port) {
+    AudioPort::importAudioPort(port);
+    mSamplingRate = port->pickSamplingRate();
+    mFormat = port->pickFormat();
+    mChannelMask = port->pickChannelMask();
+}
+
 status_t DeviceDescriptor::dump(int fd, int spaces, int index) const
 {
     const size_t SIZE = 256;

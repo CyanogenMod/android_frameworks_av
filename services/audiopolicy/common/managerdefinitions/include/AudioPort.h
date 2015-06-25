@@ -42,7 +42,7 @@ public:
 
     virtual void toAudioPort(struct audio_port *port) const;
 
-    void importAudioPort(const sp<AudioPort> port);
+    virtual void importAudioPort(const sp<AudioPort> port);
     void clearCapabilities();
 
     void loadSamplingRates(char *name);
