@@ -234,6 +234,13 @@ class Camera3Device :
 
     /**** End scope for mLock ****/
 
+    typedef struct AeTriggerCancelOverride {
+        bool applyAeLock;
+        uint8_t aeLock;
+        bool applyAePrecaptureTrigger;
+        uint8_t aePrecaptureTrigger;
+    } AeTriggerCancelOverride_t;
+
     class CaptureRequest : public LightRefBase<CaptureRequest> {
       public:
         CameraMetadata                      mSettings;
@@ -242,6 +249,9 @@ class Camera3Device :
         Vector<sp<camera3::Camera3OutputStreamInterface> >
                                             mOutputStreams;
         CaptureResultExtras                 mResultExtras;
+        // Used to cancel AE precapture trigger for devices doesn't support
+        // CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
+        AeTriggerCancelOverride_t           mAeTriggerCancelOverride;
     };
     typedef List<sp<CaptureRequest> > RequestList;
 
@@ -492,6 +502,9 @@ class Camera3Device :
         // If the input request is in mRepeatingRequests. Must be called with mRequestLock hold
         bool isRepeatingRequestLocked(const sp<CaptureRequest>);
 
+        // Handle AE precapture trigger cancel for devices <= CAMERA_DEVICE_API_VERSION_3_2.
+        void handleAePrecaptureCancelRequest(sp<CaptureRequest> request);
+
         wp<Camera3Device>  mParent;
         wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
@@ -540,6 +553,9 @@ class Camera3Device :
         uint32_t           mCurrentPreCaptureTriggerId;
 
         int64_t            mRepeatingLastFrameNumber;
+
+        // Whether the device supports AE lock
+        bool               mAeLockAvailable;
     };
     sp<RequestThread> mRequestThread;
 
@@ -562,7 +578,6 @@ class Camera3Device :
         // If this request has any input buffer
         bool hasInputBuffer;
 
-
         // The last metadata that framework receives from HAL and
         // not yet send out because the shutter event hasn't arrived.
         // It's added by process_capture_result and sent when framework
@@ -574,6 +589,10 @@ class Camera3Device :
         // event. They will be returned to the streams when framework receives
         // the shutter event.
         Vector<camera3_stream_buffer_t> pendingOutputBuffers;
+
+        // Used to cancel AE precapture trigger for devices doesn't support
+        // CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
+        AeTriggerCancelOverride_t aeTriggerCancelOverride;
 
 
         // Fields used by the partial result only
@@ -595,36 +614,20 @@ class Camera3Device :
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(0),
-                hasInputBuffer(false){
+                hasInputBuffer(false),
+                aeTriggerCancelOverride({false, 0, false, 0}){
         }
 
-        InFlightRequest(int numBuffers) :
-                shutterTimestamp(0),
-                sensorTimestamp(0),
-                requestStatus(OK),
-                haveResultMetadata(false),
-                numBuffersLeft(numBuffers),
-                hasInputBuffer(false){
-        }
-
-        InFlightRequest(int numBuffers, CaptureResultExtras extras) :
+        InFlightRequest(int numBuffers, CaptureResultExtras extras, bool hasInput,
+                AeTriggerCancelOverride aeTriggerCancelOverride) :
                 shutterTimestamp(0),
                 sensorTimestamp(0),
                 requestStatus(OK),
                 haveResultMetadata(false),
                 numBuffersLeft(numBuffers),
                 resultExtras(extras),
-                hasInputBuffer(false){
-        }
-
-        InFlightRequest(int numBuffers, CaptureResultExtras extras, bool hasInput) :
-                shutterTimestamp(0),
-                sensorTimestamp(0),
-                requestStatus(OK),
-                haveResultMetadata(false),
-                numBuffersLeft(numBuffers),
-                resultExtras(extras),
-                hasInputBuffer(hasInput){
+                hasInputBuffer(hasInput),
+                aeTriggerCancelOverride(aeTriggerCancelOverride){
         }
     };
 
@@ -635,7 +638,8 @@ class Camera3Device :
     InFlightMap            mInFlightMap;
 
     status_t registerInFlight(uint32_t frameNumber,
-            int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput);
+            int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput,
+            const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
 
     /**
      * For the partial result, check if all 3A state fields are available
@@ -653,6 +657,14 @@ class Camera3Device :
     template<typename T>
     bool insert3AResult(CameraMetadata &result, int32_t tag, const T* value,
             uint32_t frameNumber);
+
+    /**
+     * Override result metadata for cancelling AE precapture trigger applied in
+     * handleAePrecaptureCancelRequest().
+     */
+    void overrideResultForPrecaptureCancel(CameraMetadata* result,
+            const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
+
     /**
      * Tracking for idle detection
      */
@@ -738,7 +750,7 @@ class Camera3Device :
     void sendCaptureResult(CameraMetadata &pendingMetadata,
             CaptureResultExtras &resultExtras,
             CameraMetadata &collectedPartialResult, uint32_t frameNumber,
-            bool reprocess);
+            bool reprocess, const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
 
     /**** Scope for mInFlightLock ****/
 
