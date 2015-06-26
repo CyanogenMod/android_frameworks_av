@@ -670,9 +670,13 @@ status_t CameraSource::start(MetaData *meta) {
             mNumInputBuffers = nBuffers;
         }
 
-        // TODO: Read in format/dataspace from somewhere
-        // Uncomment to test SW encoders until TODO is resolved
-        // mEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
+        // apply encoder color format if specified
+        if (meta->findInt32(kKeyPixelFormat, &mEncoderFormat)) {
+            ALOGV("Using encoder format: %#x", mEncoderFormat);
+        }
+        if (meta->findInt32(kKeyColorSpace, &mEncoderDataSpace)) {
+            ALOGV("Using encoder data space: %#x", mEncoderDataSpace);
+        }
     }
 
     status_t err;
