@@ -836,13 +836,15 @@ void GraphicBufferSource::releaseBuffer(
         mConsumer->detachBuffer(id);
         mBufferSlot[id] = NULL;
 
-        mConsumer->attachBuffer(&id, buffer);
-        mConsumer->releaseBuffer(
-                id, 0, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+        if (mConsumer->attachBuffer(&id, buffer) == OK) {
+            mConsumer->releaseBuffer(
+                    id, 0, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
+        }
     } else {
         mConsumer->releaseBuffer(
                 id, frameNum, EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, fence);
     }
+    id = -1; // invalidate id
     mNumBufferAcquired--;
 }
 
