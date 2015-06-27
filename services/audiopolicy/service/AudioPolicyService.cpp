@@ -166,6 +166,17 @@ void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& cli
     }
 }
 
+void AudioPolicyService::setAudioPortCallbacksEnabled(bool enabled)
+{
+    Mutex::Autolock _l(mNotificationClientsLock);
+
+    uid_t uid = IPCThreadState::self()->getCallingUid();
+    if (mNotificationClients.indexOfKey(uid) < 0) {
+        return;
+    }
+    mNotificationClients.valueFor(uid)->setAudioPortCallbacksEnabled(enabled);
+}
+
 // removeNotificationClient() is called when the client process dies.
 void AudioPolicyService::removeNotificationClient(uid_t uid)
 {
@@ -246,7 +257,8 @@ status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_co
 AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
                                                      const sp<IAudioPolicyServiceClient>& client,
                                                      uid_t uid)
-    : mService(service), mUid(uid), mAudioPolicyServiceClient(client)
+    : mService(service), mUid(uid), mAudioPolicyServiceClient(client),
+      mAudioPortCallbacksEnabled(false)
 {
 }
 
@@ -265,14 +277,14 @@ void AudioPolicyService::NotificationClient::binderDied(const wp<IBinder>& who _
 
 void AudioPolicyService::NotificationClient::onAudioPortListUpdate()
 {
-    if (mAudioPolicyServiceClient != 0) {
+    if (mAudioPolicyServiceClient != 0 && mAudioPortCallbacksEnabled) {
         mAudioPolicyServiceClient->onAudioPortListUpdate();
     }
 }
 
 void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 {
-    if (mAudioPolicyServiceClient != 0) {
+    if (mAudioPolicyServiceClient != 0 && mAudioPortCallbacksEnabled) {
         mAudioPolicyServiceClient->onAudioPatchListUpdate();
     }
 }
@@ -284,6 +296,12 @@ void AudioPolicyService::NotificationClient::onDynamicPolicyMixStateUpdate(
             mAudioPolicyServiceClient->onDynamicPolicyMixStateUpdate(regId, state);
     }
 }
+
+void AudioPolicyService::NotificationClient::setAudioPortCallbacksEnabled(bool enabled)
+{
+    mAudioPortCallbacksEnabled = enabled;
+}
+
 
 void AudioPolicyService::binderDied(const wp<IBinder>& who) {
     ALOGW("binderDied() %p, calling pid %d", who.unsafe_get(),

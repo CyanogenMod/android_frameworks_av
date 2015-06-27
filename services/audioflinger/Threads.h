@@ -436,6 +436,7 @@ protected:
                 bool                    mStandby;     // Whether thread is currently in standby.
                 audio_devices_t         mOutDevice;   // output device
                 audio_devices_t         mInDevice;    // input device
+                audio_devices_t         mPrevInDevice;    // previous input device
                 struct audio_patch      mPatch;
                 audio_source_t          mAudioSource;
 

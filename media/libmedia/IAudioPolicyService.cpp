@@ -72,7 +72,8 @@ enum {
     GET_PHONE_STATE,
     REGISTER_POLICY_MIXES,
     START_AUDIO_SOURCE,
-    STOP_AUDIO_SOURCE
+    STOP_AUDIO_SOURCE,
+    SET_AUDIO_PORT_CALLBACK_ENABLED,
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -646,6 +647,14 @@ public:
         remote()->transact(REGISTER_CLIENT, data, &reply);
     }
 
+    virtual void setAudioPortCallbacksEnabled(bool enabled)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(enabled ? 1 : 0);
+        remote()->transact(SET_AUDIO_PORT_CALLBACK_ENABLED, data, &reply);
+    }
+
     virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                             audio_io_handle_t *ioHandle,
                                             audio_devices_t *device)
@@ -1216,6 +1225,12 @@ status_t BnAudioPolicyService::onTransact(
             sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
                     data.readStrongBinder());
             registerClient(client);
+            return NO_ERROR;
+        } break;
+
+        case SET_AUDIO_PORT_CALLBACK_ENABLED: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            setAudioPortCallbacksEnabled(data.readInt32() == 1);
             return NO_ERROR;
         } break;
 
