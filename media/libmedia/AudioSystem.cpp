@@ -1043,7 +1043,11 @@ status_t AudioSystem::addAudioPortCallback(const sp<AudioPortCallback>& callback
     if (gAudioPolicyServiceClient == 0) {
         return NO_INIT;
     }
-    return gAudioPolicyServiceClient->addAudioPortCallback(callback);
+    int ret = gAudioPolicyServiceClient->addAudioPortCallback(callback);
+    if (ret == 1) {
+        aps->setAudioPortCallbacksEnabled(true);
+    }
+    return (ret < 0) ? INVALID_OPERATION : NO_ERROR;
 }
 
 /*static*/
@@ -1056,7 +1060,11 @@ status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callb
     if (gAudioPolicyServiceClient == 0) {
         return NO_INIT;
     }
-    return gAudioPolicyServiceClient->removeAudioPortCallback(callback);
+    int ret = gAudioPolicyServiceClient->removeAudioPortCallback(callback);
+    if (ret == 0) {
+        aps->setAudioPortCallbacksEnabled(false);
+    }
+    return (ret < 0) ? INVALID_OPERATION : NO_ERROR;
 }
 
 status_t AudioSystem::addAudioDeviceCallback(
@@ -1138,20 +1146,20 @@ status_t AudioSystem::stopAudioSource(audio_io_handle_t handle)
 
 // ---------------------------------------------------------------------------
 
-status_t AudioSystem::AudioPolicyServiceClient::addAudioPortCallback(
+int AudioSystem::AudioPolicyServiceClient::addAudioPortCallback(
         const sp<AudioPortCallback>& callback)
 {
     Mutex::Autolock _l(mLock);
     for (size_t i = 0; i < mAudioPortCallbacks.size(); i++) {
         if (mAudioPortCallbacks[i] == callback) {
-            return INVALID_OPERATION;
+            return -1;
         }
     }
     mAudioPortCallbacks.add(callback);
-    return NO_ERROR;
+    return mAudioPortCallbacks.size();
 }
 
-status_t AudioSystem::AudioPolicyServiceClient::removeAudioPortCallback(
+int AudioSystem::AudioPolicyServiceClient::removeAudioPortCallback(
         const sp<AudioPortCallback>& callback)
 {
     Mutex::Autolock _l(mLock);
@@ -1162,10 +1170,10 @@ status_t AudioSystem::AudioPolicyServiceClient::removeAudioPortCallback(
         }
     }
     if (i == mAudioPortCallbacks.size()) {
-        return INVALID_OPERATION;
+        return -1;
     }
     mAudioPortCallbacks.removeAt(i);
-    return NO_ERROR;
+    return mAudioPortCallbacks.size();
 }
 
 

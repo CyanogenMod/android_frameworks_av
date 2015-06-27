@@ -149,6 +149,8 @@ public:
 
     virtual void registerClient(const sp<IAudioPolicyServiceClient>& client) = 0;
 
+    virtual void setAudioPortCallbacksEnabled(bool enabled) = 0;
+
     virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                            audio_io_handle_t *ioHandle,
                                            audio_devices_t *device) = 0;
