@@ -229,7 +229,6 @@ OMX_ERRORTYPE SoftAVC::setDimensions() {
     s_dimensions_ip.e_sub_cmd = IVE_CMD_CTL_SET_DIMENSIONS;
     s_dimensions_ip.u4_ht = mHeight;
     s_dimensions_ip.u4_wd = mWidth;
-    s_dimensions_ip.u4_strd = mStride;
 
     s_dimensions_ip.u4_timestamp_high = -1;
     s_dimensions_ip.u4_timestamp_low = -1;
