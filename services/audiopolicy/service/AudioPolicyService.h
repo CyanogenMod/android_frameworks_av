@@ -185,6 +185,8 @@ public:
 
     virtual void registerClient(const sp<IAudioPolicyServiceClient>& client);
 
+    virtual void setAudioPortCallbacksEnabled(bool enabled);
+
     virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                            audio_io_handle_t *ioHandle,
                                            audio_devices_t *device);
@@ -507,6 +509,7 @@ private:
                             void      onAudioPortListUpdate();
                             void      onAudioPatchListUpdate();
                             void      onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+                            void      setAudioPortCallbacksEnabled(bool enabled);
 
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);
@@ -518,6 +521,7 @@ private:
         const wp<AudioPolicyService>        mService;
         const uid_t                         mUid;
         const sp<IAudioPolicyServiceClient> mAudioPolicyServiceClient;
+              bool                          mAudioPortCallbacksEnabled;
     };
 
     // Internal dump utilities.

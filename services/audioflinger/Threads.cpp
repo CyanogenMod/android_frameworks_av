@@ -530,7 +530,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // RecordThread::readInputParameters_l()
         //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
-        mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
+        mPrevInDevice(AUDIO_DEVICE_NONE), mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this)),
         mSystemReady(systemReady)
@@ -3131,6 +3131,7 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
     for (size_t i = 0; i < mEffectChains.size(); i++) {
         mEffectChains[i]->setDevice_l(type);
     }
+    bool configChanged = mOutDevice != type;
     mOutDevice = type;
     mPatch = *patch;
 
@@ -3159,7 +3160,9 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
                 param.toString().string());
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
-    sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
+    if (configChanged) {
+        sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
+    }
     return status;
 }
 
@@ -6796,6 +6799,9 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
             status = BAD_VALUE;
         } else {
             mInDevice = value;
+            if (value != AUDIO_DEVICE_NONE) {
+                mPrevInDevice = value;
+            }
             // disable AEC and NS if the device is a BT SCO headset supporting those
             // pre processings
             if (mTracks.size() > 0) {
@@ -7079,7 +7085,10 @@ status_t AudioFlinger::RecordThread::createAudioPatch_l(const struct audio_patch
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
 
-    sendIoConfigEvent_l(AUDIO_INPUT_CONFIG_CHANGED);
+    if (mInDevice != mPrevInDevice) {
+        sendIoConfigEvent_l(AUDIO_INPUT_CONFIG_CHANGED);
+        mPrevInDevice = mInDevice;
+    }
 
     return status;
 }
