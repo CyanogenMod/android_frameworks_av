@@ -38,6 +38,7 @@
 #include <sys/stat.h>
 #include <utils/threads.h>
 
+#include <cutils/properties.h>
 #include <libexpat/expat.h>
 
 namespace android {
@@ -56,6 +57,11 @@ static bool parseBoolean(const char *s) {
 }
 
 static bool isProfilingNeeded() {
+    int8_t value = property_get_bool("debug.stagefright.profilecodec", 0);
+    if (value == 0) {
+        return false;
+    }
+
     bool profilingNeeded = true;
     FILE *resultsFile = fopen(kProfilingResults, "r");
     if (resultsFile) {
@@ -1005,8 +1011,7 @@ status_t MediaCodecList::addLimit(const char **attrs) {
             return limitFoundMissingAttr(name, "ranges", found);
         } else if (msg->contains("scale")) {
             return limitFoundMissingAttr(name, "scale");
-        } else if ((name == "alignment" || name == "block-size"
-                || name == "max-supported-instances") ^
+        } else if ((name == "alignment" || name == "block-size") ^
                 (found = msg->findString("value", &value))) {
             return limitFoundMissingAttr(name, "value", found);
         }
