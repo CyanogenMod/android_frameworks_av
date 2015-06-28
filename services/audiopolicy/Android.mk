@@ -2,7 +2,7 @@ LOCAL_PATH:= $(call my-dir)
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
 
-ifeq ($(call is-board-platform-in-list, apq8084 msm8974 msm8226 msm8610),true)
+ifeq ($(call is-board-platform-in-list, apq8084 msm8974 msm8226 msm8610 msm8994),true)
 ifneq ($(strip $(AUDIO_FEATURE_ENABLED_COMPRESS_VOIP)),false)
 common_cflags += -DAUDIO_EXTN_COMPRESS_VOIP_ENABLED
 endif
