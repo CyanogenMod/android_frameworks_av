@@ -34,6 +34,8 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicBufferMapper.h>
 
+#include <OMX_IndexExt.h>
+
 namespace android {
 
 const static OMX_COLOR_FORMATTYPE kSupportedColorFormats[] = {
@@ -293,7 +295,7 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetParameter(
 
 OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR param) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexParamVideoErrorCorrection:
         {
             return OMX_ErrorNotImplemented;
@@ -340,6 +342,13 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
 
             profileLevel->eProfile = mProfileLevels[profileLevel->nProfileIndex].mProfile;
             profileLevel->eLevel   = mProfileLevels[profileLevel->nProfileIndex].mLevel;
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexParamConsumerUsageBits:
+        {
+            OMX_U32 *usageBits = (OMX_U32 *)param;
+            *usageBits = GRALLOC_USAGE_SW_READ_OFTEN;
             return OMX_ErrorNone;
         }
 

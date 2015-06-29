@@ -1639,6 +1639,14 @@ status_t ACodec::configureCodec(
         if (mInputMetadataType == kMetadataBufferTypeGrallocSource) {
             mInputMetadataType = kMetadataBufferTypeCameraSource;
         }
+
+        uint32_t usageBits;
+        if (mOMX->getParameter(
+                mNode, (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits,
+                &usageBits, sizeof(usageBits)) == OK) {
+            inputFormat->setInt32(
+                    "using-sw-read-often", !!(usageBits & GRALLOC_USAGE_SW_READ_OFTEN));
+        }
     }
 
     int32_t prependSPSPPS = 0;
@@ -5746,6 +5754,14 @@ status_t ACodec::LoadedState::setupInputSurface() {
                   err);
             return err;
         }
+    }
+
+    uint32_t usageBits;
+    if (mCodec->mOMX->getParameter(
+            mCodec->mNode, (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits,
+            &usageBits, sizeof(usageBits)) == OK) {
+        mCodec->mInputFormat->setInt32(
+                "using-sw-read-often", !!(usageBits & GRALLOC_USAGE_SW_READ_OFTEN));
     }
 
     return OK;
