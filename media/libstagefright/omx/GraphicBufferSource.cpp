@@ -23,6 +23,7 @@
 #include "GraphicBufferSource.h"
 
 #include <OMX_Core.h>
+#include <OMX_IndexExt.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 
@@ -152,7 +153,18 @@ GraphicBufferSource::GraphicBufferSource(
 
         BufferQueue::createBufferQueue(&mProducer, &mConsumer);
         mConsumer->setConsumerName(name);
-        mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER);
+
+        // query consumer usage bits from encoder, but always add HW_VIDEO_ENCODER
+        // for backward compatibility.
+        uint32_t usageBits;
+        status_t err = mNodeInstance->getParameter(
+                (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits, &usageBits, sizeof(usageBits));
+        if (err != OK) {
+            usageBits = 0;
+        }
+        usageBits |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
+        mConsumer->setConsumerUsageBits(usageBits);
+
         mInitCheck = mConsumer->setMaxAcquiredBufferCount(bufferCount);
         if (mInitCheck != NO_ERROR) {
             ALOGE("Unable to set BQ max acquired buffer count to %u: %d",

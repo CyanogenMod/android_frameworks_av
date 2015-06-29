@@ -70,7 +70,9 @@ enum {
     kKeyDriftTime         = 'dftT',  // int64_t (usecs)
     kKeyAnchorTime        = 'ancT',  // int64_t (usecs)
     kKeyDuration          = 'dura',  // int64_t (usecs)
-    kKeyColorFormat       = 'colf',
+    kKeyPixelFormat       = 'pixf',  // int32_t
+    kKeyColorFormat       = 'colf',  // int32_t
+    kKeyColorSpace        = 'cols',  // int32_t
     kKeyPlatformPrivate   = 'priv',  // pointer
     kKeyDecoderComponent  = 'decC',  // cstring
     kKeyBufferID          = 'bfID',
