@@ -39,6 +39,9 @@
 
 namespace android {
 
+const int kDefaultSwVideoEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
+const int kDefaultSwVideoEncoderDataSpace = HAL_DATASPACE_BT709;
+
 struct MediaCodecSource::Puller : public AHandler {
     Puller(const sp<MediaSource> &source);
 
@@ -341,6 +344,9 @@ MediaCodecSource::MediaCodecSource(
       mStarted(false),
       mStopping(false),
       mDoMoreWorkPending(false),
+      mSetEncoderFormat(false),
+      mEncoderFormat(0),
+      mEncoderDataSpace(0),
       mGraphicBufferConsumer(consumer),
       mFirstSampleTimeUs(-1ll),
       mEncoderReachedEOS(false),
@@ -436,6 +442,18 @@ status_t MediaCodecSource::initEncoder() {
         if (err != OK) {
             return err;
         }
+    }
+
+    sp<AMessage> inputFormat;
+    int32_t usingSwReadOften;
+    mSetEncoderFormat = false;
+    if (mEncoder->getInputFormat(&inputFormat) == OK
+            && inputFormat->findInt32("using-sw-read-often", &usingSwReadOften)
+            && usingSwReadOften) {
+        // this is a SW encoder; signal source to allocate SW readable buffers
+        mSetEncoderFormat = true;
+        mEncoderFormat = kDefaultSwVideoEncoderFormat;
+        mEncoderDataSpace = kDefaultSwVideoEncoderDataSpace;
     }
 
     err = mEncoder->start();
@@ -632,8 +650,17 @@ status_t MediaCodecSource::onStart(MetaData *params) {
         resume(startTimeUs);
     } else {
         CHECK(mPuller != NULL);
+        sp<MetaData> meta = params;
+        if (mSetEncoderFormat) {
+            if (meta == NULL) {
+                meta = new MetaData;
+            }
+            meta->setInt32(kKeyPixelFormat, mEncoderFormat);
+            meta->setInt32(kKeyColorSpace, mEncoderDataSpace);
+        }
+
         sp<AMessage> notify = new AMessage(kWhatPullerNotify, mReflector);
-        err = mPuller->start(params, notify);
+        err = mPuller->start(meta.get(), notify);
         if (err != OK) {
             return err;
         }
