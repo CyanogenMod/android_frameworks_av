@@ -1607,7 +1607,12 @@ OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(OMX::buffer_id buffer) {
         return NULL;
     }
     Mutex::Autolock autoLock(mBufferIDLock);
-    return mBufferIDToBufferHeader.valueFor(buffer);
+    ssize_t index = mBufferIDToBufferHeader.indexOfKey(buffer);
+    if (index < 0) {
+        CLOGW("findBufferHeader: buffer %u not found", buffer);
+        return NULL;
+    }
+    return mBufferIDToBufferHeader.valueAt(index);
 }
 
 OMX::buffer_id OMXNodeInstance::findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader) {
@@ -1615,7 +1620,12 @@ OMX::buffer_id OMXNodeInstance::findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader)
         return 0;
     }
     Mutex::Autolock autoLock(mBufferIDLock);
-    return mBufferHeaderToBufferID.valueFor(bufferHeader);
+    ssize_t index = mBufferHeaderToBufferID.indexOfKey(bufferHeader);
+    if (index < 0) {
+        CLOGW("findBufferID: bufferHeader %p not found", bufferHeader);
+        return 0;
+    }
+    return mBufferHeaderToBufferID.valueAt(index);
 }
 
 void OMXNodeInstance::invalidateBufferID(OMX::buffer_id buffer) {
@@ -1623,8 +1633,13 @@ void OMXNodeInstance::invalidateBufferID(OMX::buffer_id buffer) {
         return;
     }
     Mutex::Autolock autoLock(mBufferIDLock);
-    mBufferHeaderToBufferID.removeItem(mBufferIDToBufferHeader.valueFor(buffer));
-    mBufferIDToBufferHeader.removeItem(buffer);
+    ssize_t index = mBufferIDToBufferHeader.indexOfKey(buffer);
+    if (index < 0) {
+        CLOGW("invalidateBufferID: buffer %u not found", buffer);
+        return;
+    }
+    mBufferHeaderToBufferID.removeItem(mBufferIDToBufferHeader.valueAt(index));
+    mBufferIDToBufferHeader.removeItemsAt(index);
 }
 
 }  // namespace android
