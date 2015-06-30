@@ -1702,6 +1702,14 @@ status_t MediaPlayerService::AudioOutput::open(
         return BAD_VALUE;
     }
 
+    // a non null offloadInfo might mean some other flags
+    // are set.
+    if (offloadInfo == NULL) {
+        if (flags == AUDIO_OUTPUT_FLAG_NONE) {
+            flags = AUDIO_OUTPUT_FLAG_PRIMARY;
+        }
+    }
+
     if ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
         frameCount = 0; // AudioTrack will get frame count from AudioFlinger
     } else {
