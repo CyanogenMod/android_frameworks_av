@@ -37,6 +37,7 @@ class GraphicBuffer;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
 struct MediaClock;
+struct VideoFrameScheduler;
 
 // MediaSync manages media playback and its synchronization to a media clock
 // source. It can be also used for video-only playback.
@@ -131,10 +132,9 @@ protected:
 
 private:
     enum {
-        kWhatDrainVideo = 'dVid',
+        kWhatDrainVideo          = 'dVid',
+        kWhatCheckFrameAvailable = 'cFrA',
     };
-
-    static const int MAX_OUTSTANDING_BUFFERS = 2;
 
     // This is a thin wrapper class that lets us listen to
     // IConsumerListener::onFrameAvailable from mInput.
@@ -194,6 +194,7 @@ private:
     sp<IGraphicBufferConsumer> mInput;
     sp<IGraphicBufferProducer> mOutput;
     int mUsageFlagsFromOutput;
+    uint32_t mMaxAcquiredBufferCount; // max acquired buffer count
 
     sp<AudioTrack> mAudioTrack;
     uint32_t mNativeSampleRateInHz;
@@ -202,6 +203,7 @@ private:
 
     int64_t mNextBufferItemMediaUs;
     List<BufferItem> mBufferItems;
+    sp<VideoFrameScheduler> mFrameScheduler;
 
     // Keep track of buffers received from |mInput|. This is needed because
     // it's possible the consumer of |mOutput| could return a different
@@ -242,8 +244,9 @@ private:
     // onBufferReleasedByOutput releases a buffer back to the input.
     void onFrameAvailableFromInput();
 
-    // Send |bufferItem| to the output for rendering.
-    void renderOneBufferItem_l(const BufferItem &bufferItem);
+    // Send |bufferItem| to the output for rendering. If this is not the only
+    // buffer sent for rendering, check for any dropped frames in |checkInUs| us.
+    void renderOneBufferItem_l(const BufferItem &bufferItem, int64_t checkInUs);
 
     // This implements the onBufferReleased callback from IProducerListener.
     // It gets called from an OutputListener.
