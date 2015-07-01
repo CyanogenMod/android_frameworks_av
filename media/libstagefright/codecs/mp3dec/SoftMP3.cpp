@@ -283,6 +283,11 @@ void SoftMP3::onQueueFilled(OMX_U32 /* portIndex */) {
             } else {
                 // This is recoverable, just ignore the current frame and
                 // play silence instead.
+
+                // TODO: should we skip silence (and consume input data)
+                // if mIsFirst is true as we may not have a valid
+                // mConfig->samplingRate and mConfig->num_channels?
+                ALOGV_IF(mIsFirst, "insufficient data for first frame, sending silence");
                 memset(outHeader->pBuffer,
                        0,
                        mConfig->outputFrameSize * sizeof(int16_t));
@@ -317,8 +322,7 @@ void SoftMP3::onQueueFilled(OMX_U32 /* portIndex */) {
         }
 
         outHeader->nTimeStamp =
-            mAnchorTimeUs
-                + (mNumFramesOutput * 1000000ll) / mConfig->samplingRate;
+            mAnchorTimeUs + (mNumFramesOutput * 1000000ll) / mSamplingRate;
 
         if (inHeader) {
             CHECK_GE(inHeader->nFilledLen, mConfig->inputBufferUsedLength);
