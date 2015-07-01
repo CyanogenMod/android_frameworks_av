@@ -164,9 +164,17 @@ status_t Camera3Device::initialize(CameraModule *module)
         return res;
     }
 
-    /** Start up request queue thread */
+    bool aeLockAvailable = false;
+    camera_metadata_ro_entry aeLockAvailableEntry;
+    res = find_camera_metadata_ro_entry(info.static_camera_characteristics,
+            ANDROID_CONTROL_AE_LOCK_AVAILABLE, &aeLockAvailableEntry);
+    if (res == OK && aeLockAvailableEntry.count > 0) {
+        aeLockAvailable = (aeLockAvailableEntry.data.u8[0] ==
+                ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE);
+    }
 
-    mRequestThread = new RequestThread(this, mStatusTracker, device);
+    /** Start up request queue thread */
+    mRequestThread = new RequestThread(this, mStatusTracker, device, aeLockAvailable);
     res = mRequestThread->run(String8::format("C3Dev-%d-ReqQueue", mId).string());
     if (res != OK) {
         SET_ERR_L("Unable to start request queue thread: %s (%d)",
@@ -2472,7 +2480,8 @@ CameraMetadata Camera3Device::getLatestRequestLocked() {
 
 Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         sp<StatusTracker> statusTracker,
-        camera3_device_t *hal3Device) :
+        camera3_device_t *hal3Device,
+        bool aeLockAvailable) :
         Thread(/*canCallJava*/false),
         mParent(parent),
         mStatusTracker(statusTracker),
@@ -2485,19 +2494,9 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mLatestRequestId(NAME_NOT_FOUND),
         mCurrentAfTriggerId(0),
         mCurrentPreCaptureTriggerId(0),
-        mRepeatingLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES) {
+        mRepeatingLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES),
+        mAeLockAvailable(aeLockAvailable) {
     mStatusId = statusTracker->addComponent();
-
-    mAeLockAvailable = false;
-    sp<Camera3Device> p = parent.promote();
-    if (p != NULL) {
-        camera_metadata_ro_entry aeLockAvailable =
-                p->info().find(ANDROID_CONTROL_AE_LOCK_AVAILABLE);
-        if (aeLockAvailable.count > 0) {
-            mAeLockAvailable = (aeLockAvailable.data.u8[0] ==
-                    ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE);
-        }
-    }
 }
 
 void Camera3Device::RequestThread::setNotificationListener(
