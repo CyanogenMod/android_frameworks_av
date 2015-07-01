@@ -21,7 +21,6 @@
 #include "ih264_typedefs.h"
 #include "iv.h"
 #include "ivd.h"
-#include "ithread.h"
 #include "ih264d.h"
 #include "SoftAVCDec.h"
 
