@@ -558,7 +558,6 @@ void MediaSync::onFrameAvailableFromInput() {
             return;
         }
     }
-    ++mNumOutstandingBuffers;
 
     // Acquire and detach the buffer from the input.
     BufferItem bufferItem;
@@ -567,6 +566,7 @@ void MediaSync::onFrameAvailableFromInput() {
         ALOGE("acquiring buffer from input failed (%d)", status);
         return;
     }
+    ++mNumOutstandingBuffers;
 
     ALOGV("acquired buffer %#llx from input", (long long)bufferItem.mGraphicBuffer->getId());
 
@@ -608,6 +608,7 @@ void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
 
     // Attach and queue the buffer to the output.
     int slot;
+    mOutput->setGenerationNumber(bufferItem.mGraphicBuffer->getGenerationNumber());
     status_t status = mOutput->attachBuffer(&slot, bufferItem.mGraphicBuffer);
     ALOGE_IF(status != NO_ERROR, "attaching buffer to output failed (%d)", status);
     if (status == NO_ERROR) {
@@ -695,16 +696,13 @@ void MediaSync::returnBufferToInput_l(
         ALOGE_IF(status != NO_ERROR, "releasing buffer to input failed (%d)", status);
     }
 
-    if (status != NO_ERROR) {
-        // TODO: do we need to try to return this buffer later?
-        return;
-    }
-
-    ALOGV("released buffer %#llx to input", (long long)oldBuffer->getId());
-
     // Notify any waiting onFrameAvailable calls.
     --mNumOutstandingBuffers;
     mReleaseCondition.signal();
+
+    if (status == NO_ERROR) {
+        ALOGV("released buffer %#llx to input", (long long)oldBuffer->getId());
+    }
 }
 
 void MediaSync::onAbandoned_l(bool isInput) {

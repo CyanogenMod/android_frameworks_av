@@ -5242,6 +5242,7 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         if (err == OK) {
             info->mStatus = BufferInfo::OWNED_BY_NATIVE_WINDOW;
         } else {
+            ALOGE("queueBuffer failed in onOutputBufferDrained: %d", err);
             mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
             info->mStatus = BufferInfo::OWNED_BY_US;
             // keeping read fence as write fence to avoid clobbering
