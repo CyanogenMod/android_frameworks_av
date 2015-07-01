@@ -2554,8 +2554,13 @@ status_t MPEG4Writer::Track::threadEntry() {
     if (mIsAudio) {
         ALOGI("Audio track drift time: %" PRId64 " us", mOwner->getDriftTimeUs());
     }
-
-    if (err == ERROR_END_OF_STREAM) {
+    // if err is ERROR_IO (ex: during SSR), return OK to save the
+    // recorded file successfully. Session tear down will happen as part of
+    // client callback
+    if (mIsAudio && (err == ERROR_IO)) {
+        return OK;
+    }
+    else if (err == ERROR_END_OF_STREAM) {
         return OK;
     }
     return err;
