@@ -2528,7 +2528,25 @@ status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
         err = native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
         if (err == BAD_VALUE) {
             ALOGI("native window already connected. Assuming no change of surface");
-        } else if (err != OK) {
+        } else if (err == OK) {
+            // Require a fresh set of buffers after each connect by using a unique generation
+            // number. Rely on the fact that max supported process id by Linux is 2^22.
+            // PID is never 0 so we don't have to worry that we use the default generation of 0.
+            // TODO: come up with a unique scheme if other producers also set the generation number.
+            static uint32_t mSurfaceGeneration = 0;
+            uint32_t generation = (getpid() << 10) | (++mSurfaceGeneration & ((1 << 10) - 1));
+            surface->setGenerationNumber(generation);
+            ALOGI("[%s] setting surface generation to %u", mComponentName.c_str(), generation);
+
+            // HACK: clear any free buffers. Remove when connect will automatically do this.
+            // This is needed as the consumer may be holding onto stale frames that it can reattach
+            // to this surface after disconnect/connect, and those free frames would inherit the new
+            // generation number. Disconnecting after setting a unique generation prevents this.
+            native_window_api_disconnect(surface.get(), NATIVE_WINDOW_API_MEDIA);
+            err = native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
+        }
+
+        if (err != OK) {
             ALOGE("native_window_api_connect returned an error: %s (%d)", strerror(-err), err);
         }
     }
@@ -2538,6 +2556,8 @@ status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
 status_t MediaCodec::disconnectFromSurface() {
     status_t err = OK;
     if (mSurface != NULL) {
+        // Resetting generation is not technically needed, but there is no need to keep it either
+        mSurface->setGenerationNumber(0);
         err = native_window_api_disconnect(mSurface.get(), NATIVE_WINDOW_API_MEDIA);
         if (err != OK) {
             ALOGW("native_window_api_disconnect returned an error: %s (%d)", strerror(-err), err);
