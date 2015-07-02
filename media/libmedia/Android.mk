@@ -80,7 +80,7 @@ LOCAL_SHARED_LIBRARIES := \
         libcamera_client libstagefright_foundation \
         libgui libdl libaudioutils libnbaio
 
-LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper
+LOCAL_WHOLE_STATIC_LIBRARIES := libmedia_helper libavmediaextentions
 
 # for memory heap analysis
 LOCAL_STATIC_LIBRARIES := libc_malloc_debug_backtrace libc_logging
@@ -93,6 +93,7 @@ LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/native/include/media/openmax \
     $(TOP)/frameworks/av/include/media/ \
     $(TOP)/frameworks/av/media/libstagefright \
+    $(TOP)/frameworks/av/media/libavextensions \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 

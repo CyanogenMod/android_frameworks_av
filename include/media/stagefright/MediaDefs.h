@@ -79,4 +79,6 @@ enum AudioEncoding {
 
 }  // namespace android
 
+#include <media/stagefright/ExtendedMediaDefs.h>
+
 #endif  // MEDIA_DEFS_H_

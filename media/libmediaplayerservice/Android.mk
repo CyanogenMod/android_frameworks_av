@@ -43,6 +43,9 @@ LOCAL_STATIC_LIBRARIES :=       \
     libstagefright_rtsp         \
     libstagefright_timedtext    \
 
+LOCAL_WHOLE_STATIC_LIBRARIES := \
+    libavmediaserviceextensions \
+
 LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/av/media/libstagefright/include               \
     $(TOP)/frameworks/av/media/libstagefright/rtsp                  \
@@ -54,13 +57,14 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/native/include/media/hardware                 \
     $(TOP)/external/tremolo/Tremolo                                 \
     libcore/include                                                 \
+    $(TOP)/frameworks/av/media/libavextensions                      \
 
 LOCAL_CFLAGS += -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libmediaplayerservice
 
-LOCAL_32_BIT_ONLY := true
+#LOCAL_32_BIT_ONLY := true
 
 include $(BUILD_SHARED_LIBRARY)
 

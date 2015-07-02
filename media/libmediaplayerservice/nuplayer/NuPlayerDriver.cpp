@@ -31,6 +31,8 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 
+#include "mediaplayerservice/AVNuExtensions.h"
+
 namespace android {
 
 NuPlayerDriver::NuPlayerDriver(pid_t pid)
@@ -54,7 +56,7 @@ NuPlayerDriver::NuPlayerDriver(pid_t pid)
             true,  /* canCallJava */
             PRIORITY_AUDIO);
 
-    mPlayer = new NuPlayer(pid);
+    mPlayer = AVNuFactory::get()->createNuPlayer(pid);
     mLooper->registerHandler(mPlayer);
 
     mPlayer->setDriver(this);
@@ -113,6 +115,7 @@ status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
         mCondition.wait(mLock);
     }
 
+    AVNuUtils::get()->printFileName(fd);
     return mAsyncResult;
 }
 

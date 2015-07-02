@@ -21,6 +21,7 @@
 #define LOG_TAG "MediaPlayerService"
 #include <utils/Log.h>
 
+#include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -763,8 +764,7 @@ status_t MediaPlayerService::Client::setDataSource(
 
 status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource fd=%d (%s), offset=%lld, length=%lld",
-            fd, nameForFd(fd).c_str(), (long long) offset, (long long) length);
+    ALOGV("setDataSource fd=%d, offset=%" PRId64 ", length=%" PRId64 "", fd, offset, length);
     struct stat sb;
     int ret = fstat(fd, &sb);
     if (ret != 0) {
@@ -772,11 +772,11 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
         return UNKNOWN_ERROR;
     }
 
-    ALOGV("st_dev  = %llu", static_cast<unsigned long long>(sb.st_dev));
+    ALOGV("st_dev  = %" PRIu64 "", static_cast<uint64_t>(sb.st_dev));
     ALOGV("st_mode = %u", sb.st_mode);
     ALOGV("st_uid  = %lu", static_cast<unsigned long>(sb.st_uid));
     ALOGV("st_gid  = %lu", static_cast<unsigned long>(sb.st_gid));
-    ALOGV("st_size = %llu", static_cast<unsigned long long>(sb.st_size));
+    ALOGV("st_size = %" PRId64 "", sb.st_size);
 
     if (offset >= sb.st_size) {
         ALOGE("offset error");
@@ -784,7 +784,7 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
     }
     if (offset + length > sb.st_size) {
         length = sb.st_size - offset;
-        ALOGV("calculated length = %lld", (long long)length);
+        ALOGV("calculated length = %" PRId64 "\n", length);
     }
 
     player_type playerType = MediaPlayerFactory::getPlayerType(this,

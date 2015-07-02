@@ -36,6 +36,8 @@
 #include <utils/String8.h>
 #include <cutils/properties.h>
 
+#include <stagefright/AVExtensions.h>
+
 #if LOG_NDEBUG
 #define UNUSED_UNLESS_VERBOSE(x) (void)(x)
 #else
@@ -689,6 +691,8 @@ status_t CameraSource::initWithCameraAccess(
     mMeta->setInt32(kKeyStride,      mVideoSize.width);
     mMeta->setInt32(kKeySliceHeight, mVideoSize.height);
     mMeta->setInt32(kKeyFrameRate,   mVideoFrameRate);
+    AVUtils::get()->extractCustomCameraKeys(params, mMeta);
+
     return OK;
 }
 

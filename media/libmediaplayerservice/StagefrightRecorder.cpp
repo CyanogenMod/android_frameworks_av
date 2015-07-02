@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <utils/Log.h>
 
+#include <inttypes.h>
 #include "WebmWriter.h"
 #include "StagefrightRecorder.h"
 
@@ -54,6 +55,7 @@
 #include <system/audio.h>
 
 #include "ARTPWriter.h"
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -248,7 +250,7 @@ status_t StagefrightRecorder::setInputSurface(
 }
 
 status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t length) {
-    ALOGV("setOutputFile: %d, %lld, %lld", fd, (long long)offset, (long long)length);
+    ALOGV("setOutputFile: %d, %" PRId64 ", %" PRId64 "", fd, offset, length);
     // These don't make any sense, do they?
     CHECK_EQ(offset, 0ll);
     CHECK_EQ(length, 0ll);
@@ -415,40 +417,39 @@ status_t StagefrightRecorder::setParamVideoRotation(int32_t degrees) {
 }
 
 status_t StagefrightRecorder::setParamMaxFileDurationUs(int64_t timeUs) {
-    ALOGV("setParamMaxFileDurationUs: %lld us", (long long)timeUs);
+    ALOGV("setParamMaxFileDurationUs: %" PRId64 " us", timeUs);
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (timeUs <= 0) {
-        ALOGW("Max file duration is not positive: %lld us. Disabling duration limit.",
-                (long long)timeUs);
+        ALOGW("Max file duration is not positive: %" PRId64 " us. Disabling duration limit.", timeUs);
         timeUs = 0; // Disable the duration limit for zero or negative values.
     } else if (timeUs <= 100000LL) {  // XXX: 100 milli-seconds
-        ALOGE("Max file duration is too short: %lld us", (long long)timeUs);
+        ALOGE("Max file duration is too short: %" PRId64 " us", timeUs);
         return BAD_VALUE;
     }
 
     if (timeUs <= 15 * 1000000LL) {
-        ALOGW("Target duration (%lld us) too short to be respected", (long long)timeUs);
+        ALOGW("Target duration (%" PRId64 " us) too short to be respected", timeUs);
     }
     mMaxFileDurationUs = timeUs;
     return OK;
 }
 
 status_t StagefrightRecorder::setParamMaxFileSizeBytes(int64_t bytes) {
-    ALOGV("setParamMaxFileSizeBytes: %lld bytes", (long long)bytes);
+    ALOGV("setParamMaxFileSizeBytes: %" PRId64 " bytes", bytes);
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (bytes <= 0) {
-        ALOGW("Max file size is not positive: %lld bytes. "
-             "Disabling file size limit.", (long long)bytes);
+        ALOGW("Max file size is not positive: %" PRId64 " bytes. "
+             "Disabling file size limit.", bytes);
         bytes = 0; // Disable the file size limit for zero or negative values.
     } else if (bytes <= 1024) {  // XXX: 1 kB
-        ALOGE("Max file size is too small: %lld bytes", (long long)bytes);
+        ALOGE("Max file size is too small: %" PRId64 " bytes", bytes);
         return BAD_VALUE;
     }
 
     if (bytes <= 100 * 1024) {
-        ALOGW("Target file size (%lld bytes) is too small to be respected", (long long)bytes);
+        ALOGW("Target file size (%" PRId64 " bytes) is too small to be respected", bytes);
     }
 
     mMaxFileSizeBytes = bytes;
@@ -500,9 +501,9 @@ status_t StagefrightRecorder::setParamVideoCameraId(int32_t cameraId) {
 }
 
 status_t StagefrightRecorder::setParamTrackTimeStatus(int64_t timeDurationUs) {
-    ALOGV("setParamTrackTimeStatus: %lld", (long long)timeDurationUs);
+    ALOGV("setParamTrackTimeStatus: %" PRId64 "", timeDurationUs);
     if (timeDurationUs < 20000) {  // Infeasible if shorter than 20 ms?
-        ALOGE("Tracking time duration too short: %lld us", (long long)timeDurationUs);
+        ALOGE("Tracking time duration too short: %" PRId64 " us", timeDurationUs);
         return BAD_VALUE;
     }
     mTrackEveryTimeDurationUs = timeDurationUs;
@@ -585,7 +586,7 @@ status_t StagefrightRecorder::setParamCaptureFps(float fps) {
 
     // Not allowing time more than a day
     if (timeUs <= 0 || timeUs > 86400*1E6) {
-        ALOGE("Time between frame capture (%lld) is out of range [0, 1 Day]", (long long)timeUs);
+        ALOGE("Time between frame capture (%" PRId64 ") is out of range [0, 1 Day]", timeUs);
         return BAD_VALUE;
     }
 
@@ -1435,22 +1436,23 @@ status_t StagefrightRecorder::setupCameraSource(
     videoSize.height = mVideoHeight;
     if (mCaptureFpsEnable) {
         if (mTimeBetweenCaptureUs < 0) {
-            ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
-                    (long long)mTimeBetweenCaptureUs);
+            ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %" PRId64 "",
+                mTimeBetweenCaptureUs);
             return BAD_VALUE;
         }
 
-        mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
+        mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid, mClientPid,
                 videoSize, mFrameRate, mPreviewSurface,
                 mTimeBetweenCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
-        *cameraSource = CameraSource::CreateFromCamera(
+        *cameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid, mClientPid,
                 videoSize, mFrameRate,
                 mPreviewSurface);
     }
+    AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
     mCamera.clear();
     mCameraProxy.clear();
     if (*cameraSource == NULL) {
@@ -1540,13 +1542,15 @@ status_t StagefrightRecorder::setupVideoEncoder(
         // set up time lapse/slow motion for surface source
         if (mCaptureFpsEnable) {
             if (mTimeBetweenCaptureUs <= 0) {
-                ALOGE("Invalid mTimeBetweenCaptureUs value: %lld",
-                        (long long)mTimeBetweenCaptureUs);
+                ALOGE("Invalid mTimeBetweenCaptureUs value: %" PRId64 "",
+                        mTimeBetweenCaptureUs);
                 return BAD_VALUE;
             }
             format->setInt64("time-lapse", mTimeBetweenCaptureUs);
         }
     }
+
+    setupCustomVideoEncoderParams(cameraSource, format);
 
     format->setInt32("bitrate", mVideoBitRate);
     format->setInt32("frame-rate", mFrameRate);
@@ -1640,7 +1644,7 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
     if (mOutputFormat == OUTPUT_FORMAT_WEBM) {
         writer = new WebmWriter(mOutputFd);
     } else {
-        writer = mp4writer = new MPEG4Writer(mOutputFd);
+        writer = mp4writer = AVFactory::get()->CreateMPEG4Writer(mOutputFd);
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {

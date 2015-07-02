@@ -30,6 +30,7 @@
 #include <media/IAudioFlinger.h>
 #include <media/AudioPolicyHelper.h>
 #include <media/AudioResamplerPublic.h>
+#include "media/AVMediaExtensions.h"
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
@@ -1315,6 +1316,7 @@ status_t AudioTrack::createTrack_l()
             frameCount = mSharedBuffer->size();
         } else if (frameCount == 0) {
             frameCount = mAfFrameCount;
+            frameCount = AVMediaUtils::get()->AudioTrackGetOffloadFrameCount(frameCount);
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;

@@ -43,6 +43,7 @@
 
 #include "include/ESDS.h"
 #include "include/HevcUtils.h"
+#include <stagefright/AVExtensions.h>
 
 #ifndef __predict_false
 #define __predict_false(exp) __builtin_expect((exp) != 0, 0)
@@ -519,6 +520,11 @@ status_t MPEG4Writer::addSource(const sp<IMediaSource> &source) {
         return ERROR_UNSUPPORTED;
     }
 
+    if (isAudio && !AVUtils::get()->isAudioMuxFormatSupported(mime)) {
+        ALOGE("Muxing is not supported for %s", mime);
+        return ERROR_UNSUPPORTED;
+    }
+
     // At this point, we know the track to be added is either
     // video or audio. Thus, we only need to check whether it
     // is an audio track or not (if it is not, then it must be
@@ -606,7 +612,7 @@ int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
 
     // If the estimation is wrong, we will pay the price of wasting
     // some reserved space. This should not happen so often statistically.
-    static const int32_t factor = mUse32BitOffset? 1: 2;
+    int32_t factor = mUse32BitOffset? 1: 2;
     static const int64_t MIN_MOOV_BOX_SIZE = 3 * 1024;  // 3 KB
     static const int64_t MAX_MOOV_BOX_SIZE = (180 * 3000000 * 6LL / 8000);
     int64_t size = MIN_MOOV_BOX_SIZE;
@@ -1148,7 +1154,7 @@ off64_t MPEG4Writer::addSample_l(MediaBuffer *buffer) {
     return old_offset;
 }
 
-static void StripStartcode(MediaBuffer *buffer) {
+void MPEG4Writer::StripStartcode(MediaBuffer *buffer) {
     if (buffer->range_length() < 4) {
         return;
     }
@@ -2373,17 +2379,23 @@ status_t MPEG4Writer::Track::threadEntry() {
             continue;
         }
 
-        ++nActualFrames;
-
-        // Make a deep copy of the MediaBuffer and Metadata and release
-        // the original as soon as we can
-        MediaBuffer *copy = new MediaBuffer(buffer->range_length());
-        memcpy(copy->data(), (uint8_t *)buffer->data() + buffer->range_offset(),
-                buffer->range_length());
-        copy->set_range(0, buffer->range_length());
-        meta_data = new MetaData(*buffer->meta_data().get());
-        buffer->release();
-        buffer = NULL;
+        MediaBuffer *copy = NULL;
+        // Check if the upstream source hints it is OK to hold on to the
+        // buffer without releasing immediately and avoid cloning the buffer
+        if (AVUtils::get()->canDeferRelease(buffer->meta_data())) {
+            copy = buffer;
+            meta_data = new MetaData(*buffer->meta_data().get());
+        } else {
+            // Make a deep copy of the MediaBuffer and Metadata and release
+            // the original as soon as we can
+            copy = new MediaBuffer(buffer->range_length());
+            memcpy(copy->data(), (uint8_t *)buffer->data() + buffer->range_offset(),
+                    buffer->range_length());
+            copy->set_range(0, buffer->range_length());
+            meta_data = new MetaData(*buffer->meta_data().get());
+            buffer->release();
+            buffer = NULL;
+        }
 
         if (mIsAvc || mIsHevc) StripStartcode(copy);
 

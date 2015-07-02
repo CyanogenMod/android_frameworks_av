@@ -55,6 +55,8 @@
 #include "include/DataConverter.h"
 #include "omx/OMXUtils.h"
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 enum {
@@ -547,6 +549,10 @@ ACodec::ACodec()
 }
 
 ACodec::~ACodec() {
+}
+
+status_t ACodec::setupCustomCodec(status_t err, const char *, const sp<AMessage> &) {
+    return err;
 }
 
 void ACodec::setNotificationMessage(const sp<AMessage> &msg) {
@@ -2245,6 +2251,8 @@ status_t ACodec::configureCodec(
         } else {
             err = setupEAC3Codec(encoder, numChannels, sampleRate);
         }
+    } else {
+        err = setupCustomCodec(err, mime, msg);
     }
 
     if (err != OK) {
@@ -3114,7 +3122,7 @@ static const struct VideoCodingMapEntry {
     { MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, OMX_VIDEO_CodingDolbyVision },
 };
 
-static status_t GetVideoCodingTypeFromMime(
+status_t ACodec::GetVideoCodingTypeFromMime(
         const char *mime, OMX_VIDEO_CODINGTYPE *codingType) {
     for (size_t i = 0;
          i < sizeof(kVideoCodingMapEntry) / sizeof(kVideoCodingMapEntry[0]);
@@ -3881,6 +3889,7 @@ status_t ACodec::setupMPEG4EncoderParameters(const sp<AMessage> &msg) {
         mpeg4type.eLevel = static_cast<OMX_VIDEO_MPEG4LEVELTYPE>(level);
     }
 
+    setBFrames(&mpeg4type);
     err = mOMX->setParameter(
             mNode, OMX_IndexParamVideoMpeg4, &mpeg4type, sizeof(mpeg4type));
 
@@ -4078,15 +4087,20 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         err = verifySupportForProfileAndLevel(profile, level);
 
         if (err != OK) {
+            ALOGE("%s does not support profile %x @ level %x",
+                    mComponentName.c_str(), profile, level);
             return err;
         }
 
         h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profile);
         h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(level);
-    } else {
+    } 
+#if 0
+      else {
         // Use baseline profile for AVC recording if profile is not specified.
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
+#endif
 
     ALOGI("setupAVCEncoderParameters with [profile: %s] [level: %s]",
             asString(h264type.eProfile), asString(h264type.eLevel));
@@ -4127,6 +4141,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.nCabacInitIdc = 1;
     }
 
+    setBFrames(&h264type, iFrameInterval, frameRate);
     if (h264type.nBFrames != 0) {
         h264type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
     }
@@ -4166,6 +4181,8 @@ status_t ACodec::setupHEVCEncoderParameters(const sp<AMessage> &msg) {
         }
         frameRate = (float)tmp;
     }
+
+    AVUtils::get()->setIntraPeriod(setPFramesSpacing(iFrameInterval, frameRate), 0, mOMX, mNode);
 
     OMX_VIDEO_PARAM_HEVCTYPE hevcType;
     InitOMXParams(&hevcType);
@@ -5251,6 +5268,8 @@ void ACodec::sendFormatChange() {
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatOutputFormatChanged);
     notify->setMessage("format", mOutputFormat);
+    getVQZIPInfo(notify);
+
     notify->post();
 
     // mLastOutputFormat is not used when tunneled; doing this just to stay consistent
@@ -6067,6 +6086,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 mCodec->mSkipCutBuffer->submit(info->mData);
             }
             info->mData->meta()->setInt64("timeUs", timeUs);
+            info->mData->meta()->setObject("graphic-buffer", info->mGraphicBuffer);
 
             sp<AMessage> notify = mCodec->mNotify->dup();
             notify->setInt32("what", CodecBase::kWhatDrainThisBuffer);
@@ -6594,6 +6614,7 @@ bool ACodec::LoadedState::onConfigureComponent(
     {
         sp<AMessage> notify = mCodec->mNotify->dup();
         notify->setInt32("what", CodecBase::kWhatComponentConfigured);
+        notify->setString("componentName", mCodec->mComponentName.c_str());
         notify->setMessage("input-format", mCodec->mInputFormat);
         notify->setMessage("output-format", mCodec->mOutputFormat);
         notify->post();
@@ -7313,6 +7334,13 @@ void ACodec::onSignalEndOfInputStream() {
         notify->setInt32("err", err);
     }
     notify->post();
+}
+
+sp<IOMXObserver> ACodec::createObserver() {
+    sp<CodecObserver> observer = new CodecObserver;
+    sp<AMessage> notify = new AMessage(kWhatOMXMessageList, this);
+    observer->setNotificationMessage(notify);
+    return observer;
 }
 
 bool ACodec::ExecutingState::onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano) {
