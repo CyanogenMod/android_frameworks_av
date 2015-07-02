@@ -56,6 +56,7 @@
 
 #include "ESDS.h"
 #include <media/stagefright/Utils.h>
+#include "mediaplayerservice/AVNuExtensions.h"
 
 namespace android {
 
@@ -1534,7 +1535,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         if (mOffloadAudio) {
             const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
             format->setInt32("has-video", hasVideo);
-            *decoder = new DecoderPassThrough(notify, mSource, mRenderer);
+            *decoder = AVNuFactory::get()->createPassThruDecoder(notify, mSource, mRenderer);
         } else {
             *decoder = new Decoder(notify, mSource, mPID, mRenderer);
         }

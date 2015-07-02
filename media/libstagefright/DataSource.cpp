@@ -48,6 +48,8 @@
 
 #include <cutils/properties.h>
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 bool DataSource::getUInt16(off64_t offset, uint16_t *x) {
@@ -175,6 +177,7 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer_l(SniffMPEG2PS);
     RegisterSniffer_l(SniffWVM);
     RegisterSniffer_l(SniffMidi);
+    RegisterSniffer_l(AVUtils::get()->getExtendedSniffer());
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)

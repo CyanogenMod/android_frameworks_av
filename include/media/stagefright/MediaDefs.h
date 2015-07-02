@@ -68,4 +68,6 @@ extern const char *MEDIA_MIMETYPE_DATA_TIMED_ID3;
 
 }  // namespace android
 
+#include <media/stagefright/ExtendedMediaDefs.h>
+
 #endif  // MEDIA_DEFS_H_

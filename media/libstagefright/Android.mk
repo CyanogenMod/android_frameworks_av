@@ -72,6 +72,7 @@ LOCAL_SRC_FILES:=                         \
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
+        $(TOP)/frameworks/av/media/libavextensions \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
@@ -104,7 +105,7 @@ LOCAL_SHARED_LIBRARIES := \
         libutils \
         libvorbisidec \
         libz \
-        libpowermanager
+        libpowermanager \
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_color_conversion \
@@ -119,6 +120,8 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_id3 \
         libFLAC \
         libmedia_helper \
+
+LOCAL_WHOLE_STATIC_LIBRARIES := libavextensions
 
 LOCAL_SHARED_LIBRARIES += \
         libstagefright_enc_common \

@@ -31,6 +31,7 @@ namespace android {
 struct audio_track_cblk_t;
 class AudioTrackClientProxy;
 class StaticAudioTrackClientProxy;
+struct ExtendedMediaUtils;
 
 // ----------------------------------------------------------------------------
 
@@ -957,6 +958,7 @@ private:
     pid_t                   mClientPid;
 
     sp<AudioSystem::AudioDeviceCallback> mDeviceCallback;
+    friend struct ExtendedMediaUtils;
 };
 
 class TimedAudioTrack : public AudioTrack

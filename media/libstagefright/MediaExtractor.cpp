@@ -40,6 +40,8 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 sp<MetaData> MediaExtractor::getMetaData() {
@@ -92,7 +94,8 @@ sp<MediaExtractor> MediaExtractor::Create(
     }
 
     MediaExtractor *ret = NULL;
-    if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
+    if ((ret = AVFactory::get()->createExtendedExtractor(source, mime)) != NULL) {
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
         ret = new MPEG4Extractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MPEG)) {

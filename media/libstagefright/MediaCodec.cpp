@@ -51,6 +51,7 @@
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -306,7 +307,7 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     // queue.
 
     if (nameIsType || !strncasecmp(name.c_str(), "omx.", 4)) {
-        mCodec = new ACodec;
+        mCodec = AVFactory::get()->createACodec();
     } else if (!nameIsType
             && !strncasecmp(name.c_str(), "android.filter.", 15)) {
         mCodec = new MediaFilter;

@@ -70,7 +70,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     // Querying a SurfaceMediaSourcer
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
-private:
+protected:
     sp<ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
     sp<IGraphicBufferProducer> mPreviewSurface;
@@ -131,7 +131,7 @@ private:
 
     static const int kMaxHighSpeedFps = 1000;
 
-    status_t prepareInternal();
+    virtual status_t prepareInternal();
     status_t setupMPEG4orWEBMRecording();
     void setupMPEG4orWEBMMetaData(sp<MetaData> *meta);
     status_t setupAMRRecording();

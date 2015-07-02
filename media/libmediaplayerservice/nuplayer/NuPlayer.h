@@ -91,7 +91,6 @@ public:
     struct NuPlayerStreamListener;
     struct Source;
 
-private:
     struct Decoder;
     struct DecoderBase;
     struct DecoderPassThrough;
@@ -109,6 +108,7 @@ private:
     struct PostMessageAction;
     struct SimpleAction;
 
+protected:
     enum {
         kWhatSetDataSource              = '=DaS',
         kWhatPrepare                    = 'prep',
@@ -225,7 +225,7 @@ private:
     void closeAudioSink();
     void determineAudioModeChange();
 
-    status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
+    virtual status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
 
     status_t onInstantiateSecureDecoders();
 

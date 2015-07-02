@@ -539,6 +539,10 @@ ACodec::ACodec()
 ACodec::~ACodec() {
 }
 
+status_t ACodec::setupCustomCodec(status_t err, const char *, const sp<AMessage> &) {
+    return err;
+}
+
 void ACodec::setNotificationMessage(const sp<AMessage> &msg) {
     mNotify = msg;
 }
@@ -2125,6 +2129,8 @@ status_t ACodec::configureCodec(
         } else {
             err = setupEAC3Codec(encoder, numChannels, sampleRate);
         }
+    } else {
+        err = setupCustomCodec(err, mime, msg);
     }
 
     if (err != OK) {
@@ -2841,7 +2847,7 @@ static const struct VideoCodingMapEntry {
     { MEDIA_MIMETYPE_VIDEO_VP9, OMX_VIDEO_CodingVP9 },
 };
 
-static status_t GetVideoCodingTypeFromMime(
+status_t ACodec::GetVideoCodingTypeFromMime(
         const char *mime, OMX_VIDEO_CODINGTYPE *codingType) {
     for (size_t i = 0;
          i < sizeof(kVideoCodingMapEntry) / sizeof(kVideoCodingMapEntry[0]);

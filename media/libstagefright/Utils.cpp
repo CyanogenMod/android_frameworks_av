@@ -35,6 +35,8 @@
 #include <media/stagefright/Utils.h>
 #include <media/AudioParameter.h>
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 uint16_t U16_AT(const uint8_t *ptr) {
@@ -433,6 +435,7 @@ status_t convertMetaDataToMessage(
         msg->setBuffer("csd-2", buffer);
     }
 
+    AVUtils::get()->convertMetaDataToMessage(meta, &msg);
     *format = msg;
 
     return OK;
