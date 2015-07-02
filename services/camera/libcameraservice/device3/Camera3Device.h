@@ -389,7 +389,8 @@ class Camera3Device :
 
         RequestThread(wp<Camera3Device> parent,
                 sp<camera3::StatusTracker> statusTracker,
-                camera3_device_t *hal3Device);
+                camera3_device_t *hal3Device,
+                bool aeLockAvailable);
 
         void     setNotificationListener(NotificationListener *listener);
 
