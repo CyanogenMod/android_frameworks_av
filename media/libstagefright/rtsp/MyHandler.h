@@ -39,6 +39,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
+#include <mediaplayerservice/AVMediaServiceExtensions.h>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -115,8 +116,6 @@ struct MyHandler : public AHandler {
           mUIDValid(uidValid),
           mUID(uid),
           mNetLooper(new ALooper),
-          mConn(new ARTSPConnection(mUIDValid, mUID)),
-          mRTPConn(new ARTPConnection),
           mOriginalSessionURL(url),
           mSessionURL(url),
           mSetupTracksSuccessful(false),
@@ -140,6 +139,9 @@ struct MyHandler : public AHandler {
           mPausing(false),
           mPauseGeneration(0),
           mPlayResponseParsed(false) {
+        mConn = AVMediaServiceFactory::get()->createARTSPConnection(
+                mUIDValid, uid);
+        mRTPConn = AVMediaServiceFactory::get()->createARTPConnection();
         mNetLooper->setName("rtsp net");
         mNetLooper->start(false /* runOnCallingThread */,
                           false /* canCallJava */,
@@ -722,16 +724,19 @@ struct MyHandler : public AHandler {
 
                                 // We are going to continue even if we were
                                 // unable to poke a hole into the firewall...
-                                pokeAHole(
+                                AVMediaServiceUtils::get()->pokeAHole(
+                                        this,
                                         track->mRTPSocket,
                                         track->mRTCPSocket,
-                                        transport);
+                                        transport,
+                                        mSessionHost);
                             }
 
                             mRTPConn->addStream(
                                     track->mRTPSocket, track->mRTCPSocket,
                                     mSessionDesc, index,
-                                    notify, track->mUsingInterleavedTCP);
+                                    notify, track->mUsingInterleavedTCP,
+                                    mConn->isIPV6());
 
                             mSetupTracksSuccessful = true;
                         } else {
@@ -1648,8 +1653,9 @@ private:
             request.append(interleaveIndex + 1);
         } else {
             unsigned rtpPort;
-            ARTPConnection::MakePortPair(
-                    &info->mRTPSocket, &info->mRTCPSocket, &rtpPort);
+            AVMediaServiceUtils::get()->makePortPair(
+                    &info->mRTPSocket, &info->mRTCPSocket, &rtpPort,
+                    mConn->isIPV6());
 
             if (mUIDValid) {
                 HTTPBase::RegisterSocketUserTag(info->mRTPSocket, mUID,

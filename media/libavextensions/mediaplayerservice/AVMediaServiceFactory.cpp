@@ -32,6 +32,8 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include "ARTPConnection.h"
+#include "ARTSPConnection.h"
 
 #include "MediaRecorderClient.h"
 #include "MediaPlayerService.h"
@@ -44,6 +46,15 @@ namespace android {
 StagefrightRecorder *AVMediaServiceFactory::createStagefrightRecorder(
         const String16 &opPackageName) {
     return new StagefrightRecorder(opPackageName);
+}
+
+sp<ARTSPConnection> AVMediaServiceFactory::createARTSPConnection(
+        bool uidValid, uid_t uid) {
+    return new ARTSPConnection(uidValid, uid);
+}
+
+sp<ARTPConnection> AVMediaServiceFactory::createARTPConnection() {
+    return new ARTPConnection();
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------

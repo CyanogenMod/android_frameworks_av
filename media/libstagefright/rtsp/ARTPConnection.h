@@ -38,7 +38,8 @@ struct ARTPConnection : public AHandler {
             int rtpSocket, int rtcpSocket,
             const sp<ASessionDescription> &sessionDesc, size_t index,
             const sp<AMessage> &notify,
-            bool injected);
+            bool injected,
+            bool isIPV6 = false);
 
     void removeStream(int rtpSocket, int rtcpSocket);
 
@@ -53,8 +54,8 @@ struct ARTPConnection : public AHandler {
 protected:
     virtual ~ARTPConnection();
     virtual void onMessageReceived(const sp<AMessage> &msg);
+    virtual size_t sockAddrSize();
 
-private:
     enum {
         kWhatAddStream,
         kWhatRemoveStream,
@@ -72,7 +73,7 @@ private:
     bool mPollEventPending;
     int64_t mLastReceiverReportTimeUs;
 
-    void onAddStream(const sp<AMessage> &msg);
+    virtual void onAddStream(const sp<AMessage> &msg);
     void onRemoveStream(const sp<AMessage> &msg);
     void onPollStreams();
     void onInjectPacket(const sp<AMessage> &msg);

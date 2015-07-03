@@ -23,6 +23,7 @@ LOCAL_SHARED_LIBRARIES += libcrypto
 
 LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
+        $(TOP)/frameworks/av/media/libavextensions \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_MODULE:= libstagefright_rtsp

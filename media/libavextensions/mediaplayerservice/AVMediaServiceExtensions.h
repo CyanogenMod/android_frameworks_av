@@ -31,17 +31,26 @@
 
 #include <common/AVExtensionsCommon.h>
 
+#include <utils/RefBase.h>
 #include <utils/String16.h>
 
 namespace android {
 
 struct StagefrightRecorder;
+struct ARTSPConnection;
+struct ARTPConnection;
+struct AString;
+struct MyHandler;
 
 /*
  * Factory to create objects of base-classes in libmediaplayerservice
  */
 struct AVMediaServiceFactory {
     virtual StagefrightRecorder *createStagefrightRecorder(const String16 &);
+
+    // RTSP extensions
+    virtual sp<ARTSPConnection> createARTSPConnection(bool uidValid, uid_t uid);
+    virtual sp<ARTPConnection> createARTPConnection();
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaServiceFactory);
@@ -51,6 +60,13 @@ struct AVMediaServiceFactory {
  * Common delegate to the classes in libmediaplayerservice
  */
 struct AVMediaServiceUtils {
+
+    // RTSP IPV6 utils
+    virtual bool pokeAHole(sp<MyHandler> handler, int rtpSocket, int rtcpSocket,
+            const AString &transport, const AString &sessionHost);
+    virtual void makePortPair(int *rtpSocket, int *rtcpSocket, unsigned *rtpPort,
+            bool isIPV6);
+    virtual const char* parseURL(AString *host);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaServiceUtils);

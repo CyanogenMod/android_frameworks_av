@@ -31,11 +31,31 @@
 #include <utils/Log.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include "ARTPConnection.h"
+#include "MyHandler.h"
+
 #include "common/ExtensionsLoader.hpp"
 #include "mediaplayerservice/AVMediaServiceExtensions.h"
 
 namespace android {
 
+bool AVMediaServiceUtils::pokeAHole(sp<MyHandler> handler, int rtpSocket, int rtcpSocket,
+        const AString &transport, const AString &/*sessionHost*/) {
+    if (handler == NULL) {
+        ALOGW("MyHandler is NULL");
+        return false;
+    }
+    return handler->pokeAHole(rtpSocket, rtcpSocket, transport);
+}
+
+void AVMediaServiceUtils::makePortPair(int *rtpSocket, int *rtcpSocket, unsigned *rtpPort,
+        bool /*isIPV6*/) {
+    return ARTPConnection::MakePortPair(rtpSocket, rtcpSocket, rtpPort);
+}
+
+const char* AVMediaServiceUtils::parseURL(AString *host) {
+    return strchr(host->c_str(), ':');
+}
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVMediaServiceUtils::AVMediaServiceUtils() {
