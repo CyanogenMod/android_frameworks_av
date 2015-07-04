@@ -111,6 +111,7 @@ GraphicBufferSource::GraphicBufferSource(
         uint32_t bufferWidth,
         uint32_t bufferHeight,
         uint32_t bufferCount,
+        uint32_t consumerUsage,
         const sp<IGraphicBufferConsumer> &consumer) :
     mInitCheck(UNKNOWN_ERROR),
     mNodeInstance(nodeInstance),
@@ -154,16 +155,10 @@ GraphicBufferSource::GraphicBufferSource(
         BufferQueue::createBufferQueue(&mProducer, &mConsumer);
         mConsumer->setConsumerName(name);
 
-        // query consumer usage bits from encoder, but always add HW_VIDEO_ENCODER
+        // use consumer usage bits queried from encoder, but always add HW_VIDEO_ENCODER
         // for backward compatibility.
-        uint32_t usageBits;
-        status_t err = mNodeInstance->getParameter(
-                (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits, &usageBits, sizeof(usageBits));
-        if (err != OK) {
-            usageBits = 0;
-        }
-        usageBits |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
-        mConsumer->setConsumerUsageBits(usageBits);
+        consumerUsage |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
+        mConsumer->setConsumerUsageBits(consumerUsage);
 
         mInitCheck = mConsumer->setMaxAcquiredBufferCount(bufferCount);
         if (mInitCheck != NO_ERROR) {

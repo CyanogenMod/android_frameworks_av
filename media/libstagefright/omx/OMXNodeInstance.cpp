@@ -834,7 +834,8 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta_l(
     }
 
     CLOG_BUFFER(updateGraphicBufferInMeta, "%s:%u, %#x := %p",
-            portString(portIndex), portIndex, buffer, graphicBuffer->handle);
+            portString(portIndex), portIndex, buffer,
+            graphicBuffer == NULL ? NULL : graphicBuffer->handle);
     return OK;
 }
 
@@ -885,10 +886,18 @@ status_t OMXNodeInstance::createGraphicBufferSource(
         return INVALID_OPERATION;
     }
 
+    uint32_t usageBits;
+    oerr = OMX_GetParameter(
+            mHandle, (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits, &usageBits);
+    if (oerr != OMX_ErrorNone) {
+        usageBits = 0;
+    }
+
     sp<GraphicBufferSource> bufferSource = new GraphicBufferSource(this,
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
             def.nBufferCountActual,
+            usageBits,
             bufferConsumer);
 
     if ((err = bufferSource->initCheck()) != OK) {

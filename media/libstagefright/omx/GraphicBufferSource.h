@@ -55,6 +55,7 @@ public:
             uint32_t bufferWidth,
             uint32_t bufferHeight,
             uint32_t bufferCount,
+            uint32_t consumerUsage,
             const sp<IGraphicBufferConsumer> &consumer = NULL
     );
 
