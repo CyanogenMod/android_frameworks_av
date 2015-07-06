@@ -194,6 +194,7 @@ private:
     AVSyncSettings mSyncSettings;
     float mVideoFpsHint;
     bool mStarted;
+    bool mSourceStarted;
 
     // Actual pause state, either as requested by client or due to buffering.
     bool mPaused;

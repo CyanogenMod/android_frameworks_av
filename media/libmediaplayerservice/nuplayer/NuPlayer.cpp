@@ -186,6 +186,7 @@ NuPlayer::NuPlayer()
       mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mVideoFpsHint(-1.f),
       mStarted(false),
+      mSourceStarted(false),
       mPaused(false),
       mPausedByClient(false),
       mPausedForBuffering(false) {
@@ -1010,6 +1011,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         // Widevine source reads must stop before releasing the video decoder.
                         if (!audio && mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
                             mSource->stop();
+                            mSourceStarted = false;
                         }
                         getDecoder(audio)->initiateShutdown(); // In the middle of a seek.
                         *flushing = SHUTTING_DOWN_DECODER;     // Shut down.
@@ -1158,11 +1160,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 // need to start the player and pause it. This branch is called
                 // only once if needed. After the player is started, any seek
                 // operation will go through normal path.
-                // All cases, including audio-only, are handled in the same way
-                // for the sake of simplicity.
+                // Audio-only cases are handled separately.
                 onStart(seekTimeUs);
-                onPause();
-                mPausedByClient = true;
+                if (mStarted) {
+                    onPause();
+                    mPausedByClient = true;
+                }
                 if (needNotify) {
                     notifyDriverSeekComplete();
                 }
@@ -1263,15 +1266,21 @@ status_t NuPlayer::onInstantiateSecureDecoders() {
 }
 
 void NuPlayer::onStart(int64_t startPositionUs) {
+    if (!mSourceStarted) {
+        mSourceStarted = true;
+        mSource->start();
+    }
+    if (startPositionUs > 0) {
+        performSeek(startPositionUs);
+        if (mSource->getFormat(false /* audio */) == NULL) {
+            return;
+        }
+    }
+
     mOffloadAudio = false;
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
-
-    mSource->start();
-    if (startPositionUs > 0) {
-        performSeek(startPositionUs);
-    }
 
     uint32_t flags = 0;
 
@@ -1305,6 +1314,7 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     status_t err = mRenderer->setPlaybackSettings(mPlaybackSettings);
     if (err != OK) {
         mSource->stop();
+        mSourceStarted = false;
         notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
         return;
     }
@@ -1372,6 +1382,7 @@ void NuPlayer::handleFlushComplete(bool audio, bool isDecoder) {
                 // Widevine source reads must stop before releasing the video decoder.
                 if (mSource != NULL && mSourceFlags & Source::FLAG_SECURE) {
                     mSource->stop();
+                    mSourceStarted = false;
                 }
             }
             getDecoder(audio)->initiateShutdown();
@@ -1871,6 +1882,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mSourceStarted = false;
 }
 
 void NuPlayer::performScanSources() {
