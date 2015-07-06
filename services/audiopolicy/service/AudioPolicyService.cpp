@@ -930,6 +930,7 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
                 patch2 = ((CreateAudioPatchData *)command2->mParam.get())->mPatch;
             } else {
                 handle2 = ((ReleaseAudioPatchData *)command2->mParam.get())->mHandle;
+                memset(&patch2, 0, sizeof(patch2));
             }
             if (handle != handle2) break;
             /* Filter CREATE_AUDIO_PATCH commands only when they are issued for
