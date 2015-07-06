@@ -2495,7 +2495,7 @@ void AudioTrack::notify(int msg) {
 status_t AudioTrack::getTimeStamp(uint64_t *tstamp) {
     if (mDirectTrack != NULL) {
         *tstamp = mDirectTrack->getTimeStamp();
-        ALOGE("Timestamp %lld ", *tstamp);
+        ALOGV("Timestamp %lld ", *tstamp);
     }
     return NO_ERROR;
 }
