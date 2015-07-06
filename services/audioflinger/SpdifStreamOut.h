@@ -49,10 +49,6 @@ public:
             struct audio_config *config,
             const char *address);
 
-    virtual status_t getRenderPosition(uint32_t *frames);
-
-    virtual status_t getPresentationPosition(uint64_t *frames, struct timespec *timestamp);
-
     /**
     * Write audio buffer to driver. Returns number of bytes written, or a
     * negative status_t. If at least one frame was written successfully prior to the error,
@@ -92,12 +88,7 @@ private:
         SpdifStreamOut * const mSpdifStreamOut;
     };
 
-    int                  mRateMultiplier;
     MySPDIFEncoder       mSpdifEncoder;
-
-    // Used to implement getRenderPosition()
-    int64_t              mRenderPositionHal;
-    uint32_t             mPreviousHalPosition32;
 
     ssize_t  writeDataBurst(const void* data, size_t bytes);
     ssize_t  writeInternal(const void* buffer, size_t bytes);

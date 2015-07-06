@@ -36,10 +36,7 @@ SpdifStreamOut::SpdifStreamOut(AudioHwDevice *dev,
             audio_output_flags_t flags,
             audio_format_t format)
         : AudioStreamOut(dev,flags)
-        , mRateMultiplier(1)
         , mSpdifEncoder(this, format)
-        , mRenderPositionHal(0)
-        , mPreviousHalPosition32(0)
 {
 }
 
@@ -97,60 +94,16 @@ status_t SpdifStreamOut::open(
     return status;
 }
 
-// Account for possibly higher sample rate.
-status_t SpdifStreamOut::getRenderPosition(uint32_t *frames)
-{
-    uint32_t halPosition = 0;
-    status_t status = AudioStreamOut::getRenderPosition(&halPosition);
-    if (status != NO_ERROR) {
-        return status;
-    }
-
-    // Accumulate a 64-bit position so that we wrap at the right place.
-    if (mRateMultiplier != 1) {
-        // Maintain a 64-bit render position.
-        int32_t deltaHalPosition = (int32_t)(halPosition - mPreviousHalPosition32);
-        mPreviousHalPosition32 = halPosition;
-        mRenderPositionHal += deltaHalPosition;
-
-        // Scale from device sample rate to application rate.
-        uint64_t renderPositionApp = mRenderPositionHal / mRateMultiplier;
-        ALOGV("SpdifStreamOut::getRenderPosition() "
-            "renderPositionAppRate = %llu = %llu / %u\n",
-            renderPositionApp, mRenderPositionHal, mRateMultiplier);
-
-        *frames = (uint32_t)renderPositionApp;
-    } else {
-        *frames = halPosition;
-    }
-    return status;
-}
-
 int SpdifStreamOut::flush()
 {
     mSpdifEncoder.reset();
-    mRenderPositionHal = 0;
-    mPreviousHalPosition32 = 0;
     return AudioStreamOut::flush();
 }
 
 int SpdifStreamOut::standby()
 {
     mSpdifEncoder.reset();
-    mRenderPositionHal = 0;
-    mPreviousHalPosition32 = 0;
     return AudioStreamOut::standby();
-}
-
-// Account for possibly higher sample rate.
-// This is much easier when all the values are 64-bit.
-status_t SpdifStreamOut::getPresentationPosition(uint64_t *frames,
-        struct timespec *timestamp)
-{
-    uint64_t halFrames = 0;
-    status_t status = AudioStreamOut::getPresentationPosition(&halFrames, timestamp);
-    *frames = halFrames / mRateMultiplier;
-    return status;
 }
 
 size_t SpdifStreamOut::getFrameSize()
