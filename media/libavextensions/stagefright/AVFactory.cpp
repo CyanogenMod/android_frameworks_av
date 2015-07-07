@@ -40,9 +40,11 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
+#include <media/stagefright/MediaHTTP.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
+#include "include/NuCachedSource2.h"
 
 namespace android {
 
@@ -53,6 +55,18 @@ sp<ACodec> AVFactory::createACodec() {
 MediaExtractor* AVFactory::createExtendedExtractor(
          const sp<DataSource> &, const char *) {
     return NULL;
+}
+
+sp<NuCachedSource2> AVFactory::createCachedSource(
+            const sp<DataSource> &source,
+            const char *cacheConfig,
+            bool disconnectAtHighwatermark) {
+    return new NuCachedSource2(source, cacheConfig, disconnectAtHighwatermark);
+}
+
+MediaHTTP* AVFactory::createMediaHTTP(
+         const sp<IMediaHTTPConnection> &conn) {
+    return new MediaHTTP(conn);
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------

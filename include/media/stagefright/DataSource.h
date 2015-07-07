@@ -51,7 +51,8 @@ public:
             const char *uri,
             const KeyedVector<String8, String8> *headers = NULL,
             String8 *contentType = NULL,
-            HTTPBase *httpSource = NULL);
+            HTTPBase *httpSource = NULL,
+            bool useExtendedCache = false);
 
     static sp<DataSource> CreateMediaHTTP(const sp<IMediaHTTPService> &httpService);
     static sp<DataSource> CreateFromIDataSource(const sp<IDataSource> &source);

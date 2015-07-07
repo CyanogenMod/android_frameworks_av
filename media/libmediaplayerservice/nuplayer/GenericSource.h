@@ -42,7 +42,7 @@ class WVMExtractor;
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
 
-    status_t setDataSource(
+    virtual status_t setDataSource(
             const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers);
@@ -84,7 +84,7 @@ protected:
 
     virtual sp<MetaData> getFormatMeta(bool audio);
 
-private:
+protected:
     enum {
         kWhatPrepareAsync,
         kWhatFetchSubtitleData,
@@ -163,7 +163,7 @@ private:
     int64_t getLastReadPosition();
     void setDrmPlaybackStatusIfNeeded(int playbackStatus, int64_t position);
 
-    void notifyPreparedAndCleanup(status_t err);
+    virtual void notifyPreparedAndCleanup(status_t err);
     void onSecureDecodersInstantiated(status_t err);
     void finishPrepareAsync();
     status_t startSources();
@@ -180,7 +180,7 @@ private:
     void onSeek(sp<AMessage> msg);
     status_t doSeek(int64_t seekTimeUs);
 
-    void onPrepareAsync();
+    virtual void onPrepareAsync();
 
     void fetchTextData(
             uint32_t what, media_track_type type,

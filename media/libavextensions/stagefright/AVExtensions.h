@@ -39,6 +39,9 @@ struct ACodec;
 class MediaExtractor;
 struct MediaCodec;
 class AudioParameter;
+struct NuCachedSource2;
+struct MediaHTTP;
+struct IMediaHTTPConnection;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -47,6 +50,12 @@ struct AVFactory {
     virtual sp<ACodec> createACodec();
     virtual MediaExtractor* createExtendedExtractor(
             const sp<DataSource> &source, const char *mime);
+    virtual sp<NuCachedSource2> createCachedSource(
+            const sp<DataSource> &source,
+            const char *cacheConfig = NULL,
+            bool disconnectAtHighwatermark = false);
+    virtual MediaHTTP* createMediaHTTP(
+            const sp<IMediaHTTPConnection> &conn);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVFactory);

@@ -374,7 +374,8 @@ void NuPlayer::GenericSource::onPrepareAsync() {
 
             mDataSource = DataSource::CreateFromURI(
                    mHTTPService, uri, &mUriHeaders, &contentType,
-                   static_cast<HTTPBase *>(mHttpSource.get()));
+                   static_cast<HTTPBase *>(mHttpSource.get()),
+                   true /*use extended cache*/);
         } else {
             mIsWidevine = false;
 

@@ -41,7 +41,7 @@ struct NuPlayer : public AHandler {
 
     void setDataSourceAsync(const sp<IStreamSource> &source);
 
-    void setDataSourceAsync(
+    virtual void setDataSourceAsync(
             const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers);
@@ -90,6 +90,7 @@ protected:
     virtual void setDecodedPcmOffload(bool /*decodePcmOffload*/) {}
     virtual bool canOffloadDecodedPCMStream(const sp<MetaData> /*meta*/,
             bool /*hasVideo*/, bool /*isStreaming*/, audio_stream_type_t /*streamType*/) {return false;}
+    static bool IsHTTPLiveURL(const char *url);
 public:
     struct NuPlayerStreamListener;
     struct Source;
@@ -236,7 +237,7 @@ protected:
             const sp<AMessage> &inputFormat,
             const sp<AMessage> &outputFormat = NULL);
 
-    void notifyListener(int msg, int ext1, int ext2, const Parcel *in = NULL);
+    virtual void notifyListener(int msg, int ext1, int ext2, const Parcel *in = NULL);
 
     void handleFlushComplete(bool audio, bool isDecoder);
     void finishFlushIfPossible();

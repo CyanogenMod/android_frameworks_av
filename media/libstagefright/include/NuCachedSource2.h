@@ -69,7 +69,7 @@ struct NuCachedSource2 : public DataSource {
 protected:
     virtual ~NuCachedSource2();
 
-private:
+protected:
     friend struct AHandlerReflector<NuCachedSource2>;
 
     enum {

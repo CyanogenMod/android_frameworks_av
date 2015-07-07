@@ -217,7 +217,7 @@ void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
     msg->post();
 }
 
-static bool IsHTTPLiveURL(const char *url) {
+bool NuPlayer::IsHTTPLiveURL(const char *url) {
     if (!strncasecmp("http://", url, 7)
             || !strncasecmp("https://", url, 8)
             || !strncasecmp("file://", url, 7)) {

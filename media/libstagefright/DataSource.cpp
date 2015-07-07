@@ -193,7 +193,8 @@ sp<DataSource> DataSource::CreateFromURI(
         const char *uri,
         const KeyedVector<String8, String8> *headers,
         String8 *contentType,
-        HTTPBase *httpSource) {
+        HTTPBase *httpSource,
+        bool useExtendedCache) {
     if (contentType != NULL) {
         *contentType = "";
     }
@@ -217,7 +218,7 @@ sp<DataSource> DataSource::CreateFromURI(
                 ALOGE("Failed to make http connection from http service!");
                 return NULL;
             }
-            httpSource = new MediaHTTP(conn);
+            httpSource = AVFactory::get()->createMediaHTTP(conn);
         }
 
         String8 tmp;
@@ -249,10 +250,17 @@ sp<DataSource> DataSource::CreateFromURI(
                 *contentType = httpSource->getMIMEType();
             }
 
-            source = new NuCachedSource2(
-                    httpSource,
-                    cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
-                    disconnectAtHighwatermark);
+            if (useExtendedCache) {
+                source = AVFactory::get()->createCachedSource(
+                        httpSource,
+                        cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
+                        disconnectAtHighwatermark);
+            } else {
+                source = new NuCachedSource2(
+                        httpSource,
+                        cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
+                        disconnectAtHighwatermark);
+            }
         } else {
             // We do not want that prefetching, caching, datasource wrapper
             // in the widevine:// case.
@@ -281,7 +289,7 @@ sp<DataSource> DataSource::CreateMediaHTTP(const sp<IMediaHTTPService> &httpServ
     if (conn == NULL) {
         return NULL;
     } else {
-        return new MediaHTTP(conn);
+        return AVFactory::get()->createMediaHTTP(conn);
     }
 }
 
