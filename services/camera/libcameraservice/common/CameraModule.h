@@ -33,6 +33,7 @@ namespace android {
 class CameraModule {
 public:
     CameraModule(camera_module_t *module);
+    virtual ~CameraModule();
 
     // Must be called after construction
     // Returns OK on success, NO_INIT on failure
@@ -60,7 +61,6 @@ private:
 
     camera_module_t *mModule;
     KeyedVector<int, camera_info> mCameraInfoMap;
-    KeyedVector<int, CameraMetadata> mCameraCharacteristicsMap;
     Mutex mCameraInfoLock;
 };
 
