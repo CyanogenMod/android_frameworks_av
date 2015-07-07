@@ -1335,21 +1335,23 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
       mCallbackCookie(NULL),
       mCallbackData(NULL),
       mBytesWritten(0),
+      mStreamType(AUDIO_STREAM_MUSIC),
+      mAttributes(attr),
+      mLeftVolume(1.0),
+      mRightVolume(1.0),
+      mPlaybackRate(AUDIO_PLAYBACK_RATE_DEFAULT),
+      mSampleRateHz(0),
+      mMsecsPerFrame(0),
+      mFrameSize(0),
       mSessionId(sessionId),
       mUid(uid),
       mPid(pid),
-      mFlags(AUDIO_OUTPUT_FLAG_NONE) {
+      mSendLevel(0.0),
+      mAuxEffectId(0),
+      mFlags(AUDIO_OUTPUT_FLAG_NONE)
+{
     ALOGV("AudioOutput(%d)", sessionId);
-    mStreamType = AUDIO_STREAM_MUSIC;
-    mLeftVolume = 1.0;
-    mRightVolume = 1.0;
-    mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
-    mSampleRateHz = 0;
-    mMsecsPerFrame = 0;
-    mAuxEffectId = 0;
-    mSendLevel = 0.0;
     setMinBufferCount();
-    mAttributes = attr;
 }
 
 MediaPlayerService::AudioOutput::~AudioOutput()
@@ -1358,6 +1360,7 @@ MediaPlayerService::AudioOutput::~AudioOutput()
     delete mCallbackData;
 }
 
+//static
 void MediaPlayerService::AudioOutput::setMinBufferCount()
 {
     char value[PROPERTY_VALUE_MAX];
@@ -1367,92 +1370,105 @@ void MediaPlayerService::AudioOutput::setMinBufferCount()
     }
 }
 
+// static
 bool MediaPlayerService::AudioOutput::isOnEmulator()
 {
-    setMinBufferCount();
+    setMinBufferCount(); // benign race wrt other threads
     return mIsOnEmulator;
 }
 
+// static
 int MediaPlayerService::AudioOutput::getMinBufferCount()
 {
-    setMinBufferCount();
+    setMinBufferCount(); // benign race wrt other threads
     return mMinBufferCount;
 }
 
 ssize_t MediaPlayerService::AudioOutput::bufferSize() const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
-    return mTrack->frameCount() * frameSize();
+    return mTrack->frameCount() * mFrameSize;
 }
 
 ssize_t MediaPlayerService::AudioOutput::frameCount() const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
     return mTrack->frameCount();
 }
 
 ssize_t MediaPlayerService::AudioOutput::channelCount() const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
     return mTrack->channelCount();
 }
 
 ssize_t MediaPlayerService::AudioOutput::frameSize() const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
-    return mTrack->frameSize();
+    return mFrameSize;
 }
 
 uint32_t MediaPlayerService::AudioOutput::latency () const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return 0;
     return mTrack->latency();
 }
 
 float MediaPlayerService::AudioOutput::msecsPerFrame() const
 {
+    Mutex::Autolock lock(mLock);
     return mMsecsPerFrame;
 }
 
 status_t MediaPlayerService::AudioOutput::getPosition(uint32_t *position) const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
     return mTrack->getPosition(position);
 }
 
 status_t MediaPlayerService::AudioOutput::getTimestamp(AudioTimestamp &ts) const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
     return mTrack->getTimestamp(ts);
 }
 
 status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritten) const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
-    *frameswritten = mBytesWritten / frameSize();
+    *frameswritten = mBytesWritten / mFrameSize;
     return OK;
 }
 
 status_t MediaPlayerService::AudioOutput::setParameters(const String8& keyValuePairs)
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
     return mTrack->setParameters(keyValuePairs);
 }
 
 String8  MediaPlayerService::AudioOutput::getParameters(const String8& keys)
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return String8::empty();
     return mTrack->getParameters(keys);
 }
 
 void MediaPlayerService::AudioOutput::setAudioAttributes(const audio_attributes_t * attributes) {
+    Mutex::Autolock lock(mLock);
     mAttributes = attributes;
 }
 
-void MediaPlayerService::AudioOutput::deleteRecycledTrack()
+void MediaPlayerService::AudioOutput::deleteRecycledTrack_l()
 {
-    ALOGV("deleteRecycledTrack");
-
+    ALOGV("deleteRecycledTrack_l");
     if (mRecycledTrack != 0) {
 
         if (mCallbackData != NULL) {
@@ -1470,10 +1486,15 @@ void MediaPlayerService::AudioOutput::deleteRecycledTrack()
         // AudioFlinger to drain the track.
 
         mRecycledTrack.clear();
+        close_l();
         delete mCallbackData;
         mCallbackData = NULL;
-        close();
     }
+}
+
+void MediaPlayerService::AudioOutput::close_l()
+{
+    mTrack.clear();
 }
 
 status_t MediaPlayerService::AudioOutput::open(
@@ -1535,6 +1556,7 @@ status_t MediaPlayerService::AudioOutput::open(
         }
     }
 
+    Mutex::Autolock lock(mLock);
     mCallback = cb;
     mCallbackCookie = cookie;
 
@@ -1577,7 +1599,7 @@ status_t MediaPlayerService::AudioOutput::open(
     // we must close the previous output before opening a new one
     if (bothOffloaded && !reuse) {
         ALOGV("both offloaded and not recycling");
-        deleteRecycledTrack();
+        deleteRecycledTrack_l();
     }
 
     sp<AudioTrack> t;
@@ -1655,7 +1677,7 @@ status_t MediaPlayerService::AudioOutput::open(
 
         if (reuse) {
             ALOGV("chaining to next output and recycling track");
-            close();
+            close_l();
             mTrack = mRecycledTrack;
             mRecycledTrack.clear();
             if (mCallbackData != NULL) {
@@ -1669,7 +1691,7 @@ status_t MediaPlayerService::AudioOutput::open(
     // we're not going to reuse the track, unblock and flush it
     // this was done earlier if both tracks are offloaded
     if (!bothOffloaded) {
-        deleteRecycledTrack();
+        deleteRecycledTrack_l();
     }
 
     CHECK((t != NULL) && ((mCallback == NULL) || (newcbd != NULL)));
@@ -1681,9 +1703,10 @@ status_t MediaPlayerService::AudioOutput::open(
     mSampleRateHz = sampleRate;
     mFlags = t->getFlags(); // we suggest the flags above, but new AudioTrack() may not grant it.
     mMsecsPerFrame = 1E3f / (mPlaybackRate.mSpeed * sampleRate);
+    mFrameSize = t->frameSize();
     uint32_t pos;
     if (t->getPosition(&pos) == OK) {
-        mBytesWritten = uint64_t(pos) * t->frameSize();
+        mBytesWritten = uint64_t(pos) * mFrameSize;
     }
     mTrack = t;
 
@@ -1704,6 +1727,7 @@ status_t MediaPlayerService::AudioOutput::open(
 status_t MediaPlayerService::AudioOutput::start()
 {
     ALOGV("start");
+    Mutex::Autolock lock(mLock);
     if (mCallbackData != NULL) {
         mCallbackData->endTrackSwitch();
     }
@@ -1716,30 +1740,88 @@ status_t MediaPlayerService::AudioOutput::start()
 }
 
 void MediaPlayerService::AudioOutput::setNextOutput(const sp<AudioOutput>& nextOutput) {
+    Mutex::Autolock lock(mLock);
     mNextOutput = nextOutput;
 }
 
-
 void MediaPlayerService::AudioOutput::switchToNextOutput() {
     ALOGV("switchToNextOutput");
-    if (mNextOutput != NULL) {
-        if (mCallbackData != NULL) {
-            mCallbackData->beginTrackSwitch();
+
+    // Try to acquire the callback lock before moving track (without incurring deadlock).
+    const unsigned kMaxSwitchTries = 100;
+    Mutex::Autolock lock(mLock);
+    for (unsigned tries = 0;;) {
+        if (mTrack == 0) {
+            return;
         }
-        delete mNextOutput->mCallbackData;
-        mNextOutput->mCallbackData = mCallbackData;
-        mCallbackData = NULL;
-        mNextOutput->mRecycledTrack = mTrack;
-        mTrack.clear();
-        mNextOutput->mSampleRateHz = mSampleRateHz;
-        mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
-        mNextOutput->mBytesWritten = mBytesWritten;
-        mNextOutput->mFlags = mFlags;
+        if (mNextOutput != NULL && mNextOutput != this) {
+            if (mCallbackData != NULL) {
+                // two alternative approaches
+#if 1
+                CallbackData *callbackData = mCallbackData;
+                mLock.unlock();
+                // proper acquisition sequence
+                callbackData->lock();
+                mLock.lock();
+                // Caution: it is unlikely that someone deleted our callback or changed our target
+                if (callbackData != mCallbackData || mNextOutput == NULL || mNextOutput == this) {
+                    // fatal if we are starved out.
+                    LOG_ALWAYS_FATAL_IF(++tries > kMaxSwitchTries,
+                            "switchToNextOutput() cannot obtain correct lock sequence");
+                    callbackData->unlock();
+                    continue;
+                }
+                callbackData->mSwitching = true; // begin track switch
+#else
+                // tryBeginTrackSwitch() returns false if the callback has the lock.
+                if (!mCallbackData->tryBeginTrackSwitch()) {
+                    // fatal if we are starved out.
+                    LOG_ALWAYS_FATAL_IF(++tries > kMaxSwitchTries,
+                            "switchToNextOutput() cannot obtain callback lock");
+                    mLock.unlock();
+                    usleep(5 * 1000 /* usec */); // allow callback to use AudioOutput
+                    mLock.lock();
+                    continue;
+                }
+#endif
+            }
+
+            Mutex::Autolock nextLock(mNextOutput->mLock);
+
+            // If the next output track is not NULL, then it has been
+            // opened already for playback.
+            // This is possible even without the next player being started,
+            // for example, the next player could be prepared and seeked.
+            //
+            // Presuming it isn't advisable to force the track over.
+             if (mNextOutput->mTrack == NULL) {
+                ALOGD("Recycling track for gapless playback");
+                delete mNextOutput->mCallbackData;
+                mNextOutput->mCallbackData = mCallbackData;
+                mNextOutput->mRecycledTrack = mTrack;
+                mNextOutput->mSampleRateHz = mSampleRateHz;
+                mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
+                mNextOutput->mBytesWritten = mBytesWritten;
+                mNextOutput->mFlags = mFlags;
+                mNextOutput->mFrameSize = mFrameSize;
+                close_l();
+                mCallbackData = NULL;  // destruction handled by mNextOutput
+            } else {
+                ALOGW("Ignoring gapless playback because next player has already started");
+                // remove track in case resource needed for future players.
+                if (mCallbackData != NULL) {
+                    mCallbackData->endTrackSwitch();  // release lock for callbacks before close.
+                }
+                close_l();
+            }
+        }
+        break;
     }
 }
 
 ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size, bool blocking)
 {
+    Mutex::Autolock lock(mLock);
     LOG_ALWAYS_FATAL_IF(mCallback != NULL, "Don't call write if supplying a callback.");
 
     //ALOGV("write(%p, %u)", buffer, size);
@@ -1756,6 +1838,7 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size, 
 void MediaPlayerService::AudioOutput::stop()
 {
     ALOGV("stop");
+    Mutex::Autolock lock(mLock);
     mBytesWritten = 0;
     if (mTrack != 0) mTrack->stop();
 }
@@ -1763,6 +1846,7 @@ void MediaPlayerService::AudioOutput::stop()
 void MediaPlayerService::AudioOutput::flush()
 {
     ALOGV("flush");
+    Mutex::Autolock lock(mLock);
     mBytesWritten = 0;
     if (mTrack != 0) mTrack->flush();
 }
@@ -1770,18 +1854,21 @@ void MediaPlayerService::AudioOutput::flush()
 void MediaPlayerService::AudioOutput::pause()
 {
     ALOGV("pause");
+    Mutex::Autolock lock(mLock);
     if (mTrack != 0) mTrack->pause();
 }
 
 void MediaPlayerService::AudioOutput::close()
 {
     ALOGV("close");
-    mTrack.clear();
+    Mutex::Autolock lock(mLock);
+    close_l();
 }
 
 void MediaPlayerService::AudioOutput::setVolume(float left, float right)
 {
     ALOGV("setVolume(%f, %f)", left, right);
+    Mutex::Autolock lock(mLock);
     mLeftVolume = left;
     mRightVolume = right;
     if (mTrack != 0) {
@@ -1793,6 +1880,7 @@ status_t MediaPlayerService::AudioOutput::setPlaybackRate(const AudioPlaybackRat
 {
     ALOGV("setPlaybackRate(%f %f %d %d)",
                 rate.mSpeed, rate.mPitch, rate.mFallbackMode, rate.mStretchMode);
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) {
         // remember rate so that we can set it when the track is opened
         mPlaybackRate = rate;
@@ -1814,6 +1902,7 @@ status_t MediaPlayerService::AudioOutput::setPlaybackRate(const AudioPlaybackRat
 status_t MediaPlayerService::AudioOutput::getPlaybackRate(AudioPlaybackRate *rate)
 {
     ALOGV("setPlaybackRate");
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) {
         return NO_INIT;
     }
@@ -1824,6 +1913,7 @@ status_t MediaPlayerService::AudioOutput::getPlaybackRate(AudioPlaybackRate *rat
 status_t MediaPlayerService::AudioOutput::setAuxEffectSendLevel(float level)
 {
     ALOGV("setAuxEffectSendLevel(%f)", level);
+    Mutex::Autolock lock(mLock);
     mSendLevel = level;
     if (mTrack != 0) {
         return mTrack->setAuxEffectSendLevel(level);
@@ -1834,6 +1924,7 @@ status_t MediaPlayerService::AudioOutput::setAuxEffectSendLevel(float level)
 status_t MediaPlayerService::AudioOutput::attachAuxEffect(int effectId)
 {
     ALOGV("attachAuxEffect(%d)", effectId);
+    Mutex::Autolock lock(mLock);
     mAuxEffectId = effectId;
     if (mTrack != 0) {
         return mTrack->attachAuxEffect(effectId);
@@ -1846,6 +1937,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         int event, void *cookie, void *info) {
     //ALOGV("callbackwrapper");
     CallbackData *data = (CallbackData*)cookie;
+    // lock to ensure we aren't caught in the middle of a track switch.
     data->lock();
     AudioOutput *me = data->getOutput();
     AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
@@ -1915,11 +2007,13 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
 
 int MediaPlayerService::AudioOutput::getSessionId() const
 {
+    Mutex::Autolock lock(mLock);
     return mSessionId;
 }
 
 uint32_t MediaPlayerService::AudioOutput::getSampleRate() const
 {
+    Mutex::Autolock lock(mLock);
     if (mTrack == 0) return 0;
     return mTrack->getSampleRate();
 }

@@ -132,7 +132,8 @@ class MediaPlayerService : public BnMediaPlayerService
         static void             setMinBufferCount();
         static void             CallbackWrapper(
                 int event, void *me, void *info);
-               void             deleteRecycledTrack();
+               void             deleteRecycledTrack_l();
+               void             close_l();
 
         sp<AudioTrack>          mTrack;
         sp<AudioTrack>          mRecycledTrack;
@@ -148,32 +149,47 @@ class MediaPlayerService : public BnMediaPlayerService
         AudioPlaybackRate       mPlaybackRate;
         uint32_t                mSampleRateHz; // sample rate of the content, as set in open()
         float                   mMsecsPerFrame;
+        size_t                  mFrameSize;
         int                     mSessionId;
         int                     mUid;
         int                     mPid;
         float                   mSendLevel;
         int                     mAuxEffectId;
+        audio_output_flags_t    mFlags;
+        mutable Mutex           mLock;
+
+        // static variables below not protected by mutex
         static bool             mIsOnEmulator;
         static int              mMinBufferCount;  // 12 for emulator; otherwise 4
-        audio_output_flags_t    mFlags;
 
         // CallbackData is what is passed to the AudioTrack as the "user" data.
         // We need to be able to target this to a different Output on the fly,
         // so we can't use the Output itself for this.
         class CallbackData {
+            friend AudioOutput;
         public:
             CallbackData(AudioOutput *cookie) {
                 mData = cookie;
                 mSwitching = false;
             }
-            AudioOutput *   getOutput() { return mData;}
+            AudioOutput *   getOutput() const { return mData; }
             void            setOutput(AudioOutput* newcookie) { mData = newcookie; }
             // lock/unlock are used by the callback before accessing the payload of this object
-            void            lock() { mLock.lock(); }
-            void            unlock() { mLock.unlock(); }
-            // beginTrackSwitch/endTrackSwitch are used when this object is being handed over
+            void            lock() const { mLock.lock(); }
+            void            unlock() const { mLock.unlock(); }
+
+            // tryBeginTrackSwitch/endTrackSwitch are used when the CallbackData is handed over
             // to the next sink.
-            void            beginTrackSwitch() { mLock.lock(); mSwitching = true; }
+
+            // tryBeginTrackSwitch() returns true only if it obtains the lock.
+            bool            tryBeginTrackSwitch() {
+                LOG_ALWAYS_FATAL_IF(mSwitching, "tryBeginTrackSwitch() already called");
+                if (mLock.tryLock() != OK) {
+                    return false;
+                }
+                mSwitching = true;
+                return true;
+            }
             void            endTrackSwitch() {
                 if (mSwitching) {
                     mLock.unlock();
@@ -182,7 +198,7 @@ class MediaPlayerService : public BnMediaPlayerService
             }
         private:
             AudioOutput *   mData;
-            mutable Mutex   mLock;
+            mutable Mutex   mLock; // a recursive mutex might make this unnecessary.
             bool            mSwitching;
             DISALLOW_EVIL_CONSTRUCTORS(CallbackData);
         };
