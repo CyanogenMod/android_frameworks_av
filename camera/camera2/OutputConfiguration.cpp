@@ -65,6 +65,11 @@ OutputConfiguration::OutputConfiguration(const Parcel& parcel) {
           gbp.get(), String8(name).string());
 }
 
+OutputConfiguration::OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation) {
+    mGbp = gbp;
+    mRotation = rotation;
+}
+
 status_t OutputConfiguration::writeToParcel(Parcel& parcel) const {
 
     parcel.writeInt32(mRotation);
