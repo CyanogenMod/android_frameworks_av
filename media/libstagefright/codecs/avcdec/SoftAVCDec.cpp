@@ -627,6 +627,11 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             if (!inQueue.empty()) {
                 inInfo = *inQueue.begin();
                 inHeader = inInfo->mHeader;
+                if (inHeader == NULL) {
+                    inQueue.erase(inQueue.begin());
+                    inInfo->mOwnedByUs = false;
+                    continue;
+                }
             } else {
                 break;
             }
@@ -638,14 +643,21 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         outHeader->nTimeStamp = 0;
         outHeader->nOffset = 0;
 
-        if (inHeader != NULL && (inHeader->nFlags & OMX_BUFFERFLAG_EOS)) {
-            mReceivedEOS = true;
+        if (inHeader != NULL) {
             if (inHeader->nFilledLen == 0) {
                 inQueue.erase(inQueue.begin());
                 inInfo->mOwnedByUs = false;
                 notifyEmptyBufferDone(inHeader);
+
+                if (!(inHeader->nFlags & OMX_BUFFERFLAG_EOS)) {
+                    continue;
+                }
+
+                mReceivedEOS = true;
                 inHeader = NULL;
                 setFlushMode();
+            } else if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+                mReceivedEOS = true;
             }
         }
 
