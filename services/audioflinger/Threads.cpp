@@ -4482,9 +4482,16 @@ void AudioFlinger::DirectOutputThread::onAddNewTrack_l()
     sp<Track> previousTrack = mPreviousTrack.promote();
     sp<Track> latestTrack = mLatestActiveTrack.promote();
 
-    if (previousTrack != 0 && latestTrack != 0 &&
-        (previousTrack->sessionId() != latestTrack->sessionId())) {
-        mFlushPending = true;
+    if (previousTrack != 0 && latestTrack != 0) {
+        if (mType == DIRECT) {
+            if (previousTrack.get() != latestTrack.get()) {
+                mFlushPending = true;
+            }
+        } else /* mType == OFFLOAD */ {
+            if (previousTrack->sessionId() != latestTrack->sessionId()) {
+                mFlushPending = true;
+            }
+        }
     }
     PlaybackThread::onAddNewTrack_l();
 }
@@ -4577,12 +4584,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     if (track != previousTrack.get()) {
                         // Flush any data still being written from last track
                         mBytesRemaining = 0;
-                        // flush data already sent if changing audio session as audio
-                        // comes from a different source. Also invalidate previous track to force a
-                        // seek when resuming.
-                        if (previousTrack->sessionId() != track->sessionId()) {
-                            previousTrack->invalidate();
-                        }
+                        // Invalidate previous track to force a seek when resuming.
+                        previousTrack->invalidate();
                     }
                 }
                 mPreviousTrack = track;
