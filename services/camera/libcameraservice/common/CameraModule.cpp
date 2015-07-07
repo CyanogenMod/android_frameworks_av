@@ -154,6 +154,18 @@ CameraModule::CameraModule(camera_module_t *module) {
     mCameraInfoMap.setCapacity(getNumberOfCameras());
 }
 
+CameraModule::~CameraModule()
+{
+    while (mCameraInfoMap.size() > 0) {
+        camera_info cameraInfo = mCameraInfoMap.editValueAt(0);
+        if (cameraInfo.static_camera_characteristics != NULL) {
+            free_camera_metadata(
+                    const_cast<camera_metadata_t*>(cameraInfo.static_camera_characteristics));
+        }
+        mCameraInfoMap.removeItemsAt(0);
+    }
+}
+
 int CameraModule::init() {
     if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4 &&
             mModule->init != NULL) {
@@ -192,12 +204,9 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         CameraMetadata m;
         m = rawInfo.static_camera_characteristics;
         deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
-        mCameraCharacteristicsMap.add(cameraId, m);
         cameraInfo = rawInfo;
-        cameraInfo.static_camera_characteristics =
-                mCameraCharacteristicsMap.valueFor(cameraId).getAndLock();
-        mCameraInfoMap.add(cameraId, cameraInfo);
-        index = mCameraInfoMap.indexOfKey(cameraId);
+        cameraInfo.static_camera_characteristics = m.release();
+        index = mCameraInfoMap.add(cameraId, cameraInfo);
     }
 
     assert(index != NAME_NOT_FOUND);
