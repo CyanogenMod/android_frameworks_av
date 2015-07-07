@@ -285,6 +285,7 @@ public:
         }
 
         Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
 
         data.writeInt32(cameraId);
         remote()->transact(BnCameraService::GET_LEGACY_PARAMETERS, data, &reply);
@@ -304,6 +305,7 @@ public:
     virtual status_t supportsCameraApi(int cameraId, int apiVersion) {
         Parcel data, reply;
 
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeInt32(cameraId);
         data.writeInt32(apiVersion);
         remote()->transact(BnCameraService::SUPPORTS_CAMERA_API, data, &reply);
@@ -315,6 +317,7 @@ public:
 
     virtual void notifySystemEvent(int32_t eventId, const int32_t* args, size_t len) {
         Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
         data.writeInt32(eventId);
         data.writeInt32Array(len, args);
         remote()->transact(BnCameraService::NOTIFY_SYSTEM_EVENT, data, &reply,

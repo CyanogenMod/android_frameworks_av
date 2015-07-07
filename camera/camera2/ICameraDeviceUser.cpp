@@ -82,7 +82,7 @@ public:
         reply.readExceptionCode();
     }
 
-    virtual status_t submitRequest(sp<CaptureRequest> request, bool repeating,
+    virtual int submitRequest(sp<CaptureRequest> request, bool repeating,
                               int64_t *lastFrameNumber)
     {
         Parcel data, reply;
@@ -111,13 +111,13 @@ public:
             }
         }
 
-	if ((res < NO_ERROR) || (resFrameNumber != NO_ERROR)) {
+        if (res < 0 || (resFrameNumber != NO_ERROR)) {
             res = FAILED_TRANSACTION;
         }
         return res;
     }
 
-    virtual status_t submitRequestList(List<sp<CaptureRequest> > requestList, bool repeating,
+    virtual int submitRequestList(List<sp<CaptureRequest> > requestList, bool repeating,
                                   int64_t *lastFrameNumber)
     {
         Parcel data, reply;
@@ -151,7 +151,7 @@ public:
                 resFrameNumber = reply.readInt64(lastFrameNumber);
             }
         }
-        if ((res < NO_ERROR) || (resFrameNumber != NO_ERROR)) {
+        if (res < 0 || (resFrameNumber != NO_ERROR)) {
             res = FAILED_TRANSACTION;
         }
         return res;

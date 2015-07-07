@@ -17,7 +17,8 @@ include $(CLEAR_VARS)
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
 LOCAL_SRC_FILES:= \
-	VendorTagDescriptorTests.cpp
+	VendorTagDescriptorTests.cpp \
+	CameraBinderTests.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libutils \
