@@ -53,7 +53,10 @@ public:
 
     virtual ~AudioStreamOut() { }
 
-    virtual status_t getRenderPosition(uint32_t *frames);
+    // Get the bottom 32-bits of the 64-bit render position.
+    status_t getRenderPosition(uint32_t *frames);
+
+    virtual status_t getRenderPosition(uint64_t *frames);
 
     virtual status_t getPresentationPosition(uint64_t *frames, struct timespec *timestamp);
 
@@ -76,6 +79,14 @@ public:
 
     virtual status_t flush();
     virtual status_t standby();
+
+protected:
+    uint64_t             mFramesWritten; // reset by flush
+    uint64_t             mFramesWrittenAtStandby;
+    uint64_t             mRenderPosition; // reset by flush or standby
+    int                  mRateMultiplier;
+    bool                 mHalFormatIsLinearPcm;
+    size_t               mHalFrameSize;
 };
 
 } // namespace android

@@ -27,25 +27,59 @@
 namespace android {
 
 // ----------------------------------------------------------------------------
-
 AudioStreamOut::AudioStreamOut(AudioHwDevice *dev, audio_output_flags_t flags)
         : audioHwDev(dev)
         , stream(NULL)
         , flags(flags)
+        , mFramesWritten(0)
+        , mFramesWrittenAtStandby(0)
+        , mRenderPosition(0)
+        , mRateMultiplier(1)
+        , mHalFormatIsLinearPcm(false)
+        , mHalFrameSize(0)
 {
 }
 
-audio_hw_device_t* AudioStreamOut::hwDev() const
+audio_hw_device_t *AudioStreamOut::hwDev() const
 {
     return audioHwDev->hwDevice();
 }
 
-status_t AudioStreamOut::getRenderPosition(uint32_t *frames)
+status_t AudioStreamOut::getRenderPosition(uint64_t *frames)
 {
     if (stream == NULL) {
         return NO_INIT;
     }
-    return stream->get_render_position(stream, frames);
+
+    uint32_t halPosition = 0;
+    status_t status = stream->get_render_position(stream, &halPosition);
+    if (status != NO_ERROR) {
+        return status;
+    }
+
+    // Maintain a 64-bit render position using the 32-bit result from the HAL.
+    // This delta calculation relies on the arithmetic overflow behavior
+    // of integers. For example (100 - 0xFFFFFFF0) = 116.
+    uint32_t truncatedPosition = (uint32_t)mRenderPosition;
+    int32_t deltaHalPosition = (int32_t)(halPosition - truncatedPosition);
+    if (deltaHalPosition > 0) {
+        mRenderPosition += deltaHalPosition;
+    }
+    // Scale from HAL sample rate to application rate.
+    *frames = mRenderPosition / mRateMultiplier;
+
+    return status;
+}
+
+// return bottom 32-bits of the render position
+status_t AudioStreamOut::getRenderPosition(uint32_t *frames)
+{
+    uint64_t position64 = 0;
+    status_t status = getRenderPosition(&position64);
+    if (status == NO_ERROR) {
+        *frames = (uint32_t)position64;
+    }
+    return status;
 }
 
 status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timespec *timestamp)
@@ -53,7 +87,26 @@ status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timesp
     if (stream == NULL) {
         return NO_INIT;
     }
-    return stream->get_presentation_position(stream, frames, timestamp);
+
+    uint64_t halPosition = 0;
+    status_t status = stream->get_presentation_position(stream, &halPosition, timestamp);
+    if (status != NO_ERROR) {
+        return status;
+    }
+
+    // Adjust for standby using HAL rate frames.
+    // Only apply this correction if the HAL is getting PCM frames.
+    if (mHalFormatIsLinearPcm) {
+        uint64_t adjustedPosition = (halPosition <= mFramesWrittenAtStandby) ?
+                0 : (halPosition - mFramesWrittenAtStandby);
+        // Scale from HAL sample rate to application rate.
+        *frames = adjustedPosition / mRateMultiplier;
+    } else {
+        // For offloaded MP3 and other compressed formats.
+        *frames = halPosition;
+    }
+
+    return status;
 }
 
 status_t AudioStreamOut::open(
@@ -62,7 +115,7 @@ status_t AudioStreamOut::open(
         struct audio_config *config,
         const char *address)
 {
-    audio_stream_out_t* outStream;
+    audio_stream_out_t *outStream;
     int status = hwDev()->open_output_stream(
             hwDev(),
             handle,
@@ -82,6 +135,9 @@ status_t AudioStreamOut::open(
 
     if (status == NO_ERROR) {
         stream = outStream;
+        mHalFormatIsLinearPcm = audio_is_linear_pcm(config->format);
+        ALOGI("AudioStreamOut::open(), mHalFormatIsLinearPcm = %d", (int)mHalFormatIsLinearPcm);
+        mHalFrameSize = audio_stream_out_frame_size(stream);
     }
 
     return status;
@@ -89,13 +145,15 @@ status_t AudioStreamOut::open(
 
 size_t AudioStreamOut::getFrameSize()
 {
-    ALOG_ASSERT(stream != NULL);
-    return audio_stream_out_frame_size(stream);
+    return mHalFrameSize;
 }
 
 int AudioStreamOut::flush()
 {
     ALOG_ASSERT(stream != NULL);
+    mRenderPosition = 0;
+    mFramesWritten = 0;
+    mFramesWrittenAtStandby = 0;
     if (stream->flush != NULL) {
         return stream->flush(stream);
     }
@@ -105,13 +163,20 @@ int AudioStreamOut::flush()
 int AudioStreamOut::standby()
 {
     ALOG_ASSERT(stream != NULL);
+    mRenderPosition = 0;
+    mFramesWrittenAtStandby = mFramesWritten;
+    ALOGI("AudioStreamOut::standby(), mFramesWrittenAtStandby = %llu", mFramesWrittenAtStandby);
     return stream->common.standby(&stream->common);
 }
 
-ssize_t AudioStreamOut::write(const void* buffer, size_t bytes)
+ssize_t AudioStreamOut::write(const void *buffer, size_t numBytes)
 {
     ALOG_ASSERT(stream != NULL);
-    return stream->write(stream, buffer, bytes);
+    ssize_t bytesWritten = stream->write(stream, buffer, numBytes);
+    if (bytesWritten > 0 && mHalFrameSize > 0) {
+        mFramesWritten += bytesWritten / mHalFrameSize;
+    }
+    return bytesWritten;
 }
 
 } // namespace android
