@@ -39,6 +39,8 @@ public:
     // getRotation will be INVALID_ROTATION if error occurred
     OutputConfiguration(const Parcel& parcel);
 
+    OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation);
+
 private:
     sp<IGraphicBufferProducer> mGbp;
     int                        mRotation;
