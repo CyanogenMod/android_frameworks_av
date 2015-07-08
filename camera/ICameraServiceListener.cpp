@@ -45,8 +45,7 @@ public:
     virtual void onStatusChanged(Status status, int32_t cameraId)
     {
         Parcel data, reply;
-        data.writeInterfaceToken(
-                              ICameraServiceListener::getInterfaceDescriptor());
+        data.writeInterfaceToken(ICameraServiceListener::getInterfaceDescriptor());
 
         data.writeInt32(static_cast<int32_t>(status));
         data.writeInt32(cameraId);
@@ -60,8 +59,7 @@ public:
     virtual void onTorchStatusChanged(TorchStatus status, const String16 &cameraId)
     {
         Parcel data, reply;
-        data.writeInterfaceToken(
-                              ICameraServiceListener::getInterfaceDescriptor());
+        data.writeInterfaceToken(ICameraServiceListener::getInterfaceDescriptor());
 
         data.writeInt32(static_cast<int32_t>(status));
         data.writeString16(cameraId);
@@ -73,14 +71,12 @@ public:
     }
 };
 
-IMPLEMENT_META_INTERFACE(CameraServiceListener,
-                         "android.hardware.ICameraServiceListener");
+IMPLEMENT_META_INTERFACE(CameraServiceListener, "android.hardware.ICameraServiceListener");
 
 // ----------------------------------------------------------------------
 
-status_t BnCameraServiceListener::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
+status_t BnCameraServiceListener::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+        uint32_t flags) {
     switch(code) {
         case STATUS_CHANGED: {
             CHECK_INTERFACE(ICameraServiceListener, data, reply);
