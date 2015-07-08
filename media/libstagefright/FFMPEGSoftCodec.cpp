@@ -36,6 +36,8 @@
 #include <OMX_AudioExt.h>
 #include <OMX_IndexExt.h>
 
+#include <OMX_FFMPEG_Extn.h>
+
 namespace android {
 
 void FFMPEGSoftCodec::convertMessageToMetaData(
@@ -226,13 +228,13 @@ status_t FFMPEGSoftCodec::setVideoFormat(
             *compressionFormat = OMX_VIDEO_CodingRV;
         }
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VC1, mime)) {
-        *compressionFormat = OMX_VIDEO_CodingVC1;
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingVC1;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FLV1, mime)) {
-        *compressionFormat = OMX_VIDEO_CodingFLV1;
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingFLV1;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
-        *compressionFormat = OMX_VIDEO_CodingDIVX;
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
-        *compressionFormat = OMX_VIDEO_CodingHEVC;
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingHEVC;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FFMPEG, mime)) {
         ALOGV("Setting the OMX_VIDEO_PARAM_FFMPEGTYPE params");
         err = setFFmpegVideoFormat(msg, OMXhandle, nodeID);
@@ -502,7 +504,7 @@ status_t FFMPEGSoftCodec::setFFmpegVideoFormat(
     param.nPortIndex = kPortIndexInput;
 
     status_t err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamVideoFFmpeg, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamVideoFFmpeg, &param, sizeof(param));
     if (err != OK)
         return err;
 
@@ -511,7 +513,7 @@ status_t FFMPEGSoftCodec::setFFmpegVideoFormat(
     param.nHeight  = height;
 
     err = OMXhandle->setParameter(
-            nodeID, OMX_IndexParamVideoFFmpeg, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamVideoFFmpeg, &param, sizeof(param));
     return err;
 }
 
@@ -776,7 +778,7 @@ status_t FFMPEGSoftCodec::setMP2Format(
     param.nPortIndex = kPortIndexInput;
 
     err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamAudioMp2, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioMp2, &param, sizeof(param));
     if (err != OK)
         return err;
 
@@ -784,7 +786,7 @@ status_t FFMPEGSoftCodec::setMP2Format(
     param.nSampleRate = sampleRate;
 
     return OMXhandle->setParameter(
-            nodeID, OMX_IndexParamAudioMp2, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioMp2, &param, sizeof(param));
 }
 
 status_t FFMPEGSoftCodec::setAC3Format(
@@ -843,7 +845,7 @@ status_t FFMPEGSoftCodec::setAPEFormat(
     param.nPortIndex = kPortIndexInput;
 
     err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamAudioApe, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioApe, &param, sizeof(param));
     if (err != OK)
         return err;
 
@@ -852,7 +854,7 @@ status_t FFMPEGSoftCodec::setAPEFormat(
     param.nBitsPerSample = bitsPerSample;
 
     return OMXhandle->setParameter(
-            nodeID, OMX_IndexParamAudioApe, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioApe, &param, sizeof(param));
 }
 
 status_t FFMPEGSoftCodec::setDTSFormat(
@@ -877,7 +879,7 @@ status_t FFMPEGSoftCodec::setDTSFormat(
     param.nPortIndex = kPortIndexInput;
 
     err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamAudioDts, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioDts, &param, sizeof(param));
     if (err != OK)
         return err;
 
@@ -885,7 +887,7 @@ status_t FFMPEGSoftCodec::setDTSFormat(
     param.nSamplingRate = sampleRate;
 
     return OMXhandle->setParameter(
-            nodeID, OMX_IndexParamAudioDts, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioDts, &param, sizeof(param));
 }
 
 status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
@@ -921,7 +923,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     param.nPortIndex = kPortIndexInput;
 
     err = OMXhandle->getParameter(
-            nodeID, OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
     if (err != OK)
         return err;
 
@@ -934,7 +936,7 @@ status_t FFMPEGSoftCodec::setFFmpegAudioFormat(
     param.eSampleFormat  = sampleFormat;
 
     return OMXhandle->setParameter(
-            nodeID, OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioFFmpeg, &param, sizeof(param));
 }
 
 }
