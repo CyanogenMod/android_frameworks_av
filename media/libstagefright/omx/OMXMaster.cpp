@@ -25,55 +25,60 @@
 #include <dlfcn.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <cutils/properties.h>
 
 namespace android {
 
-OMXMaster::OMXMaster()
-    : mVendorLibHandle(NULL) {
+OMXMaster::OMXMaster() {
     addVendorPlugin();
     addPlugin(new SoftOMXPlugin);
+    addUserPlugin();
 }
 
 OMXMaster::~OMXMaster() {
     clearPlugins();
-
-    if (mVendorLibHandle != NULL) {
-        dlclose(mVendorLibHandle);
-        mVendorLibHandle = NULL;
-    }
 }
 
 void OMXMaster::addVendorPlugin() {
     addPlugin("libstagefrighthw.so");
 }
 
-void OMXMaster::addPlugin(const char *libname) {
-    mVendorLibHandle = dlopen(libname, RTLD_NOW);
+void OMXMaster::addUserPlugin() {
+    char plugin[PROPERTY_VALUE_MAX];
+    if (property_get("media.sf.omx-plugin", plugin, NULL)) {
+        if (plugin != NULL) {
+            addPlugin(plugin);
+        }
+    }
+}
 
-    if (mVendorLibHandle == NULL) {
+void OMXMaster::addPlugin(const char *libname) {
+    void* handle = dlopen(libname, RTLD_NOW);
+
+    if (handle == NULL) {
         return;
     }
 
     typedef OMXPluginBase *(*CreateOMXPluginFunc)();
     CreateOMXPluginFunc createOMXPlugin =
         (CreateOMXPluginFunc)dlsym(
-                mVendorLibHandle, "createOMXPlugin");
+                handle, "createOMXPlugin");
     if (!createOMXPlugin)
         createOMXPlugin = (CreateOMXPluginFunc)dlsym(
-                mVendorLibHandle, "_ZN7android15createOMXPluginEv");
+                handle, "_ZN7android15createOMXPluginEv");
 
     if (createOMXPlugin) {
-        addPlugin((*createOMXPlugin)());
+        addPlugin((*createOMXPlugin)(), handle);
     }
 }
 
-void OMXMaster::addPlugin(OMXPluginBase *plugin) {
+void OMXMaster::addPlugin(OMXPluginBase *plugin, void *handle) {
     if (plugin == 0) {
        return;
     }
     Mutex::Autolock autoLock(mLock);
 
-    mPlugins.push_back(plugin);
+    mPlugins.add(plugin, handle);
 
     OMX_U32 index = 0;
 
@@ -102,20 +107,25 @@ void OMXMaster::addPlugin(OMXPluginBase *plugin) {
 void OMXMaster::clearPlugins() {
     Mutex::Autolock autoLock(mLock);
 
-    typedef void (*DestroyOMXPluginFunc)(OMXPluginBase*);
-    DestroyOMXPluginFunc destroyOMXPlugin =
-        (DestroyOMXPluginFunc)dlsym(
-                mVendorLibHandle, "destroyOMXPlugin");
-
     mPluginByComponentName.clear();
 
-    for (List<OMXPluginBase *>::iterator it = mPlugins.begin();
-            it != mPlugins.end(); ++it) {
+    for (unsigned int i = 0; i < mPlugins.size(); i++) {
+        OMXPluginBase *plugin = mPlugins.keyAt(i);
+        typedef void (*DestroyOMXPluginFunc)(OMXPluginBase*);
+        DestroyOMXPluginFunc destroyOMXPlugin =
+            (DestroyOMXPluginFunc)dlsym(
+                    plugin, "destroyOMXPlugin");
+
         if (destroyOMXPlugin)
-            destroyOMXPlugin(*it);
+            destroyOMXPlugin(plugin);
         else
-            delete *it;
-        *it = NULL;
+            delete plugin;
+        plugin = NULL;
+
+        void *handle = mPlugins.valueAt(i);
+        if (handle != NULL) {
+            dlclose(handle);
+        }
     }
 
     mPlugins.clear();
