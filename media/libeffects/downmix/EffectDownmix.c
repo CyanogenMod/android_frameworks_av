@@ -624,9 +624,12 @@ int Downmix_Configure(downmix_module_t *pDwmModule, effect_config_t *pConfig, bo
         pDownmixer->apply_volume_correction = false;
         pDownmixer->input_channel_count = 8; // matches default input of AUDIO_CHANNEL_OUT_7POINT1
     } else {
-        // when configuring the effect, do not allow a blank channel mask
-        if (pConfig->inputCfg.channels == 0) {
-            ALOGE("Downmix_Configure error: input channel mask can't be 0");
+        // when configuring the effect, do not allow a blank or unsupported channel mask
+        if ((pConfig->inputCfg.channels == 0) ||
+            (Downmix_foldGeneric(pConfig->inputCfg.channels,
+                                NULL, NULL, 0, false) == false)) {
+            ALOGE("Downmix_Configure error: input channel mask(0x%x) not supported",
+                                                        pConfig->inputCfg.channels);
             return -EINVAL;
         }
         pDownmixer->input_channel_count =
