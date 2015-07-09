@@ -105,8 +105,9 @@ private:
     // codec. So the codec is switching to decode the new resolution.
     bool mChangingResolution;
     bool mFlushNeeded;
+    bool mSignalledError;
 
-    status_t initDecoder();
+    status_t initDecoder(uint32_t width, uint32_t height);
     status_t deInitDecoder();
     status_t setFlushMode();
     status_t setParams(size_t stride);
@@ -114,7 +115,7 @@ private:
     status_t setNumCores();
     status_t resetDecoder();
     status_t resetPlugin();
-    status_t reInitDecoder();
+    status_t reInitDecoder(uint32_t width, uint32_t height);
 
     void setDecodeArgs(
             ivd_video_decode_ip_t *ps_dec_ip,
