@@ -115,6 +115,7 @@ SoftAVC::SoftAVC(
             kProfileLevels, ARRAY_SIZE(kProfileLevels),
             320 /* width */, 240 /* height */, callbacks,
             appData, component),
+      mCodecCtx(NULL),
       mMemRecords(NULL),
       mFlushOutBuffer(NULL),
       mOmxColorFormat(OMX_COLOR_FormatYUV420Planar),
@@ -122,7 +123,8 @@ SoftAVC::SoftAVC(
       mNewWidth(mWidth),
       mNewHeight(mHeight),
       mNewLevel(0),
-      mChangingResolution(false) {
+      mChangingResolution(false),
+      mSignalledError(false) {
     initPorts(
             kNumBuffers, INPUT_BUF_SIZE, kNumBuffers, CODEC_MIME_TYPE);
 
@@ -132,7 +134,7 @@ SoftAVC::SoftAVC(
     GENERATE_FILE_NAMES();
     CREATE_DUMP_FILE(mInFile);
 
-    CHECK_EQ(initDecoder(), (status_t)OK);
+    CHECK_EQ(initDecoder(mWidth, mHeight), (status_t)OK);
 }
 
 SoftAVC::~SoftAVC() {
@@ -232,6 +234,7 @@ status_t SoftAVC::resetDecoder() {
         ALOGE("Error in reset: 0x%x", s_ctl_op.u4_error_code);
         return UNKNOWN_ERROR;
     }
+    mSignalledError = false;
 
     /* Set the run-time (dynamic) parameters */
     setParams(outputBufferWidth());
@@ -285,7 +288,7 @@ status_t SoftAVC::setFlushMode() {
     return OK;
 }
 
-status_t SoftAVC::initDecoder() {
+status_t SoftAVC::initDecoder(uint32_t width, uint32_t height) {
     IV_API_CALL_STATUS_T status;
 
     UWORD32 u4_num_reorder_frames;
@@ -294,14 +297,15 @@ status_t SoftAVC::initDecoder() {
     WORD32 i4_level;
 
     mNumCores = GetCPUCoreCount();
+    mCodecCtx = NULL;
 
     /* Initialize number of ref and reorder modes (for H264) */
     u4_num_reorder_frames = 16;
     u4_num_ref_frames = 16;
     u4_share_disp_buf = 0;
 
-    uint32_t displayStride = outputBufferWidth();
-    uint32_t displayHeight = outputBufferHeight();
+    uint32_t displayStride = mIsAdaptive ? mAdaptiveMaxWidth : width;
+    uint32_t displayHeight = mIsAdaptive ? mAdaptiveMaxHeight : height;
     uint32_t displaySizeY = displayStride * displayHeight;
 
     if(mNewLevel == 0){
@@ -435,6 +439,7 @@ status_t SoftAVC::initDecoder() {
 
         status = ivdec_api_function(mCodecCtx, (void *)&s_init_ip, (void *)&s_init_op);
         if (status != IV_SUCCESS) {
+            mCodecCtx = NULL;
             ALOGE("Error in init: 0x%x",
                     s_init_op.s_ivd_init_op_t.u4_error_code);
             return UNKNOWN_ERROR;
@@ -494,12 +499,12 @@ status_t SoftAVC::deInitDecoder() {
     return OK;
 }
 
-status_t SoftAVC::reInitDecoder() {
+status_t SoftAVC::reInitDecoder(uint32_t width, uint32_t height) {
     status_t ret;
 
     deInitDecoder();
 
-    ret = initDecoder();
+    ret = initDecoder(width, height);
     if (OK != ret) {
         ALOGE("Create failure");
         deInitDecoder();
@@ -511,6 +516,7 @@ status_t SoftAVC::reInitDecoder() {
 void SoftAVC::onReset() {
     SoftVideoDecoderOMXComponent::onReset();
 
+    mSignalledError = false;
     resetDecoder();
     resetPlugin();
 }
@@ -520,7 +526,12 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
     const uint32_t oldHeight = mHeight;
     OMX_ERRORTYPE ret = SoftVideoDecoderOMXComponent::internalSetParameter(index, params);
     if (mWidth != oldWidth || mHeight != oldHeight) {
-        reInitDecoder();
+        status_t err = reInitDecoder(mNewWidth, mNewHeight);
+        if (err != OK) {
+            notify(OMX_EventError, OMX_ErrorUnsupportedSetting, err, NULL);
+            mSignalledError = true;
+            return OMX_ErrorUnsupportedSetting;
+        }
     }
     return ret;
 }
@@ -595,6 +606,9 @@ void SoftAVC::onPortFlushCompleted(OMX_U32 portIndex) {
 void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
     UNUSED(portIndex);
 
+    if (mSignalledError) {
+        return;
+    }
     if (mOutputPortSettingsChange != NONE) {
         return;
     }
@@ -653,9 +667,15 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
         // update output port's definition and reinitialize decoder.
         if (mInitNeeded && !mIsInFlush) {
             bool portWillReset = false;
-            handlePortSettingsChange(&portWillReset, mNewWidth, mNewHeight);
 
-            CHECK_EQ(reInitDecoder(), (status_t)OK);
+            status_t err = reInitDecoder(mNewWidth, mNewHeight);
+            if (err != OK) {
+                notify(OMX_EventError, OMX_ErrorUnsupportedSetting, err, NULL);
+                mSignalledError = true;
+                return;
+            }
+
+            handlePortSettingsChange(&portWillReset, mNewWidth, mNewHeight);
             return;
         }
 
@@ -714,13 +734,22 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
                 mTimeStampsValid[timeStampIx] = false;
             }
 
+
             // This is needed to handle CTS DecoderTest testCodecResetsH264WithoutSurface,
             // which is not sending SPS/PPS after port reconfiguration and flush to the codec.
             if (unsupportedDimensions && !mFlushNeeded) {
                 bool portWillReset = false;
-                handlePortSettingsChange(&portWillReset, s_dec_op.u4_pic_wd, s_dec_op.u4_pic_ht);
+                mNewWidth = s_dec_op.u4_pic_wd;
+                mNewHeight = s_dec_op.u4_pic_ht;
 
-                CHECK_EQ(reInitDecoder(), (status_t)OK);
+                status_t err = reInitDecoder(mNewWidth, mNewHeight);
+                if (err != OK) {
+                    notify(OMX_EventError, OMX_ErrorUnsupportedSetting, err, NULL);
+                    mSignalledError = true;
+                    return;
+                }
+
+                handlePortSettingsChange(&portWillReset, mNewWidth, mNewHeight);
 
                 setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
 
@@ -732,7 +761,12 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
 
                 mNewLevel = 51;
 
-                CHECK_EQ(reInitDecoder(), (status_t)OK);
+                status_t err = reInitDecoder(mNewWidth, mNewHeight);
+                if (err != OK) {
+                    notify(OMX_EventError, OMX_ErrorUnsupportedSetting, err, NULL);
+                    mSignalledError = true;
+                    return;
+                }
 
                 setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
 
