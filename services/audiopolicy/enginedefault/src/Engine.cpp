@@ -319,8 +319,11 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
             device = getDeviceForStrategy(STRATEGY_SONIFICATION);
             //user "safe" speaker if available instead of normal speaker to avoid triggering
             //other acoustic safety mechanisms for notification
-            if (device == AUDIO_DEVICE_OUT_SPEAKER && (availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER_SAFE))
-                device = AUDIO_DEVICE_OUT_SPEAKER_SAFE;
+            if ((device & AUDIO_DEVICE_OUT_SPEAKER) &&
+                    (availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER_SAFE)) {
+                device |= AUDIO_DEVICE_OUT_SPEAKER_SAFE;
+                device &= ~AUDIO_DEVICE_OUT_SPEAKER;
+            }
         } else if (outputs.isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY)) {
             // while media is playing (or has recently played), use the same device
             device = getDeviceForStrategy(STRATEGY_MEDIA);
@@ -329,8 +332,11 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
             device = getDeviceForStrategy(STRATEGY_SONIFICATION);
             //user "safe" speaker if available instead of normal speaker to avoid triggering
             //other acoustic safety mechanisms for notification
-            if (device == AUDIO_DEVICE_OUT_SPEAKER && (availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER_SAFE))
-                device = AUDIO_DEVICE_OUT_SPEAKER_SAFE;
+            if ((device & AUDIO_DEVICE_OUT_SPEAKER) &&
+                    (availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER_SAFE)) {
+                device |= AUDIO_DEVICE_OUT_SPEAKER_SAFE;
+                device &= ~AUDIO_DEVICE_OUT_SPEAKER;
+            }
         }
         break;
 
