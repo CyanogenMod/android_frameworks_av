@@ -559,7 +559,8 @@ private:
               float streamVolume_l(audio_stream_type_t stream) const
                                 { return mStreamTypes[stream].volume; }
               void ioConfigChanged(audio_io_config_event event,
-                                   const sp<AudioIoDescriptor>& ioDesc);
+                                   const sp<AudioIoDescriptor>& ioDesc,
+                                   pid_t pid = 0);
 
               // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
               // They all share the same ID space, but the namespaces are actually independent

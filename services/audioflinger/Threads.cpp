@@ -532,7 +532,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         // RecordThread::readInputParameters_l()
         //FIXME: mStandby should be true here. Is this some kind of hack?
         mStandby(false), mOutDevice(outDevice), mInDevice(inDevice),
-        mPrevInDevice(AUDIO_DEVICE_NONE), mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
+        mPrevOutDevice(AUDIO_DEVICE_NONE), mPrevInDevice(AUDIO_DEVICE_NONE),
+        mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this)),
         mSystemReady(systemReady)
@@ -627,16 +628,16 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
     return status;
 }
 
-void AudioFlinger::ThreadBase::sendIoConfigEvent(audio_io_config_event event)
+void AudioFlinger::ThreadBase::sendIoConfigEvent(audio_io_config_event event, pid_t pid)
 {
     Mutex::Autolock _l(mLock);
-    sendIoConfigEvent_l(event);
+    sendIoConfigEvent_l(event, pid);
 }
 
 // sendIoConfigEvent_l() must be called with ThreadBase::mLock held
-void AudioFlinger::ThreadBase::sendIoConfigEvent_l(audio_io_config_event event)
+void AudioFlinger::ThreadBase::sendIoConfigEvent_l(audio_io_config_event event, pid_t pid)
 {
-    sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event);
+    sp<ConfigEvent> configEvent = (ConfigEvent *)new IoConfigEvent(event, pid);
     sendConfigEvent_l(configEvent);
 }
 
@@ -706,7 +707,7 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
         } break;
         case CFG_EVENT_IO: {
             IoConfigEventData *data = (IoConfigEventData *)event->mData.get();
-            ioConfigChanged(data->mEvent);
+            ioConfigChanged(data->mEvent, data->mPid);
         } break;
         case CFG_EVENT_SET_PARAMETER: {
             SetParameterConfigEventData *data = (SetParameterConfigEventData *)event->mData.get();
@@ -1999,7 +2000,7 @@ String8 AudioFlinger::PlaybackThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event) {
+void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event, pid_t pid) {
     sp<AudioIoDescriptor> desc = new AudioIoDescriptor();
     ALOGV("PlaybackThread::ioConfigChanged, thread %p, event %d", this, event);
 
@@ -2021,7 +2022,7 @@ void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event) 
     default:
         break;
     }
-    mAudioFlinger->ioConfigChanged(event, desc);
+    mAudioFlinger->ioConfigChanged(event, desc, pid);
 }
 
 void AudioFlinger::PlaybackThread::writeCallback()
@@ -3133,7 +3134,10 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
     for (size_t i = 0; i < mEffectChains.size(); i++) {
         mEffectChains[i]->setDevice_l(type);
     }
-    bool configChanged = mOutDevice != type;
+
+    // mPrevOutDevice is the latest device set by createAudioPatch_l(). It is not set when
+    // the thread is created so that the first patch creation triggers an ioConfigChanged callback
+    bool configChanged = mPrevOutDevice != type;
     mOutDevice = type;
     mPatch = *patch;
 
@@ -3163,6 +3167,7 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
     if (configChanged) {
+        mPrevOutDevice = type;
         sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
     }
     return status;
@@ -6868,7 +6873,7 @@ String8 AudioFlinger::RecordThread::getParameters(const String8& keys)
     return out_s8;
 }
 
-void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event) {
+void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event, pid_t pid) {
     sp<AudioIoDescriptor> desc = new AudioIoDescriptor();
 
     desc->mIoHandle = mId;
@@ -6888,7 +6893,7 @@ void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event) {
     default:
         break;
     }
-    mAudioFlinger->ioConfigChanged(event, desc);
+    mAudioFlinger->ioConfigChanged(event, desc, pid);
 }
 
 void AudioFlinger::RecordThread::readInputParameters_l()
