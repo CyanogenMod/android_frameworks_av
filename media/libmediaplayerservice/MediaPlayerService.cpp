@@ -74,7 +74,6 @@
 #include "MediaPlayerFactory.h"
 
 #include "TestPlayerStub.h"
-#include "StagefrightPlayer.h"
 #include "nuplayer/NuPlayerDriver.h"
 
 #include <OMX.h>

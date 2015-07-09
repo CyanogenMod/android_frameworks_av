@@ -18,7 +18,6 @@ LOCAL_SRC_FILES:=               \
     MetadataRetrieverClient.cpp \
     RemoteDisplay.cpp           \
     SharedLibrary.cpp           \
-    StagefrightPlayer.cpp       \
     StagefrightRecorder.cpp     \
     TestPlayerStub.cpp          \
 
