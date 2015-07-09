@@ -4864,6 +4864,12 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
         case RESUBMIT_BUFFERS:
         {
             if (buffer != NULL && !mCodec->mPortEOS[kPortIndexInput]) {
+                // Do not send empty input buffer w/o EOS to the component.
+                if (buffer->size() == 0 && !eos) {
+                    postFillThisBuffer(info);
+                    break;
+                }
+
                 int64_t timeUs;
                 CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
 
