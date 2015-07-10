@@ -1252,11 +1252,9 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
     if (client == 0) {
         return;
     }
-    bool clientAdded = false;
+    pid_t pid = IPCThreadState::self()->getCallingPid();
     {
         Mutex::Autolock _cl(mClientLock);
-
-        pid_t pid = IPCThreadState::self()->getCallingPid();
         if (mNotificationClients.indexOfKey(pid) < 0) {
             sp<NotificationClient> notificationClient = new NotificationClient(this,
                                                                                 client,
@@ -1267,22 +1265,19 @@ void AudioFlinger::registerClient(const sp<IAudioFlingerClient>& client)
 
             sp<IBinder> binder = IInterface::asBinder(client);
             binder->linkToDeath(notificationClient);
-            clientAdded = true;
         }
     }
 
     // mClientLock should not be held here because ThreadBase::sendIoConfigEvent() will lock the
     // ThreadBase mutex and the locking order is ThreadBase::mLock then AudioFlinger::mClientLock.
-    if (clientAdded) {
-        // the config change is always sent from playback or record threads to avoid deadlock
-        // with AudioSystem::gLock
-        for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-            mPlaybackThreads.valueAt(i)->sendIoConfigEvent(AUDIO_OUTPUT_OPENED);
-        }
+    // the config change is always sent from playback or record threads to avoid deadlock
+    // with AudioSystem::gLock
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        mPlaybackThreads.valueAt(i)->sendIoConfigEvent(AUDIO_OUTPUT_OPENED, pid);
+    }
 
-        for (size_t i = 0; i < mRecordThreads.size(); i++) {
-            mRecordThreads.valueAt(i)->sendIoConfigEvent(AUDIO_INPUT_OPENED);
-        }
+    for (size_t i = 0; i < mRecordThreads.size(); i++) {
+        mRecordThreads.valueAt(i)->sendIoConfigEvent(AUDIO_INPUT_OPENED, pid);
     }
 }
 
@@ -1316,12 +1311,15 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
 }
 
 void AudioFlinger::ioConfigChanged(audio_io_config_event event,
-                                   const sp<AudioIoDescriptor>& ioDesc)
+                                   const sp<AudioIoDescriptor>& ioDesc,
+                                   pid_t pid)
 {
     Mutex::Autolock _l(mClientLock);
     size_t size = mNotificationClients.size();
     for (size_t i = 0; i < size; i++) {
-        mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event, ioDesc);
+        if ((pid == 0) || (mNotificationClients.keyAt(i) == pid)) {
+            mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(event, ioDesc);
+        }
     }
 }
 
