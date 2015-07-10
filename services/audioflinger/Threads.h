@@ -104,21 +104,22 @@ public:
 
     class IoConfigEventData : public ConfigEventData {
     public:
-        IoConfigEventData(audio_io_config_event event) :
-            mEvent(event) {}
+        IoConfigEventData(audio_io_config_event event, pid_t pid) :
+            mEvent(event), mPid(pid) {}
 
         virtual  void dump(char *buffer, size_t size) {
             snprintf(buffer, size, "IO event: event %d\n", mEvent);
         }
 
         const audio_io_config_event mEvent;
+        const pid_t                 mPid;
     };
 
     class IoConfigEvent : public ConfigEvent {
     public:
-        IoConfigEvent(audio_io_config_event event) :
+        IoConfigEvent(audio_io_config_event event, pid_t pid) :
             ConfigEvent(CFG_EVENT_IO) {
-            mData = new IoConfigEventData(event);
+            mData = new IoConfigEventData(event, pid);
         }
         virtual ~IoConfigEvent() {}
     };
@@ -255,13 +256,13 @@ public:
                                                     status_t& status) = 0;
     virtual     status_t    setParameters(const String8& keyValuePairs);
     virtual     String8     getParameters(const String8& keys) = 0;
-    virtual     void        ioConfigChanged(audio_io_config_event event) = 0;
+    virtual     void        ioConfigChanged(audio_io_config_event event, pid_t pid = 0) = 0;
                 // sendConfigEvent_l() must be called with ThreadBase::mLock held
                 // Can temporarily release the lock if waiting for a reply from
                 // processConfigEvents_l().
                 status_t    sendConfigEvent_l(sp<ConfigEvent>& event);
-                void        sendIoConfigEvent(audio_io_config_event event);
-                void        sendIoConfigEvent_l(audio_io_config_event event);
+                void        sendIoConfigEvent(audio_io_config_event event, pid_t pid = 0);
+                void        sendIoConfigEvent_l(audio_io_config_event event, pid_t pid = 0);
                 void        sendPrioConfigEvent(pid_t pid, pid_t tid, int32_t prio);
                 void        sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32_t prio);
                 status_t    sendSetParameterConfigEvent_l(const String8& keyValuePair);
@@ -436,6 +437,7 @@ protected:
                 bool                    mStandby;     // Whether thread is currently in standby.
                 audio_devices_t         mOutDevice;   // output device
                 audio_devices_t         mInDevice;    // input device
+                audio_devices_t         mPrevOutDevice;   // previous output device
                 audio_devices_t         mPrevInDevice;    // previous input device
                 struct audio_patch      mPatch;
                 audio_source_t          mAudioSource;
@@ -572,7 +574,7 @@ public:
                                 { return android_atomic_acquire_load(&mSuspended) > 0; }
 
     virtual     String8     getParameters(const String8& keys);
-    virtual     void        ioConfigChanged(audio_io_config_event event);
+    virtual     void        ioConfigChanged(audio_io_config_event event, pid_t pid = 0);
                 status_t    getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames);
                 // FIXME rename mixBuffer() to sinkBuffer() and remove int16_t* dependency.
                 // Consider also removing and passing an explicit mMainBuffer initialization
@@ -1254,7 +1256,7 @@ public:
                                                status_t& status);
     virtual void        cacheParameters_l() {}
     virtual String8     getParameters(const String8& keys);
-    virtual void        ioConfigChanged(audio_io_config_event event);
+    virtual void        ioConfigChanged(audio_io_config_event event, pid_t pid = 0);
     virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
                                            audio_patch_handle_t *handle);
     virtual status_t    releaseAudioPatch_l(const audio_patch_handle_t handle);
