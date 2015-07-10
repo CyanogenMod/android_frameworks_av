@@ -476,11 +476,13 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(audio_io_config_event even
         switch (event) {
         case AUDIO_OUTPUT_OPENED:
         case AUDIO_INPUT_OPENED: {
-            if (getIoDescriptor(ioDesc->mIoHandle) != 0) {
-                ALOGV("ioConfigChanged() opening already existing output! %d", ioDesc->mIoHandle);
-                break;
+            sp<AudioIoDescriptor> oldDesc = getIoDescriptor(ioDesc->mIoHandle);
+            if (oldDesc == 0) {
+                mIoDescriptors.add(ioDesc->mIoHandle, ioDesc);
+            } else {
+                deviceId = oldDesc->getDeviceId();
+                mIoDescriptors.replaceValueFor(ioDesc->mIoHandle, ioDesc);
             }
-            mIoDescriptors.add(ioDesc->mIoHandle, ioDesc);
 
             if (ioDesc->getDeviceId() != AUDIO_PORT_HANDLE_NONE) {
                 deviceId = ioDesc->getDeviceId();
@@ -1074,7 +1076,14 @@ status_t AudioSystem::addAudioDeviceCallback(
     if (afc == 0) {
         return NO_INIT;
     }
-    return afc->addAudioDeviceCallback(callback, audioIo);
+    status_t status = afc->addAudioDeviceCallback(callback, audioIo);
+    if (status == NO_ERROR) {
+        const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+        if (af != 0) {
+            af->registerClient(afc);
+        }
+    }
+    return status;
 }
 
 status_t AudioSystem::removeAudioDeviceCallback(

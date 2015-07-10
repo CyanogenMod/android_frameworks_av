@@ -1076,6 +1076,9 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
         beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
     }
 
+    // check active before incrementing usage count
+    bool force = !outputDesc->isActive();
+
     // increment usage count for this stream on the requested output:
     // NOTE that the usage count is the same for duplicated output and hardware output which is
     // necessary for a correct control of hardware output routing by startOutput() and stopOutput()
@@ -1091,7 +1094,6 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
                             (strategy == STRATEGY_SONIFICATION_RESPECTFUL) ||
                             (beaconMuteLatency > 0);
         uint32_t waitMs = beaconMuteLatency;
-        bool force = false;
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
             if (desc != outputDesc) {
