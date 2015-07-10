@@ -37,8 +37,9 @@
  * A device mask for all audio input and output devices where matching inputs/outputs on device
  * type alone is not enough: the address must match too
  */
-#define APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX | \
-                                            AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
+#define APM_AUDIO_DEVICE_OUT_MATCH_ADDRESS_ALL (AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
+
+#define APM_AUDIO_DEVICE_IN_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX)
 
 /**
  * Check if the state given correspond to an in call state.
@@ -80,5 +81,8 @@ static inline bool is_virtual_input_device(audio_devices_t device)
  */
 static inline bool device_distinguishes_on_address(audio_devices_t device)
 {
-    return ((device & APM_AUDIO_DEVICE_MATCH_ADDRESS_ALL & ~AUDIO_DEVICE_BIT_IN) != 0);
+    return (((device & AUDIO_DEVICE_BIT_IN) != 0) &&
+            ((~AUDIO_DEVICE_BIT_IN & device & APM_AUDIO_DEVICE_IN_MATCH_ADDRESS_ALL) != 0)) ||
+           (((device & AUDIO_DEVICE_BIT_IN) == 0) &&
+            ((device & APM_AUDIO_DEVICE_OUT_MATCH_ADDRESS_ALL) != 0));
 }
