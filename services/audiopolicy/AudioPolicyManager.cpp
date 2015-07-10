@@ -894,15 +894,15 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     bool prop_playback_enabled = false, prop_rec_enabled=false, prop_voip_enabled = false;
 
     if(property_get("voice.playback.conc.disabled", propValue, NULL)) {
-        prop_playback_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+        prop_playback_enabled = !(atoi(propValue) || !strncmp("true", propValue, 4));
     }
 
     if(property_get("voice.record.conc.disabled", propValue, NULL)) {
-        prop_rec_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+        prop_rec_enabled = !(atoi(propValue) || !strncmp("true", propValue, 4));
     }
 
     if(property_get("voice.voip.conc.disabled", propValue, NULL)) {
-        prop_voip_enabled = atoi(propValue) || !strncmp("true", propValue, 4);
+        prop_voip_enabled = !(atoi(propValue) || !strncmp("true", propValue, 4));
     }
 
     bool mode_in_call = (AUDIO_MODE_IN_CALL != oldState) && (AUDIO_MODE_IN_CALL == state);
