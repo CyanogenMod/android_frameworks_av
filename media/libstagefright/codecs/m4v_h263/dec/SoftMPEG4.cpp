@@ -103,34 +103,41 @@ void SoftMPEG4::onQueueFilled(OMX_U32 /* portIndex */) {
     while (!inQueue.empty() && outQueue.size() == kNumOutputBuffers) {
         BufferInfo *inInfo = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+        if (inHeader == NULL) {
+            inQueue.erase(inQueue.begin());
+            inInfo->mOwnedByUs = false;
+            continue;
+        }
 
         PortInfo *port = editPortInfo(1);
 
         OMX_BUFFERHEADERTYPE *outHeader =
             port->mBuffers.editItemAt(mNumSamplesOutput & 1).mHeader;
 
-        if ((inHeader->nFlags & OMX_BUFFERFLAG_EOS) && inHeader->nFilledLen == 0) {
+        if (inHeader->nFilledLen == 0) {
             inQueue.erase(inQueue.begin());
             inInfo->mOwnedByUs = false;
             notifyEmptyBufferDone(inHeader);
 
             ++mInputBufferCount;
 
-            outHeader->nFilledLen = 0;
-            outHeader->nFlags = OMX_BUFFERFLAG_EOS;
+            if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {
+                outHeader->nFilledLen = 0;
+                outHeader->nFlags = OMX_BUFFERFLAG_EOS;
 
-            List<BufferInfo *>::iterator it = outQueue.begin();
-            while ((*it)->mHeader != outHeader) {
-                ++it;
+                List<BufferInfo *>::iterator it = outQueue.begin();
+                while ((*it)->mHeader != outHeader) {
+                    ++it;
+                }
+
+                BufferInfo *outInfo = *it;
+                outInfo->mOwnedByUs = false;
+                outQueue.erase(it);
+                outInfo = NULL;
+
+                notifyFillBufferDone(outHeader);
+                outHeader = NULL;
             }
-
-            BufferInfo *outInfo = *it;
-            outInfo->mOwnedByUs = false;
-            outQueue.erase(it);
-            outInfo = NULL;
-
-            notifyFillBufferDone(outHeader);
-            outHeader = NULL;
             return;
         }
 

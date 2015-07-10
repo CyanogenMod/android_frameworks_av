@@ -505,7 +505,15 @@ void SimpleSoftOMXComponent::onPortFlush(
     CHECK_LT(portIndex, mPorts.size());
 
     PortInfo *port = &mPorts.editItemAt(portIndex);
-    CHECK_EQ((int)port->mTransition, (int)PortInfo::NONE);
+    // Ideally, the port should not in transitioning state when flushing.
+    // However, in error handling case, e.g., the client can't allocate buffers
+    // when it tries to re-enable the port, the port will be stuck in ENABLING.
+    // The client will then transition the component from Executing to Idle,
+    // which leads to flushing ports. At this time, it should be ok to notify
+    // the client of the error and still clear all buffers on the port.
+    if (port->mTransition != PortInfo::NONE) {
+        notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
+    }
 
     for (size_t i = 0; i < port->mBuffers.size(); ++i) {
         BufferInfo *buffer = &port->mBuffers.editItemAt(i);
