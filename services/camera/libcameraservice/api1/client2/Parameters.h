@@ -189,7 +189,7 @@ struct Parameters {
     static const int MAX_INITIAL_PREVIEW_WIDTH = 1920;
     static const int MAX_INITIAL_PREVIEW_HEIGHT = 1080;
     // Aspect ratio tolerance
-    static const CONSTEXPR float ASPECT_RATIO_TOLERANCE = 0.001;
+    static const constexpr float ASPECT_RATIO_TOLERANCE = 0.001;
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.

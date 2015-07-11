@@ -93,7 +93,7 @@ endif
 endif
 #QTI Resampler
 
-LOCAL_CFLAGS += -Os -std=gnu++11
+LOCAL_CFLAGS += -std=gnu++11
 
 LOCAL_MODULE:= libaudioflinger
 LOCAL_32_BIT_ONLY := true
