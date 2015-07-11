@@ -639,7 +639,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             mDeferredActions.push_back(new SetSurfaceAction(surface));
 
-            if (obj != NULL) {
+            if (obj != NULL || mAudioDecoder != NULL) {
                 if (mStarted) {
                     // Issue a seek to refresh the video screen only if started otherwise
                     // the extractor may not yet be started and will assert.
