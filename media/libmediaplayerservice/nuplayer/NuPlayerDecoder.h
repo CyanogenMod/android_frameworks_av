@@ -32,6 +32,9 @@ struct NuPlayer::Decoder : public DecoderBase {
 
     virtual sp<AMessage> getStats() const;
 
+    // sets the output surface of video decoders.
+    virtual status_t setVideoSurface(const sp<Surface> &surface);
+
 protected:
     virtual ~Decoder();
 
@@ -50,6 +53,7 @@ private:
     enum {
         kWhatCodecNotify         = 'cdcN',
         kWhatRenderBuffer        = 'rndr',
+        kWhatSetVideoSurface     = 'sSur'
     };
 
     sp<Surface> mSurface;

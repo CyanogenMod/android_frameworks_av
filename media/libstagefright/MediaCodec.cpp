@@ -2528,6 +2528,7 @@ status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
         err = native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
         if (err == BAD_VALUE) {
             ALOGI("native window already connected. Assuming no change of surface");
+            return err;
         } else if (err == OK) {
             // Require a fresh set of buffers after each connect by using a unique generation
             // number. Rely on the fact that max supported process id by Linux is 2^22.
