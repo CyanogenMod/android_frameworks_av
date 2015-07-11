@@ -52,7 +52,7 @@ public:
 #endif
     };
 
-    static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
+    static const constexpr float UNITY_GAIN_FLOAT = 1.0f;
 
     static AudioResampler* create(audio_format_t format, int inChannelCount,
             int32_t sampleRate, src_quality quality=DEFAULT_QUALITY);

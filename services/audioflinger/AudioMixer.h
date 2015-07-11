@@ -63,7 +63,7 @@ public:
     static const uint32_t MAX_NUM_CHANNELS_TO_DOWNMIX = AUDIO_CHANNEL_COUNT_MAX;
 
     static const uint16_t UNITY_GAIN_INT = 0x1000;
-    static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
+    static const constexpr float UNITY_GAIN_FLOAT = 1.0f;
 
     enum { // names
 
