@@ -23,7 +23,7 @@
 #include <utils/Log.h>
 #include <utils/Vector.h>
 #include <cutils/properties.h>
-#include <libexpat/expat.h>
+#include <expat.h>
 #include <media/MediaProfiles.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <OMX_Video.h>
