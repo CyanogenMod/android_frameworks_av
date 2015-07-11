@@ -39,7 +39,7 @@
 #include <utils/threads.h>
 
 #include <cutils/properties.h>
-#include <libexpat/expat.h>
+#include <expat.h>
 
 namespace android {
 
