@@ -493,6 +493,7 @@ void ACodec::BufferInfo::checkReadFence(const char *dbg) {
 ACodec::ACodec()
     : mQuirks(0),
       mNode(0),
+      mNativeWindowUsageBits(0),
       mSentFormat(false),
       mIsVideo(false),
       mIsEncoder(false),
@@ -642,7 +643,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         return OK;
     }
 
-    // allow keeping unset surface
+    // cannot switch from bytebuffers to surface
     if (mNativeWindow == NULL) {
         ALOGW("component was not configured with a surface");
         return INVALID_OPERATION;
@@ -661,9 +662,18 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         return INVALID_OPERATION;
     }
 
-    status_t err = setupNativeWindowSizeFormatAndUsage(nativeWindow);
+    int usageBits = 0;
+    status_t err = setupNativeWindowSizeFormatAndUsage(nativeWindow, &usageBits);
     if (err != OK) {
         return err;
+    }
+
+    int ignoredFlags = (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER
+            | GRALLOC_USAGE_EXTERNAL_DISP);
+    // New output surface is not allowed to add new usage flag except ignored ones.
+    if ((usageBits & ~(mNativeWindowUsageBits | ignoredFlags)) != 0) {
+        ALOGW("cannot change usage from %#x to %#x", mNativeWindowUsageBits, usageBits);
+        return BAD_VALUE;
     }
 
     // get min undequeued count. We cannot switch to a surface that has a higher
@@ -747,6 +757,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     mNativeWindow = nativeWindow;
+    mNativeWindowUsageBits = usageBits;
     return OK;
 }
 
@@ -868,7 +879,8 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     return OK;
 }
 
-status_t ACodec::setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */) {
+status_t ACodec::setupNativeWindowSizeFormatAndUsage(
+        ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
@@ -894,6 +906,7 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow
     }
 
     usage |= GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP;
+    *finalUsage = usage;
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
     return setNativeWindowSizeFormatAndUsage(
@@ -916,9 +929,10 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
     if (err == OK) {
-        err = setupNativeWindowSizeFormatAndUsage(mNativeWindow.get());
+        err = setupNativeWindowSizeFormatAndUsage(mNativeWindow.get(), &mNativeWindowUsageBits);
     }
     if (err != OK) {
+        mNativeWindowUsageBits = 0;
         return err;
     }
 
@@ -1937,6 +1951,7 @@ status_t ACodec::configureCodec(
                     // to SW renderer
                     ALOGI("[%s] Falling back to software renderer", mComponentName.c_str());
                     mNativeWindow.clear();
+                    mNativeWindowUsageBits = 0;
                     haveNativeWindow = false;
                     usingSwRenderer = true;
                     if (storingMetadataInDecodedBuffers()) {
@@ -5341,6 +5356,7 @@ void ACodec::UninitializedState::stateEntered() {
     }
 
     mCodec->mNativeWindow.clear();
+    mCodec->mNativeWindowUsageBits = 0;
     mCodec->mNode = 0;
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
