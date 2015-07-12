@@ -124,6 +124,8 @@ status_t AudioSource::start(MetaData *params) {
     int64_t startTimeUs;
     if (params && params->findInt64(kKeyTime, &startTimeUs)) {
         mStartTimeUs = startTimeUs;
+    } else {
+        mStartTimeUs = systemTime() / 1000ll;
     }
     status_t err = mRecord->start();
     if (err == OK) {
