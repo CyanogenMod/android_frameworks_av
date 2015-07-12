@@ -503,8 +503,9 @@ void ID3::Iterator::getString(String8 *id, String8 *comment) const {
 void ID3::Iterator::getstring(String8 *id, bool otherdata) const {
     id->setTo("");
 
-    const uint8_t *frameData = mFrameData;
-    if (frameData == NULL) {
+    size_t size = 0;
+    const uint8_t *frameData = getData(&size);
+    if ((frameData == NULL) || (size == 0)) {
         return;
     }
 
