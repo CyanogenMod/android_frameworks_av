@@ -3123,7 +3123,7 @@ status_t MPEG4Extractor::updateAudioTrackInfoFromESDS_MPEG4Audio(
                         extensionFlag, objectType);
             }
 
-            if (numChannels == 0) {
+            if (numChannels == 0 && (br.numBitsLeft() > 0)) {
                 int32_t channelsEffectiveNum = 0;
                 int32_t channelsNum = 0;
                 if (br.numBitsLeft() < 32) {
