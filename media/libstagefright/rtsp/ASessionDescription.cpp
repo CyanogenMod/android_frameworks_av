@@ -22,7 +22,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
-
+#include <mediaplayerservice/AVMediaServiceExtensions.h>
 #include <stdlib.h>
 
 namespace android {
@@ -264,7 +264,8 @@ bool ASessionDescription::getDurationUs(int64_t *durationUs) const {
     }
 
     float from, to;
-    if (!parseNTPRange(value.c_str() + 4, &from, &to)) {
+    if (!AVMediaServiceUtils::get()->parseNTPRange(
+            value.c_str() + 4, &from, &to)) {
         return false;
     }
 

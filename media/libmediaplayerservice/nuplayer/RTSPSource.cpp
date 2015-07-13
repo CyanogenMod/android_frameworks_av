@@ -27,6 +27,7 @@
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
+#include <mediaplayerservice/AVMediaServiceExtensions.h>
 
 namespace android {
 
@@ -474,8 +475,11 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
                 if (!info->mNPTMappingValid) {
                     // This is a live stream, we didn't receive any normal
                     // playtime mapping. We won't map to npt time.
-                    source->queueAccessUnit(accessUnit);
-                    break;
+                    if (!AVMediaServiceUtils::get()->checkNPTMapping(&info->mRTPTime,
+                            &info->mNormalPlaytimeUs, &info->mNPTMappingValid, rtpTime)) {
+                        source->queueAccessUnit(accessUnit);
+                        break;
+                    }
                 }
 
                 int64_t nptUs =

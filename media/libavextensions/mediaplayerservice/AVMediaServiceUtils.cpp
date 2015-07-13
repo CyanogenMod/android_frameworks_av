@@ -32,6 +32,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include "ARTPConnection.h"
+#include "ASessionDescription.h"
 #include "MyHandler.h"
 
 #include "common/ExtensionsLoader.hpp"
@@ -55,6 +56,36 @@ void AVMediaServiceUtils::makePortPair(int *rtpSocket, int *rtcpSocket, unsigned
 
 const char* AVMediaServiceUtils::parseURL(AString *host) {
     return strchr(host->c_str(), ':');
+}
+
+bool AVMediaServiceUtils::parseTrackURL(AString /*url*/, AString /*val*/) {
+    return false;
+}
+
+void AVMediaServiceUtils::appendRange(AString * /*request*/) {
+    return;
+}
+
+void AVMediaServiceUtils::setServerTimeoutUs(int64_t /*timeout*/) {
+    return;
+}
+
+void AVMediaServiceUtils::addH263AdvancedPacket(const sp<ABuffer> &/*buffer*/,
+        List<sp<ABuffer>> * /*packets*/, uint32_t /*rtpTime*/) {
+    return;
+}
+
+void AVMediaServiceUtils::appendMeta(media::Metadata * /*meta*/) {
+    return;
+}
+
+bool AVMediaServiceUtils::checkNPTMapping(uint32_t * /*rtpInfoTime*/, int64_t * /*playTimeUs*/,
+        bool * /*nptValid*/, uint32_t /*rtpTime*/) {
+    return false;
+}
+
+bool AVMediaServiceUtils::parseNTPRange(const char *s, float *npt1, float *npt2) {
+    return ASessionDescription::parseNTPRange(s, npt1, npt2);
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------

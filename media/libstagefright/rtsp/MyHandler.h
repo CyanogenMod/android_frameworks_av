@@ -705,6 +705,7 @@ struct MyHandler : public AHandler {
                                      timeoutSecs);
                             }
                         }
+                        AVMediaServiceUtils::get()->setServerTimeoutUs(mKeepAliveTimeoutUs);
 
                         i = mSessionID.find(";");
                         if (i >= 0) {
@@ -779,6 +780,7 @@ struct MyHandler : public AHandler {
                     request.append(mSessionID);
                     request.append("\r\n");
 
+                    AVMediaServiceUtils::get()->appendRange(&request);
                     request.append("\r\n");
 
                     sp<AMessage> reply = new AMessage('play', this);
@@ -1476,7 +1478,9 @@ struct MyHandler : public AHandler {
 
             size_t trackIndex = 0;
             while (trackIndex < mTracks.size()
-                    && !(val == mTracks.editItemAt(trackIndex).mURL)) {
+                    && !(AVMediaServiceUtils::get()->parseTrackURL(
+                    mTracks.editItemAt(trackIndex).mURL, val)
+                    || val == mTracks.editItemAt(trackIndex).mURL)) {
                 ++trackIndex;
             }
             CHECK_LT(trackIndex, mTracks.size());
