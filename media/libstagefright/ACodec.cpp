@@ -1063,9 +1063,11 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
 
     for (OMX_U32 i = cancelStart; i < cancelEnd; i++) {
         BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
-        status_t error = cancelBufferToNativeWindow(info);
-        if (err == 0) {
-            err = error;
+        if (info->mStatus == BufferInfo::OWNED_BY_US) {
+            status_t error = cancelBufferToNativeWindow(info);
+            if (err == 0) {
+                err = error;
+            }
         }
     }
 
@@ -1152,9 +1154,11 @@ status_t ACodec::allocateOutputMetadataBuffers() {
 
         for (OMX_U32 i = 0; i < mBuffers[kPortIndexOutput].size(); i++) {
             BufferInfo *info = &mBuffers[kPortIndexOutput].editItemAt(i);
-            status_t error = cancelBufferToNativeWindow(info);
-            if (err == OK) {
-                err = error;
+            if (info->mStatus == BufferInfo::OWNED_BY_US) {
+                status_t error = cancelBufferToNativeWindow(info);
+                if (err == OK) {
+                    err = error;
+                }
             }
         }
 
