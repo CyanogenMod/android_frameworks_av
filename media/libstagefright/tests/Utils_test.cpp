@@ -109,21 +109,21 @@ TEST_F(UtilsTest, TestStringUtils) {
 
 TEST_F(UtilsTest, TestDebug) {
 #define LVL(x) (ADebug::Level)(x)
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "", LVL(5)), LVL(5));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "   \t  \n ", LVL(2)), LVL(2));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "3", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "3:*deo", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString(
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "", LVL(5)), LVL(5));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "   \t  \n ", LVL(2)), LVL(2));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "3", LVL(5)), LVL(3));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "3:*deo", LVL(5)), LVL(3));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString(
             "video", "\t\n 3 \t\n:\t\n video \t\n", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "3:*deo,2:vid*", LVL(5)), LVL(2));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString(
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "3:*deo,2:vid*", LVL(5)), LVL(2));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString(
             "avideo", "\t\n 3 \t\n:\t\n avideo \t\n,\t\n 2 \t\n:\t\n video \t\n", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString(
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString(
             "audio.omx", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(2));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString(
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString(
             "video.omx", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("video", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(3));
-    ASSERT_EQ(ADebug::GetDebugLevelFromString("omx", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(4));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("video", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(3));
+    ASSERT_EQ(ADebug::GetLevelFromSettingsString("omx", "4:*omx,3:*d*o*,2:audio*", LVL(5)), LVL(4));
 #undef LVL
 }
 

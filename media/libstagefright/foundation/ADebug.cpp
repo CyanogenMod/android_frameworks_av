@@ -32,11 +32,10 @@
 namespace android {
 
 //static
-ADebug::Level ADebug::GetDebugLevelFromString(
-        const char *name, const char *value, ADebug::Level def) {
+long ADebug::GetLevelFromSettingsString(
+        const char *name, const char *value, long def) {
     // split on ,
     const char *next = value, *current;
-    const unsigned long maxLevel = (unsigned long)kDebugMax;
     while (next != NULL) {
         current = next;
         next = strchr(current, ',');
@@ -52,8 +51,8 @@ ADebug::Level ADebug::GetDebugLevelFromString(
 
         // get level
         char *end;
-        errno = 0;  // strtoul does not clear errno, but it can be set for any return value
-        unsigned long level = strtoul(current, &end, 10);
+        errno = 0;  // strtol does not clear errno, but it can be set for any return value
+        long level = strtol(current, &end, 10);
         while (isspace(*end)) {
             ++end;
         }
@@ -77,8 +76,18 @@ ADebug::Level ADebug::GetDebugLevelFromString(
             }
         }
 
-        // update debug level
-        def = (Level)min(level, maxLevel);
+        // update value
+        def = level;
+    }
+    return def;
+}
+
+//static
+long ADebug::GetLevelFromProperty(
+        const char *name, const char *propertyName, long def) {
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get(propertyName, value, NULL)) {
+        def = GetLevelFromSettingsString(name, value, def);
     }
     return def;
 }
@@ -86,11 +95,8 @@ ADebug::Level ADebug::GetDebugLevelFromString(
 //static
 ADebug::Level ADebug::GetDebugLevelFromProperty(
         const char *name, const char *propertyName, ADebug::Level def) {
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get(propertyName, value, NULL)) {
-        return GetDebugLevelFromString(name, value, def);
-    }
-    return def;
+    long level = GetLevelFromProperty(name, propertyName, (long)def);
+    return (Level)min(max(level, (long)kDebugNone), (long)kDebugMax);
 }
 
 //static
@@ -118,6 +124,15 @@ char *ADebug::GetDebugName(const char *name) {
 bool ADebug::getExperimentFlag(
         bool allow, const char *name, uint64_t modulo,
         uint64_t limit, uint64_t plus, uint64_t timeDivisor) {
+    // see if this experiment should be disabled/enabled based on properties.
+    // default to 2 to allow 0/1 specification
+    const int undefined = 2;
+    long level = GetLevelFromProperty(name, "debug.stagefright.experiments", undefined);
+    if (level != undefined) {
+        ALOGI("experiment '%s': %s from property", name, level ? "ENABLED" : "disabled");
+        return level != 0;
+    }
+
     static volatile int32_t haveSerial = 0;
     static uint64_t serialNum;
     if (!android_atomic_acquire_load(&haveSerial)) {
@@ -138,11 +153,10 @@ bool ADebug::getExperimentFlag(
                 num = num * 256 + c;
             }
         }
-        ALOGI("got serial");
         serialNum = num;
         android_atomic_release_store(1, &haveSerial);
     }
-    ALOGI("serial: %llu, time: %llu", (long long)serialNum, (long long)time(NULL));
+    ALOGD("serial: %llu, time: %lld", (long long unsigned)serialNum, (long long)time(NULL));
     // MINOR: use modulo for counter and time, so that their sum does not
     // roll over, and mess up the correlation between related experiments.
     // e.g. keep (a mod 2N) = 0 impl (a mod N) = 0
