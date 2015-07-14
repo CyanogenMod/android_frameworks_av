@@ -87,6 +87,22 @@ sp<AMessage> NuPlayer::Decoder::getStats() const {
     return mStats;
 }
 
+status_t NuPlayer::Decoder::setVideoSurface(const sp<Surface> &surface) {
+    if (surface == NULL || ADebug::isExperimentEnabled("legacy-setsurface")) {
+        return BAD_VALUE;
+    }
+
+    sp<AMessage> msg = new AMessage(kWhatSetVideoSurface, this);
+
+    msg->setObject("surface", surface);
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+    return err;
+}
+
 void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
     ALOGV("[%s] onMessage: %s", mComponentName.c_str(), msg->debugString().c_str());
 
@@ -166,6 +182,46 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
             if (!isStaleReply(msg)) {
                 onRenderBuffer(msg);
             }
+            break;
+        }
+
+        case kWhatSetVideoSurface:
+        {
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+
+            sp<RefBase> obj;
+            CHECK(msg->findObject("surface", &obj));
+            sp<Surface> surface = static_cast<Surface *>(obj.get()); // non-null
+            int32_t err = INVALID_OPERATION;
+            // NOTE: in practice mSurface is always non-null, but checking here for completeness
+            if (mCodec != NULL && mSurface != NULL) {
+                // TODO: once AwesomePlayer is removed, remove this automatic connecting
+                // to the surface by MediaPlayerService.
+                //
+                // at this point MediaPlayerService::client has already connected to the
+                // surface, which MediaCodec does not expect
+                err = native_window_api_disconnect(surface.get(), NATIVE_WINDOW_API_MEDIA);
+                if (err == OK) {
+                    err = mCodec->setSurface(surface);
+                    ALOGI_IF(err, "codec setSurface returned: %d", err);
+                    if (err == OK) {
+                        // reconnect to the old surface as MPS::Client will expect to
+                        // be able to disconnect from it.
+                        (void)native_window_api_connect(mSurface.get(), NATIVE_WINDOW_API_MEDIA);
+                        mSurface = surface;
+                    }
+                }
+                if (err != OK) {
+                    // reconnect to the new surface on error as MPS::Client will expect to
+                    // be able to disconnect from it.
+                    (void)native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
+                }
+            }
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", err);
+            response->postReply(replyID);
             break;
         }
 
