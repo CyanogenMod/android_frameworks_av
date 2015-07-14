@@ -266,6 +266,7 @@ void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
         Mutex::Autolock autoLock(mLock);
         if (audio) {
             mNotifyCompleteAudio |= notifyComplete;
+            clearAudioFirstAnchorTime_l();
             ++mAudioQueueGeneration;
             ++mAudioDrainGeneration;
         } else {
@@ -275,7 +276,6 @@ void NuPlayer::Renderer::flush(bool audio, bool notifyComplete) {
         }
 
         clearAnchorTime_l();
-        clearAudioFirstAnchorTime_l();
         mVideoLateByUs = 0;
         mSyncQueues = false;
     }
