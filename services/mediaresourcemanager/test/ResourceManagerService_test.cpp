@@ -79,6 +79,10 @@ private:
 static const int kTestPid1 = 30;
 static const int kTestPid2 = 20;
 
+static const int kLowPriorityPid = 40;
+static const int kMidPriorityPid = 25;
+static const int kHighPriorityPid = 10;
+
 class ResourceManagerServiceTest : public ::testing::Test {
 public:
     ResourceManagerServiceTest()
@@ -227,15 +231,12 @@ protected:
         String8 type = String8(kResourceSecureCodec);
         String8 unknowType = String8("unknowType");
         Vector<sp<IResourceManagerClient> > clients;
-        int lowPriorityPid = 100;
-        EXPECT_FALSE(mService->getAllClients_l(lowPriorityPid, type, &clients));
-        int midPriorityPid = 25;
+        EXPECT_FALSE(mService->getAllClients_l(kLowPriorityPid, type, &clients));
         // some higher priority process (e.g. kTestPid2) owns the resource, so getAllClients_l
         // will fail.
-        EXPECT_FALSE(mService->getAllClients_l(midPriorityPid, type, &clients));
-        int highPriorityPid = 10;
-        EXPECT_TRUE(mService->getAllClients_l(highPriorityPid, unknowType, &clients));
-        EXPECT_TRUE(mService->getAllClients_l(highPriorityPid, type, &clients));
+        EXPECT_FALSE(mService->getAllClients_l(kMidPriorityPid, type, &clients));
+        EXPECT_TRUE(mService->getAllClients_l(kHighPriorityPid, unknowType, &clients));
+        EXPECT_TRUE(mService->getAllClients_l(kHighPriorityPid, type, &clients));
 
         EXPECT_EQ(2u, clients.size());
         EXPECT_EQ(mTestClient3, clients[0]);
@@ -254,19 +255,19 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = true;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
-            EXPECT_FALSE(mService->reclaimResource(25, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
+            EXPECT_FALSE(mService->reclaimResource(kMidPriorityPid, resources));
 
             // reclaim all secure codecs
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(true, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(true /* c1 */, false /* c2 */, true /* c3 */);
 
             // call again should reclaim one largest graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, true, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
         // ### secure codecs can't coexist and secure codec can't coexist with non-secure codec ###
@@ -276,15 +277,15 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = false;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
-            EXPECT_FALSE(mService->reclaimResource(25, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
+            EXPECT_FALSE(mService->reclaimResource(kMidPriorityPid, resources));
 
             // reclaim all secure and non-secure codecs
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(true, true, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(true /* c1 */, true /* c2 */, true /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
 
@@ -295,23 +296,23 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = false;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
-            EXPECT_FALSE(mService->reclaimResource(25, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
+            EXPECT_FALSE(mService->reclaimResource(kMidPriorityPid, resources));
 
             // reclaim all non-secure codecs
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, true, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
             // call again should reclaim one largest graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(true, false, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
             // call again should reclaim another largest graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, false /* c2 */, true /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
         // ### secure codecs can coexist and secure codec can coexist with non-secure codec ###
@@ -321,22 +322,22 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = true;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
 
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // one largest graphic memory from lowest process got reclaimed
-            verifyClients(true, false, false);
+            verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
             // call again should reclaim another graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, true, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
             // call again should reclaim another graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, false /* c2 */, true /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
         // ### secure codecs can coexist and secure codec can coexist with non-secure codec ###
@@ -348,19 +349,17 @@ protected:
             Vector<MediaResource> resources;
             resources.push_back(MediaResource(String8(kResourceSecureCodec), 1));
 
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // secure codec from lowest process got reclaimed
-            verifyClients(true, false, false);
+            verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
             // call again should reclaim another secure codec from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, false /* c2 */, true /* c3 */);
 
-            // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
-
-            // clean up client 2 which still has non secure codec left
-            mService->removeResource((int64_t) mTestClient2.get());
+            // no more secure codec, non-secure codec will be reclaimed.
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
         }
     }
 
@@ -375,19 +374,19 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = false;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
-            EXPECT_FALSE(mService->reclaimResource(25, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
+            EXPECT_FALSE(mService->reclaimResource(kMidPriorityPid, resources));
 
             // reclaim all secure codecs
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(true, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(true /* c1 */, false /* c2 */, true /* c3 */);
 
             // call again should reclaim one graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, true, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
 
@@ -397,22 +396,22 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = true;
 
             // priority too low
-            EXPECT_FALSE(mService->reclaimResource(40, resources));
+            EXPECT_FALSE(mService->reclaimResource(kLowPriorityPid, resources));
 
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // one largest graphic memory from lowest process got reclaimed
-            verifyClients(true, false, false);
+            verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
             // call again should reclaim another graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, true, false);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
             // call again should reclaim another graphic memory from lowest process
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
-            verifyClients(false, false, true);
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(false /* c1 */, false /* c2 */, true /* c3 */);
 
             // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            EXPECT_FALSE(mService->reclaimResource(kHighPriorityPid, resources));
         }
 
         // ### secure codec can coexist with non-secure codec ###
@@ -423,15 +422,15 @@ protected:
             Vector<MediaResource> resources;
             resources.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
 
-            EXPECT_TRUE(mService->reclaimResource(10, resources));
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // one non secure codec from lowest process got reclaimed
-            verifyClients(false, true, false);
+            verifyClients(false /* c1 */, true /* c2 */, false /* c3 */);
 
-            // nothing left
-            EXPECT_FALSE(mService->reclaimResource(10, resources));
+            // no more non-secure codec, secure codec from lowest priority process will be reclaimed
+            EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
+            verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
-            // clean up client 1 and 3 which still have secure codec left
-            mService->removeResource((int64_t) mTestClient1.get());
+            // clean up client 3 which still left
             mService->removeResource((int64_t) mTestClient3.get());
         }
     }
@@ -439,12 +438,12 @@ protected:
     void testGetLowestPriorityBiggestClient() {
         String8 type = String8(kResourceGraphicMemory);
         sp<IResourceManagerClient> client;
-        EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(10, type, &client));
+        EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(kHighPriorityPid, type, &client));
 
         addResource();
 
-        EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(100, type, &client));
-        EXPECT_TRUE(mService->getLowestPriorityBiggestClient_l(10, type, &client));
+        EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(kLowPriorityPid, type, &client));
+        EXPECT_TRUE(mService->getLowestPriorityBiggestClient_l(kHighPriorityPid, type, &client));
 
         // kTestPid1 is the lowest priority process with kResourceGraphicMemory.
         // mTestClient1 has the largest kResourceGraphicMemory within kTestPid1.

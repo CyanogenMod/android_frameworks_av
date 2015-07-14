@@ -204,6 +204,17 @@ void ResourceManagerService::removeResource(int64_t clientId) {
     }
 }
 
+void ResourceManagerService::getClientForResource_l(
+        int callingPid, const MediaResource *res, Vector<sp<IResourceManagerClient>> *clients) {
+    if (res == NULL) {
+        return;
+    }
+    sp<IResourceManagerClient> client;
+    if (getLowestPriorityBiggestClient_l(callingPid, res->mType, &client)) {
+        clients->push_back(client);
+    }
+}
+
 bool ResourceManagerService::reclaimResource(
         int callingPid, const Vector<MediaResource> &resources) {
     String8 log = String8::format("reclaimResource(callingPid %d, resources %s)",
@@ -213,54 +224,61 @@ bool ResourceManagerService::reclaimResource(
     Vector<sp<IResourceManagerClient>> clients;
     {
         Mutex::Autolock lock(mLock);
-        // first pass to handle secure/non-secure codec conflict
+        const MediaResource *secureCodec = NULL;
+        const MediaResource *nonSecureCodec = NULL;
+        const MediaResource *graphicMemory = NULL;
         for (size_t i = 0; i < resources.size(); ++i) {
             String8 type = resources[i].mType;
-            if (type == kResourceSecureCodec) {
-                if (!mSupportsMultipleSecureCodecs) {
-                    if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
-                        return false;
-                    }
-                }
-                if (!mSupportsSecureWithNonSecureCodec) {
-                    if (!getAllClients_l(callingPid, String8(kResourceNonSecureCodec), &clients)) {
-                        return false;
-                    }
-                }
+            if (resources[i].mType == kResourceSecureCodec) {
+                secureCodec = &resources[i];
             } else if (type == kResourceNonSecureCodec) {
-                if (!mSupportsSecureWithNonSecureCodec) {
-                    if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
-                        return false;
-                    }
+                nonSecureCodec = &resources[i];
+            } else if (type == kResourceGraphicMemory) {
+                graphicMemory = &resources[i];
+            }
+        }
+
+        // first pass to handle secure/non-secure codec conflict
+        if (secureCodec != NULL) {
+            if (!mSupportsMultipleSecureCodecs) {
+                if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
+                    return false;
+                }
+            }
+            if (!mSupportsSecureWithNonSecureCodec) {
+                if (!getAllClients_l(callingPid, String8(kResourceNonSecureCodec), &clients)) {
+                    return false;
+                }
+            }
+        }
+        if (nonSecureCodec != NULL) {
+            if (!mSupportsSecureWithNonSecureCodec) {
+                if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
+                    return false;
                 }
             }
         }
 
         if (clients.size() == 0) {
             // if no secure/non-secure codec conflict, run second pass to handle other resources.
-            for (size_t i = 0; i < resources.size(); ++i) {
-                String8 type = resources[i].mType;
-                if (type == kResourceGraphicMemory) {
-                    sp<IResourceManagerClient> client;
-                    if (!getLowestPriorityBiggestClient_l(callingPid, type, &client)) {
-                        return false;
-                    }
-                    clients.push_back(client);
-                }
-            }
+            getClientForResource_l(callingPid, graphicMemory, &clients);
         }
 
         if (clients.size() == 0) {
             // if we are here, run the third pass to free one codec with the same type.
-            for (size_t i = 0; i < resources.size(); ++i) {
-                String8 type = resources[i].mType;
-                if (type == kResourceSecureCodec || type == kResourceNonSecureCodec) {
-                    sp<IResourceManagerClient> client;
-                    if (!getLowestPriorityBiggestClient_l(callingPid, type, &client)) {
-                        return false;
-                    }
-                    clients.push_back(client);
-                }
+            getClientForResource_l(callingPid, secureCodec, &clients);
+            getClientForResource_l(callingPid, nonSecureCodec, &clients);
+        }
+
+        if (clients.size() == 0) {
+            // if we are here, run the fourth pass to free one codec with the different type.
+            if (secureCodec != NULL) {
+                MediaResource temp(String8(kResourceNonSecureCodec), 1);
+                getClientForResource_l(callingPid, &temp, &clients);
+            }
+            if (nonSecureCodec != NULL) {
+                MediaResource temp(String8(kResourceSecureCodec), 1);
+                getClientForResource_l(callingPid, &temp, &clients);
             }
         }
     }
