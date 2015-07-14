@@ -4557,9 +4557,7 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             sp<RefBase> obj;
             CHECK(msg->findObject("surface", &obj));
 
-            status_t err =
-                ADebug::isExperimentEnabled("legacy-setsurface") ? BAD_VALUE :
-                        mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
+            status_t err = mCodec->handleSetSurface(static_cast<Surface *>(obj.get()));
 
             sp<AMessage> response = new AMessage;
             response->setInt32("err", err);
