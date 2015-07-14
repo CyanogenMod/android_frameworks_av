@@ -37,6 +37,9 @@ SpdifStreamOut::SpdifStreamOut(AudioHwDevice *dev,
             audio_format_t format)
         : AudioStreamOut(dev,flags)
         , mSpdifEncoder(this, format)
+        , mApplicationFormat(AUDIO_FORMAT_DEFAULT)
+        , mApplicationSampleRate(0)
+        , mApplicationChannelMask(0)
 {
 }
 
@@ -47,6 +50,10 @@ status_t SpdifStreamOut::open(
                               const char *address)
 {
     struct audio_config customConfig = *config;
+
+    mApplicationFormat = config->format;
+    mApplicationSampleRate = config->sample_rate;
+    mApplicationChannelMask = config->channel_mask;
 
     // Some data bursts run at a higher sample rate.
     // TODO Move this into the audio_utils as a static method.
@@ -106,20 +113,15 @@ int SpdifStreamOut::standby()
     return AudioStreamOut::standby();
 }
 
-size_t SpdifStreamOut::getFrameSize()
-{
-    return sizeof(int8_t);
-}
-
 ssize_t SpdifStreamOut::writeDataBurst(const void* buffer, size_t bytes)
 {
     return AudioStreamOut::write(buffer, bytes);
 }
 
-ssize_t SpdifStreamOut::write(const void* buffer, size_t bytes)
+ssize_t SpdifStreamOut::write(const void* buffer, size_t numBytes)
 {
     // Write to SPDIF wrapper. It will call back to writeDataBurst().
-    return mSpdifEncoder.write(buffer, bytes);
+    return mSpdifEncoder.write(buffer, numBytes);
 }
 
 } // namespace android

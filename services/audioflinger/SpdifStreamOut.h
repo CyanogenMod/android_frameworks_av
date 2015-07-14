@@ -64,7 +64,27 @@ public:
     */
     virtual ssize_t write(const void* buffer, size_t bytes);
 
-    virtual size_t getFrameSize();
+    /**
+     * @return frame size from the perspective of the application and the AudioFlinger.
+     */
+    virtual size_t getFrameSize() const { return sizeof(int8_t); }
+
+    /**
+     * @return format from the perspective of the application and the AudioFlinger.
+     */
+    virtual audio_format_t getFormat() const { return mApplicationFormat; }
+
+    /**
+     * The HAL may be running at a higher sample rate if, for example, playing wrapped EAC3.
+     * @return sample rate from the perspective of the application and the AudioFlinger.
+     */
+    virtual uint32_t getSampleRate() const { return mApplicationSampleRate; }
+
+    /**
+     * The HAL is in stereo mode when playing multi-channel compressed audio over HDMI.
+     * @return channel mask from the perspective of the application and the AudioFlinger.
+     */
+    virtual audio_channel_mask_t getChannelMask() const { return mApplicationChannelMask; }
 
     virtual status_t flush();
     virtual status_t standby();
@@ -89,6 +109,9 @@ private:
     };
 
     MySPDIFEncoder       mSpdifEncoder;
+    audio_format_t       mApplicationFormat;
+    uint32_t             mApplicationSampleRate;
+    audio_channel_mask_t mApplicationChannelMask;
 
     ssize_t  writeDataBurst(const void* data, size_t bytes);
     ssize_t  writeInternal(const void* buffer, size_t bytes);
