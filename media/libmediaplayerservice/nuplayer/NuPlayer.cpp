@@ -623,12 +623,19 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatSetVideoSurface:
         {
-            ALOGV("kWhatSetVideoSurface");
 
             sp<RefBase> obj;
             CHECK(msg->findObject("surface", &obj));
             sp<Surface> surface = static_cast<Surface *>(obj.get());
-            if (mSource == NULL || mSource->getFormat(false /* audio */) == NULL) {
+
+            ALOGD("onSetVideoSurface(%p, %s video decoder)",
+                    surface.get(),
+                    (mSource != NULL && mSource->getFormat(false /* audio */) != NULL
+                            && mVideoDecoder != NULL) ? "have" : "no");
+
+            if (mSource == NULL || mSource->getFormat(false /* audio */) == NULL
+                    // NOTE: mVideoDecoder's mSurface is always non-null
+                    || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)) {
                 performSetSurface(surface);
                 break;
             }
