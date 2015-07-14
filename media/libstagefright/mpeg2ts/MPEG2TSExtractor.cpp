@@ -264,8 +264,19 @@ status_t MPEG2TSExtractor::feedMore() {
     if (event.isInit()) {
         for (size_t i = 0; i < mSourceImpls.size(); ++i) {
             if (mSourceImpls[i].get() == event.getMediaSource().get()) {
-                mSyncPoints.editItemAt(i).add(
-                        event.getTimeUs(), event.getOffset());
+                KeyedVector<int64_t, off64_t> *syncPoints = &mSyncPoints.editItemAt(i);
+                syncPoints->add(event.getTimeUs(), event.getOffset());
+                // We're keeping the size of the sync points at most 5mb per a track.
+                size_t size = syncPoints->size();
+                if (size >= 327680) {
+                    int64_t firstTimeUs = syncPoints->keyAt(0);
+                    int64_t lastTimeUs = syncPoints->keyAt(size - 1);
+                    if (event.getTimeUs() - firstTimeUs > lastTimeUs - event.getTimeUs()) {
+                        syncPoints->removeItemsAt(0, 4096);
+                    } else {
+                        syncPoints->removeItemsAt(size - 4096, 4096);
+                    }
+                }
                 break;
             }
         }
