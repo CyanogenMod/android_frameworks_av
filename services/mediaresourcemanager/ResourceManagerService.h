@@ -65,6 +65,9 @@ public:
 
     virtual void removeResource(int64_t clientId);
 
+    // Tries to reclaim resource from processes with lower priority than the calling process
+    // according to the requested resources.
+    // Returns true if any resource has been reclaimed, otherwise returns false.
     virtual bool reclaimResource(int callingPid, const Vector<MediaResource> &resources);
 
 protected:
@@ -94,6 +97,11 @@ private:
     bool getBiggestClient_l(int pid, const String8 &type, sp<IResourceManagerClient> *client);
 
     bool isCallingPriorityHigher_l(int callingPid, int pid);
+
+    // A helper function basically calls getLowestPriorityBiggestClient_l and add the result client
+    // to the given Vector.
+    void getClientForResource_l(
+        int callingPid, const MediaResource *res, Vector<sp<IResourceManagerClient>> *clients);
 
     mutable Mutex mLock;
     sp<ProcessInfoInterface> mProcessInfo;
