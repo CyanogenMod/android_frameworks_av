@@ -216,6 +216,12 @@ void MediaCodecList::parseTopLevelXMLFile(const char *codecs_xml, bool ignore_er
                         String8(kPolicySupportsMultipleSecureCodecs),
                         String8(value.c_str())));
     }
+    if (mGlobalSettings->findString(kPolicySupportsSecureWithNonSecureCodec, &value)) {
+        policies.push_back(
+                MediaResourcePolicy(
+                        String8(kPolicySupportsSecureWithNonSecureCodec),
+                        String8(value.c_str())));
+    }
     if (policies.size() > 0) {
         sp<IServiceManager> sm = defaultServiceManager();
         sp<IBinder> binder = sm->getService(String16("media.resource_manager"));
