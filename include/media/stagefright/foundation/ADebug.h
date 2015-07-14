@@ -117,7 +117,7 @@ struct ADebug {
 
     };
 
-    // parse the property or string to get the debug level for a component name
+    // parse the property or string to get a long-type level for a component name
     // string format is:
     // <level>[:<glob>][,<level>[:<glob>]...]
     // - <level> is 0-5 corresponding to ADebug::Level
@@ -125,10 +125,14 @@ struct ADebug {
     //   matches all components
     // - string is read left-to-right, and the last matching level is returned, or
     //   the def if no terms matched
+    static long GetLevelFromSettingsString(
+            const char *name, const char *value, long def);
+    static long GetLevelFromProperty(
+            const char *name, const char *value, long def);
+
+    // same for ADebug::Level - performs clamping to valid debug ranges
     static Level GetDebugLevelFromProperty(
             const char *name, const char *propertyName, Level def = kDebugNone);
-    static Level GetDebugLevelFromString(
-            const char *name, const char *value, Level def = kDebugNone);
 
     // remove redundant segments of a codec name, and return a newly allocated
     // string suitable for debugging
