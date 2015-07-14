@@ -220,6 +220,7 @@ private:
 
     void tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo);
     void closeAudioSink();
+    void determineAudioModeChange();
 
     status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
 
