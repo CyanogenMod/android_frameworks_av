@@ -98,6 +98,7 @@ struct MyHandler : public AHandler {
     enum {
         kWhatConnected                  = 'conn',
         kWhatDisconnected               = 'disc',
+        kWhatSeekPaused                 = 'spau',
         kWhatSeekDone                   = 'sdon',
 
         kWhatAccessUnit                 = 'accU',
@@ -217,6 +218,12 @@ struct MyHandler : public AHandler {
         sp<AMessage> msg = new AMessage('seek', this);
         msg->setInt64("time", timeUs);
         mPauseGeneration++;
+        msg->post();
+    }
+
+    void continueSeekAfterPause(int64_t timeUs) {
+        sp<AMessage> msg = new AMessage('see1', this);
+        msg->setInt64("time", timeUs);
         msg->post();
     }
 
@@ -1180,7 +1187,7 @@ struct MyHandler : public AHandler {
                 mCheckPending = true;
                 ++mCheckGeneration;
 
-                sp<AMessage> reply = new AMessage('see1', this);
+                sp<AMessage> reply = new AMessage('see0', this);
                 reply->setInt64("time", timeUs);
 
                 if (mPausing) {
@@ -1203,9 +1210,26 @@ struct MyHandler : public AHandler {
                 break;
             }
 
-            case 'see1':
+            case 'see0':
             {
                 // Session is paused now.
+                status_t err = OK;
+                msg->findInt32("result", &err);
+
+                int64_t timeUs;
+                CHECK(msg->findInt64("time", &timeUs));
+
+                sp<AMessage> notify = mNotify->dup();
+                notify->setInt32("what", kWhatSeekPaused);
+                notify->setInt32("err", err);
+                notify->setInt64("time", timeUs);
+                notify->post();
+                break;
+
+            }
+
+            case 'see1':
+            {
                 for (size_t i = 0; i < mTracks.size(); ++i) {
                     TrackInfo *info = &mTracks.editItemAt(i);
 
