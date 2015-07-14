@@ -215,6 +215,7 @@ private:
     sp<MemoryDealer> mDealer[2];
 
     sp<ANativeWindow> mNativeWindow;
+    int mNativeWindowUsageBits;
     sp<AMessage> mInputFormat;
     sp<AMessage> mOutputFormat;
     sp<AMessage> mBaseOutputFormat;
@@ -266,7 +267,8 @@ private:
     status_t freeBuffer(OMX_U32 portIndex, size_t i);
 
     status_t handleSetSurface(const sp<Surface> &surface);
-    status_t setupNativeWindowSizeFormatAndUsage(ANativeWindow *nativeWindow /* nonnull */);
+    status_t setupNativeWindowSizeFormatAndUsage(
+            ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */);
 
     status_t configureOutputBuffersFromNativeWindow(
             OMX_U32 *nBufferCount, OMX_U32 *nBufferSize,
