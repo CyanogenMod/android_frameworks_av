@@ -146,6 +146,7 @@ private:
     struct BandwidthItem {
         size_t mPlaylistIndex;
         unsigned long mBandwidth;
+        int64_t mLastFailureUs;
     };
 
     struct FetcherInfo {
@@ -199,6 +200,7 @@ private:
     ssize_t mCurBandwidthIndex;
     ssize_t mOrigBandwidthIndex;
     int32_t mLastBandwidthBps;
+    bool mLastBandwidthStable;
     sp<BandwidthEstimator> mBandwidthEstimator;
 
     sp<M3UParser> mPlaylist;
@@ -268,8 +270,10 @@ private:
             ssize_t currentBWIndex, ssize_t targetBWIndex) const;
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
     size_t getBandwidthIndex(int32_t bandwidthBps);
+    ssize_t getLowestValidBandwidthIndex() const;
     HLSTime latestMediaSegmentStartTime() const;
 
+    static bool isBandwidthValid(const BandwidthItem &item);
     static int SortByBandwidth(const BandwidthItem *, const BandwidthItem *);
     static StreamType indexToType(int idx);
     static ssize_t typeToIndex(int32_t type);
@@ -287,6 +291,7 @@ private:
             sp<AMessage> &msg, int64_t delayUs, bool *needResumeUntil);
 
     bool switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow);
+    bool tryBandwidthFallback();
 
     void schedulePollBuffering();
     void cancelPollBuffering();
