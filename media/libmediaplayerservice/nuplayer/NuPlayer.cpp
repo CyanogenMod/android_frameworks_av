@@ -1071,6 +1071,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 CHECK(msg->findInt32("audio", &audio));
 
                 ALOGV("renderer %s flush completed.", audio ? "audio" : "video");
+                if (audio && (mFlushingAudio == NONE || mFlushingAudio == FLUSHED
+                        || mFlushingAudio == SHUT_DOWN)) {
+                    // Flush has been handled by tear down.
+                    break;
+                }
                 handleFlushComplete(audio, false /* isDecoder */);
                 finishFlushIfPossible();
             } else if (what == Renderer::kWhatVideoRenderingStart) {
@@ -1079,14 +1084,27 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
             } else if (what == Renderer::kWhatAudioTearDown) {
-                int64_t positionUs;
-                CHECK(msg->findInt64("positionUs", &positionUs));
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 ALOGV("Tear down audio with reason %d.", reason);
-                closeAudioSink();
                 mAudioDecoder.clear();
                 ++mAudioDecoderGeneration;
+                bool needsToCreateAudioDecoder = true;
+                if (mFlushingAudio == FLUSHING_DECODER) {
+                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+                    mFlushingAudio = FLUSHED;
+                    finishFlushIfPossible();
+                } else if (mFlushingAudio == FLUSHING_DECODER_SHUTDOWN
+                        || mFlushingAudio == SHUTTING_DOWN_DECODER) {
+                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+                    mFlushingAudio = SHUT_DOWN;
+                    finishFlushIfPossible();
+                    needsToCreateAudioDecoder = false;
+                }
+                if (mRenderer == NULL) {
+                    break;
+                }
+                closeAudioSink();
                 mRenderer->flush(
                         true /* audio */, false /* notifyComplete */);
                 if (mVideoDecoder != NULL) {
@@ -1094,9 +1112,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             false /* audio */, false /* notifyComplete */);
                 }
 
+                int64_t positionUs;
+                CHECK(msg->findInt64("positionUs", &positionUs));
                 performSeek(positionUs);
 
-                if (reason == Renderer::kDueToError) {
+                if (reason == Renderer::kDueToError && needsToCreateAudioDecoder) {
                     instantiateDecoder(true /* audio */, &mAudioDecoder);
                 }
             }
