@@ -1005,7 +1005,9 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 
     status_t result = track->mPackets->dequeueAccessUnit(accessUnit);
 
-    if (!track->mPackets->hasBufferAvailable(&finalResult)) {
+    // start pulling in more buffers if we only have one (or no) buffer left
+    // so that decoder has less chance of being starved
+    if (track->mPackets->getAvailableBufferCount(&finalResult) < 2) {
         postReadBuffer(audio? MEDIA_TRACK_TYPE_AUDIO : MEDIA_TRACK_TYPE_VIDEO);
     }
 
@@ -1458,6 +1460,8 @@ void NuPlayer::GenericSource::readBuffer(
             track = &mVideoTrack;
             if (mIsWidevine) {
                 maxBuffers = 2;
+            } else {
+                maxBuffers = 4;
             }
             break;
         case MEDIA_TRACK_TYPE_AUDIO:
