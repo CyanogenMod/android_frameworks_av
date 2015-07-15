@@ -511,6 +511,13 @@ void PlaylistFetcher::startAsync(
     msg->post();
 }
 
+/*
+ * pauseAsync
+ *
+ * threshold: 0.0f - pause after current fetch block (default 47Kbytes)
+ *           -1.0f - pause after finishing current segment
+ *        0.0~1.0f - pause if remaining of current segment exceeds threshold
+ */
 void PlaylistFetcher::pauseAsync(
         float thresholdRatio, bool disconnect) {
     setStoppingThreshold(thresholdRatio, disconnect);
