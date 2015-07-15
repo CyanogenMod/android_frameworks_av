@@ -48,7 +48,8 @@ enum {
     GET_CAMERA_INFO,
     WAIT_UNTIL_IDLE,
     FLUSH,
-    PREPARE
+    PREPARE,
+    TEAR_DOWN
 };
 
 namespace {
@@ -365,6 +366,20 @@ public:
         return reply.readInt32();
     }
 
+    virtual status_t tearDown(int streamId)
+    {
+        ALOGV("tearDown");
+        Parcel data, reply;
+
+        data.writeInterfaceToken(ICameraDeviceUser::getInterfaceDescriptor());
+        data.writeInt32(streamId);
+
+        remote()->transact(TEAR_DOWN, data, &reply);
+
+        reply.readExceptionCode();
+        return reply.readInt32();
+    }
+
 private:
 
 
@@ -568,6 +583,13 @@ status_t BnCameraDeviceUser::onTransact(
             int streamId = data.readInt32();
             reply->writeNoException();
             reply->writeInt32(prepare(streamId));
+            return NO_ERROR;
+        } break;
+        case TEAR_DOWN: {
+            CHECK_INTERFACE(ICameraDeviceUser, data, reply);
+            int streamId = data.readInt32();
+            reply->writeNoException();
+            reply->writeInt32(tearDown(streamId));
             return NO_ERROR;
         } break;
 
