@@ -45,6 +45,7 @@
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 
+#include <media/AudioPolicyHelper.h>
 #include <media/IMediaHTTPService.h>
 #include <media/IRemoteDisplay.h>
 #include <media/IRemoteDisplayClient.h>
@@ -1351,6 +1352,10 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
       mFlags(AUDIO_OUTPUT_FLAG_NONE)
 {
     ALOGV("AudioOutput(%d)", sessionId);
+    if (attr != NULL) {
+        mStreamType = audio_attributes_to_stream_type(attr);
+    }
+
     setMinBufferCount();
 }
 
@@ -1464,6 +1469,17 @@ String8  MediaPlayerService::AudioOutput::getParameters(const String8& keys)
 void MediaPlayerService::AudioOutput::setAudioAttributes(const audio_attributes_t * attributes) {
     Mutex::Autolock lock(mLock);
     mAttributes = attributes;
+    if (attributes != NULL) {
+        mStreamType = audio_attributes_to_stream_type(attributes);
+    }
+}
+
+void MediaPlayerService::AudioOutput::setAudioStreamType(audio_stream_type_t streamType)
+{
+    // do not allow direct stream type modification if attributes have been set
+    if (mAttributes == NULL) {
+        mStreamType = streamType;
+    }
 }
 
 void MediaPlayerService::AudioOutput::deleteRecycledTrack_l()
