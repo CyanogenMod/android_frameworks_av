@@ -58,15 +58,21 @@ struct LiveSession::BandwidthEstimator : public RefBase {
     BandwidthEstimator();
 
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
-    bool estimateBandwidth(int32_t *bandwidth, bool *isStable = NULL);
+    bool estimateBandwidth(
+            int32_t *bandwidth,
+            bool *isStable = NULL,
+            int32_t *shortTermBps = NULL);
 
 private:
     // Bandwidth estimation parameters
+    static const int32_t kShortTermBandwidthItems = 3;
     static const int32_t kMinBandwidthHistoryItems = 20;
     static const int64_t kMinBandwidthHistoryWindowUs = 5000000ll; // 5 sec
     static const int64_t kMaxBandwidthHistoryWindowUs = 30000000ll; // 30 sec
+    static const int64_t kMaxBandwidthHistoryAgeUs = 60000000ll; // 60 sec
 
     struct BandwidthEntry {
+        int64_t mTimestampUs;
         int64_t mDelayUs;
         size_t mNumBytes;
     };
@@ -74,6 +80,7 @@ private:
     Mutex mLock;
     List<BandwidthEntry> mBandwidthHistory;
     List<int32_t> mPrevEstimates;
+    int32_t mShortTermEstimate;
     bool mHasNewSample;
     bool mIsStable;
     int64_t mTotalTransferTimeUs;
@@ -83,6 +90,7 @@ private:
 };
 
 LiveSession::BandwidthEstimator::BandwidthEstimator() :
+    mShortTermEstimate(0),
     mHasNewSample(false),
     mIsStable(true),
     mTotalTransferTimeUs(0),
@@ -93,7 +101,9 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
         size_t numBytes, int64_t delayUs) {
     AutoMutex autoLock(mLock);
 
+    int64_t nowUs = ALooper::GetNowUs();
     BandwidthEntry entry;
+    entry.mTimestampUs = nowUs;
     entry.mDelayUs = delayUs;
     entry.mNumBytes = numBytes;
     mTotalTransferTimeUs += delayUs;
@@ -115,7 +125,10 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
     // and total transfer time at least kMaxBandwidthHistoryWindowUs.
     while (mBandwidthHistory.size() > kMinBandwidthHistoryItems) {
         List<BandwidthEntry>::iterator it = mBandwidthHistory.begin();
-        if (mTotalTransferTimeUs - it->mDelayUs < bandwidthHistoryWindowUs) {
+        // remove sample if either absolute age or total transfer time is
+        // over kMaxBandwidthHistoryWindowUs
+        if (nowUs - it->mTimestampUs < kMaxBandwidthHistoryAgeUs &&
+                mTotalTransferTimeUs - it->mDelayUs < bandwidthHistoryWindowUs) {
             break;
         }
         mTotalTransferTimeUs -= it->mDelayUs;
@@ -125,7 +138,7 @@ void LiveSession::BandwidthEstimator::addBandwidthMeasurement(
 }
 
 bool LiveSession::BandwidthEstimator::estimateBandwidth(
-        int32_t *bandwidthBps, bool *isStable) {
+        int32_t *bandwidthBps, bool *isStable, int32_t *shortTermBps) {
     AutoMutex autoLock(mLock);
 
     if (mBandwidthHistory.size() < 2) {
@@ -137,6 +150,9 @@ bool LiveSession::BandwidthEstimator::estimateBandwidth(
         if (isStable) {
             *isStable = mIsStable;
         }
+        if (shortTermBps) {
+            *shortTermBps = mShortTermEstimate;
+        }
         return true;
     }
 
@@ -146,6 +162,21 @@ bool LiveSession::BandwidthEstimator::estimateBandwidth(
         mPrevEstimates.erase(mPrevEstimates.begin());
     }
     mHasNewSample = false;
+
+    int64_t totalTimeUs = 0;
+    size_t totalBytes = 0;
+    if (mBandwidthHistory.size() >= kShortTermBandwidthItems) {
+        List<BandwidthEntry>::iterator it = --mBandwidthHistory.end();
+        for (size_t i = 0; i < kShortTermBandwidthItems; i++, it--) {
+            totalTimeUs += it->mDelayUs;
+            totalBytes += it->mNumBytes;
+        }
+    }
+    mShortTermEstimate = totalTimeUs > 0 ?
+            (totalBytes * 8E6 / totalTimeUs) : *bandwidthBps;
+    if (shortTermBps) {
+        *shortTermBps = mShortTermEstimate;
+    }
 
     int32_t minEstimate = -1, maxEstimate = -1;
     List<int32_t>::iterator it;
@@ -158,10 +189,14 @@ bool LiveSession::BandwidthEstimator::estimateBandwidth(
             maxEstimate = estimate;
         }
     }
-    mIsStable = (maxEstimate <= minEstimate * 4 / 3);
+    // consider it stable if long-term average is not jumping a lot
+    // and short-term average is not much lower than long-term average
+    mIsStable = (maxEstimate <= minEstimate * 4 / 3)
+            && mShortTermEstimate > minEstimate * 7 / 10;
     if (isStable) {
-       *isStable = mIsStable;
+        *isStable = mIsStable;
     }
+
 #if 0
     {
         char dumpStr[1024] = {0};
@@ -251,6 +286,7 @@ LiveSession::LiveSession(
       mCurBandwidthIndex(-1),
       mOrigBandwidthIndex(-1),
       mLastBandwidthBps(-1ll),
+      mLastBandwidthStable(false),
       mBandwidthEstimator(new BandwidthEstimator()),
       mMaxWidth(720),
       mMaxHeight(480),
@@ -713,6 +749,20 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
                         }
                     }
 
+                    // remember the failure index (as mCurBandwidthIndex will be restored
+                    // after cancelBandwidthSwitch()), and record last fail time
+                    size_t failureIndex = mCurBandwidthIndex;
+                    mBandwidthItems.editItemAt(
+                            failureIndex).mLastFailureUs = ALooper::GetNowUs();
+
+                    if (mSwitchInProgress) {
+                        // if error happened when we switch to a variant, try fallback
+                        // to other variant to save the session
+                        if (tryBandwidthFallback()) {
+                            break;
+                        }
+                    }
+
                     if (mInPreparationPhase) {
                         postPrepared(err);
                     }
@@ -887,6 +937,13 @@ void LiveSession::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 // static
+bool LiveSession::isBandwidthValid(const BandwidthItem &item) {
+    static const int64_t kBlacklistWindowUs = 300 * 1000000ll;
+    return item.mLastFailureUs < 0
+            || ALooper::GetNowUs() - item.mLastFailureUs > kBlacklistWindowUs;
+}
+
+// static
 int LiveSession::SortByBandwidth(const BandwidthItem *a, const BandwidthItem *b) {
     if (a->mBandwidth < b->mBandwidth) {
         return -1;
@@ -986,6 +1043,7 @@ void LiveSession::onMasterPlaylistFetched(const sp<AMessage> &msg) {
             BandwidthItem item;
 
             item.mPlaylistIndex = i;
+            item.mLastFailureUs = -1ll;
 
             sp<AMessage> meta;
             AString uri;
@@ -1223,6 +1281,13 @@ float LiveSession::getAbortThreshold(
                   X/T < bw1 / (bw1 + bw0 - bw)
         */
 
+        // abort old bandwidth immediately if bandwidth is fluctuating a lot.
+        // our estimate could be far off, and fetching old bandwidth could
+        // take too long.
+        if (!mLastBandwidthStable) {
+            return 0.0f;
+        }
+
         // Taking the measured current bandwidth at 50% face value only,
         // as our bandwidth estimation is a lagging indicator. Being
         // conservative on this, we prefer switching to lower bandwidth
@@ -1248,6 +1313,16 @@ float LiveSession::getAbortThreshold(
 
 void LiveSession::addBandwidthMeasurement(size_t numBytes, int64_t delayUs) {
     mBandwidthEstimator->addBandwidthMeasurement(numBytes, delayUs);
+}
+
+ssize_t LiveSession::getLowestValidBandwidthIndex() const {
+    for (size_t index = 0; index < mBandwidthItems.size(); index++) {
+        if (isBandwidthValid(mBandwidthItems[index])) {
+            return index;
+        }
+    }
+    // if playlists are all blacklisted, return 0 and hope it's alive
+    return 0;
 }
 
 size_t LiveSession::getBandwidthIndex(int32_t bandwidthBps) {
@@ -1284,14 +1359,18 @@ size_t LiveSession::getBandwidthIndex(int32_t bandwidthBps) {
             }
         }
 
-        // Pick the highest bandwidth stream below or equal to estimated bandwidth.
+        // Pick the highest bandwidth stream that's not currently blacklisted
+        // below or equal to estimated bandwidth.
 
         index = mBandwidthItems.size() - 1;
-        while (index > 0) {
+        ssize_t lowestBandwidth = getLowestValidBandwidthIndex();
+        while (index > lowestBandwidth) {
             // be conservative (70%) to avoid overestimating and immediately
             // switching down again.
             size_t adjustedBandwidthBps = bandwidthBps * 7 / 10;
-            if (mBandwidthItems.itemAt(index).mBandwidth <= adjustedBandwidthBps) {
+            const BandwidthItem &item = mBandwidthItems[index];
+            if (item.mBandwidth <= adjustedBandwidthBps
+                    && isBandwidthValid(item)) {
                 break;
             }
             --index;
@@ -2172,21 +2251,57 @@ void LiveSession::notifyBufferingUpdate(int32_t percentage) {
     notify->post();
 }
 
+bool LiveSession::tryBandwidthFallback() {
+    if (mInPreparationPhase || mReconfigurationInProgress) {
+        // Don't try fallback during prepare or reconfig.
+        // If error happens there, it's likely unrecoverable.
+        return false;
+    }
+    if (mCurBandwidthIndex > mOrigBandwidthIndex) {
+        // if we're switching up, simply cancel and resume old variant
+        cancelBandwidthSwitch(true /* resume */);
+        return true;
+    } else {
+        // if we're switching down, we're likely about to underflow (if
+        // not already underflowing). try the lowest viable bandwidth if
+        // not on that variant already.
+        ssize_t lowestValid = getLowestValidBandwidthIndex();
+        if (mCurBandwidthIndex > lowestValid) {
+            cancelBandwidthSwitch();
+            changeConfiguration(-1ll, lowestValid);
+            return true;
+        }
+    }
+    // return false if we couldn't find any fallback
+    return false;
+}
+
 /*
  * returns true if a bandwidth switch is actually needed (and started),
  * returns false otherwise
  */
 bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
     // no need to check bandwidth if we only have 1 bandwidth settings
-    if (mSwitchInProgress || mBandwidthItems.size() < 2) {
+    if (mBandwidthItems.size() < 2) {
         return false;
     }
 
-    int32_t bandwidthBps;
+    if (mSwitchInProgress) {
+        if (mBuffering) {
+            tryBandwidthFallback();
+        }
+        return false;
+    }
+
+    int32_t bandwidthBps, shortTermBps;
     bool isStable;
-    if (mBandwidthEstimator->estimateBandwidth(&bandwidthBps, &isStable)) {
-        ALOGV("bandwidth estimated at %.2f kbps", bandwidthBps / 1024.0f);
+    if (mBandwidthEstimator->estimateBandwidth(
+            &bandwidthBps, &isStable, &shortTermBps)) {
+        ALOGV("bandwidth estimated at %.2f kbps, "
+                "stable %d, shortTermBps %.2f kbps",
+                bandwidthBps / 1024.0f, isStable, shortTermBps / 1024.0f);
         mLastBandwidthBps = bandwidthBps;
+        mLastBandwidthStable = isStable;
     } else {
         ALOGV("no bandwidth estimate.");
         return false;
@@ -2203,9 +2318,13 @@ bool LiveSession::switchBandwidthIfNeeded(bool bufferHigh, bool bufferLow) {
 
     if (canSwitchDown || canSwitchUp) {
         // bandwidth estimating has some delay, if we have to downswitch when
-        // it hasn't stabilized, be very conservative on bandwidth.
+        // it hasn't stabilized, use the short term to guess real bandwidth,
+        // since it may be dropping too fast.
+        // (note this doesn't apply to upswitch, always use longer average there)
         if (!isStable && canSwitchDown) {
-            bandwidthBps /= 2;
+            if (shortTermBps < bandwidthBps) {
+                bandwidthBps = shortTermBps;
+            }
         }
 
         ssize_t bandwidthIndex = getBandwidthIndex(bandwidthBps);
