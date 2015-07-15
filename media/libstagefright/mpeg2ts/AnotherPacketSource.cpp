@@ -394,6 +394,20 @@ bool AnotherPacketSource::hasDataBufferAvailable(status_t *finalResult) {
     return false;
 }
 
+size_t AnotherPacketSource::getAvailableBufferCount(status_t *finalResult) {
+    Mutex::Autolock autoLock(mLock);
+
+    *finalResult = OK;
+    if (!mEnabled) {
+        return 0;
+    }
+    if (!mBuffers.empty()) {
+        return mBuffers.size();
+    }
+    *finalResult = mEOSResult;
+    return 0;
+}
+
 int64_t AnotherPacketSource::getBufferedDurationUs(status_t *finalResult) {
     Mutex::Autolock autoLock(mLock);
     *finalResult = mEOSResult;

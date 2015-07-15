@@ -49,6 +49,10 @@ struct AnotherPacketSource : public MediaSource {
     // Returns true if we have packets that's not discontinuities
     bool hasDataBufferAvailable(status_t *finalResult);
 
+    // Returns the number of available buffers. finalResult is always OK
+    // if this method returns non-0, or the final result if it returns 0.
+    size_t getAvailableBufferCount(status_t *finalResult);
+
     // Returns the difference between the last and the first queued
     // presentation timestamps since the last discontinuity (if any).
     int64_t getBufferedDurationUs(status_t *finalResult);
