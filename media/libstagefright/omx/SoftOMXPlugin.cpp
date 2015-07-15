@@ -59,6 +59,9 @@ static const struct {
     { "OMX.google.raw.decoder", "rawdec", "audio_decoder.raw" },
     { "OMX.google.flac.encoder", "flacenc", "audio_encoder.flac" },
     { "OMX.google.gsm.decoder", "gsmdec", "audio_decoder.gsm" },
+#ifdef QTI_FLAC_DECODER
+    { "OMX.qti.audio.decoder.flac", "flacdec", "audio_decoder.flac" },
+#endif
 };
 
 static const size_t kNumComponents =

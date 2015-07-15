@@ -2069,7 +2069,7 @@ status_t ACodec::configureCodec(
             }
             err = setupG711Codec(encoder, sampleRate, numChannels);
         }
-    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC) && encoder) {
         int32_t numChannels = 0, sampleRate = 0, compressionLevel = -1;
         if (encoder &&
                 (!msg->findInt32("channel-count", &numChannels)
@@ -4179,7 +4179,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                     if (params.nChannels <= 0
                             || (params.nChannels != 1 && !params.bInterleaved)
-                            || params.nBitPerSample != 16u
+                            || (params.nBitPerSample != 16u
+                                    && params.nBitPerSample != 24u)// we support 16/24 bit s/w decoding
                             || params.eNumData != OMX_NumericalDataSigned
                             || params.ePCMMode != OMX_AUDIO_PCMModeLinear) {
                         ALOGE("unsupported PCM port: %u channels%s, %u-bit, %s(%d), %s(%d) mode ",

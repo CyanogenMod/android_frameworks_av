@@ -30,6 +30,12 @@ LOCAL_SHARED_LIBRARIES :=               \
         libstagefright_foundation       \
         libdl
 
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
+    LOCAL_CFLAGS += -DQTI_FLAC_DECODER
+endif
+endif
+
 LOCAL_MODULE:= libstagefright_omx
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
