@@ -63,7 +63,7 @@ public:
             const sp<IResourceManagerClient> client,
             const Vector<MediaResource> &resources);
 
-    virtual void removeResource(int64_t clientId);
+    virtual void removeResource(int pid, int64_t clientId);
 
     // Tries to reclaim resource from processes with lower priority than the calling process
     // according to the requested resources.
