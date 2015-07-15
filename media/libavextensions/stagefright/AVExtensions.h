@@ -36,6 +36,7 @@ namespace android {
 
 struct ACodec;
 class MediaExtractor;
+struct MediaCodec;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -58,6 +59,8 @@ struct AVUtils {
             const sp<MetaData> &meta, sp<AMessage> *format);
     virtual DataSource::SnifferFunc getExtendedSniffer();
 
+    virtual sp<MediaCodec> createCustomComponentByName(const sp<ALooper> &looper,
+                const char* mime, bool encoder);
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };

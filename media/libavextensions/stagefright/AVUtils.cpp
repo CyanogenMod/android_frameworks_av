@@ -37,6 +37,7 @@
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/ACodec.h>
+#include <media/stagefright/MediaCodec.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
@@ -56,6 +57,11 @@ static bool dumbSniffer(
 
 DataSource::SnifferFunc AVUtils::getExtendedSniffer() {
     return dumbSniffer;
+}
+
+sp<MediaCodec> AVUtils::createCustomComponentByName(
+        const sp<ALooper> &, const char* , bool ) {
+    return NULL;
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
