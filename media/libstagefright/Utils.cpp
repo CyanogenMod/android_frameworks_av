@@ -834,7 +834,12 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     // Offloading depends on audio DSP capabilities.
     int32_t aacaot = -1;
     if (meta->findInt32(kKeyAACAOT, &aacaot)) {
-        mapAACProfileToAudioFormat(info.format,(OMX_AUDIO_AACPROFILETYPE) aacaot);
+        bool isADTSSupported = false;
+        isADTSSupported = AVUtils::get()->mapAACProfileToAudioFormat(meta, info.format,
+                                  (OMX_AUDIO_AACPROFILETYPE) aacaot);
+        if (!isADTSSupported) {
+           mapAACProfileToAudioFormat(info.format,(OMX_AUDIO_AACPROFILETYPE) aacaot);
+        }
     }
 
     int32_t srate = -1;

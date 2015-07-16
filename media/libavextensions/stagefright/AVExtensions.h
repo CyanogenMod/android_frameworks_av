@@ -128,6 +128,17 @@ struct AVUtils {
 
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
 
+    virtual int32_t getAudioMaxInputBufferSize(audio_format_t audioFormat,
+            const sp<AMessage> &);
+
+    virtual bool mapAACProfileToAudioFormat(const sp<MetaData> &,
+            audio_format_t &,
+            uint64_t /*eAacProfile*/);
+
+    virtual bool mapAACProfileToAudioFormat(const sp<AMessage> &,
+            audio_format_t &,
+            uint64_t /*eAacProfile*/);
+
     virtual void extractCustomCameraKeys(
             const CameraParameters& /*params*/, sp<MetaData> &/*meta*/) {}
     virtual void printFileName(int /*fd*/) {}

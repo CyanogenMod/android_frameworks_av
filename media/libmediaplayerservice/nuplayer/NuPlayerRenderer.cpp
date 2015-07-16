@@ -1688,12 +1688,24 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             if (audioFormat == AUDIO_FORMAT_AAC
                     && format->findInt32("aac-profile", &aacProfile)) {
                 // Redefine AAC format as per aac profile
-                mapAACProfileToAudioFormat(
-                        audioFormat,
-                        aacProfile);
+                int32_t isADTSSupported;
+                isADTSSupported = AVUtils::get()->mapAACProfileToAudioFormat(format,
+                                          audioFormat,
+                                          aacProfile);
+                if (!isADTSSupported) {
+                    mapAACProfileToAudioFormat(audioFormat,
+                            aacProfile);
+                } else {
+                    ALOGV("Format is AAC ADTS\n");
+                }
             }
 
+            int32_t offloadBufferSize =
+                                    AVUtils::get()->getAudioMaxInputBufferSize(
+                                                   audioFormat,
+                                                   format);
             audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+
             offloadInfo.duration_us = -1;
             format->findInt64(
                     "durationUs", &offloadInfo.duration_us);
@@ -1705,6 +1717,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = isStreaming;
             offloadInfo.bit_width = bitWidth;
+            offloadInfo.offload_buffer_size = offloadBufferSize;
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");

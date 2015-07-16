@@ -47,6 +47,9 @@ endif
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_APE_OFFLOAD)),true)
 LOCAL_CFLAGS     += -DAPE_OFFLOAD_ENABLED
 endif
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AAC_ADTS_OFFLOAD)),true)
+LOCAL_CFLAGS     += -DAAC_ADTS_OFFLOAD_ENABLED
+endif
 endif
 
 LOCAL_MODULE := libaudiopolicycomponents

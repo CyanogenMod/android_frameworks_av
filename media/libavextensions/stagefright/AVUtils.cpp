@@ -105,6 +105,20 @@ bool AVUtils::canOffloadAPE(const sp<MetaData> &) {
    return true;
 }
 
+int32_t AVUtils::getAudioMaxInputBufferSize(audio_format_t, const sp<AMessage> &) {
+    return 0;
+}
+
+bool AVUtils::mapAACProfileToAudioFormat(const sp<MetaData> &, audio_format_t &,
+                 uint64_t  /*eAacProfile*/) {
+    return false ;
+}
+
+bool AVUtils::mapAACProfileToAudioFormat(const sp<AMessage> &,  audio_format_t &,
+                 uint64_t  /*eAacProfile*/) {
+    return false ;
+}
+
 bool AVUtils::isEnhancedExtension(const char *) {
     return false;
 }

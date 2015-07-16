@@ -68,6 +68,8 @@ SoftAAC2::SoftAAC2(
       mOutputBufferCount(0),
       mSignalledError(false),
       mLastInHeader(NULL),
+      mLastHeaderTimeUs(-1),
+      mNextOutBufferTimeUs(0),
       mOutputPortSettingsChange(NONE) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
@@ -492,6 +494,27 @@ int32_t SoftAAC2::outputDelayRingBufferSpaceLeft() {
     return mOutputDelayRingBufferSize - outputDelayRingBufferSamplesAvailable();
 }
 
+void SoftAAC2::updateTimeStamp(int64_t inHeaderTimeUs) {
+    // use new input buffer timestamp as Anchor Time if its
+    //    a) first buffer or
+    //    b) first buffer post seek or
+    //    c) different from last buffer timestamp
+    //If input buffer timestamp is same as last input buffer timestamp then
+    //treat this as a erroneous timestamp and ignore new input buffer
+    //timestamp and use last output buffer timestamp as Anchor Time.
+    int64_t anchorTimeUs = 0;
+    if ((mLastHeaderTimeUs != inHeaderTimeUs)) {
+        anchorTimeUs = inHeaderTimeUs;
+        mLastHeaderTimeUs = inHeaderTimeUs;
+        //Store current buffer's timestamp so that it can used as reference
+        //in cases where first frame/buffer is skipped/dropped.
+        //e.g to compensate decoder delay
+        mNextOutBufferTimeUs = inHeaderTimeUs;
+    } else {
+        anchorTimeUs = mNextOutBufferTimeUs;
+    }
+    mBufferTimestamps.add(anchorTimeUs);
+}
 
 void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
     if (mSignalledError || mOutputPortSettingsChange != NONE) {
@@ -618,7 +641,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 // insert buffer size and time stamp
                 mBufferSizes.add(inBufferLength[0]);
                 if (mLastInHeader != inHeader) {
-                    mBufferTimestamps.add(inHeader->nTimeStamp);
+                    updateTimeStamp(inHeader->nTimeStamp);
                     mLastInHeader = inHeader;
                 } else {
                     int64_t currentTime = mBufferTimestamps.top();
@@ -630,7 +653,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 inBuffer[0] = inHeader->pBuffer + inHeader->nOffset;
                 inBufferLength[0] = inHeader->nFilledLen;
                 mLastInHeader = inHeader;
-                mBufferTimestamps.add(inHeader->nTimeStamp);
+                updateTimeStamp(inHeader->nTimeStamp);
                 mBufferSizes.add(inHeader->nFilledLen);
             }
 
@@ -755,6 +778,14 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         if (inHeader && inHeader->nFilledLen == 0) {
                             inInfo->mOwnedByUs = false;
                             mInputBufferCount++;
+
+                            //During Port reconfiguration current frames is skipped and next frame
+                            //is sent for decoding.
+                            //Update mNextOutBufferTimeUs with current frame's timestamp if port reconfiguration is
+                            //happening in last frame of current buffer otherwise LastOutBufferTimeUs
+                            //will be zero(post seek).
+                            mNextOutBufferTimeUs = mBufferTimestamps.top() + mStreamInfo->aacSamplesPerFrame *
+                                                       1000000ll / mStreamInfo->aacSampleRate;
                             inQueue.erase(inQueue.begin());
                             mLastInHeader = NULL;
                             inInfo = NULL;
@@ -875,6 +906,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         *currentBufLeft -= decodedSize;
                         *nextTimeStamp += mStreamInfo->aacSamplesPerFrame *
                                 1000000ll / mStreamInfo->aacSampleRate;
+                        mNextOutBufferTimeUs = *nextTimeStamp;
                         ALOGV("adjusted nextTimeStamp/size to %lld/%d",
                                 (long long) *nextTimeStamp, *currentBufLeft);
                     } else {
@@ -882,6 +914,7 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         if (mBufferTimestamps.size() > 0) {
                             mBufferTimestamps.removeAt(0);
                             nextTimeStamp = &mBufferTimestamps.editItemAt(0);
+                            mNextOutBufferTimeUs = *nextTimeStamp;
                             mBufferSizes.removeAt(0);
                             currentBufLeft = &mBufferSizes.editItemAt(0);
                             ALOGV("moved to next time/size: %lld/%d",
@@ -976,6 +1009,8 @@ void SoftAAC2::onPortFlushCompleted(OMX_U32 portIndex) {
         mDecodedSizes.clear();
         mLastInHeader = NULL;
         mEndOfInput = false;
+        mLastHeaderTimeUs = -1;
+        mNextOutBufferTimeUs = 0;
     } else {
         int avail;
         while ((avail = outputDelayRingBufferSamplesAvailable()) > 0) {
@@ -1038,6 +1073,8 @@ void SoftAAC2::onReset() {
     mBufferSizes.clear();
     mDecodedSizes.clear();
     mLastInHeader = NULL;
+    mLastHeaderTimeUs = -1;
+    mNextOutBufferTimeUs = 0;
 
     // To make the codec behave the same before and after a reset, we need to invalidate the
     // streaminfo struct. This does that:
