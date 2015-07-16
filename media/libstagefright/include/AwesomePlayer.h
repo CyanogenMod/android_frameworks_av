@@ -420,6 +420,8 @@ private:
     bool inSupportedTunnelFormats(const char * mime);
     //Flag to check if tunnel mode audio is enabled
     bool mIsTunnelAudio;
+
+    bool mDelayedInitialization;
 #endif
 
     bool isWidevineContent() const;
