@@ -83,6 +83,8 @@ public:
 
     static int mObjectsAlive;
     static bool mLpaInProgress;
+    static bool mLPAObjectEarlyDeletable;
+    static bool mLPAObjectEarlyDeleted;
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
