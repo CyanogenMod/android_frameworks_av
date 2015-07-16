@@ -107,8 +107,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual void            flush();
         virtual void            pause();
         virtual void            close();
-                void            setAudioStreamType(audio_stream_type_t streamType) {
-                                                                        mStreamType = streamType; }
+                void            setAudioStreamType(audio_stream_type_t streamType);
         virtual audio_stream_type_t getAudioStreamType() const { return mStreamType; }
                 void            setAudioAttributes(const audio_attributes_t * attributes);
 

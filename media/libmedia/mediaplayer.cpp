@@ -260,9 +260,10 @@ status_t MediaPlayer::setVideoSurfaceTexture(
 status_t MediaPlayer::prepareAsync_l()
 {
     if ( (mPlayer != 0) && ( mCurrentState & (MEDIA_PLAYER_INITIALIZED | MEDIA_PLAYER_STOPPED) ) ) {
-        mPlayer->setAudioStreamType(mStreamType);
         if (mAudioAttributesParcel != NULL) {
             mPlayer->setParameter(KEY_PARAMETER_AUDIO_ATTRIBUTES, *mAudioAttributesParcel);
+        } else {
+            mPlayer->setAudioStreamType(mStreamType);
         }
         mCurrentState = MEDIA_PLAYER_PREPARING;
         return mPlayer->prepareAsync();
@@ -734,24 +735,28 @@ status_t MediaPlayer::checkStateForKeySet_l(int key)
 status_t MediaPlayer::setParameter(int key, const Parcel& request)
 {
     ALOGV("MediaPlayer::setParameter(%d)", key);
+    status_t status = INVALID_OPERATION;
     Mutex::Autolock _l(mLock);
     if (checkStateForKeySet_l(key) != OK) {
-        return INVALID_OPERATION;
-    }
-    if (mPlayer != NULL) {
-        return  mPlayer->setParameter(key, request);
+        return status;
     }
     switch (key) {
     case KEY_PARAMETER_AUDIO_ATTRIBUTES:
-        // no player, save the marshalled audio attributes
+        // save the marshalled audio attributes
         if (mAudioAttributesParcel != NULL) { delete mAudioAttributesParcel; };
         mAudioAttributesParcel = new Parcel();
         mAudioAttributesParcel->appendFrom(&request, 0, request.dataSize());
-        return OK;
+        status = OK;
+        break;
     default:
-        ALOGV("setParameter: no active player");
-        return INVALID_OPERATION;
+        ALOGV_IF(mPlayer == NULL, "setParameter: no active player");
+        break;
     }
+
+    if (mPlayer != NULL) {
+        status = mPlayer->setParameter(key, request);
+    }
+    return status;
 }
 
 status_t MediaPlayer::getParameter(int key, Parcel *reply)
