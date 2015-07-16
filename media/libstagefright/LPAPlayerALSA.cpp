@@ -50,6 +50,8 @@ static const char   mName[] = "LPAPlayer";
 
 namespace android {
 int LPAPlayer::mObjectsAlive = 0;
+bool LPAPlayer::mLPAObjectEarlyDeletable = false;
+bool LPAPlayer::mLPAObjectEarlyDeleted = false;
 
 LPAPlayer::LPAPlayer(
                     const sp<MediaPlayerBase::AudioSink> &audioSink, bool &initCheck,
@@ -312,6 +314,7 @@ size_t LPAPlayer::AudioSinkCallback(
             //in the case of seek all these flags will be reset
             me->mReachedOutputEOS = true;
             ALOGV("postAudioEOS mSeeking %d", me->mSeeking);
+            mLPAObjectEarlyDeletable = true;
             me->mObserver->postAudioEOS(0);
         }else {
             ALOGV("postAudioEOS ignored since %d", me->mSeeking);
