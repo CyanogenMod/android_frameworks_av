@@ -504,17 +504,6 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCapture(
      *  - recording (if recording enabled)
      */
     outputStreams.push(client->getPreviewStreamId());
-
-    int captureStreamId = client->getCaptureStreamId();
-    if (captureStreamId == Camera2Client::NO_STREAM) {
-        res = client->createJpegStreamL(l.mParameters);
-        if (res != OK || client->getCaptureStreamId() == Camera2Client::NO_STREAM) {
-            ALOGE("%s: Camera %d: cannot create jpeg stream for slowJpeg mode: %s (%d)",
-                  __FUNCTION__, client->getCameraId(), strerror(-res), res);
-            return DONE;
-        }
-    }
-
     outputStreams.push(client->getCaptureStreamId());
 
     if (l.mParameters.previewCallbackFlags &
