@@ -270,6 +270,7 @@ AwesomePlayer::AwesomePlayer()
     reset();
 #ifdef QCOM_DIRECTTRACK
     mIsTunnelAudio = false;
+    mDelayedInitialization = false;
 #endif
 
 #ifdef QCOM_HARDWARE
@@ -609,6 +610,10 @@ void AwesomePlayer::reset() {
 }
 
 void AwesomePlayer::reset_l() {
+#ifdef QCOM_DIRECTTRACK
+  if(!LPAPlayer::mLPAObjectEarlyDeleted)
+#endif
+  {
     mVideoRenderingStarted = false;
     mActiveAudioTrackIndex = -1;
     mDisplayWidth = 0;
@@ -709,6 +714,7 @@ void AwesomePlayer::reset_l() {
 
     mBitrate = -1;
     mLastVideoTimeUs = -1;
+  }
 
     {
         Mutex::Autolock autoLock(mStatsLock);
@@ -745,6 +751,10 @@ void AwesomePlayer::reset_l() {
 
     mMediaRenderingStartGeneration = 0;
     mStartGeneration = 0;
+#ifdef QCOM_DIRECTTRACK
+    LPAPlayer::mLPAObjectEarlyDeleted = false;
+    LPAPlayer::mLPAObjectEarlyDeletable = false;
+#endif
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
@@ -1004,6 +1014,132 @@ void AwesomePlayer::onStreamDone() {
         }
     } else {
         ALOGV("MEDIA_PLAYBACK_COMPLETE");
+#ifdef QCOM_DIRECTTRACK
+        // If LPAPlayer is EOS it is deletable and it should be deleted before notify
+        // so that the dsp processsor is free again
+        ALOGV("LPAPlayer::mLPAObjectEarlyDeletable=%d", LPAPlayer::mLPAObjectEarlyDeletable);
+        if (LPAPlayer::mLPAObjectEarlyDeletable) {
+            ALOGV("Start early cleanup of LPA player");
+            pause_l(true /* at eos */);
+            cancelPlayerEvents();
+            mVideoRenderingStarted = false;
+            mActiveAudioTrackIndex = -1;
+            mDisplayWidth = 0;
+            mDisplayHeight = 0;
+
+            notifyListener_l(MEDIA_STOPPED);
+
+            if (mDecryptHandle != NULL) {
+                mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
+                    Playback::STOP, 0);
+                mDecryptHandle = NULL;
+                mDrmManagerClient = NULL;
+            }
+
+            if (mFlags & PLAYING) {
+                uint32_t params = IMediaPlayerService::kBatteryDataTrackDecoder;
+                if ((mAudioSource != NULL) && (mAudioSource != mAudioTrack)) {
+                    params |= IMediaPlayerService::kBatteryDataTrackAudio;
+                }
+                if (mVideoSource != NULL) {
+                    params |= IMediaPlayerService::kBatteryDataTrackVideo;
+                }
+                addBatteryData(params);
+            }
+
+            if (mFlags & PREPARING) {
+                modifyFlags(PREPARE_CANCELLED, SET);
+                if (mConnectingDataSource != NULL) {
+                    ALOGI("interrupting the connection process");
+                    mConnectingDataSource->disconnect();
+                }
+
+                if (mFlags & PREPARING_CONNECTED) {
+                    // We are basically done preparing, we're just buffering
+                    // enough data to start playback, we can safely interrupt that.
+                    finishAsyncPrepare_l();
+                }
+            }
+
+            while (mFlags & PREPARING) {
+                mPreparedCondition.wait(mLock);
+            }
+
+            cancelPlayerEvents();
+
+            mWVMExtractor.clear();
+            mCachedSource.clear();
+            mAudioTrack.clear();
+            mVideoTrack.clear();
+            mExtractor.clear();
+
+            // Shutdown audio first, so that the response to the reset request
+            // appears to happen instantaneously as far as the user is concerned
+            // If we did this later, audio would continue playing while we
+            // shutdown the video-related resources and the player appear to
+            // not be as responsive to a reset request.
+            if ((mAudioPlayer == NULL || !(mFlags & AUDIOPLAYER_STARTED))
+                && mAudioSource != NULL) {
+                // If we had an audio player, it would have effectively
+                // taken possession of the audio source and stopped it when
+                // _it_ is stopped. Otherwise this is still our responsibility.
+                mAudioSource->stop();
+            }
+            mAudioSource.clear();
+            mOmxSource.clear();
+
+            mTimeSource = NULL;
+
+            delete mAudioPlayer;
+            mAudioPlayer = NULL;
+
+            LPAPlayer::mLPAObjectEarlyDeleted = true;
+
+            if (mTextDriver != NULL) {
+                delete mTextDriver;
+                mTextDriver = NULL;
+            }
+
+            mVideoRenderer.clear();
+
+            modifyFlags(PLAYING, CLEAR);
+            printStats();
+            if (mVideoSource != NULL) {
+                shutdownVideoDecoder_l();
+            }
+
+            modifyFlags(0, ASSIGN);
+            mExtractorFlags = 0;
+            mTimeSourceDeltaUs = 0;
+            mVideoTimeUs = 0;
+
+            mSeeking = NO_SEEK;
+            mSeekNotificationSent = true;
+            mSeekTimeUs = 0;
+
+            mUri.setTo("");
+            mUriHeaders.clear();
+
+            mFileSource.clear();
+
+            mBitrate = -1;
+            mLastVideoTimeUs = -1;
+
+            ALOGV("Cleanup finished");
+
+            // If audio hasn't completed MEDIA_SEEK_COMPLETE yet,
+            // notify MEDIA_SEEK_COMPLETE to observer immediately for state persistence.
+            if (mWatchForAudioSeekComplete) {
+                notifyListener_l(MEDIA_SEEK_COMPLETE);
+                mWatchForAudioSeekComplete = false;
+            }
+
+            modifyFlags(AT_EOS, SET);
+
+            notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
+        } else
+#endif
+        {
         notifyListener_l(MEDIA_PLAYBACK_COMPLETE);
 
         pause_l(true /* at eos */);
@@ -1016,6 +1152,7 @@ void AwesomePlayer::onStreamDone() {
         }
 
         modifyFlags(AT_EOS, SET);
+        }
     }
 }
 
@@ -1055,6 +1192,38 @@ status_t AwesomePlayer::play_l() {
         mDrmManagerClient->setPlaybackStatus(mDecryptHandle,
                 Playback::START, position / 1000);
     }
+
+#ifdef QCOM_DIRECTTRACK
+    // Delay decoder initialization for LPA audio
+    if (mDelayedInitialization) {
+        if (mVideoTrack != NULL && mVideoSource == NULL) {
+            ALOGV("Delayed initializing video decoder");
+            status_t err = initVideoDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+
+        if (mVideoSource == NULL) {
+            notifyListener_l(MEDIA_SET_VIDEO_SIZE, 0, 0);
+        } else {
+            notifyVideoSize_l();
+        }
+
+        if (mAudioTrack != NULL && mAudioSource == NULL) {
+            ALOGV("Delayed initializing audio decoder");
+            status_t err = initAudioDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+        mDelayedInitialization = false;
+    }
+#endif
 
     if (mAudioSource != NULL) {
         if (mAudioPlayer == NULL) {
@@ -1702,6 +1871,37 @@ status_t AwesomePlayer::seekTo(int64_t timeUs) {
 }
 
 status_t AwesomePlayer::seekTo_l(int64_t timeUs) {
+#ifdef QCOM_DIRECTTRACK
+    // Delay decoder initialization for LPA audio
+    if (mDelayedInitialization) {
+        if (mVideoTrack != NULL && mVideoSource == NULL) {
+            ALOGV("Delayed initializing video decoder");
+            status_t err = initVideoDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+
+        if (mVideoSource == NULL) {
+            notifyListener_l(MEDIA_SET_VIDEO_SIZE, 0, 0);
+        } else {
+            notifyVideoSize_l();
+        }
+
+        if (mAudioTrack != NULL && mAudioSource == NULL) {
+            ALOGV("Delayed initializing audio decoder");
+            status_t err = initAudioDecoder();
+
+            if (err != OK) {
+                abortPrepare(err);
+                return err;
+            }
+        }
+        mDelayedInitialization = false;
+    }
+#endif
     if (mFlags & CACHE_UNDERRUN) {
         modifyFlags(CACHE_UNDERRUN, CLEAR);
         play_l();
@@ -3061,6 +3261,11 @@ void AwesomePlayer::beginPrepareAsync_l() {
             return;
         }
     }
+#ifdef QCOM_DIRECTTRACK
+    if(isStreamingHTTP() || !LPAPlayer::mObjectsAlive) {
+      ALOGV("Not delaying initialization of codecs");
+      mDelayedInitialization = false;
+#endif
 
     if (mVideoTrack != NULL && mVideoSource == NULL) {
         status_t err = initVideoDecoder();
@@ -3079,6 +3284,12 @@ void AwesomePlayer::beginPrepareAsync_l() {
             return;
         }
     }
+#ifdef QCOM_DIRECTTRACK
+    } else {
+      ALOGV("Delaying initialization of codecs");
+      mDelayedInitialization = true;
+    }
+#endif
 
     modifyFlags(PREPARING_CONNECTED, SET);
 

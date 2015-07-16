@@ -75,6 +75,8 @@ public:
     virtual bool reachedEOS(status_t *finalStatus);
 
     static int mObjectsAlive;
+    static bool mLPAObjectEarlyDeletable;
+    static bool mLPAObjectEarlyDeleted;
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
