@@ -59,6 +59,8 @@ static const char   mName[] = "LPAPlayer";
 #define NUM_FDS 2
 namespace android {
 int LPAPlayer::mObjectsAlive = 0;
+bool LPAPlayer::mLPAObjectEarlyDeletable = false;
+bool LPAPlayer::mLPAObjectEarlyDeleted = false;
 bool LPAPlayer::mLpaInProgress = false;
 
 LPAPlayer::LPAPlayer(
@@ -432,6 +434,7 @@ size_t LPAPlayer::AudioSinkCallback(
         me->mReachedEOS = true;
         me->mReachedOutputEOS = true;
         ALOGV("postAudioEOS");
+        mLPAObjectEarlyDeletable = true;
         me->mObserver->postAudioEOS(0);
     }
     return 1;
