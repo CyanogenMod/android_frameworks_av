@@ -26,13 +26,8 @@ LOCAL_C_INCLUDES := \
 LOCAL_SHARED_LIBRARIES := \
     libaudiopolicyengineconfigurable  \
     libparameter \
-    libicuuc \
-    liblog \
-
-LOCAL_STATIC_LIBRARIES := \
     libxmlserializer \
-    libpfw_utility \
-    libxml2 \
+    liblog \
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libpolicy-subsystem
