@@ -56,6 +56,8 @@ struct SoftHEVC: public SoftVideoDecoderOMXComponent {
     SoftHEVC(const char *name, const OMX_CALLBACKTYPE *callbacks,
             OMX_PTR appData, OMX_COMPONENTTYPE **component);
 
+    status_t init();
+
 protected:
     virtual ~SoftHEVC();
 
