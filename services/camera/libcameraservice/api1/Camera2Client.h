@@ -129,9 +129,6 @@ public:
 
     status_t stopStream();
 
-    // For the slowJpegMode to create jpeg stream when precapture sequence is done
-    status_t createJpegStreamL(camera2::Parameters &params);
-
     static size_t calculateBufferSize(int width, int height,
             int format, int stride);
 
@@ -147,9 +144,6 @@ public:
     // Constant strings for ATRACE logging
     static const char* kAutofocusLabel;
     static const char* kTakepictureLabel;
-
-    // Used with stream IDs
-    static const int NO_STREAM = -1;
 
 private:
     /** ICamera interface-related private members */
@@ -182,6 +176,9 @@ private:
 
     void     setPreviewCallbackFlagL(Parameters &params, int flag);
     status_t updateRequests(Parameters &params);
+
+    // Used with stream IDs
+    static const int NO_STREAM = -1;
 
     template <typename ProcessorT>
     status_t updateProcessorStream(sp<ProcessorT> processor, Parameters params);

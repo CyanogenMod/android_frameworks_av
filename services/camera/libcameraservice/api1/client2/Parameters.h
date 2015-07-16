@@ -166,9 +166,6 @@ struct Parameters {
     bool previewCallbackSurface;
 
     bool zslMode;
-    // Whether the jpeg stream is slower than 30FPS and can slow down preview.
-    // When slowJpegMode is true, zslMode must be false to avoid slowing down preview.
-    bool slowJpegMode;
 
     // Overall camera state
     enum State {
@@ -193,8 +190,6 @@ struct Parameters {
     static const int MAX_INITIAL_PREVIEW_HEIGHT = 1080;
     // Aspect ratio tolerance
     static const CONSTEXPR float ASPECT_RATIO_TOLERANCE = 0.001;
-    // Threshold for slow jpeg mode
-    static const int64_t kSlowJpegModeThreshold = 33400000LL; // 33.4 ms
 
     // Full static camera info, object owned by someone else, such as
     // Camera2Device.
@@ -382,23 +377,15 @@ private:
         int32_t height;
         int32_t isInput;
     };
-
     // Helper function extract available stream configuration
     // Only valid since device HAL version 3.2
     // returns an empty Vector if device HAL version does support it
     Vector<StreamConfiguration> getStreamConfigurations();
 
-    // Helper function to get minimum frame duration for a jpeg size
-    // return -1 if input jpeg size cannot be found in supported size list
-    int64_t getJpegStreamMinFrameDurationNs(Parameters::Size size);
-
     // Helper function to get non-duplicated available output formats
     SortedVector<int32_t> getAvailableOutputFormats();
     // Helper function to get available output jpeg sizes
     Vector<Size> getAvailableJpegSizes();
-    // Helper function to get maximum size in input Size vector.
-    // The maximum size is defined by comparing width first, when width ties comparing height.
-    Size getMaxSize(const Vector<Size>& sizes);
 
     int mDeviceVersion;
 };
