@@ -143,9 +143,19 @@ status_t AudioStreamOut::open(
     return status;
 }
 
-size_t AudioStreamOut::getFrameSize()
+audio_format_t AudioStreamOut::getFormat() const
 {
-    return mHalFrameSize;
+    return stream->common.get_format(&stream->common);
+}
+
+uint32_t AudioStreamOut::getSampleRate() const
+{
+    return stream->common.get_sample_rate(&stream->common);
+}
+
+audio_channel_mask_t AudioStreamOut::getChannelMask() const
+{
+    return stream->common.get_channels(&stream->common);
 }
 
 int AudioStreamOut::flush()
@@ -165,7 +175,6 @@ int AudioStreamOut::standby()
     ALOG_ASSERT(stream != NULL);
     mRenderPosition = 0;
     mFramesWrittenAtStandby = mFramesWritten;
-    ALOGI("AudioStreamOut::standby(), mFramesWrittenAtStandby = %llu", mFramesWrittenAtStandby);
     return stream->common.standby(&stream->common);
 }
 
