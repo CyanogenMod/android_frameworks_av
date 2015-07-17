@@ -289,6 +289,11 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t prepare(int streamId) = 0;
 
     /**
+     * Free stream resources by dumping its unused gralloc buffers.
+     */
+    virtual status_t tearDown(int streamId) = 0;
+
+    /**
      * Get the HAL device version.
      */
     virtual uint32_t getDeviceVersion() = 0;
