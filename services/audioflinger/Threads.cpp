@@ -2081,8 +2081,8 @@ int AudioFlinger::PlaybackThread::asyncCallback(stream_callback_event_t event,
 void AudioFlinger::PlaybackThread::readOutputParameters_l()
 {
     // unfortunately we have no way of recovering from errors here, hence the LOG_ALWAYS_FATAL
-    mSampleRate = mOutput->stream->common.get_sample_rate(&mOutput->stream->common);
-    mChannelMask = mOutput->stream->common.get_channels(&mOutput->stream->common);
+    mSampleRate = mOutput->getSampleRate();
+    mChannelMask = mOutput->getChannelMask();
     if (!audio_is_output_channel(mChannelMask)) {
         LOG_ALWAYS_FATAL("HAL channel mask %#x not valid for output", mChannelMask);
     }
@@ -2092,8 +2092,12 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
                 mChannelMask);
     }
     mChannelCount = audio_channel_count_from_out_mask(mChannelMask);
+
+    // Get actual HAL format.
     mHALFormat = mOutput->stream->common.get_format(&mOutput->stream->common);
-    mFormat = mHALFormat;
+    // Get format from the shim, which will be different than the HAL format
+    // if playing compressed audio over HDMI passthrough.
+    mFormat = mOutput->getFormat();
     if (!audio_is_valid_format(mFormat)) {
         LOG_ALWAYS_FATAL("HAL format %#x not valid for output", mFormat);
     }
@@ -4559,9 +4563,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         // app does not call stop() and relies on underrun to stop:
         // hence the test on (track->mRetryCount > 1).
         // If retryCount<=1 then track is about to underrun and be removed.
+        // Do not use a high threshold for compressed audio.
         uint32_t minFrames;
         if ((track->sharedBuffer() == 0) && !track->isStopping_1() && !track->isPausing()
-            && (track->mRetryCount > 1)) {
+            && (track->mRetryCount > 1) && audio_is_linear_pcm(mFormat)) {
             minFrames = mNormalFrameCount;
         } else {
             minFrames = 1;
@@ -4650,6 +4655,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     // it will then automatically call start() when data is available
                     android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
                 } else if (last) {
+                    ALOGW("pause because of UNDERRUN, framesReady = %zu,"
+                            "minFrames = %u, mFormat = %#x",
+                            track->framesReady(), minFrames, mFormat);
                     mixerStatus = MIXER_TRACKS_ENABLED;
                     if (mHwSupportsPause && !mHwPaused && !mStandby) {
                         doHwPause = true;
