@@ -374,6 +374,9 @@ void AudioTrackClientProxy::flush()
     size_t increment = mFrameCountP2 << 1;
     size_t mask = increment - 1;
     audio_track_cblk_t* cblk = mCblk;
+    // mFlush is 32 bits concatenated as [ flush_counter ] [ newfront_offset ]
+    // Should newFlush = cblk->u.mStreaming.mRear?  Only problem is
+    // if you want to flush twice to the same rear location after a 32 bit wrap.
     int32_t newFlush = (cblk->u.mStreaming.mRear & mask) |
                         ((cblk->u.mStreaming.mFlush & ~mask) + increment);
     android_atomic_release_store(newFlush, &cblk->u.mStreaming.mFlush);
@@ -613,9 +616,18 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
         front = cblk->u.mStreaming.mFront;
         if (flush != mFlush) {
             // effectively obtain then release whatever is in the buffer
-            size_t mask = (mFrameCountP2 << 1) - 1;
+            const size_t overflowBit = mFrameCountP2 << 1;
+            const size_t mask = overflowBit - 1;
             int32_t newFront = (front & ~mask) | (flush & mask);
             ssize_t filled = rear - newFront;
+            if (filled >= (ssize_t)overflowBit) {
+                // front and rear offsets span the overflow bit of the p2 mask
+                // so rebasing newFront on the front offset is off by the overflow bit.
+                // adjust newFront to match rear offset.
+                ALOGV("flush wrap: filled %#x >= overflowBit %#x", filled, overflowBit);
+                newFront += overflowBit;
+                filled -= overflowBit;
+            }
             // Rather than shutting down on a corrupt flush, just treat it as a full flush
             if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
                 ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, "
