@@ -247,6 +247,20 @@ class Camera3Stream :
     status_t        cancelPrepare();
 
     /**
+     * Tear down memory for this stream. This frees all unused gralloc buffers
+     * allocated for this stream, but leaves it ready for operation afterward.
+     *
+     * May only be called in the CONFIGURED state, and keeps the stream in
+     * the CONFIGURED state.
+     *
+     * Returns:
+     *    OK if teardown succeeded.
+     *    INVALID_OPERATION if not in the CONFIGURED state
+     *    NO_INIT in case of a serious error from the HAL device
+     */
+    status_t       tearDown();
+
+    /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
      * stream, to hand over to the HAL.
      *

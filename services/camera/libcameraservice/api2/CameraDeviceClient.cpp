@@ -719,6 +719,38 @@ status_t CameraDeviceClient::prepare(int streamId) {
     return res;
 }
 
+status_t CameraDeviceClient::tearDown(int streamId) {
+    ATRACE_CALL();
+    ALOGV("%s", __FUNCTION__);
+
+    status_t res = OK;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    // Guard against trying to prepare non-created streams
+    ssize_t index = NAME_NOT_FOUND;
+    for (size_t i = 0; i < mStreamMap.size(); ++i) {
+        if (streamId == mStreamMap.valueAt(i)) {
+            index = i;
+            break;
+        }
+    }
+
+    if (index == NAME_NOT_FOUND) {
+        ALOGW("%s: Camera %d: Invalid stream ID (%d) specified, no stream "
+              "created yet", __FUNCTION__, mCameraId, streamId);
+        return BAD_VALUE;
+    }
+
+    // Also returns BAD_VALUE if stream ID was not valid or if the stream is in
+    // use
+    res = mDevice->tearDown(streamId);
+
+    return res;
+}
+
+
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",

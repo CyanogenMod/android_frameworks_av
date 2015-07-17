@@ -364,6 +364,61 @@ status_t Camera3Stream::cancelPrepareLocked() {
     return res;
 }
 
+status_t Camera3Stream::tearDown() {
+    ATRACE_CALL();
+    Mutex::Autolock l(mLock);
+
+    status_t res = OK;
+
+    // This function should be only called when the stream is configured.
+    if (mState != STATE_CONFIGURED) {
+        ALOGE("%s: Stream %d: Can't tear down stream if stream is not in "
+                "CONFIGURED state %d", __FUNCTION__, mId, mState);
+        return INVALID_OPERATION;
+    }
+
+    // If any buffers have been handed to the HAL, the stream cannot be torn down.
+    if (getHandoutOutputBufferCountLocked() > 0) {
+        ALOGE("%s: Stream %d: Can't tear down a stream that has outstanding buffers",
+                __FUNCTION__, mId);
+        return INVALID_OPERATION;
+    }
+
+    // Free buffers by disconnecting and then reconnecting to the buffer queue
+    // Only unused buffers will be dropped immediately; buffers that have been filled
+    // and are waiting to be acquired by the consumer and buffers that are currently
+    // acquired will be freed once they are released by the consumer.
+
+    res = disconnectLocked();
+    if (res != OK) {
+        if (res == -ENOTCONN) {
+            // queue has been disconnected, nothing left to do, so exit with success
+            return OK;
+        }
+        ALOGE("%s: Stream %d: Unable to disconnect to tear down buffers: %s (%d)",
+                __FUNCTION__, mId, strerror(-res), res);
+        return res;
+    }
+
+    mState = STATE_IN_CONFIG;
+
+    res = configureQueueLocked();
+    if (res != OK) {
+        ALOGE("%s: Unable to configure stream %d queue: %s (%d)",
+                __FUNCTION__, mId, strerror(-res), res);
+        mState = STATE_ERROR;
+        return res;
+    }
+
+    // Reset prepared state, since we've reconnected to the queue and can prepare again.
+    mPrepared = false;
+    mStreamUnpreparable = false;
+
+    mState = STATE_CONFIGURED;
+
+    return OK;
+}
+
 status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
