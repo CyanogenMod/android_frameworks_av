@@ -204,6 +204,8 @@ const StringToEnum sFormatNameToEnumTable[] = {
 #ifdef FLAC_OFFLOAD_ENABLED
     STRING_TO_ENUM(AUDIO_FORMAT_FLAC),
 #endif
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_16_BIT_OFFLOAD),
+    STRING_TO_ENUM(AUDIO_FORMAT_PCM_24_BIT_OFFLOAD),
 };
 
 const StringToEnum sOutChannelsNameToEnumTable[] = {
