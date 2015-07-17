@@ -25,6 +25,7 @@
 #include <media/AudioTrack.h>
 #include <media/stagefright/MediaClock.h>
 #include <media/stagefright/MediaSync.h>
+#include <media/stagefright/VideoFrameScheduler.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -50,6 +51,7 @@ MediaSync::MediaSync()
         mReleaseCondition(),
         mNumOutstandingBuffers(0),
         mUsageFlagsFromOutput(0),
+        mMaxAcquiredBufferCount(1),
         mNativeSampleRateInHz(0),
         mNumFramesWritten(0),
         mHasAudio(false),
@@ -120,6 +122,11 @@ status_t MediaSync::setSurface(const sp<IGraphicBufferProducer> &output) {
         if (status != NO_ERROR) {
             ALOGE("setSurface: failed to connect (%d)", status);
             return status;
+        }
+
+        if (mFrameScheduler == NULL) {
+            mFrameScheduler = new VideoFrameScheduler();
+            mFrameScheduler->init();
         }
     }
 
@@ -209,6 +216,12 @@ status_t MediaSync::createInputSurface(
         bufferConsumer->setConsumerUsageBits(mUsageFlagsFromOutput);
         *outBufferProducer = bufferProducer;
         mInput = bufferConsumer;
+
+        // set undequeued buffer count
+        int minUndequeuedBuffers;
+        mOutput->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &minUndequeuedBuffers);
+        mMaxAcquiredBufferCount = minUndequeuedBuffers;
+        bufferConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBufferCount);
     }
     return status;
 }
@@ -326,12 +339,26 @@ void MediaSync::setName(const AString &name) {
 }
 
 status_t MediaSync::setVideoFrameRateHint(float rate) {
-    // ignored until we add the FrameScheduler
-    return rate >= 0.f ? OK : BAD_VALUE;
+    Mutex::Autolock lock(mMutex);
+    if (rate < 0.f) {
+        return BAD_VALUE;
+    }
+    if (mFrameScheduler != NULL) {
+        mFrameScheduler->init(rate);
+    }
+    return OK;
 }
 
 float MediaSync::getVideoFrameRate() {
-    // we don't know the frame rate
+    Mutex::Autolock lock(mMutex);
+    if (mFrameScheduler != NULL) {
+        float fps = mFrameScheduler->getFrameRate();
+        if (fps > 0.f) {
+            return fps;
+        }
+    }
+
+    // we don't have or know the frame rate
     return -1.f;
 }
 
@@ -470,7 +497,7 @@ int64_t MediaSync::getPlayedOutAudioDurationMedia_l(int64_t nowUs) {
         CHECK_EQ(res, (status_t)OK);
         numFramesPlayedAt = nowUs;
         numFramesPlayedAt += 1000LL * mAudioTrack->latency() / 2; /* XXX */
-        //ALOGD("getPosition: %d %lld", numFramesPlayed, numFramesPlayedAt);
+        //ALOGD("getPosition: %d %lld", numFramesPlayed, (long long)numFramesPlayedAt);
     }
 
     //can't be negative until 12.4 hrs, test.
@@ -510,18 +537,30 @@ void MediaSync::onDrainVideo_l() {
         int64_t itemMediaUs = bufferItem->mTimestamp / 1000;
         int64_t itemRealUs = getRealTime(itemMediaUs, nowUs);
 
-        if (itemRealUs <= nowUs) {
+        // adjust video frame PTS based on vsync
+        itemRealUs = mFrameScheduler->schedule(itemRealUs * 1000) / 1000;
+        int64_t oneVsyncUs = (mFrameScheduler->getVsyncPeriod() / 1000);
+        int64_t twoVsyncsUs = oneVsyncUs * 2;
+
+        // post 2 display refreshes before rendering is due
+        if (itemRealUs <= nowUs + twoVsyncsUs) {
+            ALOGV("adjusting PTS from %lld to %lld",
+                    (long long)bufferItem->mTimestamp / 1000, (long long)itemRealUs);
+            bufferItem->mTimestamp = itemRealUs * 1000;
+            bufferItem->mIsAutoTimestamp = false;
+
             if (mHasAudio) {
                 if (nowUs - itemRealUs <= kMaxAllowedVideoLateTimeUs) {
-                    renderOneBufferItem_l(*bufferItem);
+                    renderOneBufferItem_l(*bufferItem, nowUs + oneVsyncUs - itemRealUs);
                 } else {
                     // too late.
                     returnBufferToInput_l(
                             bufferItem->mGraphicBuffer, bufferItem->mFence);
+                    mFrameScheduler->restart();
                 }
             } else {
                 // always render video buffer in video-only mode.
-                renderOneBufferItem_l(*bufferItem);
+                renderOneBufferItem_l(*bufferItem, nowUs + oneVsyncUs - itemRealUs);
 
                 // smooth out videos >= 10fps
                 mMediaClock->updateAnchor(
@@ -534,7 +573,7 @@ void MediaSync::onDrainVideo_l() {
             if (mNextBufferItemMediaUs == -1
                     || mNextBufferItemMediaUs > itemMediaUs) {
                 sp<AMessage> msg = new AMessage(kWhatDrainVideo, this);
-                msg->post(itemRealUs - nowUs);
+                msg->post(itemRealUs - nowUs - twoVsyncsUs);
                 mNextBufferItemMediaUs = itemMediaUs;
             }
             break;
@@ -545,10 +584,15 @@ void MediaSync::onDrainVideo_l() {
 void MediaSync::onFrameAvailableFromInput() {
     Mutex::Autolock lock(mMutex);
 
+    const static nsecs_t kAcquireWaitTimeout = 2000000000; // 2 seconds
+
     // If there are too many outstanding buffers, wait until a buffer is
     // released back to the input in onBufferReleased.
-    while (mNumOutstandingBuffers >= MAX_OUTSTANDING_BUFFERS) {
-        mReleaseCondition.wait(mMutex);
+    // NOTE: BufferQueue allows dequeuing maxAcquiredBufferCount + 1 buffers
+    while (mNumOutstandingBuffers > mMaxAcquiredBufferCount && !mIsAbandoned) {
+        if (mReleaseCondition.waitRelative(mMutex, kAcquireWaitTimeout) != OK) {
+            ALOGI("still waiting to release a buffer before acquire");
+        }
 
         // If the sync is abandoned while we are waiting, the release
         // condition variable will be broadcast, and we should just return
@@ -582,6 +626,7 @@ void MediaSync::onFrameAvailableFromInput() {
 
     if (mBuffersFromInput.indexOfKey(bufferItem.mGraphicBuffer->getId()) >= 0) {
         // Something is wrong since this buffer should be at our hands, bail.
+        ALOGE("received buffer multiple times from input");
         mInput->consumerDisconnect();
         onAbandoned_l(true /* isInput */);
         return;
@@ -595,7 +640,7 @@ void MediaSync::onFrameAvailableFromInput() {
     }
 }
 
-void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
+void MediaSync::renderOneBufferItem_l(const BufferItem &bufferItem, int64_t checkInUs) {
     IGraphicBufferProducer::QueueBufferInput queueInput(
             bufferItem.mTimestamp,
             bufferItem.mIsAutoTimestamp,
@@ -635,6 +680,12 @@ void MediaSync::renderOneBufferItem_l( const BufferItem &bufferItem) {
     mBuffersSentToOutput.add(bufferItem.mGraphicBuffer->getId(), bufferItem.mGraphicBuffer);
 
     ALOGV("queued buffer %#llx to output", (long long)bufferItem.mGraphicBuffer->getId());
+
+    // If we have already queued more than one buffer, check for any free buffers in case
+    // one of them were dropped - as BQ does not signal onBufferReleased in that case.
+    if (mBuffersSentToOutput.size() > 1) {
+        (new AMessage(kWhatCheckFrameAvailable, this))->post(checkInUs);
+    }
 }
 
 void MediaSync::onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output) {
@@ -646,32 +697,38 @@ void MediaSync::onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output) {
 
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
-    status_t status = mOutput->detachNextBuffer(&buffer, &fence);
-    ALOGE_IF(status != NO_ERROR, "detaching buffer from output failed (%d)", status);
+    status_t status;
+    // NOTE: This is a workaround for a BufferQueue bug where onBufferReleased is
+    // called only for released buffers, but not for buffers that were dropped during
+    // acquire. Dropped buffers can still be detached as they are on the free list.
+    // TODO: remove if released callback happens also for dropped buffers
+    while ((status = mOutput->detachNextBuffer(&buffer, &fence)) != NO_MEMORY) {
+        ALOGE_IF(status != NO_ERROR, "detaching buffer from output failed (%d)", status);
 
-    if (status == NO_INIT) {
-        // If the output has been abandoned, we can't do anything else,
-        // since buffer is invalid.
-        onAbandoned_l(false /* isInput */);
-        return;
+        if (status == NO_INIT) {
+            // If the output has been abandoned, we can't do anything else,
+            // since buffer is invalid.
+            onAbandoned_l(false /* isInput */);
+            return;
+        }
+
+        ALOGV("detached buffer %#llx from output", (long long)buffer->getId());
+
+        // If we've been abandoned, we can't return the buffer to the input, so just
+        // move on.
+        if (mIsAbandoned) {
+            return;
+        }
+
+        ssize_t ix = mBuffersSentToOutput.indexOfKey(buffer->getId());
+        if (ix < 0) {
+            // The buffer is unknown, maybe leftover, ignore.
+            return;
+        }
+        mBuffersSentToOutput.removeItemsAt(ix);
+
+        returnBufferToInput_l(buffer, fence);
     }
-
-    ALOGV("detached buffer %#llx from output", (long long)buffer->getId());
-
-    // If we've been abandoned, we can't return the buffer to the input, so just
-    // move on.
-    if (mIsAbandoned) {
-        return;
-    }
-
-    ssize_t ix = mBuffersSentToOutput.indexOfKey(buffer->getId());
-    if (ix < 0) {
-        // The buffer is unknown, maybe leftover, ignore.
-        return;
-    }
-    mBuffersSentToOutput.removeItemsAt(ix);
-
-    returnBufferToInput_l(buffer, fence);
 }
 
 void MediaSync::returnBufferToInput_l(
@@ -679,6 +736,7 @@ void MediaSync::returnBufferToInput_l(
     ssize_t ix = mBuffersFromInput.indexOfKey(buffer->getId());
     if (ix < 0) {
         // The buffer is unknown, something is wrong, bail.
+        ALOGE("output returned unknown buffer");
         mOutput->disconnect(NATIVE_WINDOW_API_MEDIA);
         onAbandoned_l(false /* isInput */);
         return;
@@ -738,6 +796,12 @@ void MediaSync::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             onDrainVideo_l();
+            break;
+        }
+
+        case kWhatCheckFrameAvailable:
+        {
+            onBufferReleasedByOutput(mOutput);
             break;
         }
 
