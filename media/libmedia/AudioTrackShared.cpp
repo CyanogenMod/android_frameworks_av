@@ -624,7 +624,7 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
                 // front and rear offsets span the overflow bit of the p2 mask
                 // so rebasing newFront on the front offset is off by the overflow bit.
                 // adjust newFront to match rear offset.
-                ALOGV("flush wrap: filled %#x >= overflowBit %#x", filled, overflowBit);
+                ALOGV("flush wrap: filled %zx >= overflowBit %zx", filled, overflowBit);
                 newFront += overflowBit;
                 filled -= overflowBit;
             }
