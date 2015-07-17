@@ -138,7 +138,9 @@ void NuPlayer::RTSPSource::pause() {
 }
 
 void NuPlayer::RTSPSource::resume() {
-    mHandler->resume();
+    if (mHandler != NULL) {
+        mHandler->resume();
+    }
 }
 
 status_t NuPlayer::RTSPSource::feedMoreTSData() {
@@ -295,13 +297,19 @@ status_t NuPlayer::RTSPSource::seekTo(int64_t seekTimeUs) {
     sp<AMessage> msg = new AMessage(kWhatPerformSeek, this);
     msg->setInt32("generation", ++mSeekGeneration);
     msg->setInt64("timeUs", seekTimeUs);
-    msg->post(200000ll);
 
-    return OK;
+    sp<AMessage> response;
+    status_t err = msg->postAndAwaitResponse(&response);
+    if (err == OK && response != NULL) {
+        CHECK(response->findInt32("err", &err));
+    }
+
+    return err;
 }
 
 void NuPlayer::RTSPSource::performSeek(int64_t seekTimeUs) {
     if (mState != CONNECTED) {
+        finishSeek(INVALID_OPERATION);
         return;
     }
 
@@ -320,9 +328,11 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
     } else if (msg->what() == kWhatPerformSeek) {
         int32_t generation;
         CHECK(msg->findInt32("generation", &generation));
+        CHECK(msg->senderAwaitsResponse(&mSeekReplyID));
 
         if (generation != mSeekGeneration) {
             // obsolete.
+            finishSeek(OK);
             return;
         }
 
@@ -368,6 +378,37 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
         case MyHandler::kWhatSeekDone:
         {
             mState = CONNECTED;
+            if (mSeekReplyID != NULL) {
+                // Unblock seekTo here in case we attempted to seek in a live stream
+                finishSeek(OK);
+            }
+            break;
+        }
+
+        case MyHandler::kWhatSeekPaused:
+        {
+            sp<AnotherPacketSource> source = getSource(true /* audio */);
+            if (source != NULL) {
+                source->queueDiscontinuity(ATSParser::DISCONTINUITY_NONE,
+                        /* extra */ NULL,
+                        /* discard */ true);
+            }
+            source = getSource(false /* video */);
+            if (source != NULL) {
+                source->queueDiscontinuity(ATSParser::DISCONTINUITY_NONE,
+                        /* extra */ NULL,
+                        /* discard */ true);
+            };
+
+            status_t err = OK;
+            msg->findInt32("err", &err);
+            finishSeek(err);
+
+            if (err == OK) {
+                int64_t timeUs;
+                CHECK(msg->findInt64("time", &timeUs));
+                mHandler->continueSeekAfterPause(timeUs);
+            }
             break;
         }
 
@@ -700,5 +741,12 @@ bool NuPlayer::RTSPSource::stopBufferingIfNecessary() {
     return true;
 }
 
+void NuPlayer::RTSPSource::finishSeek(status_t err) {
+    CHECK(mSeekReplyID != NULL);
+    sp<AMessage> seekReply = new AMessage;
+    seekReply->setInt32("err", err);
+    seekReply->postReply(mSeekReplyID);
+    mSeekReplyID = NULL;
+}
 
 }  // namespace android
