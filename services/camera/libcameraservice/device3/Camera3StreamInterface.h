@@ -152,6 +152,20 @@ class Camera3StreamInterface : public virtual RefBase {
     virtual status_t cancelPrepare() = 0;
 
     /**
+     * Tear down memory for this stream. This frees all unused gralloc buffers
+     * allocated for this stream, but leaves it ready for operation afterward.
+     *
+     * May only be called in the CONFIGURED state, and keeps the stream in
+     * the CONFIGURED state.
+     *
+     * Returns:
+     *    OK if teardown succeeded.
+     *    INVALID_OPERATION if not in the CONFIGURED state
+     *    NO_INIT in case of a serious error from the HAL device
+     */
+    virtual status_t tearDown() = 0;
+
+    /**
      * Fill in the camera3_stream_buffer with the next valid buffer for this
      * stream, to hand over to the HAL.
      *
