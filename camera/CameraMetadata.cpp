@@ -289,6 +289,17 @@ status_t CameraMetadata::updateImpl(uint32_t tag, const void *data,
         ALOGE("%s: Tag %d not found", __FUNCTION__, tag);
         return BAD_VALUE;
     }
+    // Safety check - ensure that data isn't pointing to this metadata, since
+    // that would get invalidated if a resize is needed
+    size_t bufferSize = get_camera_metadata_size(mBuffer);
+    uintptr_t bufAddr = reinterpret_cast<uintptr_t>(mBuffer);
+    uintptr_t dataAddr = reinterpret_cast<uintptr_t>(data);
+    if (dataAddr > bufAddr && dataAddr < (bufAddr + bufferSize)) {
+        ALOGE("%s: Update attempted with data from the same metadata buffer!",
+                __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
     size_t data_size = calculate_camera_metadata_entry_data_size(type,
             data_count);
 
