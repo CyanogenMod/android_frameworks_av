@@ -764,16 +764,22 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
     // first capture latency on HAL3 devices, and potentially on some HAL2
     // devices. So create it unconditionally at preview start. As a drawback,
     // this increases gralloc memory consumption for applications that don't
-    // ever take a picture.
+    // ever take a picture. Do not enter this mode when jpeg stream will slow
+    // down preview.
     // TODO: Find a better compromise, though this likely would involve HAL
     // changes.
     int lastJpegStreamId = mJpegProcessor->getStreamId();
-    res = updateProcessorStream(mJpegProcessor, params);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Can't pre-configure still image "
-                "stream: %s (%d)",
-                __FUNCTION__, mCameraId, strerror(-res), res);
-        return res;
+    // If jpeg stream will slow down preview, make sure we remove it before starting preview
+    if (params.slowJpegMode) {
+        mJpegProcessor->deleteStream();
+    } else {
+        res = updateProcessorStream(mJpegProcessor, params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't pre-configure still image "
+                    "stream: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+            return res;
+        }
     }
     bool jpegStreamChanged = mJpegProcessor->getStreamId() != lastJpegStreamId;
 
@@ -1453,9 +1459,12 @@ status_t Camera2Client::takePicture(int msgType) {
         }
 
         ALOGV("%s: Camera %d: Starting picture capture", __FUNCTION__, mCameraId);
-
         int lastJpegStreamId = mJpegProcessor->getStreamId();
-        res = updateProcessorStream(mJpegProcessor, l.mParameters);
+        // slowJpegMode will create jpeg stream in CaptureSequencer before capturing
+        if (!l.mParameters.slowJpegMode) {
+            res = updateProcessorStream(mJpegProcessor, l.mParameters);
+        }
+
         // If video snapshot fail to configureStream, try override video snapshot size to
         // video size
         if (res == BAD_VALUE && l.mParameters.state == Parameters::VIDEO_SNAPSHOT) {
@@ -1941,6 +1950,39 @@ status_t Camera2Client::removeFrameListener(int32_t minId, int32_t maxId,
 
 status_t Camera2Client::stopStream() {
     return mStreamingProcessor->stopStream();
+}
+
+status_t Camera2Client::createJpegStreamL(Parameters &params) {
+    status_t res = OK;
+    int lastJpegStreamId = mJpegProcessor->getStreamId();
+    if (lastJpegStreamId != NO_STREAM) {
+        return INVALID_OPERATION;
+    }
+
+    res = mStreamingProcessor->togglePauseStream(/*pause*/true);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't pause streaming: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    res = mDevice->flush();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable flush device: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+        return res;
+    }
+
+    // Ideally we don't need this, but current camera device
+    // status tracking mechanism demands it.
+    res = mDevice->waitUntilDrained();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Waiting device drain failed: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+    }
+
+    res = updateProcessorStream(mJpegProcessor, params);
+    return res;
 }
 
 const int32_t Camera2Client::kPreviewRequestIdStart;
