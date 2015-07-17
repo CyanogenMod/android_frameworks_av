@@ -52,6 +52,7 @@ MediaSync::MediaSync()
         mNumOutstandingBuffers(0),
         mUsageFlagsFromOutput(0),
         mMaxAcquiredBufferCount(1),
+        mReturnPendingInputFrame(false),
         mNativeSampleRateInHz(0),
         mNumFramesWritten(0),
         mHasAudio(false),
@@ -245,6 +246,7 @@ void MediaSync::updatePlaybackRate_l(float rate) {
         mNextBufferItemMediaUs = -1;
     }
     mPlaybackRate = rate;
+    // TODO: update frame scheduler with this info
     mMediaClock->setPlaybackRate(rate);
     onDrainVideo_l();
 }
@@ -336,6 +338,23 @@ status_t MediaSync::updateQueuedAudioData(
 void MediaSync::setName(const AString &name) {
     Mutex::Autolock lock(mMutex);
     mInput->setConsumerName(String8(name.c_str()));
+}
+
+void MediaSync::flush() {
+    Mutex::Autolock lock(mMutex);
+    if (mFrameScheduler != NULL) {
+        mFrameScheduler->restart();
+    }
+    while (!mBufferItems.empty()) {
+        BufferItem *bufferItem = &*mBufferItems.begin();
+        returnBufferToInput_l(bufferItem->mGraphicBuffer, bufferItem->mFence);
+        mBufferItems.erase(mBufferItems.begin());
+    }
+    mNextBufferItemMediaUs = -1;
+    mNumFramesWritten = 0;
+    mReturnPendingInputFrame = true;
+    mReleaseCondition.signal();
+    mMediaClock->clearAnchor();
 }
 
 status_t MediaSync::setVideoFrameRateHint(float rate) {
@@ -586,10 +605,13 @@ void MediaSync::onFrameAvailableFromInput() {
 
     const static nsecs_t kAcquireWaitTimeout = 2000000000; // 2 seconds
 
+    mReturnPendingInputFrame = false;
+
     // If there are too many outstanding buffers, wait until a buffer is
     // released back to the input in onBufferReleased.
     // NOTE: BufferQueue allows dequeuing maxAcquiredBufferCount + 1 buffers
-    while (mNumOutstandingBuffers > mMaxAcquiredBufferCount && !mIsAbandoned) {
+    while (mNumOutstandingBuffers > mMaxAcquiredBufferCount
+            && !mIsAbandoned && !mReturnPendingInputFrame) {
         if (mReleaseCondition.waitRelative(mMutex, kAcquireWaitTimeout) != OK) {
             ALOGI("still waiting to release a buffer before acquire");
         }
@@ -632,6 +654,14 @@ void MediaSync::onFrameAvailableFromInput() {
         return;
     }
     mBuffersFromInput.add(bufferItem.mGraphicBuffer->getId(), bufferItem.mGraphicBuffer);
+
+    // If flush happened while waiting for a buffer to be released, simply return it
+    // TRICKY: do it here after it is detached so that we don't have to cache mGraphicBuffer.
+    if (mReturnPendingInputFrame) {
+        mReturnPendingInputFrame = false;
+        returnBufferToInput_l(bufferItem.mGraphicBuffer, bufferItem.mFence);
+        return;
+    }
 
     mBufferItems.push_back(bufferItem);
 

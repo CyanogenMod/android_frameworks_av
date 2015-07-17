@@ -104,6 +104,9 @@ public:
     // MediaClock::getMediaTime() and MediaClock::getRealTimeFor().
     sp<const MediaClock> getMediaClock();
 
+    // Flush mediasync
+    void flush();
+
     // Set the video frame rate hint - this is used by the video FrameScheduler
     status_t setVideoFrameRateHint(float rate);
 
@@ -195,6 +198,7 @@ private:
     sp<IGraphicBufferProducer> mOutput;
     int mUsageFlagsFromOutput;
     uint32_t mMaxAcquiredBufferCount; // max acquired buffer count
+    bool mReturnPendingInputFrame;    // set while we are pending before acquiring an input frame
 
     sp<AudioTrack> mAudioTrack;
     uint32_t mNativeSampleRateInHz;
