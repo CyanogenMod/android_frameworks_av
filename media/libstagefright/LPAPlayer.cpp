@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 
-#define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define LOG_TAG "LPAPlayer"
 
 #include <utils/Log.h>
@@ -770,12 +770,12 @@ status_t  LPAPlayer::setupAudioSink()
 {
     status_t err = NO_ERROR;
 
-    ALOGD("setupAudioSink with A2DP(%d) USB(%d) tracktype(%d)", mIsA2DPEnabled, mIsUSBEnabled, mTrackType);
+    ALOGV("setupAudioSink with A2DP(%d) USB(%d) tracktype(%d)", mIsA2DPEnabled, mIsUSBEnabled, mTrackType);
     pthread_mutex_lock(&audio_sink_setup_mutex);
 
     if(true == mIsUSBEnabled) {
         if(mTrackType == TRACK_REGULAR) {
-            ALOGD("setupAudioSink:rEGULAR Track already opened");
+            ALOGV("setupAudioSink:rEGULAR Track already opened");
             pthread_mutex_unlock(&audio_sink_setup_mutex);
             return err;
         }
@@ -815,7 +815,7 @@ status_t  LPAPlayer::setupAudioSink()
 
     } else if(true == mIsA2DPEnabled) {
         if(mTrackType == TRACK_REGULAR) {
-            ALOGD("setupAudioSink:rEGULAR Track already opened");
+            ALOGV("setupAudioSink:rEGULAR Track already opened");
             pthread_mutex_unlock(&audio_sink_setup_mutex);
             return err;
         }
@@ -856,7 +856,7 @@ status_t  LPAPlayer::setupAudioSink()
     } else if (false == mIsA2DPEnabled){
 
         if(mTrackType == TRACK_DIRECT) {
-            ALOGD("setupAudioSink:Direct Track already opened");
+            ALOGV("setupAudioSink:Direct Track already opened");
             pthread_mutex_unlock(&audio_sink_setup_mutex);
             return err;
         }
