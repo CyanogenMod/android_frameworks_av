@@ -28,8 +28,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AUtils.h>
-
-#include "VideoFrameScheduler.h"
+#include <media/stagefright/VideoFrameScheduler.h>
 
 namespace android {
 
@@ -56,7 +55,7 @@ static const size_t kMinSamplesToEstimatePeriod = 3;
 static const size_t kMaxSamplesToEstimatePeriod = VideoFrameScheduler::kHistorySize;
 
 static const size_t kPrecision = 12;
-static const size_t kErrorThreshold = (1 << (kPrecision * 2)) / 10;
+static const int64_t kErrorThreshold = (1 << (kPrecision * 2)) / 10;
 static const int64_t kMultiplesThresholdDiv = 4;            // 25%
 static const int64_t kReFitThresholdDiv = 100;              // 1%
 static const nsecs_t kMaxAllowedFrameSkip = kNanosIn1s;     // 1 sec
@@ -258,7 +257,8 @@ void VideoFrameScheduler::PLL::prime(size_t numSamplesToUse) {
             mPhase = firstTime;
         }
     }
-    ALOGV("priming[%zu] phase:%lld period:%lld", numSamplesToUse, mPhase, mPeriod);
+    ALOGV("priming[%zu] phase:%lld period:%lld",
+            numSamplesToUse, (long long)mPhase, (long long)mPeriod);
 }
 
 nsecs_t VideoFrameScheduler::PLL::addSample(nsecs_t time) {
@@ -314,6 +314,10 @@ nsecs_t VideoFrameScheduler::PLL::addSample(nsecs_t time) {
         }
     }
     return mPeriod;
+}
+
+nsecs_t VideoFrameScheduler::PLL::getPeriod() const {
+    return mPrimed ? mPeriod : 0;
 }
 
 /* ======================================================================= */
@@ -380,6 +384,14 @@ nsecs_t VideoFrameScheduler::getVsyncPeriod() {
         return mVsyncPeriod;
     }
     return kDefaultVsyncPeriod;
+}
+
+float VideoFrameScheduler::getFrameRate() {
+    nsecs_t videoPeriod = mPll.getPeriod();
+    if (videoPeriod > 0) {
+        return 1e9 / videoPeriod;
+    }
+    return 0.f;
 }
 
 nsecs_t VideoFrameScheduler::schedule(nsecs_t renderTime) {

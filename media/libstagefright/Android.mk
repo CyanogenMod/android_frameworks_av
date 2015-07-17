@@ -64,6 +64,7 @@ LOCAL_SRC_FILES:=                         \
         TimedEventQueue.cpp               \
         Utils.cpp                         \
         VBRISeeker.cpp                    \
+        VideoFrameScheduler.cpp           \
         WAVExtractor.cpp                  \
         WVMExtractor.cpp                  \
         XINGSeeker.cpp                    \
