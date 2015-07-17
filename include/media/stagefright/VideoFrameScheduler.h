@@ -39,6 +39,9 @@ struct VideoFrameScheduler : public RefBase {
     // returns the vsync period for the main display
     nsecs_t getVsyncPeriod();
 
+    // returns the current frames-per-second, or 0.f if not primed
+    float getFrameRate();
+
     void release();
 
     static const size_t kHistorySize = 8;
@@ -54,8 +57,9 @@ private:
         void reset(float fps = -1);
         // keep current estimate, but restart phase
         void restart();
-        // returns period
+        // returns period or 0 if not yet primed
         nsecs_t addSample(nsecs_t time);
+        nsecs_t getPeriod() const;
 
     private:
         nsecs_t mPeriod;

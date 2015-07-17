@@ -29,8 +29,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
-
-#include <VideoFrameScheduler.h>
+#include <media/stagefright/VideoFrameScheduler.h>
 
 #include <inttypes.h>
 
