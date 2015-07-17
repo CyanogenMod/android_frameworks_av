@@ -116,6 +116,8 @@ private:
     int64_t mEOSTimeoutAudio;
     int64_t mEOSTimeoutVideo;
 
+    sp<AReplyToken> mSeekReplyID;
+
     sp<AnotherPacketSource> getSource(bool audio);
 
     void onConnected();
@@ -131,6 +133,7 @@ private:
     void setError(status_t err);
     void startBufferingIfNecessary();
     bool stopBufferingIfNecessary();
+    void finishSeek(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(RTSPSource);
 };
