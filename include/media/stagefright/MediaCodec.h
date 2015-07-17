@@ -299,6 +299,7 @@ private:
     bool mIsVideo;
     int32_t mVideoWidth;
     int32_t mVideoHeight;
+    int32_t mRotationDegrees;
 
     // initial create parameters
     AString mInitName;

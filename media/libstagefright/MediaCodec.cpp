@@ -251,6 +251,7 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
       mIsVideo(false),
       mVideoWidth(0),
       mVideoHeight(0),
+      mRotationDegrees(0),
       mDequeueInputTimeoutGeneration(0),
       mDequeueInputReplyID(0),
       mDequeueOutputTimeoutGeneration(0),
@@ -413,6 +414,9 @@ status_t MediaCodec::configure(
     if (mIsVideo) {
         format->findInt32("width", &mVideoWidth);
         format->findInt32("height", &mVideoHeight);
+        if (!format->findInt32("rotation-degrees", &mRotationDegrees)) {
+            mRotationDegrees = 0;
+        }
     }
 
     msg->setMessage("format", format);
@@ -1313,7 +1317,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         CHECK(msg->findString("mime", &mime));
 
                         if (mime.startsWithIgnoreCase("video/")) {
-                            mSoftRenderer = new SoftwareRenderer(mSurface);
+                            mSoftRenderer = new SoftwareRenderer(mSurface, mRotationDegrees);
                         }
                     }
 
