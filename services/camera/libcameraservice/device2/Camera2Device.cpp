@@ -626,6 +626,12 @@ status_t Camera2Device::prepare(int streamId) {
     return NO_INIT;
 }
 
+status_t Camera2Device::tearDown(int streamId) {
+    ATRACE_CALL();
+    ALOGE("%s: Camera %d: unimplemented", __FUNCTION__, mId);
+    return NO_INIT;
+}
+
 uint32_t Camera2Device::getDeviceVersion() {
     ATRACE_CALL();
     return mDeviceVersion;

@@ -111,6 +111,9 @@ public:
     // Prepare stream by preallocating its buffers
     virtual status_t      prepare(int streamId);
 
+    // Tear down stream resources by freeing its unused buffers
+    virtual status_t      tearDown(int streamId);
+
     /**
      * Interface used by CameraService
      */
