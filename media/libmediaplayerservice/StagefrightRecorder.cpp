@@ -75,8 +75,6 @@ StagefrightRecorder::StagefrightRecorder(const String16 &opPackageName)
       mOutputFd(-1),
       mAudioSource(AUDIO_SOURCE_CNT),
       mVideoSource(VIDEO_SOURCE_LIST_END),
-      mCaptureTimeLapse(false),
-      mCaptureFps(0.0f),
       mStarted(false) {
 
     ALOGV("Constructor");
@@ -567,32 +565,32 @@ status_t StagefrightRecorder::setParamAudioTimeScale(int32_t timeScale) {
     return OK;
 }
 
-status_t StagefrightRecorder::setParamTimeLapseEnable(int32_t timeLapseEnable) {
-    ALOGV("setParamTimeLapseEnable: %d", timeLapseEnable);
+status_t StagefrightRecorder::setParamCaptureFpsEnable(int32_t captureFpsEnable) {
+    ALOGV("setParamCaptureFpsEnable: %d", captureFpsEnable);
 
-    if(timeLapseEnable == 0) {
-        mCaptureTimeLapse = false;
-    } else if (timeLapseEnable == 1) {
-        mCaptureTimeLapse = true;
+    if(captureFpsEnable == 0) {
+        mCaptureFpsEnable = false;
+    } else if (captureFpsEnable == 1) {
+        mCaptureFpsEnable = true;
     } else {
         return BAD_VALUE;
     }
     return OK;
 }
 
-status_t StagefrightRecorder::setParamTimeLapseFps(float fps) {
-    ALOGV("setParamTimeLapseFps: %.2f", fps);
+status_t StagefrightRecorder::setParamCaptureFps(float fps) {
+    ALOGV("setParamCaptureFps: %.2f", fps);
 
     int64_t timeUs = (int64_t) (1000000.0 / fps + 0.5f);
 
     // Not allowing time more than a day
     if (timeUs <= 0 || timeUs > 86400*1E6) {
-        ALOGE("Time between time lapse frame capture (%lld) is out of range [0, 1 Day]", timeUs);
+        ALOGE("Time between frame capture (%lld) is out of range [0, 1 Day]", timeUs);
         return BAD_VALUE;
     }
 
     mCaptureFps = fps;
-    mTimeBetweenTimeLapseFrameCaptureUs = timeUs;
+    mTimeBetweenCaptureUs = timeUs;
     return OK;
 }
 
@@ -715,14 +713,14 @@ status_t StagefrightRecorder::setParameter(
             return setParamVideoTimeScale(timeScale);
         }
     } else if (key == "time-lapse-enable") {
-        int32_t timeLapseEnable;
-        if (safe_strtoi32(value.string(), &timeLapseEnable)) {
-            return setParamTimeLapseEnable(timeLapseEnable);
+        int32_t captureFpsEnable;
+        if (safe_strtoi32(value.string(), &captureFpsEnable)) {
+            return setParamCaptureFpsEnable(captureFpsEnable);
         }
     } else if (key == "time-lapse-fps") {
         float fps;
         if (safe_strtof(value.string(), &fps)) {
-            return setParamTimeLapseFps(fps);
+            return setParamCaptureFps(fps);
         }
     } else {
         ALOGE("setParameter: failed to find key %s", key.string());
@@ -910,12 +908,32 @@ status_t StagefrightRecorder::start() {
 }
 
 sp<MediaSource> StagefrightRecorder::createAudioSource() {
+    int32_t sourceSampleRate = mSampleRate;
+
+    if (mCaptureFpsEnable && mCaptureFps >= mFrameRate) {
+        // Upscale the sample rate for slow motion recording.
+        // Fail audio source creation if source sample rate is too high, as it could
+        // cause out-of-memory due to large input buffer size. And audio recording
+        // probably doesn't make sense in the scenario, since the slow-down factor
+        // is probably huge (eg. mSampleRate=48K, mCaptureFps=240, mFrameRate=1).
+        const static int32_t SAMPLE_RATE_HZ_MAX = 192000;
+        sourceSampleRate =
+                (mSampleRate * mCaptureFps + mFrameRate / 2) / mFrameRate;
+        if (sourceSampleRate < mSampleRate || sourceSampleRate > SAMPLE_RATE_HZ_MAX) {
+            ALOGE("source sample rate out of range! "
+                    "(mSampleRate %d, mCaptureFps %.2f, mFrameRate %d",
+                    mSampleRate, mCaptureFps, mFrameRate);
+            return NULL;
+        }
+    }
+
     sp<AudioSource> audioSource =
         new AudioSource(
                 mAudioSource,
                 mOpPackageName,
-                mSampleRate,
-                mAudioChannels);
+                sourceSampleRate,
+                mAudioChannels,
+                mSampleRate);
 
     status_t err = audioSource->initCheck();
 
@@ -1207,7 +1225,7 @@ status_t StagefrightRecorder::checkVideoEncoderCapabilities() {
              mVideoEncoder == VIDEO_ENCODER_H264 ? MEDIA_MIMETYPE_VIDEO_AVC : ""),
             false /* decoder */, true /* hwCodec */, &codecs);
 
-    if (!mCaptureTimeLapse) {
+    if (!mCaptureFpsEnable) {
         // Dont clip for time lapse capture as encoder will have enough
         // time to encode because of slow capture rate of time lapse.
         clipVideoBitRate();
@@ -1420,17 +1438,17 @@ status_t StagefrightRecorder::setupCameraSource(
     Size videoSize;
     videoSize.width = mVideoWidth;
     videoSize.height = mVideoHeight;
-    if (mCaptureTimeLapse) {
-        if (mTimeBetweenTimeLapseFrameCaptureUs < 0) {
+    if (mCaptureFpsEnable) {
+        if (mTimeBetweenCaptureUs < 0) {
             ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
-                mTimeBetweenTimeLapseFrameCaptureUs);
+                mTimeBetweenCaptureUs);
             return BAD_VALUE;
         }
 
         mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate, mPreviewSurface,
-                mTimeBetweenTimeLapseFrameCaptureUs);
+                mTimeBetweenCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
@@ -1521,14 +1539,13 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);
 
         // set up time lapse/slow motion for surface source
-        if (mCaptureTimeLapse) {
-            if (mTimeBetweenTimeLapseFrameCaptureUs <= 0) {
-                ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
-                    mTimeBetweenTimeLapseFrameCaptureUs);
+        if (mCaptureFpsEnable) {
+            if (mTimeBetweenCaptureUs <= 0) {
+                ALOGE("Invalid mTimeBetweenCaptureUs value: %lld",
+                        mTimeBetweenCaptureUs);
                 return BAD_VALUE;
             }
-            format->setInt64("time-lapse",
-                    mTimeBetweenTimeLapseFrameCaptureUs);
+            format->setInt64("time-lapse", mTimeBetweenCaptureUs);
         }
     }
 
@@ -1547,7 +1564,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
     format->setInt32("priority", 0 /* realtime */);
-    if (mCaptureTimeLapse) {
+    if (mCaptureFpsEnable) {
         format->setFloat("operating-rate", mCaptureFps);
     }
 
@@ -1647,13 +1664,15 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
         // This help make sure that the "recoding" sound is suppressed for
         // camcorder applications in the recorded files.
         // TODO Audio source is currently unsupported for webm output; vorbis encoder needed.
-        if (!mCaptureTimeLapse && (mAudioSource != AUDIO_SOURCE_CNT)) {
+        // disable audio for time lapse recording
+        bool disableAudio = mCaptureFpsEnable && mCaptureFps < mFrameRate;
+        if (!disableAudio && mAudioSource != AUDIO_SOURCE_CNT) {
             err = setupAudioEncoder(writer);
             if (err != OK) return err;
             mTotalBitRate += mAudioBitRate;
         }
 
-        if (mCaptureTimeLapse) {
+        if (mCaptureFpsEnable) {
             mp4writer->setCaptureRate(mCaptureFps);
         }
 
@@ -1734,7 +1753,7 @@ status_t StagefrightRecorder::stop() {
     ALOGV("stop");
     status_t err = OK;
 
-    if (mCaptureTimeLapse && mCameraSourceTimeLapse != NULL) {
+    if (mCaptureFpsEnable && mCameraSourceTimeLapse != NULL) {
         mCameraSourceTimeLapse->startQuickReadReturns();
         mCameraSourceTimeLapse = NULL;
     }
@@ -1809,8 +1828,9 @@ status_t StagefrightRecorder::reset() {
     mMaxFileDurationUs = 0;
     mMaxFileSizeBytes = 0;
     mTrackEveryTimeDurationUs = 0;
-    mCaptureTimeLapse = false;
-    mTimeBetweenTimeLapseFrameCaptureUs = -1;
+    mCaptureFpsEnable = false;
+    mCaptureFps = 0.0f;
+    mTimeBetweenCaptureUs = -1;
     mCameraSourceTimeLapse = NULL;
     mIsMetaDataStoredInVideoBuffers = false;
     mEncoderProfiles = MediaProfiles::getInstance();
