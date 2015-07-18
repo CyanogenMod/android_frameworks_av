@@ -260,18 +260,18 @@ private:
         virtual void binderDied(const wp<IBinder>& /*who*/);
 
         void addResource(
-                int pid,
                 int64_t clientId,
                 const sp<IResourceManagerClient> client,
                 const Vector<MediaResource> &resources);
 
         void removeResource(int64_t clientId);
 
-        bool reclaimResource(int callingPid, const Vector<MediaResource> &resources);
+        bool reclaimResource(const Vector<MediaResource> &resources);
 
     private:
         Mutex mLock;
         sp<IResourceManagerService> mService;
+        int mPid;
     };
 
     State mState;
