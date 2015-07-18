@@ -179,23 +179,24 @@ void ResourceManagerService::addResource(
     info.resources.appendVector(resources);
 }
 
-void ResourceManagerService::removeResource(int64_t clientId) {
-    String8 log = String8::format("removeResource(%lld)", (long long) clientId);
+void ResourceManagerService::removeResource(int pid, int64_t clientId) {
+    String8 log = String8::format(
+            "removeResource(pid %d, clientId %lld)",
+            pid, (long long) clientId);
     mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
+    ssize_t index = mMap.indexOfKey(pid);
+    if (index < 0) {
+        ALOGV("removeResource: didn't find pid %d for clientId %lld", pid, (long long) clientId);
+        return;
+    }
     bool found = false;
-    for (size_t i = 0; i < mMap.size(); ++i) {
-        ResourceInfos &infos = mMap.editValueAt(i);
-        for (size_t j = 0; j < infos.size();) {
-            if (infos[j].clientId == clientId) {
-                j = infos.removeAt(j);
-                found = true;
-            } else {
-                ++j;
-            }
-        }
-        if (found) {
+    ResourceInfos &infos = mMap.editValueAt(index);
+    for (size_t j = 0; j < infos.size(); ++j) {
+        if (infos[j].clientId == clientId) {
+            j = infos.removeAt(j);
+            found = true;
             break;
         }
     }
