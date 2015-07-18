@@ -31,12 +31,14 @@
 
 #include <media/stagefright/DataSource.h>
 #include <common/AVExtensionsCommon.h>
+#include <system/audio.h>
 
 namespace android {
 
 struct ACodec;
 class MediaExtractor;
 struct MediaCodec;
+class AudioParameter;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -58,6 +60,8 @@ struct AVUtils {
     virtual status_t convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format);
     virtual DataSource::SnifferFunc getExtendedSniffer();
+    virtual status_t mapMimeToAudioFormat( audio_format_t& format, const char* mime);
+    virtual status_t sendMetaDataToHal(const sp<MetaData>& meta, AudioParameter *param);
 
     virtual sp<MediaCodec> createCustomComponentByName(const sp<ALooper> &looper,
                 const char* mime, bool encoder);

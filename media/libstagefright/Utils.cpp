@@ -727,6 +727,7 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
     }
 
+    AVUtils::get()->sendMetaDataToHal(meta, &param);
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
           "delaySample %d, paddingSample %d", bitRate, sampleRate,
           channelMask, delaySamples, paddingSamples);
@@ -762,7 +763,7 @@ const struct mime_conv_t* p = &mimeLookup[0];
         ++p;
     }
 
-    return BAD_VALUE;
+    return AVUtils::get()->mapMimeToAudioFormat(format, mime);
 }
 
 struct aac_format_conv_t {

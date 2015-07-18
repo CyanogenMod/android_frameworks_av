@@ -49,6 +49,16 @@ status_t AVUtils::convertMetaDataToMessage(
     return OK;
 }
 
+status_t AVUtils::mapMimeToAudioFormat(
+        audio_format_t&, const char* ) {
+        return OK;
+}
+
+status_t AVUtils::sendMetaDataToHal(
+        const sp<MetaData>&, AudioParameter *){
+        return OK;
+}
+
 static bool dumbSniffer(
         const sp<DataSource> &, String8 *,
         float *, sp<AMessage> *) {
