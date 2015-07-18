@@ -38,7 +38,8 @@ static int ALIGN(int x, int y) {
     return (x + y - 1) & ~(y - 1);
 }
 
-SoftwareRenderer::SoftwareRenderer(const sp<ANativeWindow> &nativeWindow)
+SoftwareRenderer::SoftwareRenderer(
+        const sp<ANativeWindow> &nativeWindow, int32_t rotation)
     : mColorFormat(OMX_COLOR_FormatUnused),
       mConverter(NULL),
       mYUVMode(None),
@@ -50,7 +51,8 @@ SoftwareRenderer::SoftwareRenderer(const sp<ANativeWindow> &nativeWindow)
       mCropRight(0),
       mCropBottom(0),
       mCropWidth(0),
-      mCropHeight(0) {
+      mCropHeight(0),
+      mRotationDegrees(rotation) {
 }
 
 SoftwareRenderer::~SoftwareRenderer() {
@@ -181,7 +183,7 @@ void SoftwareRenderer::resetFormatIfChanged(const sp<AMessage> &format) {
 
     int32_t rotationDegrees;
     if (!format->findInt32("rotation-degrees", &rotationDegrees)) {
-        rotationDegrees = 0;
+        rotationDegrees = mRotationDegrees;
     }
     uint32_t transform;
     switch (rotationDegrees) {
