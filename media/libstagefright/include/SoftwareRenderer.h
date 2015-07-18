@@ -31,7 +31,8 @@ struct AMessage;
 
 class SoftwareRenderer {
 public:
-    explicit SoftwareRenderer(const sp<ANativeWindow> &nativeWindow);
+    explicit SoftwareRenderer(
+            const sp<ANativeWindow> &nativeWindow, int32_t rotation = 0);
 
     ~SoftwareRenderer();
 
@@ -52,6 +53,7 @@ private:
     int32_t mWidth, mHeight;
     int32_t mCropLeft, mCropTop, mCropRight, mCropBottom;
     int32_t mCropWidth, mCropHeight;
+    int32_t mRotationDegrees;
     FrameRenderTracker mRenderTracker;
 
     SoftwareRenderer(const SoftwareRenderer &);
