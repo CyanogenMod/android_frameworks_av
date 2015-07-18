@@ -54,10 +54,6 @@
 
 namespace android {
 
-static inline int getCallingPid() {
-    return IPCThreadState::self()->getCallingPid();
-}
-
 static int64_t getId(sp<IResourceManagerClient> client) {
     return (int64_t) client.get();
 }
@@ -108,7 +104,8 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ResourceManagerClient);
 };
 
-MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy() {
+MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy()
+        : mPid(IPCThreadState::self()->getCallingPid()) {
 }
 
 MediaCodec::ResourceManagerServiceProxy::~ResourceManagerServiceProxy() {
@@ -135,7 +132,6 @@ void MediaCodec::ResourceManagerServiceProxy::binderDied(const wp<IBinder>& /*wh
 }
 
 void MediaCodec::ResourceManagerServiceProxy::addResource(
-        int pid,
         int64_t clientId,
         const sp<IResourceManagerClient> client,
         const Vector<MediaResource> &resources) {
@@ -143,7 +139,7 @@ void MediaCodec::ResourceManagerServiceProxy::addResource(
     if (mService == NULL) {
         return;
     }
-    mService->addResource(pid, clientId, client, resources);
+    mService->addResource(mPid, clientId, client, resources);
 }
 
 void MediaCodec::ResourceManagerServiceProxy::removeResource(int64_t clientId) {
@@ -151,16 +147,16 @@ void MediaCodec::ResourceManagerServiceProxy::removeResource(int64_t clientId) {
     if (mService == NULL) {
         return;
     }
-    mService->removeResource(clientId);
+    mService->removeResource(mPid, clientId);
 }
 
 bool MediaCodec::ResourceManagerServiceProxy::reclaimResource(
-        int callingPid, const Vector<MediaResource> &resources) {
+        const Vector<MediaResource> &resources) {
     Mutex::Autolock _l(mLock);
     if (mService == NULL) {
         return false;
     }
-    return mService->reclaimResource(callingPid, resources);
+    return mService->reclaimResource(mPid, resources);
 }
 
 // static
@@ -375,7 +371,7 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     for (int i = 0; i <= kMaxRetry; ++i) {
         if (i > 0) {
             // Don't try to reclaim resource for the first time.
-            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+            if (!mResourceManagerService->reclaimResource(resources)) {
                 break;
             }
         }
@@ -438,7 +434,7 @@ status_t MediaCodec::configure(
     for (int i = 0; i <= kMaxRetry; ++i) {
         if (i > 0) {
             // Don't try to reclaim resource for the first time.
-            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+            if (!mResourceManagerService->reclaimResource(resources)) {
                 break;
             }
         }
@@ -517,7 +513,7 @@ void MediaCodec::addResource(const String8 &type, const String8 &subtype, uint64
     Vector<MediaResource> resources;
     resources.push_back(MediaResource(type, subtype, value));
     mResourceManagerService->addResource(
-            getCallingPid(), getId(mResourceManagerClient), mResourceManagerClient, resources);
+            getId(mResourceManagerClient), mResourceManagerClient, resources);
 }
 
 status_t MediaCodec::start() {
@@ -535,7 +531,7 @@ status_t MediaCodec::start() {
     for (int i = 0; i <= kMaxRetry; ++i) {
         if (i > 0) {
             // Don't try to reclaim resource for the first time.
-            if (!mResourceManagerService->reclaimResource(getCallingPid(), resources)) {
+            if (!mResourceManagerService->reclaimResource(resources)) {
                 break;
             }
             // Recover codec from previous error before retry start.

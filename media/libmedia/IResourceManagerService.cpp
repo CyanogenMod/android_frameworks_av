@@ -85,9 +85,10 @@ public:
         remote()->transact(ADD_RESOURCE, data, &reply);
     }
 
-    virtual void removeResource(int64_t clientId) {
+    virtual void removeResource(int pid, int64_t clientId) {
         Parcel data, reply;
         data.writeInterfaceToken(IResourceManagerService::getInterfaceDescriptor());
+        data.writeInt32(pid);
         data.writeInt64(clientId);
 
         remote()->transact(REMOVE_RESOURCE, data, &reply);
@@ -139,8 +140,9 @@ status_t BnResourceManagerService::onTransact(
 
         case REMOVE_RESOURCE: {
             CHECK_INTERFACE(IResourceManagerService, data, reply);
+            int pid = data.readInt32();
             int64_t clientId = data.readInt64();
-            removeResource(clientId);
+            removeResource(pid, clientId);
             return NO_ERROR;
         } break;
 

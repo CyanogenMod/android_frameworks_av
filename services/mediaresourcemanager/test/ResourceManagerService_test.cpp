@@ -29,6 +29,10 @@
 
 namespace android {
 
+static int64_t getId(sp<IResourceManagerClient> client) {
+    return (int64_t) client.get();
+}
+
 struct TestProcessInfo : public ProcessInfoInterface {
     TestProcessInfo() {}
     virtual ~TestProcessInfo() {}
@@ -45,12 +49,12 @@ private:
 };
 
 struct TestClient : public BnResourceManagerClient {
-    TestClient(sp<ResourceManagerService> service)
-        : mReclaimed(false), mService(service) {}
+    TestClient(int pid, sp<ResourceManagerService> service)
+        : mReclaimed(false), mPid(pid), mService(service) {}
 
     virtual bool reclaimResource() {
         sp<IResourceManagerClient> client(this);
-        mService->removeResource((int64_t) client.get());
+        mService->removeResource(mPid, (int64_t) client.get());
         mReclaimed = true;
         return true;
     }
@@ -72,6 +76,7 @@ protected:
 
 private:
     bool mReclaimed;
+    int mPid;
     sp<ResourceManagerService> mService;
     DISALLOW_EVIL_CONSTRUCTORS(TestClient);
 };
@@ -87,9 +92,9 @@ class ResourceManagerServiceTest : public ::testing::Test {
 public:
     ResourceManagerServiceTest()
         : mService(new ResourceManagerService(new TestProcessInfo)),
-          mTestClient1(new TestClient(mService)),
-          mTestClient2(new TestClient(mService)),
-          mTestClient3(new TestClient(mService)) {
+          mTestClient1(new TestClient(kTestPid1, mService)),
+          mTestClient2(new TestClient(kTestPid2, mService)),
+          mTestClient3(new TestClient(kTestPid2, mService)) {
     }
 
 protected:
@@ -144,24 +149,24 @@ protected:
         // kTestPid1 mTestClient1
         Vector<MediaResource> resources1;
         resources1.push_back(MediaResource(String8(kResourceSecureCodec), 1));
-        mService->addResource(kTestPid1, (int64_t) mTestClient1.get(), mTestClient1, resources1);
+        mService->addResource(kTestPid1, getId(mTestClient1), mTestClient1, resources1);
         resources1.push_back(MediaResource(String8(kResourceGraphicMemory), 200));
         Vector<MediaResource> resources11;
         resources11.push_back(MediaResource(String8(kResourceGraphicMemory), 200));
-        mService->addResource(kTestPid1, (int64_t) mTestClient1.get(), mTestClient1, resources11);
+        mService->addResource(kTestPid1, getId(mTestClient1), mTestClient1, resources11);
 
         // kTestPid2 mTestClient2
         Vector<MediaResource> resources2;
         resources2.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
         resources2.push_back(MediaResource(String8(kResourceGraphicMemory), 300));
-        mService->addResource(kTestPid2, (int64_t) mTestClient2.get(), mTestClient2, resources2);
+        mService->addResource(kTestPid2, getId(mTestClient2), mTestClient2, resources2);
 
         // kTestPid2 mTestClient3
         Vector<MediaResource> resources3;
-        mService->addResource(kTestPid2, (int64_t) mTestClient3.get(), mTestClient3, resources3);
+        mService->addResource(kTestPid2, getId(mTestClient3), mTestClient3, resources3);
         resources3.push_back(MediaResource(String8(kResourceSecureCodec), 1));
         resources3.push_back(MediaResource(String8(kResourceGraphicMemory), 100));
-        mService->addResource(kTestPid2, (int64_t) mTestClient3.get(), mTestClient3, resources3);
+        mService->addResource(kTestPid2, getId(mTestClient3), mTestClient3, resources3);
 
         const PidResourceInfosMap &map = mService->mMap;
         EXPECT_EQ(2u, map.size());
@@ -213,7 +218,7 @@ protected:
     void testRemoveResource() {
         addResource();
 
-        mService->removeResource((int64_t) mTestClient2.get());
+        mService->removeResource(kTestPid2, getId(mTestClient2));
 
         const PidResourceInfosMap &map = mService->mMap;
         EXPECT_EQ(2u, map.size());
@@ -431,7 +436,7 @@ protected:
             verifyClients(true /* c1 */, false /* c2 */, false /* c3 */);
 
             // clean up client 3 which still left
-            mService->removeResource((int64_t) mTestClient3.get());
+            mService->removeResource(kTestPid2, getId(mTestClient3));
         }
     }
 
