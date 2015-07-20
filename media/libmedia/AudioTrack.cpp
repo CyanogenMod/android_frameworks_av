@@ -1829,6 +1829,36 @@ nsecs_t AudioTrack::processAudioBuffer()
     // get anchor time to account for callbacks.
     const nsecs_t timeBeforeCallbacks = systemTime();
 
+    // perform callbacks while unlocked
+    if (newUnderrun) {
+        mCbf(EVENT_UNDERRUN, mUserData, NULL);
+    }
+    while (loopCountNotifications > 0) {
+        mCbf(EVENT_LOOP_END, mUserData, NULL);
+        --loopCountNotifications;
+    }
+    if (flags & CBLK_BUFFER_END) {
+        mCbf(EVENT_BUFFER_END, mUserData, NULL);
+    }
+    if (markerReached) {
+        mCbf(EVENT_MARKER, mUserData, &markerPosition);
+    }
+    while (newPosCount > 0) {
+        size_t temp = newPosition;
+        mCbf(EVENT_NEW_POS, mUserData, &temp);
+        newPosition += updatePeriod;
+        newPosCount--;
+    }
+
+    if (mObservedSequence != sequence) {
+        mObservedSequence = sequence;
+        mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, NULL);
+        // for offloaded tracks, just wait for the upper layers to recreate the track
+        if (isOffloadedOrDirect()) {
+            return NS_INACTIVE;
+        }
+    }
+
     if (waitStreamEnd) {
         // FIXME:  Instead of blocking in proxy->waitStreamEndDone(), Callback thread
         // should wait on proxy futex and handle CBLK_STREAM_END_DONE within this function
@@ -1861,36 +1891,6 @@ nsecs_t AudioTrack::processAudioBuffer()
             break;
         }
         return 0;
-    }
-
-    // perform callbacks while unlocked
-    if (newUnderrun) {
-        mCbf(EVENT_UNDERRUN, mUserData, NULL);
-    }
-    while (loopCountNotifications > 0) {
-        mCbf(EVENT_LOOP_END, mUserData, NULL);
-        --loopCountNotifications;
-    }
-    if (flags & CBLK_BUFFER_END) {
-        mCbf(EVENT_BUFFER_END, mUserData, NULL);
-    }
-    if (markerReached) {
-        mCbf(EVENT_MARKER, mUserData, &markerPosition);
-    }
-    while (newPosCount > 0) {
-        size_t temp = newPosition;
-        mCbf(EVENT_NEW_POS, mUserData, &temp);
-        newPosition += updatePeriod;
-        newPosCount--;
-    }
-
-    if (mObservedSequence != sequence) {
-        mObservedSequence = sequence;
-        mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, NULL);
-        // for offloaded tracks, just wait for the upper layers to recreate the track
-        if (isOffloadedOrDirect()) {
-            return NS_INACTIVE;
-        }
     }
 
     // if inactive, then don't run me again until re-started
