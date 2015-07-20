@@ -25,12 +25,17 @@ namespace android {
 
 ABuffer::ABuffer(size_t capacity)
     : mMediaBufferBase(NULL),
-      mData(malloc(capacity)),
-      mCapacity(capacity),
       mRangeOffset(0),
-      mRangeLength(capacity),
       mInt32Data(0),
       mOwnsData(true) {
+    mData = malloc(capacity);
+    if (mData == NULL) {
+        mCapacity = 0;
+        mRangeLength = 0;
+    } else {
+        mCapacity = capacity;
+        mRangeLength = capacity;
+    }
 }
 
 ABuffer::ABuffer(void *data, size_t capacity)
@@ -47,6 +52,9 @@ ABuffer::ABuffer(void *data, size_t capacity)
 sp<ABuffer> ABuffer::CreateAsCopy(const void *data, size_t capacity)
 {
     sp<ABuffer> res = new ABuffer(capacity);
+    if (res->base() == NULL) {
+        return NULL;
+    }
     memcpy(res->data(), data, capacity);
     return res;
 }
