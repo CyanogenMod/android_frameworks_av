@@ -1555,14 +1555,22 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             *offset += chunk_size;
 
-            status_t err =
-                mLastTrack->sampleTable->setTimeToSampleParams(
-                        data_offset, chunk_data_size);
+            // Ignore stss block for audio even if its present
+            // All audio sample are sync samples itself,
+            // self decodeable and playable.
+            // Parsing this block for audio restricts audio seek to few entries
+            // available in this block, sometimes 0, which is undesired.
+            const char *mime;
+            CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
+            if (strncasecmp("audio/", mime, 6)) {
+                status_t err =
+                    mLastTrack->sampleTable->setSyncSampleParams(
+                            data_offset, chunk_data_size);
 
-            if (err != OK) {
-                return err;
+                if (err != OK) {
+                    return err;
+                }
             }
-
             break;
         }
 
