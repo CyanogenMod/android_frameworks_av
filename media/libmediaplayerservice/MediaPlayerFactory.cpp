@@ -135,7 +135,8 @@ player_type MediaPlayerFactory::getPlayerType(const sp<IMediaPlayer>& client,
 sp<MediaPlayerBase> MediaPlayerFactory::createPlayer(
         player_type playerType,
         void* cookie,
-        notify_callback_f notifyFunc) {
+        notify_callback_f notifyFunc,
+        pid_t pid) {
     sp<MediaPlayerBase> p;
     IFactory* factory;
     status_t init_result;
@@ -149,7 +150,7 @@ sp<MediaPlayerBase> MediaPlayerFactory::createPlayer(
 
     factory = sFactoryMap.valueFor(playerType);
     CHECK(NULL != factory);
-    p = factory->createPlayer();
+    p = factory->createPlayer(pid);
 
     if (p == NULL) {
         ALOGE("Failed to create player object of type %d, create failed",
@@ -217,7 +218,7 @@ class StagefrightPlayerFactory :
         return 0.0;
     }
 
-    virtual sp<MediaPlayerBase> createPlayer() {
+    virtual sp<MediaPlayerBase> createPlayer(pid_t /* pid */) {
         ALOGV(" create StagefrightPlayer");
         return new StagefrightPlayer();
     }
@@ -279,9 +280,9 @@ class NuPlayerFactory : public MediaPlayerFactory::IFactory {
         return 1.0;
     }
 
-    virtual sp<MediaPlayerBase> createPlayer() {
+    virtual sp<MediaPlayerBase> createPlayer(pid_t pid) {
         ALOGV(" create NuPlayer");
-        return new NuPlayerDriver;
+        return new NuPlayerDriver(pid);
     }
 };
 
@@ -297,7 +298,7 @@ class TestPlayerFactory : public MediaPlayerFactory::IFactory {
         return 0.0;
     }
 
-    virtual sp<MediaPlayerBase> createPlayer() {
+    virtual sp<MediaPlayerBase> createPlayer(pid_t /* pid */) {
         ALOGV("Create Test Player stub");
         return new TestPlayerStub();
     }

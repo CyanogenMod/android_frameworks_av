@@ -47,7 +47,7 @@ class MediaPlayerFactory {
                                    const sp<DataSource> &/*source*/,
                                    float /*curScore*/) { return 0.0; }
 
-        virtual sp<MediaPlayerBase> createPlayer() = 0;
+        virtual sp<MediaPlayerBase> createPlayer(pid_t pid) = 0;
     };
 
     static status_t registerFactory(IFactory* factory,
@@ -66,7 +66,8 @@ class MediaPlayerFactory {
 
     static sp<MediaPlayerBase> createPlayer(player_type playerType,
                                             void* cookie,
-                                            notify_callback_f notifyFunc);
+                                            notify_callback_f notifyFunc,
+                                            pid_t pid);
 
     static void registerBuiltinFactories();
 
