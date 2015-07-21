@@ -135,8 +135,7 @@ protected:
 
 private:
     enum {
-        kWhatDrainVideo          = 'dVid',
-        kWhatCheckFrameAvailable = 'cFrA',
+        kWhatDrainVideo = 'dVid',
     };
 
     // This is a thin wrapper class that lets us listen to
@@ -248,9 +247,8 @@ private:
     // onBufferReleasedByOutput releases a buffer back to the input.
     void onFrameAvailableFromInput();
 
-    // Send |bufferItem| to the output for rendering. If this is not the only
-    // buffer sent for rendering, check for any dropped frames in |checkInUs| us.
-    void renderOneBufferItem_l(const BufferItem &bufferItem, int64_t checkInUs);
+    // Send |bufferItem| to the output for rendering.
+    void renderOneBufferItem_l(const BufferItem &bufferItem);
 
     // This implements the onBufferReleased callback from IProducerListener.
     // It gets called from an OutputListener.
