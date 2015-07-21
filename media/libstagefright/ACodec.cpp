@@ -1400,7 +1400,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
                 (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
                 mDequeueCounter - oldest->mDequeuedAt,
-                grallocMeta->pHandle,
+                (void *)(uintptr_t)grallocMeta->pHandle,
                 oldest->mGraphicBuffer->handle, oldest->mData->base());
     } else if (mOutputMetadataType == kMetadataBufferTypeANWBuffer) {
         VideoNativeMetadata *nativeMeta =
@@ -1408,7 +1408,7 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
                 (unsigned)(oldest - &mBuffers[kPortIndexOutput][0]),
                 mDequeueCounter - oldest->mDequeuedAt,
-                nativeMeta->pBuffer,
+                (void *)(uintptr_t)nativeMeta->pBuffer,
                 oldest->mGraphicBuffer->getNativeBuffer(), oldest->mData->base());
     }
 
@@ -4034,7 +4034,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                                             sizeof(describeParams.sMediaImage)));
 
                             MediaImage *img = &describeParams.sMediaImage;
-                            ALOGV("[%s] MediaImage { F(%zux%zu) @%zu+%zu+%zu @%zu+%zu+%zu @%zu+%zu+%zu }",
+                            ALOGV("[%s] MediaImage { F(%ux%u) @%u+%u+%u @%u+%u+%u @%u+%u+%u }",
                                     mComponentName.c_str(), img->mWidth, img->mHeight,
                                     img->mPlane[0].mOffset, img->mPlane[0].mColInc, img->mPlane[0].mRowInc,
                                     img->mPlane[1].mOffset, img->mPlane[1].mColInc, img->mPlane[1].mRowInc,
@@ -5144,10 +5144,15 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 VideoNativeMetadata &nativeMeta = *(VideoNativeMetadata *)info->mData->data();
                 if (info->mData->size() >= sizeof(grallocMeta)
                         && grallocMeta.eType == kMetadataBufferTypeGrallocSource) {
-                    handle = (native_handle_t *)grallocMeta.pHandle;
+                    handle = (native_handle_t *)(uintptr_t)grallocMeta.pHandle;
                 } else if (info->mData->size() >= sizeof(nativeMeta)
                         && nativeMeta.eType == kMetadataBufferTypeANWBuffer) {
+#ifdef OMX_ANDROID_COMPILE_AS_32BIT_ON_64BIT_PLATFORMS
+                    // ANativeWindowBuffer is only valid on 32-bit/mediaserver process
+                    handle = NULL;
+#else
                     handle = (native_handle_t *)nativeMeta.pBuffer->handle;
+#endif
                 }
                 info->mData->meta()->setPointer("handle", handle);
                 info->mData->meta()->setInt32("rangeOffset", rangeOffset);
