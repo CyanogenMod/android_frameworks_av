@@ -3908,12 +3908,12 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(const sp<AudioOutputDescr
     //      use device for strategy phone
     // 3: the strategy for enforced audible is active but not enforced on the output:
     //      use the device for strategy enforced audible
-    // 4: the strategy sonification is active on the output:
-    //      use device for strategy sonification
-    // 5: the strategy "respectful" sonification is active on the output:
-    //      use device for strategy "respectful" sonification
-    // 6: the strategy accessibility is active on the output:
+    // 4: the strategy accessibility is active on the output:
     //      use device for strategy accessibility
+    // 5: the strategy sonification is active on the output:
+    //      use device for strategy sonification
+    // 6: the strategy "respectful" sonification is active on the output:
+    //      use device for strategy "respectful" sonification
     // 7: the strategy media is active on the output:
     //      use device for strategy media
     // 8: the strategy DTMF is active on the output:
@@ -3928,12 +3928,12 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(const sp<AudioOutputDescr
         device = getDeviceForStrategy(STRATEGY_PHONE, fromCache);
     } else if (isStrategyActive(outputDesc, STRATEGY_ENFORCED_AUDIBLE)) {
         device = getDeviceForStrategy(STRATEGY_ENFORCED_AUDIBLE, fromCache);
+    } else if (isStrategyActive(outputDesc, STRATEGY_ACCESSIBILITY)) {
+        device = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, fromCache);
     } else if (isStrategyActive(outputDesc, STRATEGY_SONIFICATION)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION, fromCache);
     } else if (isStrategyActive(outputDesc, STRATEGY_SONIFICATION_RESPECTFUL)) {
         device = getDeviceForStrategy(STRATEGY_SONIFICATION_RESPECTFUL, fromCache);
-    } else if (isStrategyActive(outputDesc, STRATEGY_ACCESSIBILITY)) {
-        device = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, fromCache);
     } else if (isStrategyActive(outputDesc, STRATEGY_MEDIA)) {
         device = getDeviceForStrategy(STRATEGY_MEDIA, fromCache);
     } else if (isStrategyActive(outputDesc, STRATEGY_DTMF)) {
