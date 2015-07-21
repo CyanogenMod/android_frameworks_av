@@ -526,6 +526,8 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
     const uint32_t oldHeight = mHeight;
     OMX_ERRORTYPE ret = SoftVideoDecoderOMXComponent::internalSetParameter(index, params);
     if (mWidth != oldWidth || mHeight != oldHeight) {
+        mNewWidth = mWidth;
+        mNewHeight = mHeight;
         status_t err = reInitDecoder(mNewWidth, mNewHeight);
         if (err != OK) {
             notify(OMX_EventError, OMX_ErrorUnsupportedSetting, err, NULL);
