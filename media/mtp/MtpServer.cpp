@@ -214,10 +214,11 @@ void MtpServer::run() {
             mResponse.setTransactionID(transaction);
             ALOGV("sending response %04X", mResponse.getResponseCode());
             ret = mResponse.write(fd);
+            const int savedErrno = errno;
             mResponse.dump();
             if (ret < 0) {
                 ALOGE("request write returned %d, errno: %d", ret, errno);
-                if (errno == ECANCELED) {
+                if (savedErrno == ECANCELED) {
                     // return to top of loop and wait for next command
                     continue;
                 }
@@ -787,15 +788,19 @@ MtpResponseCode MtpServer::doGetObject() {
 
     // then transfer the file
     int ret = ioctl(mFD, MTP_SEND_FILE_WITH_HEADER, (unsigned long)&mfr);
+    if (ret < 0) {
+        if (errno == ECANCELED) {
+            result = MTP_RESPONSE_TRANSACTION_CANCELLED;
+        } else {
+            result = MTP_RESPONSE_GENERAL_ERROR;
+        }
+    } else {
+        result = MTP_RESPONSE_OK;
+    }
+
     ALOGV("MTP_SEND_FILE_WITH_HEADER returned %d\n", ret);
     close(mfr.fd);
-    if (ret < 0) {
-        if (errno == ECANCELED)
-            return MTP_RESPONSE_TRANSACTION_CANCELLED;
-        else
-            return MTP_RESPONSE_GENERAL_ERROR;
-    }
-    return MTP_RESPONSE_OK;
+    return result;
 }
 
 MtpResponseCode MtpServer::doGetThumb() {
@@ -864,14 +869,15 @@ MtpResponseCode MtpServer::doGetPartialObject(MtpOperationCode operation) {
     // transfer the file
     int ret = ioctl(mFD, MTP_SEND_FILE_WITH_HEADER, (unsigned long)&mfr);
     ALOGV("MTP_SEND_FILE_WITH_HEADER returned %d\n", ret);
-    close(mfr.fd);
+    result = MTP_RESPONSE_OK;
     if (ret < 0) {
         if (errno == ECANCELED)
-            return MTP_RESPONSE_TRANSACTION_CANCELLED;
+            result = MTP_RESPONSE_TRANSACTION_CANCELLED;
         else
-            return MTP_RESPONSE_GENERAL_ERROR;
+            result = MTP_RESPONSE_GENERAL_ERROR;
     }
-    return MTP_RESPONSE_OK;
+    close(mfr.fd);
+    return result;
 }
 
 MtpResponseCode MtpServer::doSendObjectInfo() {
@@ -985,6 +991,7 @@ MtpResponseCode MtpServer::doSendObject() {
     MtpResponseCode result = MTP_RESPONSE_OK;
     mode_t mask;
     int ret, initialData;
+    bool isCanceled = false;
 
     if (mSendObjectHandle == kInvalidObjectHandle) {
         ALOGE("Expected SendObjectInfo before SendObject");
@@ -1032,6 +1039,10 @@ MtpResponseCode MtpServer::doSendObject() {
             ALOGV("receiving %s\n", (const char *)mSendObjectFilePath);
             // transfer the file
             ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
+            if ((ret < 0) && (errno == ECANCELED)) {
+                isCanceled = true;
+            }
+
             ALOGV("MTP_RECEIVE_FILE returned %d\n", ret);
         }
     }
@@ -1039,7 +1050,7 @@ MtpResponseCode MtpServer::doSendObject() {
 
     if (ret < 0) {
         unlink(mSendObjectFilePath);
-        if (errno == ECANCELED)
+        if (isCanceled)
             result = MTP_RESPONSE_TRANSACTION_CANCELLED;
         else
             result = MTP_RESPONSE_GENERAL_ERROR;
@@ -1208,6 +1219,7 @@ MtpResponseCode MtpServer::doSendPartialObject() {
         length -= initialData;
     }
 
+    bool isCanceled = false;
     if (ret < 0) {
         ALOGE("failed to write initial data");
     } else {
@@ -1219,12 +1231,15 @@ MtpResponseCode MtpServer::doSendPartialObject() {
 
             // transfer the file
             ret = ioctl(mFD, MTP_RECEIVE_FILE, (unsigned long)&mfr);
+            if ((ret < 0) && (errno == ECANCELED)) {
+                isCanceled = true;
+            }
             ALOGV("MTP_RECEIVE_FILE returned %d", ret);
         }
     }
     if (ret < 0) {
         mResponse.setParameter(1, 0);
-        if (errno == ECANCELED)
+        if (isCanceled)
             return MTP_RESPONSE_TRANSACTION_CANCELLED;
         else
             return MTP_RESPONSE_GENERAL_ERROR;
