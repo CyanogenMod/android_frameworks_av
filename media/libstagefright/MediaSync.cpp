@@ -558,8 +558,7 @@ void MediaSync::onDrainVideo_l() {
 
         // adjust video frame PTS based on vsync
         itemRealUs = mFrameScheduler->schedule(itemRealUs * 1000) / 1000;
-        int64_t oneVsyncUs = (mFrameScheduler->getVsyncPeriod() / 1000);
-        int64_t twoVsyncsUs = oneVsyncUs * 2;
+        int64_t twoVsyncsUs = 2 * (mFrameScheduler->getVsyncPeriod() / 1000);
 
         // post 2 display refreshes before rendering is due
         if (itemRealUs <= nowUs + twoVsyncsUs) {
@@ -570,7 +569,7 @@ void MediaSync::onDrainVideo_l() {
 
             if (mHasAudio) {
                 if (nowUs - itemRealUs <= kMaxAllowedVideoLateTimeUs) {
-                    renderOneBufferItem_l(*bufferItem, nowUs + oneVsyncUs - itemRealUs);
+                    renderOneBufferItem_l(*bufferItem);
                 } else {
                     // too late.
                     returnBufferToInput_l(
@@ -579,7 +578,7 @@ void MediaSync::onDrainVideo_l() {
                 }
             } else {
                 // always render video buffer in video-only mode.
-                renderOneBufferItem_l(*bufferItem, nowUs + oneVsyncUs - itemRealUs);
+                renderOneBufferItem_l(*bufferItem);
 
                 // smooth out videos >= 10fps
                 mMediaClock->updateAnchor(
@@ -613,7 +612,7 @@ void MediaSync::onFrameAvailableFromInput() {
     while (mNumOutstandingBuffers > mMaxAcquiredBufferCount
             && !mIsAbandoned && !mReturnPendingInputFrame) {
         if (mReleaseCondition.waitRelative(mMutex, kAcquireWaitTimeout) != OK) {
-            ALOGI("still waiting to release a buffer before acquire");
+            ALOGI_IF(mPlaybackRate != 0.f, "still waiting to release a buffer before acquire");
         }
 
         // If the sync is abandoned while we are waiting, the release
@@ -670,7 +669,7 @@ void MediaSync::onFrameAvailableFromInput() {
     }
 }
 
-void MediaSync::renderOneBufferItem_l(const BufferItem &bufferItem, int64_t checkInUs) {
+void MediaSync::renderOneBufferItem_l(const BufferItem &bufferItem) {
     IGraphicBufferProducer::QueueBufferInput queueInput(
             bufferItem.mTimestamp,
             bufferItem.mIsAutoTimestamp,
@@ -710,12 +709,6 @@ void MediaSync::renderOneBufferItem_l(const BufferItem &bufferItem, int64_t chec
     mBuffersSentToOutput.add(bufferItem.mGraphicBuffer->getId(), bufferItem.mGraphicBuffer);
 
     ALOGV("queued buffer %#llx to output", (long long)bufferItem.mGraphicBuffer->getId());
-
-    // If we have already queued more than one buffer, check for any free buffers in case
-    // one of them were dropped - as BQ does not signal onBufferReleased in that case.
-    if (mBuffersSentToOutput.size() > 1) {
-        (new AMessage(kWhatCheckFrameAvailable, this))->post(checkInUs);
-    }
 }
 
 void MediaSync::onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output) {
@@ -727,38 +720,32 @@ void MediaSync::onBufferReleasedByOutput(sp<IGraphicBufferProducer> &output) {
 
     sp<GraphicBuffer> buffer;
     sp<Fence> fence;
-    status_t status;
-    // NOTE: This is a workaround for a BufferQueue bug where onBufferReleased is
-    // called only for released buffers, but not for buffers that were dropped during
-    // acquire. Dropped buffers can still be detached as they are on the free list.
-    // TODO: remove if released callback happens also for dropped buffers
-    while ((status = mOutput->detachNextBuffer(&buffer, &fence)) != NO_MEMORY) {
-        ALOGE_IF(status != NO_ERROR, "detaching buffer from output failed (%d)", status);
+    status_t status = mOutput->detachNextBuffer(&buffer, &fence);
+    ALOGE_IF(status != NO_ERROR, "detaching buffer from output failed (%d)", status);
 
-        if (status == NO_INIT) {
-            // If the output has been abandoned, we can't do anything else,
-            // since buffer is invalid.
-            onAbandoned_l(false /* isInput */);
-            return;
-        }
-
-        ALOGV("detached buffer %#llx from output", (long long)buffer->getId());
-
-        // If we've been abandoned, we can't return the buffer to the input, so just
-        // move on.
-        if (mIsAbandoned) {
-            return;
-        }
-
-        ssize_t ix = mBuffersSentToOutput.indexOfKey(buffer->getId());
-        if (ix < 0) {
-            // The buffer is unknown, maybe leftover, ignore.
-            return;
-        }
-        mBuffersSentToOutput.removeItemsAt(ix);
-
-        returnBufferToInput_l(buffer, fence);
+    if (status == NO_INIT) {
+        // If the output has been abandoned, we can't do anything else,
+        // since buffer is invalid.
+        onAbandoned_l(false /* isInput */);
+        return;
     }
+
+    ALOGV("detached buffer %#llx from output", (long long)buffer->getId());
+
+    // If we've been abandoned, we can't return the buffer to the input, so just
+    // move on.
+    if (mIsAbandoned) {
+        return;
+    }
+
+    ssize_t ix = mBuffersSentToOutput.indexOfKey(buffer->getId());
+    if (ix < 0) {
+        // The buffer is unknown, maybe leftover, ignore.
+        return;
+    }
+    mBuffersSentToOutput.removeItemsAt(ix);
+
+    returnBufferToInput_l(buffer, fence);
 }
 
 void MediaSync::returnBufferToInput_l(
@@ -826,12 +813,6 @@ void MediaSync::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             onDrainVideo_l();
-            break;
-        }
-
-        case kWhatCheckFrameAvailable:
-        {
-            onBufferReleasedByOutput(mOutput);
             break;
         }
 
