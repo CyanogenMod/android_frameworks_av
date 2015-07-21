@@ -30,7 +30,7 @@
 #define _AV_MEDIA_SERVICE_EXTENSIONS_H_
 
 #include <common/AVExtensionsCommon.h>
-
+#include <MediaPlayerFactory.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
 
@@ -60,7 +60,7 @@ struct AVMediaServiceFactory {
  * Common delegate to the classes in libmediaplayerservice
  */
 struct AVMediaServiceUtils {
-
+    virtual void getDashPlayerFactory(MediaPlayerFactory::IFactory *&, player_type ) {}
     // RTSP IPV6 utils
     virtual bool pokeAHole(sp<MyHandler> handler, int rtpSocket, int rtcpSocket,
             const AString &transport, const AString &sessionHost);
