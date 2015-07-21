@@ -40,6 +40,7 @@
 #include <media/stagefright/ACodec.h>
 
 #include <media/AudioTrack.h>
+#include <media/mediarecorder.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "media/AVMediaExtensions.h"
@@ -51,6 +52,10 @@ AVMediaUtils::AVMediaUtils() {
 }
 
 AVMediaUtils::~AVMediaUtils() {
+}
+
+sp<MediaRecorder> AVMediaUtils::createMediaRecorder(const String16& opPackageName) {
+    return new MediaRecorder(opPackageName);
 }
 
 //static

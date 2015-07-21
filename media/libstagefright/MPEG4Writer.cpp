@@ -697,8 +697,6 @@ status_t MPEG4Writer::start(MetaData *param) {
         mIsRealTimeRecording = isRealTimeRecording;
     }
 
-    mStartTimestampUs = -1;
-
     if (mStarted) {
         if (mPaused) {
             mPaused = false;
@@ -706,6 +704,8 @@ status_t MPEG4Writer::start(MetaData *param) {
         }
         return OK;
     }
+
+    mStartTimestampUs = -1;
 
     if (!param ||
         !param->findInt32(kKeyTimeScale, &mTimeScale)) {
@@ -2331,6 +2331,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             previousPausedDurationUs = mStartTimestampUs;
         }
 
+#if 0
         if (mResumed) {
             int64_t durExcludingEarlierPausesUs = timestampUs - previousPausedDurationUs;
             if (WARN_UNLESS(durExcludingEarlierPausesUs >= 0ll, "for %s track", trackName)) {
@@ -2347,6 +2348,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             previousPausedDurationUs += pausedDurationUs - lastDurationUs;
             mResumed = false;
         }
+#endif
 
         timestampUs -= previousPausedDurationUs;
         if (WARN_UNLESS(timestampUs >= 0ll, "for %s track", trackName)) {

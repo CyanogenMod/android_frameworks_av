@@ -939,13 +939,12 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         }
     }
 
-    sp<AudioSource> audioSource =
-        new AudioSource(
-                mAudioSource,
-                mOpPackageName,
-                sourceSampleRate,
-                mAudioChannels,
-                mSampleRate);
+    sp<AudioSource> audioSource = AVFactory::get()->createAudioSource(
+        mAudioSource,
+        mOpPackageName,
+        sourceSampleRate,
+        mAudioChannels,
+        mSampleRate);
 
     status_t err = audioSource->initCheck();
 
@@ -1472,7 +1471,7 @@ status_t StagefrightRecorder::setupCameraSource(
                 mTimeBetweenCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
-        *cameraSource = CameraSource::CreateFromCamera(
+        *cameraSource = AVFactory::get()->CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
                 videoSize, mFrameRate,
                 mPreviewSurface);

@@ -236,13 +236,13 @@ public:
     status_t    setOutputFile(int fd, int64_t offset, int64_t length);
     status_t    setVideoSize(int width, int height);
     status_t    setVideoFrameRate(int frames_per_second);
-    status_t    setParameters(const String8& params);
+    virtual status_t    setParameters(const String8& params);
     status_t    setListener(const sp<MediaRecorderListener>& listener);
     status_t    setClientName(const String16& clientName);
     status_t    prepare();
     status_t    getMaxAmplitude(int* max);
-    status_t    start();
-    status_t    stop();
+    virtual status_t    start();
+    virtual status_t    stop();
     status_t    reset();
     status_t    init();
     status_t    close();
@@ -251,7 +251,7 @@ public:
     status_t    setInputSurface(const sp<PersistentSurface>& surface);
     sp<IGraphicBufferProducer>     querySurfaceMediaSourceFromMediaServer();
 
-private:
+protected:
     void                    doCleanUp();
     status_t                doReset();
 

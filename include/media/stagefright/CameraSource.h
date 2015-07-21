@@ -92,6 +92,8 @@ public:
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL);
 
+    virtual status_t pause() { return ERROR_UNSUPPORTED; }
+
     /**
      * Check whether a CameraSource object is properly initialized.
      * Must call this method before stop().
@@ -189,7 +191,7 @@ protected:
 
     void releaseCamera();
 
-private:
+protected:
     friend struct CameraSourceListener;
 
     Mutex mLock;

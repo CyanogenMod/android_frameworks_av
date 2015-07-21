@@ -31,6 +31,8 @@
 
 namespace android {
 
+static const char * CUSTOMIZATION_LIB_NAME = "libavenhancements.so";
+
 /*
  * Create strongly-typed objects of type T
  * If the customization library exists and does contain a "named" constructor,

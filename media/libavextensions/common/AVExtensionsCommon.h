@@ -31,8 +31,6 @@
 
 namespace android {
 
-static const char * CUSTOMIZATION_LIB_NAME = "libavenhancements.so";
-
 typedef void *(*createFunction_t)(void);
 
 template <typename T>

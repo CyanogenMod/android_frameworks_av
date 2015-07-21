@@ -36,6 +36,7 @@
 
 namespace android {
 
+class MediaRecorder;
 /*
  * Common delegate to the classes in libstagefright
  */
@@ -57,6 +58,8 @@ struct AVMediaUtils {
     virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount) {
         return frameCount;
     }
+
+    virtual sp<MediaRecorder> createMediaRecorder(const String16& opPackageName);
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaUtils);
 };

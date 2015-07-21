@@ -41,6 +41,9 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaHTTP.h>
+#include <media/stagefright/AudioSource.h>
+#include <media/stagefright/CameraSource.h>
+#include <camera/CameraParameters.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
@@ -73,6 +76,31 @@ sp<NuCachedSource2> AVFactory::createCachedSource(
 MediaHTTP* AVFactory::createMediaHTTP(
          const sp<IMediaHTTPConnection> &conn) {
     return new MediaHTTP(conn);
+}
+
+AudioSource* AVFactory::createAudioSource(
+            audio_source_t inputSource,
+            const String16 &opPackageName,
+            uint32_t sampleRate,
+            uint32_t channels,
+            uint32_t outSampleRate) {
+    return new AudioSource(inputSource, opPackageName, sampleRate,
+                            channels, outSampleRate);
+}
+
+CameraSource* AVFactory::CreateFromCamera(
+            const sp<ICamera> &camera,
+            const sp<ICameraRecordingProxy> &proxy,
+            int32_t cameraId,
+            const String16& clientName,
+            uid_t clientUid,
+            Size videoSize,
+            int32_t frameRate,
+            const sp<IGraphicBufferProducer>& surface,
+            bool storeMetaDataInVideoBuffers) {
+    return CameraSource::CreateFromCamera(camera, proxy, cameraId,
+            clientName, clientUid, videoSize, frameRate, surface,
+            storeMetaDataInVideoBuffers);
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
