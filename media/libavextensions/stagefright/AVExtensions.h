@@ -44,6 +44,8 @@ struct IMediaHTTPConnection;
 struct MediaCodec;
 struct MediaHTTP;
 struct NuCachedSource2;
+class CameraParameters;
+class MediaBuffer;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -96,6 +98,12 @@ struct AVUtils {
             const sp<AMessage> &);
 
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
+
+    virtual void extractCustomCameraKeys(
+            const CameraParameters& /*params*/, sp<MetaData> &/*meta*/) {}
+    virtual void printFileName(int /*fd*/) {}
+    virtual void addDecodingTimesFromBatch(MediaBuffer * /*buf*/,
+            List<int64_t> &/*decodeTimeQueue*/) {}
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);

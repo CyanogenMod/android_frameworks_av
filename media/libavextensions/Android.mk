@@ -15,7 +15,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/hardware/qcom/media/mm-core/inc \
         $(TOP)/frameworks/av/media/libstagefright \
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
@@ -42,7 +42,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/flac/include \
         $(TOP)/hardware/qcom/media/mm-core/inc
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
@@ -75,7 +75,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/flac/include \
         $(TOP)/hardware/qcom/media/mm-core/inc
 
-LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CFLAGS += -Wno-multichar -Werror
 
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS

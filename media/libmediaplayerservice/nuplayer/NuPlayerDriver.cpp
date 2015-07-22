@@ -117,6 +117,7 @@ status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
         mCondition.wait(mLock);
     }
 
+    AVNuUtils::get()->printFileName(fd);
     return mAsyncResult;
 }
 

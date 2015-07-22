@@ -101,7 +101,7 @@ sp<MediaCodec> AVUtils::createCustomComponentByName(
     return NULL;
 }
 
-bool AVUtils::canOffloadAPE(const sp<MetaData> &meta) {
+bool AVUtils::canOffloadAPE(const sp<MetaData> &) {
    return true;
 }
 
@@ -110,11 +110,9 @@ bool AVUtils::isEnhancedExtension(const char *) {
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
-AVUtils::AVUtils() {
-}
+AVUtils::AVUtils() {}
 
-AVUtils::~AVUtils() {
-}
+AVUtils::~AVUtils() {}
 
 //static
 AVUtils *AVUtils::sInst =

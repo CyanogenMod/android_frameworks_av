@@ -37,6 +37,7 @@
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/Utils.h>
 #include <OMX_Core.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -576,6 +577,9 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
             // push decoding time for video, or drift time for audio
             if (mIsVideo) {
                 mDecodingTimeQueue.push_back(timeUs);
+                if (mFlags & FLAG_USE_METADATA_INPUT) {
+                    AVUtils::get()->addDecodingTimesFromBatch(mbuf, mDecodingTimeQueue);
+                }
             } else {
 #if DEBUG_DRIFT_TIME
                 if (mFirstSampleTimeUs < 0ll) {

@@ -984,6 +984,9 @@ bool MediaCodec::handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool 
         if (omxFlags & OMX_BUFFERFLAG_EOS) {
             flags |= BUFFER_FLAG_EOS;
         }
+        if (omxFlags & OMX_BUFFERFLAG_EXTRADATA) {
+            flags |= BUFFER_FLAG_EXTRADATA;
+        }
 
         response->setInt32("flags", flags);
         response->postReply(replyID);

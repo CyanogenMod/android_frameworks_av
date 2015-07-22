@@ -3235,6 +3235,7 @@ status_t ACodec::setupMPEG4EncoderParameters(const sp<AMessage> &msg) {
         mpeg4type.eLevel = static_cast<OMX_VIDEO_MPEG4LEVELTYPE>(level);
     }
 
+    setBFrames(&mpeg4type);
     err = mOMX->setParameter(
             mNode, OMX_IndexParamVideoMpeg4, &mpeg4type, sizeof(mpeg4type));
 
@@ -3432,6 +3433,8 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         err = verifySupportForProfileAndLevel(profile, level);
 
         if (err != OK) {
+            ALOGE("%s does not support profile %x @ level %x",
+                    mComponentName.c_str(), profile, level);
             return err;
         }
 
@@ -3440,11 +3443,14 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
     }
 
     // XXX
+    // Allow higher profiles to be set since the encoder seems to support
+#if 0
     if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
         ALOGW("Use baseline profile instead of %d for AVC recording",
             h264type.eProfile);
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
+#endif
 
     if (h264type.eProfile == OMX_VIDEO_AVCProfileBaseline) {
         h264type.nSliceHeaderSpacing = 0;
@@ -3465,6 +3471,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.nCabacInitIdc = 0;
     }
 
+    setBFrames(&h264type, iFrameInterval, frameRate);
     if (h264type.nBFrames != 0) {
         h264type.nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
     }
@@ -4456,6 +4463,8 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
                 mEncoderPadding * frameSize);
     }
 
+    getVQZIPInfo(notify);
+
     notify->post();
 
     mSentFormat = true;
@@ -5188,6 +5197,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 mCodec->mSkipCutBuffer->submit(info->mData);
             }
             info->mData->meta()->setInt64("timeUs", timeUs);
+            info->mData->meta()->setObject("graphic-buffer", info->mGraphicBuffer);
 
             sp<AMessage> notify = mCodec->mNotify->dup();
             notify->setInt32("what", CodecBase::kWhatDrainThisBuffer);

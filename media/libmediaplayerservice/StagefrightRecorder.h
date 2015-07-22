@@ -39,6 +39,7 @@ class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
 class SurfaceMediaSource;
 struct ALooper;
+struct AMessage;
 
 struct StagefrightRecorder : public MediaRecorderBase {
     StagefrightRecorder(const String16 &opPackageName);
@@ -149,6 +150,8 @@ protected:
     status_t setupCameraSource(sp<CameraSource> *cameraSource);
     status_t setupAudioEncoder(const sp<MediaWriter>& writer);
     status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaSource> *source);
+    virtual void setupCustomVideoEncoderParams(sp<MediaSource> /*cameraSource*/,
+            sp<AMessage> &/*format*/) {}
 
     // Encoding parameter handling utilities
     status_t setParameter(const String8 &key, const String8 &value);

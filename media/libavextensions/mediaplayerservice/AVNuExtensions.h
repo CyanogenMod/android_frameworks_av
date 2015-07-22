@@ -81,6 +81,8 @@ struct AVNuUtils {
     virtual status_t convertToSinkFormatIfNeeded(const sp<ABuffer> &, sp<ABuffer> &,
             audio_format_t sinkFormat, bool isOffload);
 
+    virtual void printFileName(int fd);
+
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);
 };

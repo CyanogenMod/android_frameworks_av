@@ -45,6 +45,8 @@
 
 #include <CharacterEncodingDetector.h>
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 static const int64_t kBufferTimeOutUs = 30000ll; // 30 msec
@@ -104,6 +106,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
     fd = dup(fd);
 
     ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
+    AVUtils::get()->printFileName(fd);
 
     clearMetadata();
     mSource = new FileSource(fd, offset, length);

@@ -44,7 +44,6 @@
 
 namespace android {
 
-
 sp<MetaData> AVNuUtils::createPCMMetaFromSource(const sp<MetaData> &sMeta) {
     return sMeta;
 }
@@ -93,18 +92,18 @@ void AVNuUtils::setSourcePCMFormat(const sp<MetaData> &) {
 void AVNuUtils::setDecodedPCMFormat(const sp<AMessage> &) {
 
 }
+
 status_t AVNuUtils::convertToSinkFormatIfNeeded(const sp<ABuffer> &, sp<ABuffer> &,
         audio_format_t /*sinkFormat*/, bool /*isOffload*/) {
     return INVALID_OPERATION;
 }
 
+void AVNuUtils::printFileName(int) {}
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
-AVNuUtils::AVNuUtils() {
-}
+AVNuUtils::AVNuUtils() {}
 
-AVNuUtils::~AVNuUtils() {
-}
+AVNuUtils::~AVNuUtils() {}
 
 //static
 AVNuUtils *AVNuUtils::sInst =
