@@ -763,9 +763,7 @@ private:
 
     sp<PatchPanel> mPatchPanel;
 
-    uint32_t    mPrimaryOutputSampleRate;   // sample rate of the primary output, or zero if none
-                                            // protected by mHardwareLock
-    bool       mSystemReady;
+    bool        mSystemReady;
 };
 
 #undef INCLUDING_FROM_AUDIOFLINGER_H

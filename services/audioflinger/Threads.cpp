@@ -125,9 +125,14 @@ static const uint32_t kMinThreadSleepTimeUs = 5000;
 static const uint32_t kMaxThreadSleepTimeShift = 2;
 
 // minimum normal sink buffer size, expressed in milliseconds rather than frames
+// FIXME This should be based on experimentally observed scheduling jitter
 static const uint32_t kMinNormalSinkBufferSizeMs = 20;
 // maximum normal sink buffer size
 static const uint32_t kMaxNormalSinkBufferSizeMs = 24;
+
+// minimum capture buffer size in milliseconds to _not_ need a fast capture thread
+// FIXME This should be based on experimentally observed scheduling jitter
+static const uint32_t kMinNormalCaptureBufferSizeMs = 12;
 
 // Offloaded output thread standby delay: allows track transition without going to standby
 static const nsecs_t kOffloadStandbyDelayNs = seconds(1);
@@ -5490,20 +5495,7 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
         initFastCapture = true;
         break;
     case FastCapture_Static:
-        uint32_t primaryOutputSampleRate;
-        {
-            AutoMutex _l(audioFlinger->mHardwareLock);
-            primaryOutputSampleRate = audioFlinger->mPrimaryOutputSampleRate;
-        }
-        initFastCapture =
-                // either capture sample rate is same as (a reasonable) primary output sample rate
-                ((isMusicRate(primaryOutputSampleRate) &&
-                    (mSampleRate == primaryOutputSampleRate)) ||
-                // or primary output sample rate is unknown, and capture sample rate is reasonable
-                ((primaryOutputSampleRate == 0) &&
-                        isMusicRate(mSampleRate))) &&
-                // and the buffer size is < 12 ms
-                (mFrameCount * 1000) / mSampleRate < 12;
+        initFastCapture = (mFrameCount * 1000) / mSampleRate < kMinNormalCaptureBufferSizeMs;
         break;
     // case FastCapture_Dynamic:
     }
