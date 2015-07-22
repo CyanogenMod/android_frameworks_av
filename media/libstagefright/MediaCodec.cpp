@@ -1178,6 +1178,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     // reset input surface flag
                     mHaveInputSurface = false;
 
+                    CHECK(msg->findString("componentName", &mComponentName));
                     CHECK(msg->findMessage("input-format", &mInputFormat));
                     CHECK(msg->findMessage("output-format", &mOutputFormat));
 

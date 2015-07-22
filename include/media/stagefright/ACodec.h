@@ -376,7 +376,7 @@ protected:
     status_t configureBitrate(
             int32_t bitrate, OMX_VIDEO_CONTROLRATETYPE bitrateMode);
 
-    status_t setupErrorCorrectionParameters();
+    virtual status_t setupErrorCorrectionParameters();
 
     status_t initNativeWindow();
 
@@ -436,6 +436,8 @@ protected:
     virtual status_t getVQZIPInfo(const sp<AMessage> &msg) {
         return OK;
     }
+
+    sp<IOMXObserver> createObserver();
 
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };

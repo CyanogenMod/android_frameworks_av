@@ -40,6 +40,7 @@
 
 #include <cutils/properties.h>
 #include <libexpat/expat.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -174,7 +175,7 @@ MediaCodecList::MediaCodecList()
     : mInitCheck(NO_INIT),
       mUpdate(false),
       mGlobalSettings(new AMessage()) {
-    parseTopLevelXMLFile("/etc/media_codecs.xml");
+    parseTopLevelXMLFile(AVUtils::get()->getCustomCodecsLocation());
     parseTopLevelXMLFile("/etc/media_codecs_performance.xml", true/* ignore_errors */);
     parseTopLevelXMLFile(kProfilingResults, true/* ignore_errors */);
 }

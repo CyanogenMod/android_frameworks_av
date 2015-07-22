@@ -42,7 +42,7 @@
 #include <cutils/properties.h>
 
 #include "include/ESDS.h"
-
+#include <stagefright/AVExtensions.h>
 
 #ifndef __predict_false
 #define __predict_false(exp) __builtin_expect((exp) != 0, 0)
@@ -508,6 +508,11 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
          mIsVideoHEVC = AVUtils::get()->HEVCMuxerUtils().isVideoHEVC(mime);
     }
 
+    if (isAudio && !AVUtils::get()->isAudioMuxFormatSupported(mime)) {
+        ALOGE("Muxing is not supported for %s", mime);
+        return ERROR_UNSUPPORTED;
+    }
+
     // At this point, we know the track to be added is either
     // video or audio. Thus, we only need to check whether it
     // is an audio track or not (if it is not, then it must be
@@ -595,7 +600,7 @@ int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
 
     // If the estimation is wrong, we will pay the price of wasting
     // some reserved space. This should not happen so often statistically.
-    static const int32_t factor = mUse32BitOffset? 1: 2;
+    int32_t factor = mUse32BitOffset? 1: 2;
     static const int64_t MIN_MOOV_BOX_SIZE = 3 * 1024;  // 3 KB
     static const int64_t MAX_MOOV_BOX_SIZE = (180 * 3000000 * 6LL / 8000);
     int64_t size = MIN_MOOV_BOX_SIZE;

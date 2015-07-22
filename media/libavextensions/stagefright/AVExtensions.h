@@ -32,6 +32,8 @@
 #include <media/stagefright/DataSource.h>
 #include <common/AVExtensionsCommon.h>
 #include <system/audio.h>
+#include <camera/ICamera.h>
+#include <media/mediarecorder.h>
 
 namespace android {
 
@@ -141,9 +143,12 @@ struct AVUtils {
          return mHEVCMuxer;
     }
 
+    virtual bool isAudioMuxFormatSupported(const char *mime);
+    virtual void cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder);
+    virtual const char *getCustomCodecsLocation();
+
 private:
     HEVCMuxer mHEVCMuxer;
-
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };

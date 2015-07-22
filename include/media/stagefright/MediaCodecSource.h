@@ -28,7 +28,7 @@ class AMessage;
 struct AReplyToken;
 class IGraphicBufferProducer;
 class IGraphicBufferConsumer;
-class MediaCodec;
+struct MediaCodec;
 class MetaData;
 
 struct MediaCodecSource : public MediaSource,
