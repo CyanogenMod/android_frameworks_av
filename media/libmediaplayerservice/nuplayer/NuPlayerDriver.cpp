@@ -33,7 +33,7 @@
 
 namespace android {
 
-NuPlayerDriver::NuPlayerDriver()
+NuPlayerDriver::NuPlayerDriver(pid_t pid)
     : mState(STATE_IDLE),
       mIsAsyncPrepare(false),
       mAsyncResult(UNKNOWN_ERROR),
@@ -55,7 +55,7 @@ NuPlayerDriver::NuPlayerDriver()
             true,  /* canCallJava */
             PRIORITY_AUDIO);
 
-    mPlayer = new NuPlayer;
+    mPlayer = new NuPlayer(pid);
     mLooper->registerHandler(mPlayer);
 
     mPlayer->setDriver(this);
