@@ -24,7 +24,7 @@ struct ALooper;
 struct NuPlayer;
 
 struct NuPlayerDriver : public MediaPlayerInterface {
-    NuPlayerDriver();
+    NuPlayerDriver(pid_t pid);
 
     virtual status_t initCheck();
 
