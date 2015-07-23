@@ -1329,10 +1329,8 @@ void AwesomePlayer::createAudioPlayer_l()
     }
     char lpaDecode[PROPERTY_VALUE_MAX];
     uint32_t minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
-    char minUserDefDuration[PROPERTY_VALUE_MAX];
     property_get("lpa.decode",lpaDecode,"0");
-    property_get("lpa.min_duration",minUserDefDuration,"LPA_MIN_DURATION_USEC_DEFAULT");
-    minDurationForLPA = atoi(minUserDefDuration);
+    minDurationForLPA = (uint32_t) property_get_int32("lpa.min_duration", LPA_MIN_DURATION_USEC_DEFAULT);
     if(minDurationForLPA < LPA_MIN_DURATION_USEC_ALLOWED) {
         ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
         if(mAudioPlayer == NULL) {
@@ -1958,10 +1956,8 @@ status_t AwesomePlayer::initAudioDecoder() {
         int64_t durationUs;
         char lpaDecode[128];
         uint32_t minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
-        char minUserDefDuration[PROPERTY_VALUE_MAX];
         property_get("lpa.decode",lpaDecode,"0");
-        property_get("lpa.min_duration",minUserDefDuration,"LPA_MIN_DURATION_USEC_DEFAULT");
-        minDurationForLPA = atoi(minUserDefDuration);
+        minDurationForLPA = (uint32_t) property_get_int32("lpa.min_duration", LPA_MIN_DURATION_USEC_DEFAULT);
         if(minDurationForLPA < LPA_MIN_DURATION_USEC_ALLOWED) {
             ALOGE("LPAPlayer::Clip duration setting of less than 30sec not supported, defaulting to 60sec");
             minDurationForLPA = LPA_MIN_DURATION_USEC_DEFAULT;
