@@ -59,6 +59,33 @@ status_t AVUtils::sendMetaDataToHal(
         return OK;
 }
 
+bool AVUtils::is24bitPCMOffloadEnabled() {return false;}
+bool AVUtils::is16bitPCMOffloadEnabled() {return false;}
+
+int AVUtils::getPcmSampleBits(const sp<MetaData> &) {
+    return 16;
+}
+
+int AVUtils::getPcmSampleBits(const sp<AMessage> &) {
+    return 16;
+}
+
+void AVUtils::setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/) {
+}
+
+void AVUtils::setPcmSampleBits(const sp<MetaData> &, int32_t /*bitWidth*/) {
+}
+
+audio_format_t AVUtils::updateAudioFormat(audio_format_t audioFormat,
+        const sp<MetaData> &){
+    return audioFormat;
+}
+
+audio_format_t AVUtils::updateAudioFormat(audio_format_t audioFormat,
+        const sp<AMessage> &){
+    return audioFormat;
+}
+
 static bool dumbSniffer(
         const sp<DataSource> &, String8 *,
         float *, sp<AMessage> *) {

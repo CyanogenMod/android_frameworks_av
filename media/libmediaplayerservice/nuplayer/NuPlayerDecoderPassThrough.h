@@ -43,8 +43,8 @@ protected:
     virtual void onFlush();
     virtual void onShutdown(bool notifyComplete);
     virtual bool doRequestBuffers();
+    virtual void setPcmFormat(const sp<AMessage> & /*format*/) {}
 
-private:
     enum {
         kWhatBufferConsumed     = 'bufC',
     };

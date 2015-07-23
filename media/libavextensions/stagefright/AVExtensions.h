@@ -65,6 +65,20 @@ struct AVUtils {
 
     virtual sp<MediaCodec> createCustomComponentByName(const sp<ALooper> &looper,
                 const char* mime, bool encoder);
+
+    virtual bool is24bitPCMOffloadEnabled();
+    virtual bool is16bitPCMOffloadEnabled();
+    virtual int getPcmSampleBits(const sp<MetaData> &);
+    virtual int getPcmSampleBits(const sp<AMessage> &);
+    virtual void setPcmSampleBits(const sp<MetaData> &, int32_t /*bitWidth*/);
+    virtual void setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/);
+
+    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
+            const sp<MetaData> &);
+
+    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
+            const sp<AMessage> &);
+
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };

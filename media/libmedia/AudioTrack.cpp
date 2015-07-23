@@ -30,6 +30,7 @@
 #include <media/IAudioFlinger.h>
 #include <media/AudioPolicyHelper.h>
 #include <media/AudioResamplerPublic.h>
+#include "media/AVMediaExtensions.h"
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
@@ -989,6 +990,10 @@ status_t AudioTrack::getPosition(uint32_t *position)
         if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
             ALOGV("getPosition called in paused state, return cached position %u", mPausedPosition);
             *position = mPausedPosition;
+            return NO_ERROR;
+        }
+
+        if (AVMediaUtils::get()->AudioTrackGetPosition(this, position) == NO_ERROR) {
             return NO_ERROR;
         }
 
@@ -2223,14 +2228,21 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         }
     }
 
-    // The presented frame count must always lag behind the consumed frame count.
-    // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
-    status_t status = mAudioTrack->getTimestamp(timestamp);
-    if (status != NO_ERROR) {
-        ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
-        return status;
+    status_t status = UNKNOWN_ERROR;
+    //do not call Timestamp if its PCM offloaded
+    if (!AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat)) {
+        // The presented frame count must always lag behind the consumed frame count.
+        // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
+
+        status = mAudioTrack->getTimestamp(timestamp);
+        if (status != NO_ERROR) {
+            ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
+            return status;
+        }
+
     }
-    if (isOffloadedOrDirect_l()) {
+
+    if (isOffloadedOrDirect_l() && !AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat)) {
         if (isOffloaded_l() && (mState == STATE_PAUSED || mState == STATE_PAUSED_STOPPING)) {
             // use cached paused position in case another offloaded track is running.
             timestamp.mPosition = mPausedPosition;
@@ -2288,6 +2300,11 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         }
     } else {
         // Update the mapping between local consumed (mPosition) and server consumed (mServer)
+
+        if (AVMediaUtils::get()->AudioTrackGetTimestamp(this, timestamp) == NO_ERROR) {
+            return NO_ERROR;
+        }
+
         (void) updateAndGetPosition_l();
         // Server consumed (mServer) and presented both use the same server time base,
         // and server consumed is always >= presented.

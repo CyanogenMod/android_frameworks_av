@@ -29,6 +29,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include "mediaplayerservice/AVNuExtensions.h"
 
 #include "ATSParser.h"
 
@@ -201,6 +202,7 @@ sp<ABuffer> NuPlayer::DecoderPassThrough::aggregateBuffer(
             if ((bigSize == 0) && smallTimestampValid) {
                 mAggregateBuffer->meta()->setInt64("timeUs", timeUs);
             }
+            setPcmFormat(mAggregateBuffer->meta());
             // Append small buffer to the bigger buffer.
             memcpy(mAggregateBuffer->base() + bigSize, accessUnit->data(), smallSize);
             bigSize += smallSize;

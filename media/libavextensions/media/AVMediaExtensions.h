@@ -39,6 +39,18 @@ namespace android {
  */
 struct AVMediaUtils {
 
+    virtual bool AudioTrackIsPcmOffloaded(const audio_format_t /*format*/) {
+        return false;
+    }
+    virtual status_t AudioTrackGetPosition(AudioTrack* /*track*/,
+                                             uint32_t* /*position*/) {
+        return NO_INIT;
+    }
+
+    virtual status_t AudioTrackGetTimestamp(AudioTrack* /*track*/,
+                                             AudioTimestamp /*timestamp*/) {
+        return NO_INIT;
+    }
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaUtils);
 };

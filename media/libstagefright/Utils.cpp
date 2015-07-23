@@ -817,7 +817,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     } else {
         ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info.format);
     }
-
+    info.format  = AVUtils::get()->updateAudioFormat(info.format, meta);
     if (AUDIO_FORMAT_INVALID == info.format) {
         // can't offload if we don't know what the source format is
         ALOGE("mime type \"%s\" not a known audio format", mime);
