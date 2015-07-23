@@ -26,6 +26,7 @@ namespace android {
 struct NuPlayer::Decoder : public DecoderBase {
     Decoder(const sp<AMessage> &notify,
             const sp<Source> &source,
+            pid_t pid,
             const sp<Renderer> &renderer = NULL,
             const sp<Surface> &surface = NULL,
             const sp<CCDecoder> &ccDecoder = NULL);
@@ -77,6 +78,7 @@ private:
     Vector<MediaBuffer *> mMediaBuffers;
     Vector<size_t> mDequeuedInputBuffers;
 
+    const pid_t mPid;
     int64_t mSkipRenderingUntilMediaTimeUs;
     int64_t mNumFramesTotal;
     int64_t mNumInputFramesDropped;

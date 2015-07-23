@@ -633,7 +633,7 @@ sp<MediaPlayerBase> MediaPlayerService::Client::createPlayer(player_type playerT
         p.clear();
     }
     if (p == NULL) {
-        p = MediaPlayerFactory::createPlayer(playerType, this, notify);
+        p = MediaPlayerFactory::createPlayer(playerType, this, notify, mPid);
     }
 
     if (p != NULL) {

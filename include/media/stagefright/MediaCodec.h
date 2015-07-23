@@ -61,11 +61,15 @@ struct MediaCodec : public AHandler {
         CB_RESOURCE_RECLAIMED = 5,
     };
 
+    static const pid_t kNoPid = -1;
+
     static sp<MediaCodec> CreateByType(
-            const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err = NULL);
+            const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err = NULL,
+            pid_t pid = kNoPid);
 
     static sp<MediaCodec> CreateByComponentName(
-            const sp<ALooper> &looper, const char *name, status_t *err = NULL);
+            const sp<ALooper> &looper, const char *name, status_t *err = NULL,
+            pid_t pid = kNoPid);
 
     static sp<PersistentSurface> CreatePersistentInputSurface();
 
@@ -251,7 +255,7 @@ private:
     };
 
     struct ResourceManagerServiceProxy : public IBinder::DeathRecipient {
-        ResourceManagerServiceProxy();
+        ResourceManagerServiceProxy(pid_t pid);
         ~ResourceManagerServiceProxy();
 
         void init();
@@ -271,7 +275,7 @@ private:
     private:
         Mutex mLock;
         sp<IResourceManagerService> mService;
-        int mPid;
+        pid_t mPid;
     };
 
     State mState;
@@ -333,7 +337,7 @@ private:
     bool mHaveInputSurface;
     bool mHavePendingInputBuffers;
 
-    MediaCodec(const sp<ALooper> &looper);
+    MediaCodec(const sp<ALooper> &looper, pid_t pid);
 
     static status_t PostAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
