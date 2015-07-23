@@ -48,6 +48,7 @@ static inline bool getAudioDeepBufferSetting() {
 NuPlayer::Decoder::Decoder(
         const sp<AMessage> &notify,
         const sp<Source> &source,
+        pid_t pid,
         const sp<Renderer> &renderer,
         const sp<Surface> &surface,
         const sp<CCDecoder> &ccDecoder)
@@ -56,6 +57,7 @@ NuPlayer::Decoder::Decoder(
       mSource(source),
       mRenderer(renderer),
       mCCDecoder(ccDecoder),
+      mPid(pid),
       mSkipRenderingUntilMediaTimeUs(-1ll),
       mNumFramesTotal(0ll),
       mNumInputFramesDropped(0ll),
@@ -249,7 +251,8 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mComponentName.append(" decoder");
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), mSurface.get());
 
-    mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+    mCodec = MediaCodec::CreateByType(
+            mCodecLooper, mime.c_str(), false /* encoder */, NULL /* err */, mPid);
     int32_t secure = 0;
     if (format->findInt32("secure", &secure) && secure != 0) {
         if (mCodec != NULL) {
@@ -258,7 +261,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
             mCodec->release();
             ALOGI("[%s] creating", mComponentName.c_str());
             mCodec = MediaCodec::CreateByComponentName(
-                    mCodecLooper, mComponentName.c_str());
+                    mCodecLooper, mComponentName.c_str(), NULL /* err */, mPid);
         }
     }
     if (mCodec == NULL) {

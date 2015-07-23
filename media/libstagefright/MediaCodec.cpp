@@ -104,8 +104,11 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(ResourceManagerClient);
 };
 
-MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy()
-        : mPid(IPCThreadState::self()->getCallingPid()) {
+MediaCodec::ResourceManagerServiceProxy::ResourceManagerServiceProxy(pid_t pid)
+        : mPid(pid) {
+    if (mPid == MediaCodec::kNoPid) {
+        mPid = IPCThreadState::self()->getCallingPid();
+    }
 }
 
 MediaCodec::ResourceManagerServiceProxy::~ResourceManagerServiceProxy() {
@@ -161,8 +164,8 @@ bool MediaCodec::ResourceManagerServiceProxy::reclaimResource(
 
 // static
 sp<MediaCodec> MediaCodec::CreateByType(
-        const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err) {
-    sp<MediaCodec> codec = new MediaCodec(looper);
+        const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err, pid_t pid) {
+    sp<MediaCodec> codec = new MediaCodec(looper, pid);
 
     const status_t ret = codec->init(mime, true /* nameIsType */, encoder);
     if (err != NULL) {
@@ -173,8 +176,8 @@ sp<MediaCodec> MediaCodec::CreateByType(
 
 // static
 sp<MediaCodec> MediaCodec::CreateByComponentName(
-        const sp<ALooper> &looper, const char *name, status_t *err) {
-    sp<MediaCodec> codec = new MediaCodec(looper);
+        const sp<ALooper> &looper, const char *name, status_t *err, pid_t pid) {
+    sp<MediaCodec> codec = new MediaCodec(looper, pid);
 
     const status_t ret = codec->init(name, false /* nameIsType */, false /* encoder */);
     if (err != NULL) {
@@ -232,7 +235,7 @@ sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
     return new PersistentSurface(bufferProducer, bufferConsumer);
 }
 
-MediaCodec::MediaCodec(const sp<ALooper> &looper)
+MediaCodec::MediaCodec(const sp<ALooper> &looper, pid_t pid)
     : mState(UNINITIALIZED),
       mReleasedByResourceManager(false),
       mLooper(looper),
@@ -242,7 +245,7 @@ MediaCodec::MediaCodec(const sp<ALooper> &looper)
       mStickyError(OK),
       mSoftRenderer(NULL),
       mResourceManagerClient(new ResourceManagerClient(this)),
-      mResourceManagerService(new ResourceManagerServiceProxy()),
+      mResourceManagerService(new ResourceManagerServiceProxy(pid)),
       mBatteryStatNotified(false),
       mIsVideo(false),
       mVideoWidth(0),

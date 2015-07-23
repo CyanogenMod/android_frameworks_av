@@ -166,8 +166,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NuPlayer::NuPlayer()
+NuPlayer::NuPlayer(pid_t pid)
     : mUIDValid(false),
+      mPID(pid),
       mSourceFlags(0),
       mOffloadAudio(false),
       mAudioDecoderGeneration(0),
@@ -1525,7 +1526,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
             format->setInt32("has-video", hasVideo);
             *decoder = new DecoderPassThrough(notify, mSource, mRenderer);
         } else {
-            *decoder = new Decoder(notify, mSource, mRenderer);
+            *decoder = new Decoder(notify, mSource, mPID, mRenderer);
         }
     } else {
         sp<AMessage> notify = new AMessage(kWhatVideoNotify, this);
@@ -1533,7 +1534,7 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         notify->setInt32("generation", mVideoDecoderGeneration);
 
         *decoder = new Decoder(
-                notify, mSource, mRenderer, mSurface, mCCDecoder);
+                notify, mSource, mPID, mRenderer, mSurface, mCCDecoder);
 
         // enable FRC if high-quality AV sync is requested, even if not
         // directly queuing to display, as this will even improve textureview
