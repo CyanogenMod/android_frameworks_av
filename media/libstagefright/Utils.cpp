@@ -1589,16 +1589,16 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     info.sample_rate = srate;
 
     int32_t cmask = 0;
-    if (!meta->findInt32(kKeyChannelMask, &cmask)) {
-        ALOGV("track of type '%s' does not publish channel mask", mime);
-
+    if (!meta->findInt32(kKeyChannelMask, &cmask) || 0 == cmask) {
         // Try a channel count instead
         int32_t channelCount;
         if (!meta->findInt32(kKeyChannelCount, &channelCount)) {
-            ALOGV("track of type '%s' does not publish channel count", mime);
+            ALOGW("track of type '%s' does not publish channel count", mime);
         } else {
             cmask = audio_channel_out_mask_from_count(channelCount);
         }
+        ALOGW("track of type '%s' does not publish channel mask, channel count %d",
+               mime, channelCount);
     }
     info.channel_mask = cmask;
 

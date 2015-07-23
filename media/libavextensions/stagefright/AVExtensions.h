@@ -115,12 +115,11 @@ struct AVUtils {
 
     virtual int getAudioSampleBits(const sp<MetaData> &);
     virtual int getAudioSampleBits(const sp<AMessage> &);
-    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
-            const sp<MetaData> &);
+    virtual void setPcmSampleBits(const sp<MetaData> &, int32_t /*bitWidth*/);
+    virtual void setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/);
 
-    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
-            const sp<AMessage> &);
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
+
     virtual bool useQCHWEncoder(const sp<AMessage> &,Vector<AString> *) { return false; }
 
     virtual int32_t getAudioMaxInputBufferSize(audio_format_t audioFormat,

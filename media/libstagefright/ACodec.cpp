@@ -4944,6 +4944,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     }
                     notify->setInt32("pcm-encoding", encoding);
 
+                    notify->setInt32("bit-width", params.nBitPerSample);
+
                     if (mChannelMaskPresent) {
                         notify->setInt32("channel-mask", mChannelMask);
                     }

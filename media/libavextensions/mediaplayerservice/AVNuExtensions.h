@@ -34,7 +34,6 @@
 namespace android {
 
 struct NuPlayer;
-
 /*
  * Factory to create extended NuPlayer objects
  */
@@ -45,6 +44,17 @@ struct AVNuFactory {
             const sp<AMessage> &notify,
             const sp<NuPlayer::Source> &source,
             const sp<NuPlayer::Renderer> &renderer);
+
+    virtual sp<NuPlayer::DecoderBase> createDecoder(
+            const sp<AMessage> &notify,
+            const sp<NuPlayer::Source> &source,
+            pid_t pid,
+            const sp<NuPlayer::Renderer> &renderer);
+
+    virtual sp<NuPlayer::Renderer> createRenderer(
+            const sp<MediaPlayerBase::AudioSink> &sink,
+            const sp<AMessage> &notify,
+            uint32_t flags);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuFactory);
@@ -60,6 +70,18 @@ struct AVNuUtils {
     virtual bool dropCorruptFrame();
     virtual void addFlagsInMeta(const sp<ABuffer> &buffer, int32_t flags, bool isAudio);
     virtual void checkFormatChange(bool *formatChange, const sp<ABuffer> &accessUnit);
+    virtual void overWriteAudioOutputFormat(sp <AMessage> &dst, const sp <AMessage> &src);
+    virtual bool pcmOffloadException(const sp<AMessage> &);
+    virtual bool isRAWFormat(const sp<MetaData> &);
+    virtual bool isRAWFormat(const sp<AMessage> &);
+    virtual int updateAudioBitWidth(audio_format_t audioFormat,
+            const sp<AMessage> &);
+    virtual audio_format_t getKeyPCMFormat(const sp<MetaData> &);
+    virtual void setKeyPCMFormat(const sp<MetaData> &, audio_format_t audioFormat);
+    virtual audio_format_t getPCMFormat(const sp<AMessage> &);
+    virtual void setPCMFormat(const sp<AMessage> &, audio_format_t audioFormat);
+    virtual void setSourcePCMFormat(const sp<MetaData> &);
+    virtual void setDecodedPCMFormat(const sp<AMessage> &);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);

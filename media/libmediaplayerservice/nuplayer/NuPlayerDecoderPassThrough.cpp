@@ -29,6 +29,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaErrors.h>
+#include "mediaplayerservice/AVNuExtensions.h"
 
 #include "ATSParser.h"
 

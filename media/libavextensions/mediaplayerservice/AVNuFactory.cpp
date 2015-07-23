@@ -37,6 +37,9 @@
 #include <nuplayer/NuPlayer.h>
 #include <nuplayer/NuPlayerDecoderBase.h>
 #include <nuplayer/NuPlayerDecoderPassThrough.h>
+#include <nuplayer/NuPlayerDecoder.h>
+#include <nuplayer/NuPlayerCCDecoder.h>
+#include <gui/Surface.h>
 #include <nuplayer/NuPlayerSource.h>
 #include <nuplayer/NuPlayerRenderer.h>
 
@@ -54,6 +57,21 @@ sp<NuPlayer::DecoderBase> AVNuFactory::createPassThruDecoder(
             const sp<NuPlayer::Source> &source,
             const sp<NuPlayer::Renderer> &renderer) {
     return new NuPlayer::DecoderPassThrough(notify, source, renderer);
+}
+
+sp<NuPlayer::DecoderBase> AVNuFactory::createDecoder(
+            const sp<AMessage> &notify,
+            const sp<NuPlayer::Source> &source,
+            pid_t pid,
+            const sp<NuPlayer::Renderer> &renderer) {
+    return new NuPlayer::Decoder(notify, source, pid, renderer);
+}
+
+sp<NuPlayer::Renderer> AVNuFactory::createRenderer(
+            const sp<MediaPlayerBase::AudioSink> &sink,
+            const sp<AMessage> &notify,
+            uint32_t flags) {
+    return new NuPlayer::Renderer(sink, notify, flags);
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------

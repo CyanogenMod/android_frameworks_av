@@ -232,7 +232,7 @@ protected:
     void prepareForMediaRenderingStart_l();
     void notifyIfMediaRenderingStarted_l();
 
-    void onQueueBuffer(const sp<AMessage> &msg);
+    virtual void onQueueBuffer(const sp<AMessage> &msg);
     void onQueueEOS(const sp<AMessage> &msg);
     void onFlush(const sp<AMessage> &msg);
     void onAudioSinkChanged();

@@ -49,6 +49,7 @@ protected:
     virtual void onFlush();
     virtual void onShutdown(bool notifyComplete);
     virtual bool doRequestBuffers();
+    virtual void setPcmFormat(const sp<AMessage> & /*format*/) {}
 
     enum {
         kWhatCodecNotify         = 'cdcN',
@@ -101,7 +102,7 @@ protected:
             size_t size,
             int64_t timeUs,
             int32_t flags);
-    void handleOutputFormatChange(const sp<AMessage> &format);
+    virtual void handleOutputFormatChange(const sp<AMessage> &format);
 
     void releaseAndResetMediaBuffers();
     void requestCodecNotification();

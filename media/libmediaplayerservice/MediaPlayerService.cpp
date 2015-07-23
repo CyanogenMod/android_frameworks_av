@@ -1606,6 +1606,12 @@ void MediaPlayerService::AudioOutput::setAudioStreamType(audio_stream_type_t str
     // do not allow direct stream type modification if attributes have been set
     if (mAttributes == NULL) {
         mStreamType = streamType;
+        // No attributes are set, for mediaPlayer playback, force populate attributes
+        // This is done to ensure that we qualify for a direct output
+        mAttributes = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+        if (mAttributes != NULL) {
+            stream_type_to_audio_attributes(mStreamType, mAttributes);
+        }
     }
 }
 
@@ -1670,6 +1676,18 @@ status_t MediaPlayerService::AudioOutput::open(
             ((cb == NULL) || (offloadInfo == NULL))) {
         return BAD_VALUE;
     }
+
+    // Attributes if still NULL indicate that the application did not even set the
+    // stream type, hence populating attributes based on default stream type.
+    if (mAttributes == NULL) {
+        // For mediaPlayer playback, force populate attributes
+        // This is done to ensure that we qualify for a direct output
+        mAttributes = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+        if (mAttributes != NULL) {
+            stream_type_to_audio_attributes(mStreamType, mAttributes);
+        }
+    }
+
 
     // compute frame count for the AudioTrack internal buffer
     size_t frameCount;
