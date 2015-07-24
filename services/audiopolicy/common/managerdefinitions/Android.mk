@@ -38,7 +38,11 @@ endif
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_PROXY_DEVICE)),true)
 LOCAL_CFLAGS     += -DAUDIO_EXTN_AFE_PROXY_ENABLED
 endif
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_WMA_OFFLOAD)),true)
+LOCAL_CFLAGS     += -DWMA_OFFLOAD_ENABLED
 endif
+endif
+
 LOCAL_MODULE := libaudiopolicycomponents
 
 include $(BUILD_STATIC_LIBRARY)
