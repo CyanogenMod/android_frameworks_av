@@ -1474,8 +1474,10 @@ void NuPlayer::determineAudioModeChange() {
         sp<AMessage> format = mSource->getFormat(true /*audio*/);
         tryOpenAudioSinkForOffload(format, hasVideo);
     } else {
-        mRenderer->signalDisableOffloadAudio();
-        mOffloadAudio = false;
+        if (mOffloadAudio) {
+            mRenderer->signalDisableOffloadAudio();
+            mOffloadAudio = false;
+        }
     }
 }
 

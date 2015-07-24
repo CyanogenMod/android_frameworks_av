@@ -1422,12 +1422,18 @@ void NuPlayer::Renderer::onDisableOffloadAudio() {
     Mutex::Autolock autoLock(mLock);
     mFlags &= ~FLAG_OFFLOAD_AUDIO;
     ++mAudioDrainGeneration;
+    if (mAudioRenderingStartGeneration != -1) {
+        prepareForMediaRenderingStart_l();
+    }
 }
 
 void NuPlayer::Renderer::onEnableOffloadAudio() {
     Mutex::Autolock autoLock(mLock);
     mFlags |= FLAG_OFFLOAD_AUDIO;
     ++mAudioDrainGeneration;
+    if (mAudioRenderingStartGeneration != -1) {
+        prepareForMediaRenderingStart_l();
+    }
 }
 
 void NuPlayer::Renderer::onPause() {
