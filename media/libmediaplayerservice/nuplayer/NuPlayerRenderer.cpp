@@ -1658,11 +1658,13 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     "audio_format", mime.c_str());
             onDisableOffloadAudio();
         } else {
+            int32_t bitWidth = 16;
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
                     mime.c_str(), audioFormat);
 
             audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
 
+            bitWidth = AVUtils::get()->getPcmSampleBits(format);
             int avgBitRate = -1;
             format->findInt32("bit-rate", &avgBitRate);
 
@@ -1686,6 +1688,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             offloadInfo.bit_rate = avgBitRate;
             offloadInfo.has_video = hasVideo;
             offloadInfo.is_streaming = true;
+            offloadInfo.bit_width = bitWidth;
 
             if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
                 ALOGV("openAudioSink: no change in offload mode");
