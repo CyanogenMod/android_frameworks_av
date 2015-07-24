@@ -2551,11 +2551,15 @@ void AudioTrack::AudioTrackThread::resume()
 void AudioTrack::AudioTrackThread::wake()
 {
     AutoMutex _l(mMyLock);
-    if (!mPaused && mPausedInt && mPausedNs > 0) {
-        // audio track is active and internally paused with timeout.
+    if (!mPaused) {
+        // wake() might be called while servicing a callback - ignore the next
+        // pause time and call processAudioBuffer.
         mIgnoreNextPausedInt = true;
-        mPausedInt = false;
-        mMyCond.signal();
+        if (mPausedInt && mPausedNs > 0) {
+            // audio track is active and internally paused with timeout.
+            mPausedInt = false;
+            mMyCond.signal();
+        }
     }
 }
 
