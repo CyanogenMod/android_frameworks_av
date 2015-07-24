@@ -3658,8 +3658,17 @@ status_t MPEG4Source::parseSampleAuxiliaryInformationOffsets(
     int ivlength;
     CHECK(mFormat->findInt32(kKeyCryptoDefaultIVSize, &ivlength));
 
+    // only 0, 8 and 16 byte initialization vectors are supported
+    if (ivlength != 0 && ivlength != 8 && ivlength != 16) {
+        ALOGW("unsupported IV length: %d", ivlength);
+        return ERROR_MALFORMED;
+    }
     // read CencSampleAuxiliaryDataFormats
     for (size_t i = 0; i < mCurrentSampleInfoCount; i++) {
+        if (i >= mCurrentSamples.size()) {
+            ALOGW("too few samples");
+            break;
+        }
         Sample *smpl = &mCurrentSamples.editItemAt(i);
 
         memset(smpl->iv, 0, 16);
