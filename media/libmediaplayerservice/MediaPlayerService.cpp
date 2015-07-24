@@ -655,6 +655,7 @@ sp<MediaPlayerBase> MediaPlayerService::Client::setDataSource_pre(
     }
 
     if (!p->hardwareOutput()) {
+        Mutex::Autolock l(mLock);
         mAudioOutput = new AudioOutput(mAudioSessionId, IPCThreadState::self()->getCallingUid(),
                 mPid, mAudioAttributes);
         static_cast<MediaPlayerInterface*>(p.get())->setAudioSink(mAudioOutput);
@@ -1100,6 +1101,9 @@ status_t MediaPlayerService::Client::setAudioAttributes_l(const Parcel &parcel)
 {
     if (mAudioAttributes != NULL) { free(mAudioAttributes); }
     mAudioAttributes = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+    if (mAudioAttributes == NULL) {
+        return NO_MEMORY;
+    }
     unmarshallAudioAttributes(parcel, mAudioAttributes);
 
     ALOGV("setAudioAttributes_l() usage=%d content=%d flags=0x%x tags=%s",
@@ -1336,7 +1340,6 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
       mCallbackData(NULL),
       mBytesWritten(0),
       mStreamType(AUDIO_STREAM_MUSIC),
-      mAttributes(attr),
       mLeftVolume(1.0),
       mRightVolume(1.0),
       mPlaybackRate(AUDIO_PLAYBACK_RATE_DEFAULT),
@@ -1352,7 +1355,13 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
 {
     ALOGV("AudioOutput(%d)", sessionId);
     if (attr != NULL) {
-        mStreamType = audio_attributes_to_stream_type(attr);
+        mAttributes = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+        if (mAttributes != NULL) {
+            memcpy(mAttributes, attr, sizeof(audio_attributes_t));
+            mStreamType = audio_attributes_to_stream_type(attr);
+        }
+    } else {
+        mAttributes = NULL;
     }
 
     setMinBufferCount();
@@ -1361,6 +1370,7 @@ MediaPlayerService::AudioOutput::AudioOutput(int sessionId, int uid, int pid,
 MediaPlayerService::AudioOutput::~AudioOutput()
 {
     close();
+    free(mAttributes);
     delete mCallbackData;
 }
 
@@ -1467,14 +1477,21 @@ String8  MediaPlayerService::AudioOutput::getParameters(const String8& keys)
 
 void MediaPlayerService::AudioOutput::setAudioAttributes(const audio_attributes_t * attributes) {
     Mutex::Autolock lock(mLock);
-    mAttributes = attributes;
-    if (attributes != NULL) {
+    if (attributes == NULL) {
+        free(mAttributes);
+        mAttributes = NULL;
+    } else {
+        if (mAttributes == NULL) {
+            mAttributes = (audio_attributes_t *) calloc(1, sizeof(audio_attributes_t));
+        }
+        memcpy(mAttributes, attributes, sizeof(audio_attributes_t));
         mStreamType = audio_attributes_to_stream_type(attributes);
     }
 }
 
 void MediaPlayerService::AudioOutput::setAudioStreamType(audio_stream_type_t streamType)
 {
+    Mutex::Autolock lock(mLock);
     // do not allow direct stream type modification if attributes have been set
     if (mAttributes == NULL) {
         mStreamType = streamType;
