@@ -824,6 +824,10 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
         return false;
     }
 
+    if (AVUtils::get()->canOffloadAPE(meta) != true) {
+        return false;
+    }
+
     // Redefine aac format according to its profile
     // Offloading depends on audio DSP capabilities.
     int32_t aacaot = -1;

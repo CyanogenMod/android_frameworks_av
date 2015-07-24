@@ -213,6 +213,9 @@ const StringToEnum sFormatNameToEnumTable[] = {
 #ifdef ALAC_OFFLOAD_ENABLED
     STRING_TO_ENUM(AUDIO_FORMAT_ALAC),
 #endif
+#ifdef APE_OFFLOAD_ENABLED
+    STRING_TO_ENUM(AUDIO_FORMAT_APE),
+#endif
 };
 
 const StringToEnum sOutChannelsNameToEnumTable[] = {

@@ -79,6 +79,8 @@ struct AVUtils {
     virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
             const sp<AMessage> &);
 
+    virtual bool canOffloadAPE(const sp<MetaData> &meta);
+
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };

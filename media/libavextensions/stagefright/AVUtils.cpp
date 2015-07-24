@@ -101,6 +101,10 @@ sp<MediaCodec> AVUtils::createCustomComponentByName(
     return NULL;
 }
 
+bool AVUtils::canOffloadAPE(const sp<MetaData> &meta) {
+   return true;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVUtils::AVUtils() {
 }
