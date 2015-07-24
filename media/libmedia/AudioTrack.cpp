@@ -483,7 +483,6 @@ status_t AudioTrack::set(
     mMarkerReached = false;
     mNewPosition = 0;
     mUpdatePeriod = 0;
-    mServer = 0;
     mPosition = 0;
     mReleased = 0;
     mStartUs = 0;
@@ -1389,6 +1388,9 @@ status_t AudioTrack::createTrack_l()
         mReqFrameCount = frameCount;
     }
 
+    // reset server position to 0 as we have new cblk.
+    mServer = 0;
+
     // update proxy
     if (mSharedBuffer == 0) {
         mStaticProxy.clear();
@@ -2109,15 +2111,13 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     // If a new IAudioTrack cannot be created, the previous (dead) instance will be left intact.
     status_t result = createTrack_l();
 
-    // take the frames that will be lost by track recreation into account in saved position
-    // For streaming tracks, this is the amount we obtained from the user/client
-    // (not the number actually consumed at the server - those are already lost).
-    (void) updateAndGetPosition_l();
-    if (mStaticProxy == 0) {
-        mPosition = mReleased;
-    }
-
     if (result == NO_ERROR) {
+        // take the frames that will be lost by track recreation into account in saved position
+        // For streaming tracks, this is the amount we obtained from the user/client
+        // (not the number actually consumed at the server - those are already lost).
+        if (mStaticProxy == 0) {
+            mPosition = mReleased;
+        }
         // Continue playback from last known position and restore loop.
         if (mStaticProxy != 0) {
             if (loopCount != 0) {
