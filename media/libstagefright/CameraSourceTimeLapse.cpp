@@ -296,6 +296,12 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
 
         mLastTimeLapseFrameRealTimestampUs = *timestampUs;
         *timestampUs = mLastFrameTimestampUs + mTimeBetweenTimeLapseVideoFramesUs;
+        // Update start-time once the captured-time reaches the expected start-time.
+        // Not doing so will result in CameraSource always dropping frames since
+        // updated-timestamp will never intersect start-timestamp
+        if ((mNumFramesReceived == 0 && mLastTimeLapseFrameRealTimestampUs >= mStartTimeUs)) {
+            mStartTimeUs = *timestampUs;
+        }
         return false;
     }
     return false;
