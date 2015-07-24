@@ -6651,7 +6651,7 @@ status_t AudioFlinger::RecordThread::RecordBufferConverter::updateParameters(
     if (mResampler != NULL) {
         mBufFrameSize = max(mSrcChannelCount, FCC_2)
                 * audio_bytes_per_sample(AUDIO_FORMAT_PCM_FLOAT);
-    } else if ((mIsLegacyUpmix || mIsLegacyDownmix) && mDstFormat != AUDIO_FORMAT_PCM_FLOAT) {
+    } else if (mIsLegacyUpmix || mIsLegacyDownmix) { // legacy modes always float
         mBufFrameSize = mDstChannelCount * audio_bytes_per_sample(AUDIO_FORMAT_PCM_FLOAT);
     } else if (mSrcChannelMask != mDstChannelMask && mDstFormat != mSrcFormat) {
         mBufFrameSize = mDstChannelCount * audio_bytes_per_sample(mSrcFormat);
