@@ -142,7 +142,7 @@ class MediaPlayerService : public BnMediaPlayerService
         CallbackData *          mCallbackData;
         uint64_t                mBytesWritten;
         audio_stream_type_t     mStreamType;
-        const audio_attributes_t *mAttributes;
+        audio_attributes_t *    mAttributes;
         float                   mLeftVolume;
         float                   mRightVolume;
         AudioPlaybackRate       mPlaybackRate;
