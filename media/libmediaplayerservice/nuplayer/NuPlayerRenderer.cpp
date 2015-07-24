@@ -110,6 +110,7 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
+      mLastAudioMediaTimeUs(-1),
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioTornDown(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
@@ -845,6 +846,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
                 postEOSDelayUs = getPendingAudioPlayoutDurationUs(ALooper::GetNowUs());
             }
             notifyEOS(true /* audio */, entry->mFinalResult, postEOSDelayUs);
+            mLastAudioMediaTimeUs = getDurationUsIfPlayedAtSampleRate(mNumFramesWritten);
 
             mAudioQueue.erase(mAudioQueue.begin());
             entry = NULL;
@@ -1081,10 +1083,10 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
 
     int64_t nowUs = -1;
     int64_t realTimeUs;
+    int64_t mediaTimeUs = -1;
     if (mFlags & FLAG_REAL_TIME) {
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &realTimeUs));
     } else {
-        int64_t mediaTimeUs;
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
         nowUs = ALooper::GetNowUs();
@@ -1109,6 +1111,14 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
             ALOGV("rendering video at media time %.2f secs",
                     (mFlags & FLAG_REAL_TIME ? realTimeUs :
                     mediaUs) / 1E6);
+
+            if (!(mFlags & FLAG_REAL_TIME)
+                    && mLastAudioMediaTimeUs != -1
+                    && mediaTimeUs > mLastAudioMediaTimeUs) {
+                // If audio ends before video, video continues to drive media clock.
+                // Also smooth out videos >= 10fps.
+                mMediaClock->updateMaxTimeMedia(mediaTimeUs + 100000);
+            }
         }
     } else {
         setVideoLateByUs(0);
@@ -1295,6 +1305,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         if (audio) {
             notifyComplete = mNotifyCompleteAudio;
             mNotifyCompleteAudio = false;
+            mLastAudioMediaTimeUs = -1;
         } else {
             notifyComplete = mNotifyCompleteVideo;
             mNotifyCompleteVideo = false;

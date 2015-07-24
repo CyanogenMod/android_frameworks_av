@@ -176,7 +176,8 @@ private:
     int32_t mVideoRenderingStartGeneration;
     int32_t mAudioRenderingStartGeneration;
 
-    int64_t mLastPositionUpdateUs;
+    // the media timestamp of last audio sample right before EOS.
+    int64_t mLastAudioMediaTimeUs;
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
     bool mAudioTornDown;
