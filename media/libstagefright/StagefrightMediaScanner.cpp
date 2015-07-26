@@ -185,6 +185,7 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
         { "genre", METADATA_KEY_GENRE },
         { "title", METADATA_KEY_TITLE },
         { "year", METADATA_KEY_YEAR },
+        { "date", METADATA_KEY_DATE },
         { "duration", METADATA_KEY_DURATION },
         { "writer", METADATA_KEY_WRITER },
         { "compilation", METADATA_KEY_COMPILATION },
