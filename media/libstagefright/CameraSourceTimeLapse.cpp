@@ -281,7 +281,8 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
     // The first 2 output frames from the encoder are: decoder specific info and
     // the compressed video frame data for the first input video frame.
     if (mNumFramesEncoded >= 1 && *timestampUs <
-        (mLastTimeLapseFrameRealTimestampUs + mTimeBetweenFrameCaptureUs)) {
+        (mLastTimeLapseFrameRealTimestampUs + mTimeBetweenFrameCaptureUs) &&
+        (mTimeBetweenFrameCaptureUs > mTimeBetweenTimeLapseVideoFramesUs + 1)) {
         // Skip all frames from last encoded frame until
         // sufficient time (mTimeBetweenFrameCaptureUs) has passed.
         // Tell the camera to release its recording frame and return.
