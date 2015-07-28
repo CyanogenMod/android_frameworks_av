@@ -230,6 +230,9 @@ status_t SampleTable::setSampleToChunkParams(
         return ERROR_MALFORMED;
     }
 
+    if (SIZE_MAX / sizeof(SampleToChunkEntry) <= mNumSampleToChunkOffsets)
+        return ERROR_OUT_OF_RANGE;
+
     mSampleToChunkEntries =
         new SampleToChunkEntry[mNumSampleToChunkOffsets];
 
@@ -330,7 +333,7 @@ status_t SampleTable::setTimeToSampleParams(
     }
 
     mTimeToSampleCount = U32_AT(&header[4]);
-    uint64_t allocSize = mTimeToSampleCount * 2 * sizeof(uint32_t);
+    uint64_t allocSize = mTimeToSampleCount * 2 * (uint64_t)sizeof(uint32_t);
     if (allocSize > SIZE_MAX) {
         return ERROR_OUT_OF_RANGE;
     }
@@ -377,7 +380,7 @@ status_t SampleTable::setCompositionTimeToSampleParams(
     }
 
     mNumCompositionTimeDeltaEntries = numEntries;
-    uint64_t allocSize = numEntries * 2 * sizeof(uint32_t);
+    uint64_t allocSize = numEntries * 2 * (uint64_t)sizeof(uint32_t);
     if (allocSize > SIZE_MAX) {
         return ERROR_OUT_OF_RANGE;
     }
@@ -427,7 +430,7 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
         ALOGV("Table of sync samples is empty or has only a single entry!");
     }
 
-    uint64_t allocSize = mNumSyncSamples * sizeof(uint32_t);
+    uint64_t allocSize = mNumSyncSamples * (uint64_t)sizeof(uint32_t);
     if (allocSize > SIZE_MAX) {
         return ERROR_OUT_OF_RANGE;
     }
