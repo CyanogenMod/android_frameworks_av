@@ -690,7 +690,13 @@ protected:
             static bool decideTrackOffloadFromStreamType(const audio_stream_type_t sType);
 
             static bool decideTrackOffloadfromAttributes(const audio_attributes_t *pAttributes);
+
             void initializeTrackOffloadParams();
+
+            void setTrackOffloadParams(audio_output_flags_t flags);
+
+            void resetTrackOffloadParams();
+
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
 #ifdef QCOM_DIRECTTRACK
     sp<IDirectTrack>        mDirectTrack;

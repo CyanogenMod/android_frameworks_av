@@ -314,14 +314,6 @@ bool AudioTrack::canOffloadTrack(
               " channel mask %#x, flags %#x, transferType %d, offloadInfo %p",
               streamType, attributes->usage, mSampleRate, format, channelMask, flags,
               transferType, offloadInfo);
-        if (mSavedParams) {
-            mFlags = mOriginalFlags;
-            mFrameSize = mOriginalFrameSize;
-            mFrameSizeAF = mOriginalFrameSizeAF;
-            mFormat = mOriginalFormat;
-            mUseSmallBuf = false;
-            mIsPcmTrackOffloaded = false;
-        }
         return false;
 }
 status_t AudioTrack::set(
@@ -1272,32 +1264,13 @@ status_t AudioTrack::createTrack_l()
                                                 &mPcmTrackOffloadInfo);
         if (status == NO_ERROR && output != AUDIO_IO_HANDLE_NONE) {
             //got output
-            ALOGV("TrackOffload: Going through PCM Offload Track");
-            mIsPcmTrackOffloaded = true;
-            mSavedParams = true;
-            mOriginalFrameSize = mFrameSize;
-            mOriginalFrameSizeAF = mFrameSizeAF;
-            mOriginalFormat = mFormat;
-            mOriginalFlags = mFlags;
-            mFlags = flags;
-            mFrameSize = sizeof(uint8_t);
-            mFrameSizeAF = sizeof(uint8_t);
-            mUseSmallBuf = true;
-        } else {
-            ALOGV("getOutput failed in track offload, resetting params");
-            if (mSavedParams) {
-                mFlags = mOriginalFlags;
-                mFrameSize = mOriginalFrameSize;
-                mFrameSizeAF = mOriginalFrameSizeAF;
-                mFormat = mOriginalFormat;
-                mUseSmallBuf = false;
-                mIsPcmTrackOffloaded = false;
-             }
+            setTrackOffloadParams(flags);
         }
     }
 
     //retry retrieving output
     if (status != NO_ERROR || output == AUDIO_IO_HANDLE_NONE) {
+        resetTrackOffloadParams();
         status = AudioSystem::getOutputForAttr(attr, &output,
                                                         (audio_session_t)mSessionId, &streamType,
                                                         mSampleRate, mFormat, mChannelMask,
@@ -1369,8 +1342,6 @@ status_t AudioTrack::createTrack_l()
     mNotificationFramesAct = mNotificationFramesReq;
 
     size_t frameCount = mReqFrameCount;
-    if(mIsPcmTrackOffloaded)
-        frameCount = 0;
 
     if (!audio_is_linear_pcm(mFormat)) {
 
@@ -2694,4 +2665,37 @@ void AudioTrack::initializeTrackOffloadParams()
     mIsPcmTrackOffloaded = false;
     mCanOffloadPcmTrack = false;
 }
+
+void AudioTrack::setTrackOffloadParams(audio_output_flags_t flags)
+{
+     if (!mSavedParams) {
+         ALOGV("TrackOffload: Going through PCM Offload Track");
+         mIsPcmTrackOffloaded = true;
+         mSavedParams = true;
+         mOriginalFrameSize = mFrameSize;
+         mOriginalFrameSizeAF = mFrameSizeAF;
+         mOriginalFormat = mFormat;
+         mOriginalFlags = mFlags;
+         mFlags = flags;
+         mFrameSize = sizeof(uint8_t);
+         mFrameSizeAF = sizeof(uint8_t);
+         mFormat = AUDIO_FORMAT_PCM_16_BIT_OFFLOAD;
+         mUseSmallBuf = true;
+     }
+}
+
+void AudioTrack::resetTrackOffloadParams()
+{
+    if (mSavedParams) {
+        ALOGV("resetting Track Offload params");
+        mFlags = mOriginalFlags;
+        mFormat = mOriginalFormat;
+        mFrameSize = mOriginalFrameSize;
+        mFrameSizeAF = mOriginalFrameSizeAF;
+        mUseSmallBuf = false;
+        mSavedParams = false;
+        mIsPcmTrackOffloaded = false;
+    }
+}
+
 }; // namespace android
