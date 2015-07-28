@@ -21,7 +21,6 @@
 #include "iv_datatypedef.h"
 #include "iv.h"
 #include "ivd.h"
-#include "ithread.h"
 #include "impeg2d.h"
 #include "SoftMPEG2.h"
 

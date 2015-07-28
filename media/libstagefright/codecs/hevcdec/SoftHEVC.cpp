@@ -21,7 +21,6 @@
 #include "ihevc_typedefs.h"
 #include "iv.h"
 #include "ivd.h"
-#include "ithread.h"
 #include "ihevcd_cxa.h"
 #include "SoftHEVC.h"
 
