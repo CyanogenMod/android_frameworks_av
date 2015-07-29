@@ -6504,6 +6504,11 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
 
                 mCodec->mSentFormat = false;
 
+                if (mTunneled) {
+                    sp<AMessage> dummy = new AMessage(kWhatOutputBufferDrained, mCodec);
+                    mCodec->sendFormatChange(dummy);
+                }
+
                 ALOGV("[%s] Output port now reenabled.", mCodec->mComponentName.c_str());
 
                 if (mCodec->mExecutingState->active()) {
