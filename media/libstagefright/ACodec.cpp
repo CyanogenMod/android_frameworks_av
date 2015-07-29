@@ -668,8 +668,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         return err;
     }
 
-    int ignoredFlags = (GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_HW_COMPOSER
-            | GRALLOC_USAGE_EXTERNAL_DISP);
+    int ignoredFlags = kVideoGrallocUsage;
     // New output surface is not allowed to add new usage flag except ignored ones.
     if ((usageBits & ~(mNativeWindowUsageBits | ignoredFlags)) != 0) {
         ALOGW("cannot change usage from %#x to %#x", mNativeWindowUsageBits, usageBits);
@@ -905,7 +904,7 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
         usage |= GRALLOC_USAGE_PROTECTED;
     }
 
-    usage |= GRALLOC_USAGE_HW_TEXTURE | GRALLOC_USAGE_EXTERNAL_DISP;
+    usage |= kVideoGrallocUsage;
     *finalUsage = usage;
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);

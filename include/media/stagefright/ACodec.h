@@ -145,6 +145,12 @@ private:
         kFlagIsGrallocUsageProtected                  = 4,
     };
 
+    enum {
+        kVideoGrallocUsage = (GRALLOC_USAGE_HW_TEXTURE
+                            | GRALLOC_USAGE_HW_COMPOSER
+                            | GRALLOC_USAGE_EXTERNAL_DISP),
+    };
+
     struct BufferInfo {
         enum Status {
             OWNED_BY_US,
