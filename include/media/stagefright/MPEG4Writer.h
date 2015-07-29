@@ -108,6 +108,8 @@ private:
 
     sp<AMessage> mMetaKeys;
 
+    bool mIsVideoHEVC;
+
     void setStartTimestampUs(int64_t timeUs);
     int64_t getStartTimestampUs();  // Not const
     status_t startTracks(MetaData *params);

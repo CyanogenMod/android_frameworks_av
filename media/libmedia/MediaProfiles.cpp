@@ -37,7 +37,8 @@ MediaProfiles *MediaProfiles::sInstance = NULL;
 const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
     {"h263", VIDEO_ENCODER_H263},
     {"h264", VIDEO_ENCODER_H264},
-    {"m4v",  VIDEO_ENCODER_MPEG_4_SP}
+    {"m4v",  VIDEO_ENCODER_MPEG_4_SP},
+    {"h265", VIDEO_ENCODER_H265}
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sAudioEncoderNameMap[] = {

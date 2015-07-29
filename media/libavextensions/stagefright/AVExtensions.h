@@ -38,6 +38,8 @@ namespace android {
 class AudioParameter;
 class MetaData;
 class MediaExtractor;
+class MPEG4Writer;
+struct ABuffer;
 struct ACodec;
 struct ALooper;
 struct IMediaHTTPConnection;
@@ -106,6 +108,42 @@ struct AVUtils {
             List<int64_t> &/*decodeTimeQueue*/) {}
 
     virtual bool useQCHWEncoder(const sp<AMessage> &, AString &) { return false; }
+
+    struct HEVCMuxer {
+
+        virtual bool reassembleHEVCCSD(const AString &mime, sp<ABuffer> csd0, sp<MetaData> &meta);
+
+        virtual void writeHEVCFtypBox(MPEG4Writer *writer);
+
+        virtual status_t makeHEVCCodecSpecificData(const uint8_t *data,
+                  size_t size, void** codecSpecificData,
+                  size_t *codecSpecificDataSize);
+
+        virtual const char *getFourCCForMime(const char *mime);
+
+        virtual void writeHvccBox(MPEG4Writer *writer,
+                  void* codecSpecificData, size_t codecSpecificDataSize,
+                  bool useNalLengthFour);
+
+        virtual bool isVideoHEVC(const char* mime);
+
+        virtual void getHEVCCodecSpecificDataFromInputFormatIfPossible(
+                  sp<MetaData> meta, void **codecSpecificData,
+                  size_t *codecSpecificDataSize, bool *gotAllCodecSpecificData);
+
+    protected:
+        HEVCMuxer() {};
+        virtual ~HEVCMuxer() {};
+        friend struct AVUtils;
+    };
+
+    virtual inline HEVCMuxer& HEVCMuxerUtils() {
+         return mHEVCMuxer;
+    }
+
+private:
+    HEVCMuxer mHEVCMuxer;
+
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };

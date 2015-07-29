@@ -1501,6 +1501,11 @@ status_t StagefrightRecorder::setupCameraSource(
     return OK;
 }
 
+bool StagefrightRecorder::setCustomVideoEncoderMime(const video_encoder /*videoEncoder*/,
+        sp<AMessage> /*format*/) {
+    return false;
+}
+
 status_t StagefrightRecorder::setupVideoEncoder(
         sp<MediaSource> cameraSource,
         sp<MediaSource> *source) {
@@ -1526,6 +1531,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
             break;
 
         default:
+            if (setCustomVideoEncoderMime(mVideoEncoder, format)) {
+                break;
+            }
             CHECK(!"Should not be here, unsupported video encoding.");
             break;
     }

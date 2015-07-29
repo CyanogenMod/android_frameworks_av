@@ -141,7 +141,7 @@ protected:
     status_t setupRTPRecording();
     status_t setupMPEG2TSRecording();
     sp<MediaSource> createAudioSource();
-    status_t checkVideoEncoderCapabilities();
+    virtual status_t checkVideoEncoderCapabilities();
     status_t checkAudioEncoderCapabilities();
     // Generic MediaSource set-up. Returns the appropriate
     // source (CameraSource or SurfaceMediaSource)
@@ -152,6 +152,7 @@ protected:
     status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaSource> *source);
     virtual void setupCustomVideoEncoderParams(sp<MediaSource> /*cameraSource*/,
             sp<AMessage> &/*format*/) {}
+    virtual bool setCustomVideoEncoderMime(const video_encoder videoEncoder, sp<AMessage> format);
 
     // Encoding parameter handling utilities
     status_t setParameter(const String8 &key, const String8 &value);
@@ -184,7 +185,7 @@ protected:
     void clipAudioSampleRate();
     void clipNumberOfAudioChannels();
     void setDefaultProfileIfNecessary();
-    void setDefaultVideoEncoderIfNecessary();
+    virtual void setDefaultVideoEncoderIfNecessary();
 
 
     StagefrightRecorder(const StagefrightRecorder &);

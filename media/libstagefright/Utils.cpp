@@ -668,6 +668,8 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             // for transporting the CSD to muxers.
             reassembleESDS(csd0, esds);
             meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
+        } else {
+            AVUtils::get()->HEVCMuxerUtils().reassembleHEVCCSD(mime, csd0, meta);
         }
     }
 

@@ -38,6 +38,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/Utils.h>
 #include <media/mediarecorder.h>
+#include <stagefright/AVExtensions.h>
 #include <cutils/properties.h>
 
 #include "include/ESDS.h"
@@ -91,6 +92,7 @@ public:
     bool isAvc() const { return mIsAvc; }
     bool isAudio() const { return mIsAudio; }
     bool isMPEG4() const { return mIsMPEG4; }
+    bool isHEVC() const { return mIsHEVC; }
     void addChunkOffset(off64_t offset);
     int32_t getTrackId() const { return mTrackId; }
     status_t dump(int fd, const Vector<String16>& args) const;
@@ -236,6 +238,7 @@ private:
     bool mIsAvc;
     bool mIsAudio;
     bool mIsMPEG4;
+    bool mIsHEVC;
     int32_t mTrackId;
     int64_t mTrackDurationUs;
     int64_t mMaxChunkDurationUs;
@@ -386,6 +389,7 @@ MPEG4Writer::MPEG4Writer(int fd)
       mAreGeoTagsAvailable(false),
       mStartTimeOffsetMs(-1),
       mMetaKeys(new AMessage()),
+      mIsVideoHEVC(false),
       mIsAudioAMR(false) {
     addDeviceMeta();
 
@@ -464,6 +468,8 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "s263";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
             return "avc1";
+        } else {
+            return AVUtils::get()->HEVCMuxerUtils().getFourCCForMime(mime);
         }
     } else {
         ALOGE("Track (%s) other than video or audio is not supported", mime);
@@ -489,6 +495,7 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
     const char *mime;
     source->getFormat()->findCString(kKeyMIMEType, &mime);
     bool isAudio = !strncasecmp(mime, "audio/", 6);
+    bool isVideo = !strncasecmp(mime, "video/", 6);
     if (Track::getFourCCForMime(mime) == NULL) {
         ALOGE("Unsupported mime '%s'", mime);
         return ERROR_UNSUPPORTED;
@@ -496,6 +503,10 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
     mIsAudioAMR = isAudio && (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime) ||
                               !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime));
 
+
+    if (isVideo) {
+         mIsVideoHEVC = AVUtils::get()->HEVCMuxerUtils().isVideoHEVC(mime);
+    }
 
     // At this point, we know the track to be added is either
     // video or audio. Thus, we only need to check whether it
@@ -1051,7 +1062,9 @@ void MPEG4Writer::writeFtypBox(MetaData *param) {
     beginBox("ftyp");
 
     int32_t fileType;
-    if (mIsAudioAMR || (param && param->findInt32(kKeyFileType, &fileType) &&
+    if (mIsVideoHEVC) {
+        AVUtils::get()->HEVCMuxerUtils().writeHEVCFtypBox(this);
+    } else if (mIsAudioAMR || (param && param->findInt32(kKeyFileType, &fileType) &&
         fileType != OUTPUT_FORMAT_MPEG_4)) {
         writeFourcc("3gp4");
         writeInt32(0);
@@ -1468,6 +1481,12 @@ MPEG4Writer::Track::Track(
     mIsAudio = !strncasecmp(mime, "audio/", 6);
     mIsMPEG4 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC);
+    mIsHEVC = AVUtils::get()->HEVCMuxerUtils().isVideoHEVC(mime);
+
+    if (mIsHEVC) {
+        AVUtils::get()->HEVCMuxerUtils().getHEVCCodecSpecificDataFromInputFormatIfPossible(
+                mMeta, &mCodecSpecificData, &mCodecSpecificDataSize, &mGotAllCodecSpecificData);
+    }
 
     setTimeScale();
 }
@@ -1663,7 +1682,7 @@ void MPEG4Writer::writeChunkToFile(Chunk* chunk) {
     while (!chunk->mSamples.empty()) {
         List<MediaBuffer *>::iterator it = chunk->mSamples.begin();
 
-        off64_t offset = chunk->mTrack->isAvc()
+        off64_t offset = (chunk->mTrack->isAvc() || chunk->mTrack->isHEVC())
                                 ? addLengthPrefixedSample_l(*it)
                                 : addSample_l(*it);
 
@@ -2244,6 +2263,13 @@ status_t MPEG4Writer::Track::threadEntry() {
                         (const uint8_t *)buffer->data()
                             + buffer->range_offset(),
                        buffer->range_length());
+            } else if (mIsHEVC) {
+                status_t err = AVUtils::get()->HEVCMuxerUtils().makeHEVCCodecSpecificData(
+                        (const uint8_t *)buffer->data() + buffer->range_offset(),
+                        buffer->range_length(), &mCodecSpecificData, &mCodecSpecificDataSize);
+                if ((status_t)OK != err) {
+                    return err;
+                }
             }
 
             buffer->release();
@@ -2263,10 +2289,10 @@ status_t MPEG4Writer::Track::threadEntry() {
         buffer->release();
         buffer = NULL;
 
-        if (mIsAvc) StripStartcode(copy);
+        if (mIsAvc || mIsHEVC) StripStartcode(copy);
 
         size_t sampleSize = copy->range_length();
-        if (mIsAvc) {
+        if (mIsAvc || mIsHEVC) {
             if (mOwner->useNalLengthFour()) {
                 sampleSize += 4;
             } else {
@@ -2466,7 +2492,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             trackProgressStatus(timestampUs);
         }
         if (!hasMultipleTracks) {
-            off64_t offset = mIsAvc? mOwner->addLengthPrefixedSample_l(copy)
+            off64_t offset = (mIsAvc || mIsHEVC)? mOwner->addLengthPrefixedSample_l(copy)
                                  : mOwner->addSample_l(copy);
 
             uint32_t count = (mOwner->use32BitFileOffset()
@@ -2723,7 +2749,8 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
     CHECK(mMeta->findCString(kKeyMIMEType, &mime));
     if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime) ||
-        !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
+        mIsHEVC) {
         if (!mCodecSpecificData ||
             mCodecSpecificDataSize <= 0) {
             ALOGE("Missing codec specific data");
@@ -2832,9 +2859,16 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
         writeD263Box();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
         writeAvccBox();
+    } else if (mIsHEVC) {
+        AVUtils::get()->HEVCMuxerUtils().writeHvccBox(mOwner, mCodecSpecificData,
+                                               mCodecSpecificDataSize,
+                                               mOwner->useNalLengthFour());
     }
 
-    writePaspBox();
+    if (!mIsHEVC) {
+        writePaspBox();
+    }
+
     mOwner->endBox();  // mp4v, s263 or avc1
 }
 

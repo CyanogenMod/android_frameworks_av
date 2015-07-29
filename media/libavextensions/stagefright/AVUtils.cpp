@@ -109,6 +109,40 @@ bool AVUtils::isEnhancedExtension(const char *) {
     return false;
 }
 
+bool AVUtils::HEVCMuxer::reassembleHEVCCSD(const AString &/*mime*/, sp<ABuffer> /*csd0*/, sp<MetaData> &/*meta*/) {
+    return false;
+}
+
+void AVUtils::HEVCMuxer::writeHEVCFtypBox(MPEG4Writer * /*writer*/) {
+    return;
+}
+
+status_t AVUtils::HEVCMuxer::makeHEVCCodecSpecificData(const uint8_t * /*data*/,
+        size_t /*size*/, void ** /*codecSpecificData*/,
+        size_t * /*codecSpecificDataSize*/) {
+    return UNKNOWN_ERROR;
+}
+
+const char *AVUtils::HEVCMuxer::getFourCCForMime(const char * /*mime*/) {
+    return NULL;
+}
+
+void AVUtils::HEVCMuxer::writeHvccBox(MPEG4Writer * /*writer*/,
+        void * /*codecSpecificData*/, size_t /*codecSpecificDataSize*/,
+        bool /*useNalLengthFour*/) {
+    return;
+}
+
+bool AVUtils::HEVCMuxer::isVideoHEVC(const char * /*mime*/) {
+    return false;
+}
+
+void AVUtils::HEVCMuxer::getHEVCCodecSpecificDataFromInputFormatIfPossible(
+        sp<MetaData> /*meta*/, void ** /*codecSpecificData*/,
+        size_t * /*codecSpecificDataSize*/, bool * /*gotAllCodecSpecificData*/) {
+    return;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVUtils::AVUtils() {}
 
