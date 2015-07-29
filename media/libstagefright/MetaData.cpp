@@ -272,7 +272,12 @@ void MetaData::typed_data::setData(
 
     mType = type;
     allocateStorage(size);
-    memcpy(storage(), data, size);
+    void *dst = storage();
+    if (!dst) {
+        ALOGE("Couldn't allocate %zu bytes for item", size);
+        return;
+    }
+    memcpy(dst, data, size);
 }
 
 void MetaData::typed_data::getData(
