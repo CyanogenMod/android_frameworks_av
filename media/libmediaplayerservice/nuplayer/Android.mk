@@ -25,7 +25,12 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libmediaplayerservice              \
 	$(TOP)/frameworks/native/include/media/openmax
 
-LOCAL_CFLAGS += -Werror -Wall -DENABLE_STAGEFRIGHT_EXPERIMENTS
+LOCAL_CFLAGS += -Werror -Wall
+
+# enable experiments only in userdebug and eng builds
+ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
+endif
 
 LOCAL_CLANG := true
 
