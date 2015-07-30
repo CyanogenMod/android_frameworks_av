@@ -1657,7 +1657,16 @@ void LiveSession::onChangeConfiguration2(const sp<AMessage> &msg) {
         mLastDequeuedTimeUs = timeUs;
 
         for (size_t i = 0; i < mPacketSources.size(); i++) {
-            mPacketSources.editValueAt(i)->clear();
+            sp<AnotherPacketSource> packetSource = mPacketSources.editValueAt(i);
+            sp<MetaData> format = packetSource->getFormat();
+            packetSource->clear();
+            // Set a tentative format here such that HTTPLiveSource will always have
+            // a format available when NuPlayer queries. Without an available video
+            // format when setting a surface NuPlayer might disable video decoding
+            // altogether. The tentative format will be overwritten by the
+            // authoritative (and possibly same) format once content from the new
+            // position is dequeued.
+            packetSource->setFormat(format);
         }
 
         for (size_t i = 0; i < kMaxStreams; ++i) {
