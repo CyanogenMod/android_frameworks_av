@@ -29,6 +29,8 @@
 #include <AStringUtils.h>
 #include <AUtils.h>
 
+#define UNUSED(x) ((void)(x))
+
 namespace android {
 
 //static
@@ -130,7 +132,24 @@ bool ADebug::getExperimentFlag(
     long level = GetLevelFromProperty(name, "debug.stagefright.experiments", undefined);
     if (level != undefined) {
         ALOGI("experiment '%s': %s from property", name, level ? "ENABLED" : "disabled");
-        return level != 0;
+        return allow && (level != 0);
+    }
+
+#ifndef ENABLE_STAGEFRIGHT_AUTO_EXPERIMENTS
+    UNUSED(modulo);
+    UNUSED(limit);
+    UNUSED(plus);
+    UNUSED(timeDivisor);
+    return false;
+#else
+    // Disable automatic experiments in "non-experimental" builds (that is, _all_ builds
+    // as there is no "experimental" build).
+    // TODO: change build type to enable automatic experiments in the future for some builds
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("ro.build.type", value, NULL)) {
+        if (strcmp(value, "experimental")) {
+            return false;
+        }
     }
 
     static volatile int32_t haveSerial = 0;
@@ -164,6 +183,7 @@ bool ADebug::getExperimentFlag(
     bool enable = allow && (counter % modulo < limit);
     ALOGI("experiment '%s': %s", name, enable ? "ENABLED" : "disabled");
     return enable;
+#endif
 }
 
 }  // namespace android
