@@ -132,6 +132,10 @@ void NuPlayer::RTSPSource::pause() {
 
         // Check if EOS or ERROR is received
         if (source != NULL && source->isFinished(mediaDurationUs)) {
+            if (mHandler != NULL) {
+                ALOGI("Nearing EOS...No Pause is issued");
+                mHandler->cancelTimeoutCheck();
+            }
             return;
         }
     }

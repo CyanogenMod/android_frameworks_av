@@ -107,6 +107,7 @@ struct MyHandler : public AHandler {
         kWhatEOS                        = 'eos!',
         kWhatSeekDiscontinuity          = 'seeD',
         kWhatNormalPlayTimeMapping      = 'nptM',
+        kWhatCancelCheck                = 'canC',
     };
 
     MyHandler(
@@ -252,6 +253,11 @@ struct MyHandler : public AHandler {
     void resume() {
         sp<AMessage> msg = new AMessage('resu', this);
         mPauseGeneration++;
+        msg->post();
+    }
+
+    void cancelTimeoutCheck() {
+        sp<AMessage> msg = new AMessage('canC', this);
         msg->post();
     }
 
@@ -1399,6 +1405,13 @@ struct MyHandler : public AHandler {
                         fakeTimestamps();
                     }
                 }
+                break;
+            }
+
+            case 'canC':
+            {
+                ALOGV("cancel checking timeout");
+                mCheckGeneration++;
                 break;
             }
 
