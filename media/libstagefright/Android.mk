@@ -127,8 +127,12 @@ LOCAL_SHARED_LIBRARIES += \
         libdl \
         libRScpp \
 
-LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall \
-        -DENABLE_STAGEFRIGHT_EXPERIMENTS
+LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
+
+# enable experiments only in userdebug and eng builds
+ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
+endif
 
 LOCAL_CLANG := true
 
