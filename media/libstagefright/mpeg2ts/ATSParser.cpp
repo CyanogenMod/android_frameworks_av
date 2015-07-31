@@ -509,7 +509,7 @@ int64_t ATSParser::Program::recoverPTS(uint64_t PTS_33bit) {
         mLastRecoveredPTS = static_cast<int64_t>(PTS_33bit);
     } else {
         mLastRecoveredPTS = static_cast<int64_t>(
-                ((mLastRecoveredPTS - PTS_33bit + 0x100000000ll)
+                ((mLastRecoveredPTS - static_cast<int64_t>(PTS_33bit) + 0x100000000ll)
                 & 0xfffffffe00000000ull) | PTS_33bit);
         // We start from 0, but recovered PTS could be slightly below 0.
         // Clamp it to 0 as rest of the pipeline doesn't take negative pts.
