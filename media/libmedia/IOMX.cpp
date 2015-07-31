@@ -22,6 +22,7 @@
 #include <binder/Parcel.h>
 #include <media/IOMX.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/AVMediaExtensions.h>
 
 namespace android {
 
@@ -472,6 +473,7 @@ public:
 
         *buffer = (buffer_id)reply.readInt32();
         *buffer_data = (void *)reply.readInt64();
+        AVMediaUtils::get()->readCustomData(&reply, buffer_data);
 
         return err;
     }
@@ -974,6 +976,7 @@ status_t BnOMX::onTransact(
             if (err == OK) {
                 reply->writeInt32((int32_t)buffer);
                 reply->writeInt64((uintptr_t)buffer_data);
+                AVMediaUtils::get()->writeCustomData(reply, buffer_data);
             }
 
             return NO_ERROR;

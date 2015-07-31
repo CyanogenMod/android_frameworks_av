@@ -177,6 +177,7 @@ protected:
         sp<GraphicBuffer> mGraphicBuffer;
         int mFenceFd;
         FrameRenderTracker::Info *mRenderInfo;
+        int mCustomData;
 
         // The following field and 4 methods are used for debugging only
         bool mIsReadFence;
@@ -275,7 +276,7 @@ protected:
     status_t setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode);
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffersOnPort(OMX_U32 portIndex);
-    status_t freeBuffer(OMX_U32 portIndex, size_t i);
+    virtual status_t freeBuffer(OMX_U32 portIndex, size_t i);
 
     status_t handleSetSurface(const sp<Surface> &surface);
     status_t setupNativeWindowSizeFormatAndUsage(
@@ -436,6 +437,12 @@ protected:
     virtual status_t getVQZIPInfo(const sp<AMessage> &msg) {
         return OK;
     }
+    virtual bool canAllocateBuffer(OMX_U32 /* portIndex */) {
+        return false;
+    }
+    virtual void enableCustomAllocationMode(const sp<AMessage> &/* msg */) {}
+    virtual status_t allocateBuffer(
+        OMX_U32 portIndex, size_t bufSize, BufferInfo &info);
 
     sp<IOMXObserver> createObserver();
 

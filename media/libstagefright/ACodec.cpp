@@ -832,15 +832,11 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                         : OMXCodec::kRequiresAllocateBufferOnOutputPorts;
 
                 if ((portIndex == kPortIndexInput && (mFlags & kFlagIsSecure))
-                        || (portIndex == kPortIndexOutput && usingMetadataOnEncoderOutput())) {
+                        || (portIndex == kPortIndexOutput && usingMetadataOnEncoderOutput())
+                        || canAllocateBuffer(portIndex)) {
                     mem.clear();
 
-                    void *ptr;
-                    err = mOMX->allocateBuffer(
-                            mNode, portIndex, bufSize, &info.mBufferID,
-                            &ptr);
-
-                    info.mData = new ABuffer(ptr, bufSize);
+                    err = allocateBuffer(portIndex, bufSize, info);
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
                             mNode, portIndex, mem, &info.mBufferID, allottedSize);
@@ -1642,6 +1638,8 @@ status_t ACodec::configureCodec(
     if (err != OK) {
         return err;
     }
+
+    enableCustomAllocationMode(msg);
 
     int32_t bitRate = 0;
     // FLAC encoder doesn't need a bitrate, other encoders do
@@ -6383,6 +6381,16 @@ sp<IOMXObserver> ACodec::createObserver() {
     sp<AMessage> notify = new AMessage(kWhatOMXMessageList, this);
     observer->setNotificationMessage(notify);
     return observer;
+}
+
+status_t ACodec::allocateBuffer(
+        OMX_U32 portIndex,  size_t bufSize, BufferInfo &info) {
+    void *ptr;
+    status_t err = mOMX->allocateBuffer(
+            mNode, portIndex, bufSize, &info.mBufferID, &ptr);
+
+    info.mData = new ABuffer(ptr, bufSize);
+    return err;
 }
 
 bool ACodec::ExecutingState::onOMXFrameRendered(int64_t mediaTimeUs, nsecs_t systemNano) {
