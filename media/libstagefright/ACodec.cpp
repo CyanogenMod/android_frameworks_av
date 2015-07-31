@@ -1095,7 +1095,8 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
     }
 
     BufferInfo *oldest = NULL;
-    for (size_t i = mBuffers[kPortIndexOutput].size(); i-- > 0;) {
+    for (size_t i = mBuffers[kPortIndexOutput].size(); i > 0;) {
+        i--;
         BufferInfo *info =
             &mBuffers[kPortIndexOutput].editItemAt(i);
 
