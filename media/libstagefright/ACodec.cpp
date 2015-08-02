@@ -3948,9 +3948,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
 
-                    CHECK(params.nBitPerSample == 16u ||
-                          params.nBitPerSample == 24u ||
-                          params.nBitPerSample == 32u);
                     notify->setInt32("bits-per-sample", params.nBitPerSample);
 
                     if (mChannelMaskPresent) {
