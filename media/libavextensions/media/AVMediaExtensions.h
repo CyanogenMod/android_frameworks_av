@@ -31,6 +31,8 @@
 #define _AV_MEDIA_EXTENSIONS_H_
 
 #include <common/AVExtensionsCommon.h>
+#include <hardware/audio.h>
+#include <media/AudioTrack.h>
 
 namespace android {
 
