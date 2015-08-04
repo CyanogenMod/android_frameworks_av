@@ -110,7 +110,7 @@ Input
 /*----------------------------------------------------------------------------
 ; FUNCTION CODE
 ----------------------------------------------------------------------------*/
-#define mask_and_shift(tmp, a, b) ((tmp >> (b - a)) & (1 << (32 - b) - 1))
+
 ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
                                mp3SideInfo *si,
                                mp3Header   *info,
@@ -126,23 +126,23 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
         if (stereo == 1)
         {
             tmp = getbits_crc(inputStream, 14, crc, info->error_protection);
-            si->main_data_begin = mask_and_shift(tmp, 18, 23);    /* 9 */
-            si->private_bits    = mask_and_shift(tmp, 23, 27);    /* 5 */
+            si->main_data_begin = (tmp << 18) >> 23;    /* 9 */
+            si->private_bits    = (tmp << 23) >> 27;    /* 5 */
         }
         else
         {
             tmp = getbits_crc(inputStream, 12, crc, info->error_protection);
-            si->main_data_begin = mask_and_shift(tmp, 20, 23);    /* 9 */
-            si->private_bits    = mask_and_shift(tmp, 23, 29);    /* 3 */
+            si->main_data_begin = (tmp << 20) >> 23;    /* 9 */
+            si->private_bits    = (tmp << 23) >> 29;    /* 3 */
 
         }
 
         for (ch = 0; ch < stereo; ch++)
         {
             tmp = getbits_crc(inputStream, 4, crc, info->error_protection);
-            si->ch[ch].scfsi[0] = mask_and_shift(tmp, 28, 31);    /* 1 */
-            si->ch[ch].scfsi[1] = mask_and_shift(tmp, 29, 31);    /* 1 */
-            si->ch[ch].scfsi[2] = mask_and_shift(tmp, 30, 31);    /* 1 */
+            si->ch[ch].scfsi[0] = (tmp << 28) >> 31;    /* 1 */
+            si->ch[ch].scfsi[1] = (tmp << 29) >> 31;    /* 1 */
+            si->ch[ch].scfsi[2] = (tmp << 30) >> 31;    /* 1 */
             si->ch[ch].scfsi[3] =  tmp & 1;         /* 1 */
         }
 
@@ -153,24 +153,24 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
                 si->ch[ch].gran[gr].part2_3_length    = getbits_crc(inputStream, 12, crc, info->error_protection);
                 tmp = getbits_crc(inputStream, 22, crc, info->error_protection);
 
-                si->ch[ch].gran[gr].big_values            = mask_and_shift(tmp, 10, 23);   /* 9 */
-                si->ch[ch].gran[gr].global_gain           = mask_and_shift(tmp, 19, 24) - 210;   /* 8 */
-                si->ch[ch].gran[gr].scalefac_compress     = mask_and_shift(tmp, 27, 28);   /* 4 */
+                si->ch[ch].gran[gr].big_values            = (tmp << 10) >> 23;   /* 9 */
+                si->ch[ch].gran[gr].global_gain           = ((tmp << 19) >> 24) - 210;   /* 8 */
+                si->ch[ch].gran[gr].scalefac_compress     = (tmp << 27) >> 28;   /* 4 */
                 si->ch[ch].gran[gr].window_switching_flag = tmp & 1;         /* 1 */
 
                 if (si->ch[ch].gran[gr].window_switching_flag)
                 {
                     tmp = getbits_crc(inputStream, 22, crc, info->error_protection);
 
-                    si->ch[ch].gran[gr].block_type       = mask_and_shift(tmp, 10, 30);   /* 2 */;
-                    si->ch[ch].gran[gr].mixed_block_flag = mask_and_shift(tmp, 12, 31);   /* 1 */;
+                    si->ch[ch].gran[gr].block_type       = (tmp << 10) >> 30;   /* 2 */;
+                    si->ch[ch].gran[gr].mixed_block_flag = (tmp << 12) >> 31;   /* 1 */;
 
-                    si->ch[ch].gran[gr].table_select[0]  = mask_and_shift(tmp, 13, 27);   /* 5 */;
-                    si->ch[ch].gran[gr].table_select[1]  = mask_and_shift(tmp, 18, 27);   /* 5 */;
+                    si->ch[ch].gran[gr].table_select[0]  = (tmp << 13) >> 27;   /* 5 */;
+                    si->ch[ch].gran[gr].table_select[1]  = (tmp << 18) >> 27;   /* 5 */;
 
-                    si->ch[ch].gran[gr].subblock_gain[0] = mask_and_shift(tmp, 23, 29);   /* 3 */;
-                    si->ch[ch].gran[gr].subblock_gain[1] = mask_and_shift(tmp, 26, 29);   /* 3 */;
-                    si->ch[ch].gran[gr].subblock_gain[2] = mask_and_shift(tmp, 29, 29);   /* 3 */;
+                    si->ch[ch].gran[gr].subblock_gain[0] = (tmp << 23) >> 29;   /* 3 */;
+                    si->ch[ch].gran[gr].subblock_gain[1] = (tmp << 26) >> 29;   /* 3 */;
+                    si->ch[ch].gran[gr].subblock_gain[2] = (tmp << 29) >> 29;   /* 3 */;
 
                     /* Set region_count parameters since they are implicit in this case. */
 
@@ -194,19 +194,19 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
                 {
                     tmp = getbits_crc(inputStream, 22, crc, info->error_protection);
 
-                    si->ch[ch].gran[gr].table_select[0] = mask_and_shift(tmp, 10, 27);   /* 5 */;
-                    si->ch[ch].gran[gr].table_select[1] = mask_and_shift(tmp, 15, 27);   /* 5 */;
-                    si->ch[ch].gran[gr].table_select[2] = mask_and_shift(tmp, 20, 27);   /* 5 */;
+                    si->ch[ch].gran[gr].table_select[0] = (tmp << 10) >> 27;   /* 5 */;
+                    si->ch[ch].gran[gr].table_select[1] = (tmp << 15) >> 27;   /* 5 */;
+                    si->ch[ch].gran[gr].table_select[2] = (tmp << 20) >> 27;   /* 5 */;
 
-                    si->ch[ch].gran[gr].region0_count   = mask_and_shift(tmp, 25, 28);   /* 4 */;
-                    si->ch[ch].gran[gr].region1_count   = mask_and_shift(tmp, 29, 29);   /* 3 */;
+                    si->ch[ch].gran[gr].region0_count   = (tmp << 25) >> 28;   /* 4 */;
+                    si->ch[ch].gran[gr].region1_count   = (tmp << 29) >> 29;   /* 3 */;
 
                     si->ch[ch].gran[gr].block_type      = 0;
                 }
 
                 tmp = getbits_crc(inputStream, 3, crc, info->error_protection);
-                si->ch[ch].gran[gr].preflag            = mask_and_shift(tmp, 29, 31);    /* 1 */
-                si->ch[ch].gran[gr].scalefac_scale     = mask_and_shift(tmp, 30, 31);    /* 1 */
+                si->ch[ch].gran[gr].preflag            = (tmp << 29) >> 31;    /* 1 */
+                si->ch[ch].gran[gr].scalefac_scale     = (tmp << 30) >> 31;    /* 1 */
                 si->ch[ch].gran[gr].count1table_select =  tmp & 1;         /* 1 */
             }
         }
@@ -219,12 +219,12 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
         for (ch = 0; ch < stereo; ch++)
         {
             tmp = getbits_crc(inputStream, 21, crc, info->error_protection);
-            si->ch[ch].gran[0].part2_3_length    = mask_and_shift(tmp, 11, 20);   /* 12 */
-            si->ch[ch].gran[0].big_values        = mask_and_shift(tmp, 23, 23);   /*  9 */
+            si->ch[ch].gran[0].part2_3_length    = (tmp << 11) >> 20;  /* 12 */
+            si->ch[ch].gran[0].big_values        = (tmp << 23) >> 23;  /*  9 */
 
             tmp = getbits_crc(inputStream, 18, crc, info->error_protection);
-            si->ch[ch].gran[0].global_gain           = mask_and_shift(tmp, 14, 24) - 210;   /* 8 */
-            si->ch[ch].gran[0].scalefac_compress     = mask_and_shift(tmp, 22, 23);   /* 9 */
+            si->ch[ch].gran[0].global_gain           = ((tmp << 14) >> 24) - 210;   /* 8 */
+            si->ch[ch].gran[0].scalefac_compress     = (tmp << 22) >> 23;   /* 9 */
             si->ch[ch].gran[0].window_switching_flag = tmp & 1;         /* 1 */
 
             if (si->ch[ch].gran[0].window_switching_flag)
@@ -232,15 +232,15 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
 
                 tmp = getbits_crc(inputStream, 22, crc, info->error_protection);
 
-                si->ch[ch].gran[0].block_type       = mask_and_shift(tmp, 10, 30);   /* 2 */;
-                si->ch[ch].gran[0].mixed_block_flag = mask_and_shift(tmp, 12, 31);   /* 1 */;
+                si->ch[ch].gran[0].block_type       = (tmp << 10) >> 30;   /* 2 */;
+                si->ch[ch].gran[0].mixed_block_flag = (tmp << 12) >> 31;   /* 1 */;
 
-                si->ch[ch].gran[0].table_select[0]  =  mask_and_shift(tmp, 13, 27);   /* 5 */;
-                si->ch[ch].gran[0].table_select[1]  =  mask_and_shift(tmp, 18, 27);   /* 5 */;
+                si->ch[ch].gran[0].table_select[0]  = (tmp << 13) >> 27;   /* 5 */;
+                si->ch[ch].gran[0].table_select[1]  = (tmp << 18) >> 27;   /* 5 */;
 
-                si->ch[ch].gran[0].subblock_gain[0] =  mask_and_shift(tmp, 23, 29);   /* 3 */;
-                si->ch[ch].gran[0].subblock_gain[1] =  mask_and_shift(tmp, 26, 29);   /* 3 */;
-                si->ch[ch].gran[0].subblock_gain[2] =  mask_and_shift(tmp, 29, 29);   /* 3 */;
+                si->ch[ch].gran[0].subblock_gain[0] = (tmp << 23) >> 29;   /* 3 */;
+                si->ch[ch].gran[0].subblock_gain[1] = (tmp << 26) >> 29;   /* 3 */;
+                si->ch[ch].gran[0].subblock_gain[2] = (tmp << 29) >> 29;   /* 3 */;
 
                 /* Set region_count parameters since they are implicit in this case. */
 
@@ -264,12 +264,12 @@ ERROR_CODE pvmp3_get_side_info(tmp3Bits    *inputStream,
             {
                 tmp = getbits_crc(inputStream, 22, crc, info->error_protection);
 
-                si->ch[ch].gran[0].table_select[0] =  mask_and_shift(tmp, 10, 27);   /* 5 */;
-                si->ch[ch].gran[0].table_select[1] =  mask_and_shift(tmp, 15, 27);   /* 5 */;
-                si->ch[ch].gran[0].table_select[2] =  mask_and_shift(tmp, 20, 27);   /* 5 */;
+                si->ch[ch].gran[0].table_select[0] = (tmp << 10) >> 27;   /* 5 */;
+                si->ch[ch].gran[0].table_select[1] = (tmp << 15) >> 27;   /* 5 */;
+                si->ch[ch].gran[0].table_select[2] = (tmp << 20) >> 27;   /* 5 */;
 
-                si->ch[ch].gran[0].region0_count   =  mask_and_shift(tmp, 25, 28);   /* 4 */;
-                si->ch[ch].gran[0].region1_count   =  mask_and_shift(tmp, 29, 29);   /* 3 */;
+                si->ch[ch].gran[0].region0_count   = (tmp << 25) >> 28;   /* 4 */;
+                si->ch[ch].gran[0].region1_count   = (tmp << 29) >> 29;   /* 3 */;
 
                 si->ch[ch].gran[0].block_type      = 0;
             }
