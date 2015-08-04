@@ -674,7 +674,10 @@ MediaBuffer *FLACParser::readBuffer(bool doSeek, FLAC__uint64 sample)
     if (mWriteHeader.sample_rate != getSampleRate() ||
         mWriteHeader.channels != getChannels() ||
         mWriteHeader.bits_per_sample != getBitsPerSample()) {
-        ALOGE("FLACParser::readBuffer write changed parameters mid-stream");
+        ALOGE("FLACParser::readBuffer write changed parameters mid-stream: %d/%d/%d -> %d/%d/%d",
+                getSampleRate(), getChannels(), getBitsPerSample(),
+                mWriteHeader.sample_rate, mWriteHeader.channels, mWriteHeader.bits_per_sample);
+        return NULL;
     }
     // acquire a media buffer
     CHECK(mGroup != NULL);
