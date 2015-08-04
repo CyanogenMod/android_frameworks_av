@@ -589,6 +589,11 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
     return mAudioTrackServerProxy->framesReleased();
 }
 
+void AudioFlinger::PlaybackThread::Track::onTimestamp(const AudioTimestamp &timestamp)
+{
+    mAudioTrackServerProxy->setTimestamp(timestamp);
+}
+
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
     if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
@@ -846,7 +851,7 @@ status_t AudioFlinger::PlaybackThread::Track::setParameters(const String8& keyVa
 
 status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& timestamp)
 {
-    // Client should implement this using SSQ; the unpresented frame count in latch is irrelevant
+    // FastTrack timestamps are read through SSQ
     if (isFastTrack()) {
         return INVALID_OPERATION;
     }

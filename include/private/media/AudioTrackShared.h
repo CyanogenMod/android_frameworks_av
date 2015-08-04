@@ -119,7 +119,10 @@ struct AudioTrackSharedStatic {
 
 typedef SingleStateQueue<AudioPlaybackRate> PlaybackRateQueue;
 
+
 typedef SingleStateQueue<ExtendedTimestamp> ExtendedTimestampQueue;
+
+typedef SingleStateQueue<AudioTimestamp> TimestampQueue;
 
 // ----------------------------------------------------------------------------
 
@@ -175,7 +178,9 @@ private:
                 uint16_t    mPad2;           // unused
 
                 // server write-only, client read
-                ExtendedTimestampQueue::Shared mExtendedTimestampQueue;
+                ExtendedTimestampQueue::Shared mExtendedTimestampQueue; // capture
+                TimestampQueue::Shared mTimestampQueue; // playback
+
 public:
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
@@ -333,7 +338,10 @@ public:
             size_t frameSize, bool clientInServer = false)
         : ClientProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/,
           clientInServer),
-          mPlaybackRateMutator(&cblk->mPlaybackRateQueue) { }
+          mPlaybackRateMutator(&cblk->mPlaybackRateQueue),
+          mTimestampObserver(&cblk->mTimestampQueue) {
+    }
+
     virtual ~AudioTrackClientProxy() { }
 
     // No barriers on the following operations, so the ordering of loads/stores
@@ -357,6 +365,20 @@ public:
         mPlaybackRateMutator.push(playbackRate);
     }
 
+    status_t    getTimestamp(AudioTimestamp *timestamp) {
+        if (timestamp == nullptr) {
+            return BAD_VALUE;
+        }
+        (void) mTimestampObserver.poll(mTimestamp);
+        // if no data is pushed by server, mTimestamp should be initialized by its constructor
+        // to all zero elements.
+        if (mTimestamp.mTime.tv_sec == 0 && mTimestamp.mTime.tv_nsec == 0) {
+            return WOULD_BLOCK;
+        }
+        *timestamp = mTimestamp;
+        return OK;
+    }
+
     virtual void flush();
 
     virtual uint32_t    getUnderrunFrames() const {
@@ -374,6 +396,8 @@ public:
 
 private:
     PlaybackRateQueue::Mutator   mPlaybackRateMutator;
+    TimestampQueue::Observer mTimestampObserver;
+    AudioTimestamp mTimestamp;
 };
 
 class StaticAudioTrackClientProxy : public AudioTrackClientProxy {
@@ -522,7 +546,8 @@ public:
             size_t frameSize, bool clientInServer = false, uint32_t sampleRate = 0)
         : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer),
           mPlaybackRateObserver(&cblk->mPlaybackRateQueue),
-          mUnderrunCount(0), mUnderrunning(false) {
+          mUnderrunCount(0), mUnderrunning(false),
+          mTimestampMutator(&cblk->mTimestampQueue) {
         mCblk->mSampleRate = sampleRate;
         mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
     }
@@ -562,6 +587,11 @@ public:
     // Return the playback speed and pitch read atomically. Not multi-thread safe on server side.
     AudioPlaybackRate getPlaybackRate();
 
+    // Expose timestamp to client proxy. Should only be called by a single thread.
+                   void setTimestamp(const AudioTimestamp &timestamp) {
+                       mTimestampMutator.push(timestamp);
+                   }
+
 private:
     AudioPlaybackRate             mPlaybackRate;  // last observed playback rate
     PlaybackRateQueue::Observer   mPlaybackRateObserver;
@@ -569,6 +599,8 @@ private:
     // The server keeps a copy here where it is safe from the client.
     uint32_t                      mUnderrunCount; // echoed to mCblk
     bool                          mUnderrunning;  // used to detect edge of underrun
+
+    TimestampQueue::Mutator       mTimestampMutator;
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {
