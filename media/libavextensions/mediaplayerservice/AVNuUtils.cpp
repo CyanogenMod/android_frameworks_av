@@ -61,6 +61,9 @@ bool AVNuUtils::isRAWFormat(const sp<AMessage> &) {
     return false;
 }
 
+bool AVNuUtils::isVorbisFormat(const sp<MetaData> &) {
+    return false;
+}
 
 int AVNuUtils::updateAudioBitWidth(audio_format_t /*audioFormat*/,
         const sp<AMessage> &){

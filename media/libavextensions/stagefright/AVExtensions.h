@@ -35,13 +35,15 @@
 
 namespace android {
 
-struct ACodec;
-class MediaExtractor;
-struct MediaCodec;
 class AudioParameter;
-struct NuCachedSource2;
-struct MediaHTTP;
+class MetaData;
+class MediaExtractor;
+struct ACodec;
+struct ALooper;
 struct IMediaHTTPConnection;
+struct MediaCodec;
+struct MediaHTTP;
+struct NuCachedSource2;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -74,6 +76,7 @@ struct AVUtils {
 
     virtual sp<MediaCodec> createCustomComponentByName(const sp<ALooper> &looper,
                 const char* mime, bool encoder);
+    virtual bool isEnhancedExtension(const char *extension);
 
     virtual bool is24bitPCMOffloadEnabled();
     virtual bool is16bitPCMOffloadEnabled();

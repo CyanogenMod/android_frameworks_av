@@ -69,6 +69,7 @@ struct AVNuUtils {
     virtual bool pcmOffloadException(const sp<MetaData> &);
     virtual bool isRAWFormat(const sp<MetaData> &);
     virtual bool isRAWFormat(const sp<AMessage> &);
+    virtual bool isVorbisFormat(const sp<MetaData> &);
     virtual int updateAudioBitWidth(audio_format_t audioFormat,
             const sp<AMessage> &);
     virtual audio_format_t getKeyPCMFormat(const sp<MetaData> &);

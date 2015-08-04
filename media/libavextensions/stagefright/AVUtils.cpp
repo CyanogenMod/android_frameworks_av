@@ -105,6 +105,10 @@ bool AVUtils::canOffloadAPE(const sp<MetaData> &meta) {
    return true;
 }
 
+bool AVUtils::isEnhancedExtension(const char *) {
+    return false;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVUtils::AVUtils() {
 }

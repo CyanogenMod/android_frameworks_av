@@ -44,6 +44,7 @@ protected:
     virtual void onShutdown(bool notifyComplete);
     virtual bool doRequestBuffers();
     virtual void setPcmFormat(const sp<AMessage> & /*format*/) {}
+    virtual sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
 
     enum {
         kWhatBufferConsumed     = 'bufC',
@@ -51,17 +52,18 @@ protected:
 
     sp<Source> mSource;
     sp<Renderer> mRenderer;
+    size_t mAggregateBufferSizeBytes;
     int64_t mSkipRenderingUntilMediaTimeUs;
     bool mPaused;
-
-    bool    mReachedEOS;
+    bool mReachedEOS;
 
     // Used by feedDecoderInputData to aggregate small buffers into
     // one large buffer.
+    status_t mPendingAudioErr;
     sp<ABuffer> mPendingAudioAccessUnit;
-    status_t    mPendingAudioErr;
     sp<ABuffer> mAggregateBuffer;
 
+private:
     // mPendingBuffersToDrain are only for debugging. It can be removed
     // when the power investigation is done.
     size_t  mPendingBuffersToDrain;
@@ -72,7 +74,6 @@ protected:
     bool isDoneFetching() const;
 
     status_t dequeueAccessUnit(sp<ABuffer> *accessUnit);
-    sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
     status_t fetchInputData(sp<AMessage> &reply);
     void doFlush(bool notifyComplete);
 
