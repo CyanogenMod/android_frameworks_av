@@ -315,7 +315,7 @@ private:
             return mSize <= sizeof(u.reservoir);
         }
 
-        void allocateStorage(size_t size);
+        void *allocateStorage(size_t size);
         void freeStorage();
 
         void *storage() {
