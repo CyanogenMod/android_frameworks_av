@@ -698,6 +698,14 @@ bool MtpDevice::readObject(MtpObjectHandle handle, const char* destPath, int gro
     fchmod(fd, perm);
     umask(mask);
 
+    bool result = readObject(handle, fd);
+    ::close(fd);
+    return result;
+}
+
+bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
+    ALOGD("readObject: %d", fd);
+
     Mutex::Autolock autoLock(mMutex);
     bool result = false;
 
@@ -779,7 +787,6 @@ bool MtpDevice::readObject(MtpObjectHandle handle, const char* destPath, int gro
     }
 
 fail:
-    ::close(fd);
     return result;
 }
 
