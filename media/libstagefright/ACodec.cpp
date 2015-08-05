@@ -6376,6 +6376,11 @@ bool ACodec::ExecutingState::onOMXEvent(
                 mCodec->changeState(mCodec->mOutputPortSettingsChangedState);
             } else if (data2 == OMX_IndexConfigCommonOutputCrop) {
                 mCodec->mSentFormat = false;
+
+                if (mCodec->mTunneled) {
+                    sp<AMessage> dummy = new AMessage(kWhatOutputBufferDrained, mCodec);
+                    mCodec->sendFormatChange(dummy);
+                }
             } else {
                 ALOGV("[%s] OMX_EventPortSettingsChanged 0x%08x",
                      mCodec->mComponentName.c_str(), data2);
