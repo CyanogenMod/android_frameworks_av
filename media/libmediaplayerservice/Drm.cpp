@@ -46,7 +46,6 @@ static bool checkPermission(const char* permissionString) {
 KeyedVector<Vector<uint8_t>, String8> Drm::mUUIDToLibraryPathMap;
 KeyedVector<String8, wp<SharedLibrary> > Drm::mLibraryPathToOpenLibraryMap;
 Mutex Drm::mMapLock;
-Mutex Drm::mLock;
 
 static bool operator<(const Vector<uint8_t> &lhs, const Vector<uint8_t> &rhs) {
     if (lhs.size() < rhs.size()) {
