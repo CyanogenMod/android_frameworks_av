@@ -225,10 +225,19 @@ void SoftwareRenderer::render(
 
         uint8_t *dst_y = (uint8_t *)dst;
         size_t dst_y_size = buf->stride * buf->height;
+
+#ifdef EXYNOS4_ENHANCEMENTS
+        size_t dst_c_stride = buf->stride / 2;
+        size_t dst_c_size = dst_c_stride * buf->height / 2;
+        size_t dst_c_size_aligned = ALIGN(buf->stride / 2, 16) * buf->height / 2;
+        uint8_t *dst_v = dst_y + dst_y_size;
+        uint8_t *dst_u = dst_v + dst_c_size_aligned;
+#else
         size_t dst_c_stride = ALIGN(buf->stride / 2, 16);
         size_t dst_c_size = dst_c_stride * buf->height / 2;
         uint8_t *dst_v = dst_y + dst_y_size;
         uint8_t *dst_u = dst_v + dst_c_size;
+#endif
 
         for (int y = 0; y < mCropHeight; ++y) {
             memcpy(dst_y, src_y, mCropWidth);
