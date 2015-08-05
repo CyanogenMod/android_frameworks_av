@@ -154,6 +154,8 @@ private:
     int32_t mVideoDecoderGeneration;
     int32_t mRendererGeneration;
 
+    int64_t mPreviousSeekTimeUs;
+
     List<sp<Action> > mDeferredActions;
 
     bool mAudioEOS;

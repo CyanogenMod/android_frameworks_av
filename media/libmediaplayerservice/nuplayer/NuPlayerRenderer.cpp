@@ -1586,16 +1586,15 @@ void NuPlayer::Renderer::onAudioTearDown(AudioTearDownReason reason) {
     mAudioTornDown = true;
 
     int64_t currentPositionUs;
-    if (getCurrentPosition(&currentPositionUs) != OK) {
-        currentPositionUs = 0;
+    sp<AMessage> notify = mNotify->dup();
+    if (getCurrentPosition(&currentPositionUs) == OK) {
+        notify->setInt64("positionUs", currentPositionUs);
     }
 
     mAudioSink->stop();
     mAudioSink->flush();
 
-    sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatAudioTearDown);
-    notify->setInt64("positionUs", currentPositionUs);
     notify->setInt32("reason", reason);
     notify->post();
 }
