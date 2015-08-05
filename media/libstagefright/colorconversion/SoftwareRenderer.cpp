@@ -261,8 +261,14 @@ std::list<FrameRenderTracker::Info> SoftwareRenderer::render(
 
         uint8_t *dst_y = (uint8_t *)dst;
         size_t dst_y_size = buf->stride * buf->height;
+
+#ifdef EXYNOS4_ENHANCEMENTS
+        size_t dst_c_stride = buf->stride / 2;
+        size_t dst_c_size = ALIGN(dst_c_stride, 16) * buf->height / 2;
+#else
         size_t dst_c_stride = ALIGN(buf->stride / 2, 16);
         size_t dst_c_size = dst_c_stride * buf->height / 2;
+#endif
         uint8_t *dst_v = dst_y + dst_y_size;
         uint8_t *dst_u = dst_v + dst_c_size;
 
