@@ -35,7 +35,8 @@ namespace android {
 SpdifStreamOut::SpdifStreamOut(AudioHwDevice *dev,
             audio_output_flags_t flags,
             audio_format_t format)
-        : AudioStreamOut(dev,flags)
+        // Tell the HAL that the data will be compressed audio wrapped in a data burst.
+        : AudioStreamOut(dev, (audio_output_flags_t) (flags | AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO))
         , mSpdifEncoder(this, format)
         , mApplicationFormat(AUDIO_FORMAT_DEFAULT)
         , mApplicationSampleRate(0)
