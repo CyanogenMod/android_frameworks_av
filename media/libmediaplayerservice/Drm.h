@@ -134,7 +134,7 @@ struct Drm : public BnDrm,
     virtual void binderDied(const wp<IBinder> &the_late_who);
 
 private:
-    static Mutex mLock;
+    mutable Mutex mLock;
 
     status_t mInitCheck;
 
