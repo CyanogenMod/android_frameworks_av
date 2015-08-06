@@ -525,11 +525,11 @@ status_t MPEG4Extractor::readMetaData() {
     CHECK_NE(err, (status_t)NO_INIT);
 
     // copy pssh data into file metadata
-    int psshsize = 0;
+    uint64_t psshsize = 0;
     for (size_t i = 0; i < mPssh.size(); i++) {
         psshsize += 20 + mPssh[i].datalen;
     }
-    if (psshsize) {
+    if (psshsize > 0 && psshsize <= UINT32_MAX) {
         char *buf = (char*)malloc(psshsize);
         char *ptr = buf;
         for (size_t i = 0; i < mPssh.size(); i++) {
@@ -1138,7 +1138,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
             pssh.datalen = ntohl(psshdatalen);
             ALOGV("pssh data size: %d", pssh.datalen);
-            if (pssh.datalen + 20 > chunk_size) {
+            if (chunk_size < 20 || pssh.datalen > chunk_size - 20) {
                 // pssh data length exceeds size of containing box
                 return ERROR_MALFORMED;
             }
