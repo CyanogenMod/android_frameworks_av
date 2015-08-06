@@ -51,7 +51,10 @@ struct NuCachedSource2;
 struct AVFactory {
     virtual sp<ACodec> createACodec();
     virtual MediaExtractor* createExtendedExtractor(
-            const sp<DataSource> &source, const char *mime);
+            const sp<DataSource> &source, const char *mime, sp<AMessage> *meta);
+    virtual sp<MediaExtractor> updateExtractor(
+            sp<MediaExtractor> ext, const sp<DataSource> &source,
+            const char *mime, sp<AMessage> *meta);
     virtual sp<NuCachedSource2> createCachedSource(
             const sp<DataSource> &source,
             const char *cacheConfig = NULL,

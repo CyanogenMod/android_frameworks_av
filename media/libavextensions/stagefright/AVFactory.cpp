@@ -53,8 +53,14 @@ sp<ACodec> AVFactory::createACodec() {
 }
 
 MediaExtractor* AVFactory::createExtendedExtractor(
-         const sp<DataSource> &, const char *) {
+         const sp<DataSource> &, const char *, sp<AMessage> *) {
     return NULL;
+}
+
+sp<MediaExtractor> AVFactory::updateExtractor(
+            sp<MediaExtractor> ext, const sp<DataSource> &,
+            const char *, sp<AMessage> *) {
+    return ext;
 }
 
 sp<NuCachedSource2> AVFactory::createCachedSource(
