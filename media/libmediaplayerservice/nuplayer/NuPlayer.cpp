@@ -174,6 +174,7 @@ NuPlayer::NuPlayer(pid_t pid)
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
+      mPreviousSeekTimeUs(0),
       mAudioEOS(false),
       mVideoEOS(false),
       mScanSourcesPending(false),
@@ -1114,7 +1115,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 int64_t positionUs;
-                CHECK(msg->findInt64("positionUs", &positionUs));
+                if (!msg->findInt64("positionUs", &positionUs)) {
+                    positionUs = mPreviousSeekTimeUs;
+                }
                 performSeek(positionUs);
 
                 if (reason == Renderer::kDueToError && needsToCreateAudioDecoder) {
@@ -1857,6 +1860,7 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
                 mAudioDecoder.get(), mVideoDecoder.get());
         return;
     }
+    mPreviousSeekTimeUs = seekTimeUs;
     mSource->seekTo(seekTimeUs);
     ++mTimedTextGeneration;
 
