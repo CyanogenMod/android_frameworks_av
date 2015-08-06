@@ -78,7 +78,8 @@ struct NuPlayer::Renderer : public AHandler {
             bool offloadOnly,
             bool hasVideo,
             uint32_t flags,
-            bool *isOffloaded);
+            bool *isOffloaded,
+            bool isStreaming);
     void closeAudioSink();
     void signalAudioTearDownComplete();
 
@@ -256,7 +257,8 @@ protected:
             const sp<AMessage> &format,
             bool offloadOnly,
             bool hasVideo,
-            uint32_t flags);
+            uint32_t flags,
+            bool isStreaming);
     void onCloseAudioSink();
     void onAudioTearDownComplete();
 
