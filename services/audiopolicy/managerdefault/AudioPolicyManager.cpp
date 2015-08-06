@@ -2854,8 +2854,12 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                     ssize_t index =
                             mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[k]);
                     // give a valid ID to an attached device once confirmed it is reachable
-                    if (index >= 0 && !mAvailableInputDevices[index]->isAttached()) {
-                        mAvailableInputDevices[index]->attach(mHwModules[i]);
+                    if (index >= 0) {
+                        sp<DeviceDescriptor> devDesc = mAvailableInputDevices[index];
+                        if (!devDesc->isAttached()) {
+                            devDesc->attach(mHwModules[i]);
+                            devDesc->importAudioPort(inProfile);
+                        }
                     }
                 }
                 mpClientInterface->closeInput(input);
