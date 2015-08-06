@@ -80,7 +80,8 @@ struct NuPlayer::Renderer : public AHandler {
             bool offloadOnly,
             bool hasVideo,
             uint32_t flags,
-            bool *isOffloaded);
+            bool *isOffloaded,
+            bool isStreaming);
     void closeAudioSink();
 
     enum {
@@ -251,7 +252,8 @@ protected:
             const sp<AMessage> &format,
             bool offloadOnly,
             bool hasVideo,
-            uint32_t flags);
+            uint32_t flags,
+            bool isStreaming);
     void onCloseAudioSink();
 
     void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);

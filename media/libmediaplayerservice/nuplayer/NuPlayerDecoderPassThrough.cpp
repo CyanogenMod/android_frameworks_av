@@ -77,7 +77,7 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     // format is different.
     status_t err = mRenderer->openAudioSink(
             format, true /* offloadOnly */, hasVideo,
-            AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */);
+            AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */, mSource->isStreaming());
     if (err != OK) {
         handleError(err);
     }

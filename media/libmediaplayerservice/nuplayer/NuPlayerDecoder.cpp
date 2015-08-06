@@ -640,7 +640,7 @@ void NuPlayer::Decoder::handleOutputFormatChange(const sp<AMessage> &format) {
         }
 
         mRenderer->openAudioSink(
-                format, false /* offloadOnly */, hasVideo, flags, NULL /* isOffloaed */);
+                format, false /* offloadOnly */, hasVideo, flags, NULL /* isOffloaed */, mSource->isStreaming());
     }
 }
 
