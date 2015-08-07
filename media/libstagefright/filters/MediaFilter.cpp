@@ -773,7 +773,7 @@ void MediaFilter::onInputFrameAvailable() {
     convertRGBAToARGB(
             (uint8_t*)bufPtr, buf->getWidth(), buf->getHeight(),
             buf->getStride(), inputInfo->mData->data());
-    inputInfo->mBufferID = item.mBuf;
+    inputInfo->mBufferID = item.mSlot;
     inputInfo->mGeneration = mGeneration;
     inputInfo->mOutputFlags = 0;
     inputInfo->mStatus = BufferInfo::OWNED_BY_US;

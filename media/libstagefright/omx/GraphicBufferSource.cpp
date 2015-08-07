@@ -64,19 +64,19 @@ void GraphicBufferSource::PersistentProxyListener::onFrameAvailable(
             return;
         }
 
-        err = consumer->detachBuffer(bi.mBuf);
+        err = consumer->detachBuffer(bi.mSlot);
         if (err != OK) {
             ALOGE("PersistentProxyListener: detachBuffer failed (%d)", err);
             return;
         }
 
-        err = consumer->attachBuffer(&bi.mBuf, bi.mGraphicBuffer);
+        err = consumer->attachBuffer(&bi.mSlot, bi.mGraphicBuffer);
         if (err != OK) {
             ALOGE("PersistentProxyListener: attachBuffer failed (%d)", err);
             return;
         }
 
-        err = consumer->releaseBuffer(bi.mBuf, 0,
+        err = consumer->releaseBuffer(bi.mSlot, 0,
                 EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, bi.mFence);
         if (err != OK) {
             ALOGE("PersistentProxyListener: releaseBuffer failed (%d)", err);
@@ -382,7 +382,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int f
     // Find matching entry in our cached copy of the BufferQueue slots.
     // If we find a match, release that slot.  If we don't, the BufferQueue
     // has dropped that GraphicBuffer, and there's nothing for us to release.
-    int id = codecBuffer.mBuf;
+    int id = codecBuffer.mSlot;
     sp<Fence> fence = new Fence(fenceFd);
     if (mBufferSlot[id] != NULL &&
         mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
@@ -476,7 +476,7 @@ void GraphicBufferSource::suspend(bool suspend) {
             ++mNumBufferAcquired;
             --mNumFramesAvailable;
 
-            releaseBuffer(item.mBuf, item.mFrameNumber,
+            releaseBuffer(item.mSlot, item.mFrameNumber,
                     item.mGraphicBuffer, item.mFence);
         }
         return;
@@ -530,8 +530,8 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
     // If this is the first time we're seeing this buffer, add it to our
     // slot table.
     if (item.mGraphicBuffer != NULL) {
-        ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mBuf);
-        mBufferSlot[item.mBuf] = item.mGraphicBuffer;
+        ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mSlot);
+        mBufferSlot[item.mSlot] = item.mGraphicBuffer;
     }
 
     err = UNKNOWN_ERROR;
@@ -557,10 +557,10 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
     }
 
     if (err != OK) {
-        ALOGV("submitBuffer_l failed, releasing bq buf %d", item.mBuf);
-        releaseBuffer(item.mBuf, item.mFrameNumber, item.mGraphicBuffer, item.mFence);
+        ALOGV("submitBuffer_l failed, releasing bq slot %d", item.mSlot);
+        releaseBuffer(item.mSlot, item.mFrameNumber, item.mGraphicBuffer, item.mFence);
     } else {
-        ALOGV("buffer submitted (bq %d, cbi %d)", item.mBuf, cbi);
+        ALOGV("buffer submitted (bq %d, cbi %d)", item.mSlot, cbi);
         setLatestBuffer_l(item, dropped);
     }
 
@@ -600,7 +600,7 @@ bool GraphicBufferSource::repeatLatestBuffer_l() {
     }
 
     BufferItem item;
-    item.mBuf = mLatestBufferId;
+    item.mSlot = mLatestBufferId;
     item.mFrameNumber = mLatestBufferFrameNum;
     item.mTimestamp = mRepeatLastFrameTimestamp;
     item.mFence = mLatestBufferFence;
@@ -642,7 +642,7 @@ void GraphicBufferSource::setLatestBuffer_l(
         }
     }
 
-    mLatestBufferId = item.mBuf;
+    mLatestBufferId = item.mSlot;
     mLatestBufferFrameNum = item.mFrameNumber;
     mRepeatLastFrameTimestamp = item.mTimestamp + mRepeatAfterUs * 1000;
 
@@ -754,8 +754,8 @@ status_t GraphicBufferSource::submitBuffer_l(const BufferItem &item, int cbi) {
     }
 
     CodecBuffer& codecBuffer(mCodecBuffers.editItemAt(cbi));
-    codecBuffer.mGraphicBuffer = mBufferSlot[item.mBuf];
-    codecBuffer.mBuf = item.mBuf;
+    codecBuffer.mGraphicBuffer = mBufferSlot[item.mSlot];
+    codecBuffer.mSlot = item.mSlot;
     codecBuffer.mFrameNumber = item.mFrameNumber;
 
     OMX_BUFFERHEADERTYPE* header = codecBuffer.mHeader;
@@ -880,11 +880,11 @@ void GraphicBufferSource::onFrameAvailable(const BufferItem& /*item*/) {
             // If this is the first time we're seeing this buffer, add it to our
             // slot table.
             if (item.mGraphicBuffer != NULL) {
-                ALOGV("onFrameAvailable: setting mBufferSlot %d", item.mBuf);
-                mBufferSlot[item.mBuf] = item.mGraphicBuffer;
+                ALOGV("onFrameAvailable: setting mBufferSlot %d", item.mSlot);
+                mBufferSlot[item.mSlot] = item.mGraphicBuffer;
             }
 
-            releaseBuffer(item.mBuf, item.mFrameNumber,
+            releaseBuffer(item.mSlot, item.mFrameNumber,
                     item.mGraphicBuffer, item.mFence);
         }
         return;

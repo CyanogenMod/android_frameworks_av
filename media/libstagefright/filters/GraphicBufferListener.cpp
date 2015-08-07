@@ -101,11 +101,11 @@ BufferItem GraphicBufferListener::getBufferItem() {
     if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
         // shouldn't happen, since we track num frames available
         ALOGE("frame was not available");
-        item.mBuf = -1;
+        item.mSlot = -1;
         return item;
     } else if (err != OK) {
         ALOGE("acquireBuffer returned err=%d", err);
-        item.mBuf = -1;
+        item.mSlot = -1;
         return item;
     }
 
@@ -119,8 +119,8 @@ BufferItem GraphicBufferListener::getBufferItem() {
     // If this is the first time we're seeing this buffer, add it to our
     // slot table.
     if (item.mGraphicBuffer != NULL) {
-        ALOGV("setting mBufferSlot %d", item.mBuf);
-        mBufferSlot[item.mBuf] = item.mGraphicBuffer;
+        ALOGV("setting mBufferSlot %d", item.mSlot);
+        mBufferSlot[item.mSlot] = item.mGraphicBuffer;
     }
 
     return item;
@@ -128,24 +128,24 @@ BufferItem GraphicBufferListener::getBufferItem() {
 
 sp<GraphicBuffer> GraphicBufferListener::getBuffer(BufferItem item) {
     sp<GraphicBuffer> buf;
-    if (item.mBuf < 0 || item.mBuf >= BufferQueue::NUM_BUFFER_SLOTS) {
-        ALOGE("getBuffer() received invalid BufferItem: mBuf==%d", item.mBuf);
+    if (item.mSlot < 0 || item.mSlot >= BufferQueue::NUM_BUFFER_SLOTS) {
+        ALOGE("getBuffer() received invalid BufferItem: mSlot==%d", item.mSlot);
         return buf;
     }
 
-    buf = mBufferSlot[item.mBuf];
+    buf = mBufferSlot[item.mSlot];
     CHECK(buf.get() != NULL);
 
     return buf;
 }
 
 status_t GraphicBufferListener::releaseBuffer(BufferItem item) {
-    if (item.mBuf < 0 || item.mBuf >= BufferQueue::NUM_BUFFER_SLOTS) {
-        ALOGE("getBuffer() received invalid BufferItem: mBuf==%d", item.mBuf);
+    if (item.mSlot < 0 || item.mSlot >= BufferQueue::NUM_BUFFER_SLOTS) {
+        ALOGE("getBuffer() received invalid BufferItem: mSlot==%d", item.mSlot);
         return ERROR_OUT_OF_RANGE;
     }
 
-    mConsumer->releaseBuffer(item.mBuf, item.mFrameNumber,
+    mConsumer->releaseBuffer(item.mSlot, item.mFrameNumber,
             EGL_NO_DISPLAY, EGL_NO_SYNC_KHR, Fence::NO_FENCE);
 
     return OK;
