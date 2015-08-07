@@ -788,7 +788,7 @@ status_t StreamingProcessor::processRecordingFrame() {
                 return NO_MEMORY;
             }
             for (size_t i = 0; i < mRecordingBuffers.size(); i++) {
-                if (mRecordingBuffers[i].mBuf !=
+                if (mRecordingBuffers[i].mSlot !=
                         BufferItemConsumer::INVALID_BUFFER_SLOT) {
                     ALOGE("%s: Camera %d: Non-empty recording buffers list!",
                             __FUNCTION__, mId);
@@ -878,7 +878,7 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
     size_t itemIndex;
     for (itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
         const BufferItem item = mRecordingBuffers[itemIndex];
-        if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT &&
+        if (item.mSlot != BufferItemConsumer::INVALID_BUFFER_SLOT &&
                 item.mGraphicBuffer->getNativeBuffer() == payload->pBuffer) {
                 break;
         }
@@ -923,7 +923,7 @@ void StreamingProcessor::releaseAllRecordingFramesLocked() {
     size_t releasedCount = 0;
     for (size_t itemIndex = 0; itemIndex < mRecordingBuffers.size(); itemIndex++) {
         const BufferItem item = mRecordingBuffers[itemIndex];
-        if (item.mBuf != BufferItemConsumer::INVALID_BUFFER_SLOT) {
+        if (item.mSlot != BufferItemConsumer::INVALID_BUFFER_SLOT) {
             res = mRecordingConsumer->releaseBuffer(mRecordingBuffers[itemIndex]);
             if (res != OK) {
                 ALOGE("%s: Camera %d: Unable to free recording frame "

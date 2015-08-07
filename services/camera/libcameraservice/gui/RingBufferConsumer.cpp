@@ -229,7 +229,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
 
         // item.mGraphicBuffer was populated with the proper graphic-buffer
         // at acquire even if it was previously acquired
-        err = addReleaseFenceLocked(item.mBuf,
+        err = addReleaseFenceLocked(item.mSlot,
                 item.mGraphicBuffer, item.mFence);
 
         if (err != OK) {
@@ -244,7 +244,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
 
         // item.mGraphicBuffer was populated with the proper graphic-buffer
         // at acquire even if it was previously acquired
-        err = releaseBufferLocked(item.mBuf, item.mGraphicBuffer,
+        err = releaseBufferLocked(item.mSlot, item.mGraphicBuffer,
                                   EGL_NO_DISPLAY,
                                   EGL_NO_SYNC_KHR);
         if (err != OK) {
@@ -318,7 +318,7 @@ void RingBufferConsumer::onFrameAvailable(const BufferItem& item) {
 
         mLatestTimestamp = item.mTimestamp;
 
-        item.mGraphicBuffer = mSlots[item.mBuf].mGraphicBuffer;
+        item.mGraphicBuffer = mSlots[item.mSlot].mGraphicBuffer;
     } // end of mMutex lock
 
     ConsumerBase::onFrameAvailable(item);
@@ -335,7 +335,7 @@ void RingBufferConsumer::unpinBuffer(const BufferItem& item) {
 
         RingBufferItem& find = *it;
         if (item.mGraphicBuffer == find.mGraphicBuffer) {
-            status_t res = addReleaseFenceLocked(item.mBuf,
+            status_t res = addReleaseFenceLocked(item.mSlot,
                     item.mGraphicBuffer, item.mFence);
 
             if (res != OK) {
