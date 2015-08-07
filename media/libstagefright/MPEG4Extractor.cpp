@@ -2118,7 +2118,7 @@ status_t MPEG4Extractor::parseTrackHeader(
 }
 
 status_t MPEG4Extractor::parseMetaData(off64_t offset, size_t size) {
-    if (size < 4) {
+    if (size < 4 || size == SIZE_MAX) {
         return ERROR_MALFORMED;
     }
 
