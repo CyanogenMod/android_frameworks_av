@@ -2169,8 +2169,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 size = 0;
             }
 
-            if (SIZE_MAX - chunk_size <= size)
+            if ((chunk_size > SIZE_MAX) || (SIZE_MAX - chunk_size <= size)) {
                 return ERROR_MALFORMED;
+            }
 
             uint8_t *buffer = new (std::nothrow) uint8_t[size + chunk_size];
             if (buffer == NULL) {
