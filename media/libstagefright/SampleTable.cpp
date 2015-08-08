@@ -230,8 +230,13 @@ status_t SampleTable::setSampleToChunkParams(
         return ERROR_MALFORMED;
     }
 
+    if (SIZE_MAX / sizeof(SampleToChunkEntry) <= mNumSampleToChunkOffsets)
+        return ERROR_OUT_OF_RANGE;
+
     mSampleToChunkEntries =
-        new SampleToChunkEntry[mNumSampleToChunkOffsets];
+        new (std::nothrow) SampleToChunkEntry[mNumSampleToChunkOffsets];
+    if (!mSampleToChunkEntries)
+        return ERROR_OUT_OF_RANGE;
 
     for (uint32_t i = 0; i < mNumSampleToChunkOffsets; ++i) {
         uint8_t buffer[12];
@@ -330,7 +335,10 @@ status_t SampleTable::setTimeToSampleParams(
     }
 
     mTimeToSampleCount = U32_AT(&header[4]);
-    mTimeToSample = new uint32_t[mTimeToSampleCount * 2];
+    mTimeToSample = new (std::nothrow) uint32_t[mTimeToSampleCount * 2];
+    if (!mTimeToSample)
+        return ERROR_OUT_OF_RANGE;
+
 
     size_t size = sizeof(uint32_t) * mTimeToSampleCount * 2;
     if (mDataSource->readAt(
@@ -373,7 +381,10 @@ status_t SampleTable::setCompositionTimeToSampleParams(
     }
 
     mNumCompositionTimeDeltaEntries = numEntries;
-    mCompositionTimeDeltaEntries = new uint32_t[2 * numEntries];
+    mCompositionTimeDeltaEntries = new (std::nothrow) uint32_t[2 * numEntries];
+    if (!mCompositionTimeDeltaEntries)
+        return ERROR_OUT_OF_RANGE;
+
 
     if (mDataSource->readAt(
                 data_offset + 8, mCompositionTimeDeltaEntries, numEntries * 8)
@@ -418,7 +429,10 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
         ALOGV("Table of sync samples is empty or has only a single entry!");
     }
 
-    mSyncSamples = new uint32_t[mNumSyncSamples];
+    mSyncSamples = new (std::nothrow) uint32_t[mNumSyncSamples];
+    if (!mSyncSamples)
+        return ERROR_OUT_OF_RANGE;
+
     size_t size = mNumSyncSamples * sizeof(uint32_t);
     if (mDataSource->readAt(mSyncSampleOffset + 8, mSyncSamples, size)
             != (ssize_t)size) {
@@ -486,7 +500,9 @@ void SampleTable::buildSampleEntriesTable() {
         return;
     }
 
-    mSampleTimeEntries = new SampleTimeEntry[mNumSampleSizes];
+    mSampleTimeEntries = new (std::nothrow) SampleTimeEntry[mNumSampleSizes];
+    if (!mSampleTimeEntries)
+        return;
 
     uint32_t sampleIndex = 0;
     uint64_t sampleTime = 0;
