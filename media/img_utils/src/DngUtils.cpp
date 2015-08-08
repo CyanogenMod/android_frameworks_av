@@ -224,13 +224,7 @@ status_t OpcodeListBuilder::addGainMap(uint32_t top,
                                        uint32_t mapPlanes,
                                        const float* mapGains) {
 
-    uint32_t opcodeId = GAIN_MAP_ID;
-
-    status_t err = mEndianOut.write(&opcodeId, 0, 1);
-    if (err != OK) return err;
-
-    uint8_t version[] = {1, 3, 0, 0};
-    err = mEndianOut.write(version, 0, NELEMS(version));
+    status_t err = addOpcodePreamble(GAIN_MAP_ID);
     if (err != OK) return err;
 
     // Allow this opcode to be skipped if not supported
@@ -334,13 +328,7 @@ status_t OpcodeListBuilder::addWarpRectilinear(uint32_t numPlanes,
                                                double opticalCenterY,
                                                const double* kCoeffs) {
 
-    uint32_t opcodeId = WARP_RECTILINEAR_ID;
-
-    status_t err = mEndianOut.write(&opcodeId, 0, 1);
-    if (err != OK) return err;
-
-    uint8_t version[] = {1, 3, 0, 0};
-    err = mEndianOut.write(version, 0, NELEMS(version));
+    status_t err = addOpcodePreamble(WARP_RECTILINEAR_ID);
     if (err != OK) return err;
 
     // Allow this opcode to be skipped if not supported
@@ -370,6 +358,75 @@ status_t OpcodeListBuilder::addWarpRectilinear(uint32_t numPlanes,
 
     mCount++;
 
+    return OK;
+}
+
+status_t OpcodeListBuilder::addBadPixelListForMetadata(const uint32_t* hotPixels,
+                                                       uint32_t xyPairCount,
+                                                       uint32_t colorFilterArrangement) {
+    if (colorFilterArrangement > 3) {
+        ALOGE("%s:  Unknown color filter arrangement %" PRIu32, __FUNCTION__,
+                colorFilterArrangement);
+        return BAD_VALUE;
+    }
+
+    return addBadPixelList(colorFilterArrangement, xyPairCount, 0, hotPixels, nullptr);
+}
+
+status_t OpcodeListBuilder::addBadPixelList(uint32_t bayerPhase,
+                                            uint32_t badPointCount,
+                                            uint32_t badRectCount,
+                                            const uint32_t* badPointRowColPairs,
+                                            const uint32_t* badRectTopLeftBottomRightTuples) {
+
+    status_t err = addOpcodePreamble(FIX_BAD_PIXELS_LIST);
+    if (err != OK) return err;
+
+    // Allow this opcode to be skipped if not supported
+    uint32_t flags = FLAG_OPTIONAL;
+
+    err = mEndianOut.write(&flags, 0, 1);
+    if (err != OK) return err;
+
+    const uint32_t NUM_NON_VARLEN_FIELDS = 3;
+    const uint32_t SIZE_OF_POINT = 2;
+    const uint32_t SIZE_OF_RECT = 4;
+
+    uint32_t totalSize =  (NUM_NON_VARLEN_FIELDS  + badPointCount * SIZE_OF_POINT +
+            badRectCount * SIZE_OF_RECT) * sizeof(uint32_t);
+    err = mEndianOut.write(&totalSize, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&bayerPhase, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&badPointCount, 0, 1);
+    if (err != OK) return err;
+
+    err = mEndianOut.write(&badRectCount, 0, 1);
+    if (err != OK) return err;
+
+    if (badPointCount > 0) {
+        err = mEndianOut.write(badPointRowColPairs, 0, SIZE_OF_POINT * badPointCount);
+        if (err != OK) return err;
+    }
+
+    if (badRectCount > 0) {
+        err = mEndianOut.write(badRectTopLeftBottomRightTuples, 0, SIZE_OF_RECT * badRectCount);
+        if (err != OK) return err;
+    }
+
+    mCount++;
+    return OK;
+}
+
+status_t OpcodeListBuilder::addOpcodePreamble(uint32_t opcodeId) {
+    status_t err = mEndianOut.write(&opcodeId, 0, 1);
+    if (err != OK) return err;
+
+    uint8_t version[] = {1, 3, 0, 0};
+    err = mEndianOut.write(version, 0, NELEMS(version));
+    if (err != OK) return err;
     return OK;
 }
 

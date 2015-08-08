@@ -138,6 +138,34 @@ class ANDROID_API OpcodeListBuilder : public LightRefBase<OpcodeListBuilder> {
                                             double opticalCenterY,
                                             const double* kCoeffs);
 
+
+        /**
+         * Add FixBadPixelsList opcode for the given metadata parameters.
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t addBadPixelListForMetadata(const uint32_t* hotPixels,
+                                                    uint32_t xyPairCount,
+                                                    uint32_t colorFilterArrangement);
+
+        /**
+         * Add FixBadPixelsList opcode.
+         *
+         * bayerPhase - 0=top-left of image is red, 1=top-left of image is green pixel in red row,
+         *              2=top-left of image is green pixel in blue row, 3=top-left of image is
+         *              blue.
+         * badPointCount - number of (x,y) pairs of bad pixels are given in badPointRowColPairs.
+         * badRectCount - number of (top, left, bottom, right) tuples are given in
+         *              badRectTopLeftBottomRightTuples
+         *
+         * Returns OK on success, or a negative error code.
+         */
+        virtual status_t addBadPixelList(uint32_t bayerPhase,
+                                         uint32_t badPointCount,
+                                         uint32_t badRectCount,
+                                         const uint32_t* badPointRowColPairs,
+                                         const uint32_t* badRectTopLeftBottomRightTuples);
+
         // TODO: Add other Opcode methods
     protected:
         static const uint32_t FLAG_OPTIONAL = 0x1u;
@@ -146,6 +174,7 @@ class ANDROID_API OpcodeListBuilder : public LightRefBase<OpcodeListBuilder> {
         // Opcode IDs
         enum {
             WARP_RECTILINEAR_ID = 1,
+            FIX_BAD_PIXELS_LIST = 5,
             GAIN_MAP_ID = 9,
         };
 
@@ -160,6 +189,8 @@ class ANDROID_API OpcodeListBuilder : public LightRefBase<OpcodeListBuilder> {
         uint32_t mCount;
         ByteArrayOutput mOpList;
         EndianOutput mEndianOut;
+
+        status_t addOpcodePreamble(uint32_t opcodeId);
 
 };
 
