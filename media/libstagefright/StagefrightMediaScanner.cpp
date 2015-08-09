@@ -45,9 +45,12 @@ static bool FileHasAcceptableExtension(const char *extension) {
         ".mkv", ".mka", ".webm", ".ts", ".fl", ".flac", ".mxmf",
         ".adts", ".dm", ".m2ts", ".mp3d", ".wmv", ".asf", ".flv",
         ".mov", ".ra", ".rm", ".rmvb", ".ac3", ".ape", ".dts",
-        ".mp1", ".mp2", ".f4v", "hlv", "nrg", "m2v", ".swf",
+        ".f4v", "hlv", "nrg", "m2v", ".swf",
         ".avi", ".mpg", ".mpeg", ".awb", ".vc1", ".vob", ".divx",
         ".mpga", ".mov", ".qcp", ".ec3"
+#ifdef USE_SEIREN_AUDIO
+        , ".mp1", ".mp2"
+#endif
     };
     static const size_t kNumValidExtensions =
         sizeof(kValidExtensions) / sizeof(kValidExtensions[0]);
