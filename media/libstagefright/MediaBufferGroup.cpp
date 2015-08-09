@@ -62,6 +62,29 @@ extern "C" status_t _ZN7android16MediaBufferGroup14acquire_bufferEPPNS_11MediaBu
 }
 #endif
 
+status_t MediaBufferGroup::acquire_buffer(MediaBuffer **out) {
+    Mutex::Autolock autoLock(mLock);
+
+    for (;;) {
+        for (MediaBuffer *buffer = mFirstBuffer;
+             buffer != NULL; buffer = buffer->nextBuffer()) {
+            if (buffer->refcount() == 0) {
+                buffer->add_ref();
+                buffer->reset();
+
+                *out = buffer;
+                goto exit;
+            }
+        }
+
+        // All buffers are in use. Block until one of them is returned to us.
+        mCondition.wait(mLock);
+    }
+
+exit:
+    return OK;
+}
+
 status_t MediaBufferGroup::acquire_buffer(
         MediaBuffer **out, bool nonBlocking) {
     Mutex::Autolock autoLock(mLock);
@@ -82,11 +105,11 @@ status_t MediaBufferGroup::acquire_buffer(
             *out = NULL;
             return WOULD_BLOCK;
         }
-
+            
         // All buffers are in use. Block until one of them is returned to us.
         mCondition.wait(mLock);
     }
-
+        
 exit:
     return OK;
 }
