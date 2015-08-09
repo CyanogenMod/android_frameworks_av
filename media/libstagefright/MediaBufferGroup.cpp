@@ -91,6 +91,29 @@ exit:
     return OK;
 }
 
+status_t MediaBufferGroup::acquire_buffer(MediaBuffer **out) {
+    Mutex::Autolock autoLock(mLock);
+
+    for (;;) {
+        for (MediaBuffer *buffer = mFirstBuffer;
+             buffer != NULL; buffer = buffer->nextBuffer()) {
+            if (buffer->refcount() == 0) {
+                buffer->add_ref();
+                buffer->reset();
+
+                *out = buffer;
+                goto exit;
+            }
+        }
+            
+        // All buffers are in use. Block until one of them is returned to us.
+        mCondition.wait(mLock);
+    }
+        
+exit:
+    return OK;
+}
+
 void MediaBufferGroup::signalBufferReturned(MediaBuffer *) {
     Mutex::Autolock autoLock(mLock);
     mCondition.signal();
