@@ -40,7 +40,6 @@ LOCAL_SRC_FILES:=                         \
         DRMExtractor.cpp                  \
         ESDS.cpp                          \
         FileSource.cpp                    \
-        FLACExtractor.cpp                 \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \
         MP3Extractor.cpp                  \
@@ -233,6 +232,22 @@ endif
 # FFMPEG plugin
 LOCAL_C_INCLUDES += \
 	$(TOP)/external/stagefright-plugins/include
+
+ifeq ($(BOARD_USE_ALP_AUDIO),  true)
+LOCAL_CFLAGS += -DUSE_ALP_AUDIO
+endif
+
+ifeq ($(BOARD_USE_SEIREN_AUDIO), true)
+LOCAL_CFLAGS += -DUSE_SEIREN_AUDIO -DADD_LEGACY_ACQUIRE_BUFFER_SYMBOL
+LOCAL_C_INCLUDES += \
+        $(TOP)/frameworks/av/media/libstagefright/ittiamextractors/flac/component/inc
+LOCAL_STATIC_LIBRARIES += \
+        libIttiamFLACExtractor \
+        libittiam_flacparser
+else
+LOCAL_SRC_FILES += \
+        FLACExtractor.cpp
+endif
 
 LOCAL_MODULE:= libstagefright
 

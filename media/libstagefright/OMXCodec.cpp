@@ -430,6 +430,28 @@ uint32_t OMXCodec::getComponentQuirks(
     }
 #endif // DOLBY_END
 
+#ifdef USE_ALP_AUDIO
+    /*
+     * Exynos Mp3 decoder needs the following quirks.
+     *
+     * kSupportsMultipleFramesPerInputBuffer :
+     *         To coalesce as much as SRP's input buffer size
+     * kNeedsFlushBeforeDisable :
+     *         Flush is necessary before port is disabled.
+     */
+    if (!strcmp("OMX.Exynos.MP3.Decoder", info->getCodecName())) {
+        quirks |= kSupportsMultipleFramesPerInputBuffer;
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+#endif
+#ifdef USE_SEIREN_AUDIO
+    if (!strcmp("OMX.Exynos.AAC.Decoder", info->getCodecName()) ||
+        !strcmp("OMX.Exynos.FLAC.Decoder", info->getCodecName())) {
+        quirks |= kSupportsMultipleFramesPerInputBuffer;
+        quirks |= kNeedsFlushBeforeDisable;
+    }
+#endif
+
     return quirks;
 }
 
@@ -811,6 +833,12 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
             }
 #endif
         }
+#ifdef USE_SEIREN_AUDIO
+        else if (meta->findData(kKeyHdr, &type, &data, &size)) {
+            CODEC_LOGE("Codec specific information of size %d", size);
+            addCodecSpecificData(data, size);
+        }
+#endif
     }
 
     if (!strncasecmp(mMIME, "audio/", 6)) {
@@ -3266,7 +3294,16 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
                     // We implicitly resume pulling on our upstream source.
                     mPaused = false;
+
+//#ifdef USE_ALP_AUDIO
+                    /*
+                     * This value has to be initialized when playing repeatedly
+                     * a very short file in Music application by repeat settings.
+                     * The file is short enough to gather all input frames
+                     * to one input buffer at once.
+                     */
                     mNoMoreOutputData = false;
+//#endif
 
                     drainInputBuffers();
                     fillOutputBuffers();
@@ -3592,10 +3629,18 @@ void OMXCodec::fillOutputBuffers() {
                 == mPortBuffers[kPortIndexInput].size()
             && countBuffersWeOwn(mPortBuffers[kPortIndexOutput])
                 == mPortBuffers[kPortIndexOutput].size()) {
+#ifdef USE_ALP_AUDIO
+        /* Exynos mp3 decoder should be finished by EOS flag in output buffer. */
+        /* Do not apply this workaround */
+        if (strcmp(mComponentName, "OMX.Exynos.MP3.Decoder") != 0) {
+#endif
         mNoMoreOutputData = true;
         mBufferFilled.signal();
 
         return;
+#ifdef USE_ALP_AUDIO
+        }
+#endif
     }
 
     Vector<BufferInfo> *buffers = &mPortBuffers[kPortIndexOutput];
@@ -3779,6 +3824,22 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
         }
 
         if (err != OK) {
+#ifdef USE_SEIREN_AUDIO
+            if (strcmp("OMX.Exynos.FLAC.Decoder", mComponentName) ==0) {
+                ALOGD("srcBuffer->range_length() %d %d , info->mData %p ",srcBuffer->range_length(),__LINE__,info->mData);
+
+                CHECK(srcBuffer->data() != NULL);
+                memcpy((uint8_t *)info->mData + offset,
+                        (const uint8_t *)srcBuffer->data() + srcBuffer->range_offset(),
+                        srcBuffer->range_length());
+
+                CHECK(srcBuffer->meta_data()->findInt64(kKeyTime, &timestampUs));
+                CHECK(timestampUs >= 0);
+                offset+= srcBuffer->range_length();
+
+                srcBuffer->release();
+            }
+#endif
             signalEOS = true;
             mFinalStatus = err;
             mSignalledEOS = true;
@@ -3915,12 +3976,30 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
             break;
         }
 
+#ifdef USE_ALP_AUDIO
+#ifndef USE_SEIREN_AUDIO
+        /*
+         * In ALP mode, 250ms restriction is not required.
+         * SRP driver must have enough frames for the size of its input buffer.
+         */
+        if (strcmp(mComponentName, "OMX.Exynos.MP3.Decoder") != 0) {
+#endif
+#endif
         int64_t coalescedDurationUs = lastBufferTimeUs - timestampUs;
 
+#ifdef USE_SEIREN_AUDIO
+        if (coalescedDurationUs > 150000ll) {
+#else
         if (coalescedDurationUs > 250000ll) {
+#endif
             // Don't coalesce more than 250ms worth of encoded data at once.
             break;
         }
+#ifdef USE_ALP_AUDIO
+#ifndef USE_SEIREN_AUDIO
+        }
+#endif
+#endif
     }
 
     if (n > 1) {
