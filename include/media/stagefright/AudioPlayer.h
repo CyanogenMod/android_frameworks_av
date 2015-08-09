@@ -166,6 +166,10 @@ private:
 
     AudioPlayer(const AudioPlayer &);
     AudioPlayer &operator=(const AudioPlayer &);
+
+#ifdef USE_ALP_AUDIO
+    bool mIsALPAudio;
+#endif
 };
 
 }  // namespace android
