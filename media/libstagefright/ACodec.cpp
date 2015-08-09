@@ -111,6 +111,10 @@
 #include <stagefright/Utils.h>
 #endif
 
+#ifdef EXYNOS_HEVC_FORMATS
+#include <Exynos_OMX_Def.h>
+#endif
+
 namespace android {
 
 // OMX errors are directly mapped into status_t range if
@@ -2554,6 +2558,10 @@ status_t ACodec::setSupportedOutputFormat(bool getLegacyFlexibleFormat) {
                 || format.eColorFormat == OMX_COLOR_FormatYUV420PackedPlanar
                 || format.eColorFormat == OMX_COLOR_FormatYUV420SemiPlanar
                 || format.eColorFormat == OMX_COLOR_FormatYUV420PackedSemiPlanar
+#ifdef EXYNOS_HEVC_FORMATS
+                || format.eColorFormat == OMX_SEC_COLOR_FormatNV21Linear
+                || format.eColorFormat == OMX_SEC_COLOR_FormatYVU420Planar
+#endif
                 || format.eColorFormat == OMX_TI_COLOR_FormatYUV420PackedSemiPlanar) {
             break;
         }
@@ -3609,6 +3617,10 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         fmt != OMX_COLOR_FormatYUV420PackedPlanar &&
         fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
         fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar &&
+#ifdef EXYNOS_HEVC_FORMATS
+        fmt != OMX_SEC_COLOR_FormatNV21Linear &&
+        fmt != OMX_SEC_COLOR_FormatYVU420Planar &&
+#endif
         fmt != OMX_TI_COLOR_FormatYUV420PackedSemiPlanar &&
         fmt != HAL_PIXEL_FORMAT_YV12) {
         ALOGW("do not know color format 0x%x = %d", fmt, fmt);
@@ -3665,6 +3677,9 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
 
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_COLOR_FormatYUV420PackedPlanar:
+#ifdef EXYNOS_HEVC_FORMATS
+        case OMX_SEC_COLOR_FormatYVU420Planar:
+#endif
             image.mPlane[image.U].mOffset = params.nStride * params.nSliceHeight;
             image.mPlane[image.U].mColInc = 1;
             image.mPlane[image.U].mRowInc = params.nStride / 2;
@@ -3682,6 +3697,9 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         case OMX_COLOR_FormatYUV420SemiPlanar:
             // FIXME: NV21 for sw-encoder, NV12 for decoder and hw-encoder
         case OMX_COLOR_FormatYUV420PackedSemiPlanar:
+#ifdef EXYNOS_HEVC_FORMATS
+        case OMX_SEC_COLOR_FormatNV21Linear:
+#endif
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
             // NV12
             image.mPlane[image.U].mOffset = params.nStride * params.nSliceHeight;

@@ -230,6 +230,20 @@ LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung/exynos4/include
 endif
 
+ifeq ($(BOARD_USE_EXYNOS_HEVC_FORMATS), true)
+LOCAL_CFLAGS += -DEXYNOS_HEVC_FORMATS
+
+ifeq ($(TARGET_SLSI_VARIANT),cm)
+SLSI_DIR := samsung_slsi-cm
+else
+SLSI_DIR := samsung_slsi
+endif
+
+# Include native color format header path
+LOCAL_C_INCLUDES += \
+	$(TOP)/hardware/$(SLSI_DIR)/openmax/include/exynos
+endif
+
 # FFMPEG plugin
 LOCAL_C_INCLUDES += \
 	$(TOP)/external/stagefright-plugins/include
