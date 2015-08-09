@@ -61,6 +61,10 @@
 #include "ExynosHWCService.h"
 #endif
 
+#ifdef EXYNOS_HEVC_FORMATS
+#include <Exynos_OMX_Def.h>
+#endif
+
 namespace android {
 
 // Treat time out as an error if we have not received any output
@@ -816,6 +820,10 @@ static size_t getFrameSize(
 
         case OMX_COLOR_FormatYUV420Planar:
         case OMX_COLOR_FormatYUV420SemiPlanar:
+#ifdef EXYNOS_HEVC_FORMATS
+        case OMX_SEC_COLOR_FormatNV21Linear:
+        case OMX_SEC_COLOR_FormatYVU420Planar:
+#endif
         case OMX_TI_COLOR_FormatYUV420PackedSemiPlanar:
         /*
         * FIXME: For the Opaque color format, the frame size does not
