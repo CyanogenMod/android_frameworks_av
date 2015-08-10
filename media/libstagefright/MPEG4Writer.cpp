@@ -2679,7 +2679,7 @@ void MPEG4Writer::Track::bufferChunk(int64_t timestampUs) {
 }
 
 int64_t MPEG4Writer::Track::getDurationUs() const {
-    return mTrackDurationUs * mHFRRatio;
+    return mTrackDurationUs;
 }
 
 int64_t MPEG4Writer::Track::getEstimatedTrackSizeBytes() const {
