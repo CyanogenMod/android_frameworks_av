@@ -1064,6 +1064,7 @@ void LiveSession::onMasterPlaylistFetched(const sp<AMessage> &msg) {
                 itemsWithVideo.push(item);
             }
         }
+#if 0
         // remove the audio-only variants if we have at least one with video
         if (!itemsWithVideo.empty()
                 && itemsWithVideo.size() < mBandwidthItems.size()) {
@@ -1072,7 +1073,7 @@ void LiveSession::onMasterPlaylistFetched(const sp<AMessage> &msg) {
                 mBandwidthItems.push(itemsWithVideo[i]);
             }
         }
-
+#endif
         CHECK_GT(mBandwidthItems.size(), 0u);
         initialBandwidth = mBandwidthItems[0].mBandwidth;
 
