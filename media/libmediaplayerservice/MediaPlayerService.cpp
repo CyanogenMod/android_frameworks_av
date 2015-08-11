@@ -1743,7 +1743,7 @@ status_t MediaPlayerService::AudioOutput::open(
     t->setVolume(mLeftVolume, mRightVolume);
 
     mSampleRateHz = sampleRate;
-    mFlags = t->getFlags(); // we suggest the flags above, but new AudioTrack() may not grant it.
+    mFlags = flags;
     mMsecsPerFrame = 1E3f / (mPlaybackRate.mSpeed * sampleRate);
     mFrameSize = t->frameSize();
     uint32_t pos;
@@ -1755,7 +1755,7 @@ status_t MediaPlayerService::AudioOutput::open(
     status_t res = NO_ERROR;
     // Note some output devices may give us a direct track even though we don't specify it.
     // Example: Line application b/17459982.
-    if ((mFlags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) {
+    if ((t->getFlags() & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) {
         res = t->setPlaybackRate(mPlaybackRate);
         if (res == NO_ERROR) {
             t->setAuxEffectSendLevel(mSendLevel);
