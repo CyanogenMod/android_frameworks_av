@@ -230,6 +230,10 @@ LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung/exynos4/include
 endif
 
+ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT_NV21), true)
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT_NV21
+endif
+
 # FFMPEG plugin
 LOCAL_C_INCLUDES += \
 	$(TOP)/external/stagefright-plugins/include

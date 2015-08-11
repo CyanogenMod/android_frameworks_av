@@ -351,7 +351,7 @@ private:
 
     status_t allocateBuffers();
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
-#ifdef USE_SAMSUNG_COLORFORMAT
+#if defined(USE_SAMSUNG_COLORFORMAT) || defined(USE_SAMSUNG_COLORFORMAT_NV21)
     void setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat);
 #endif
     status_t allocateOutputBuffersFromNativeWindow();

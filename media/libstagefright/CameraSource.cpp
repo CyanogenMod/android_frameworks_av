@@ -97,8 +97,25 @@ void CameraSourceListener::postDataTimestamp(
         source->dataCallbackTimestamp(timestamp/1000, msgType, dataPtr);
     }
 }
+    
+bool isRearCamera(const CameraParameters& params) {
+    const char *sceneModeValues =
+        params.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES);
+    if (sceneModeValues &&
+        strstr(sceneModeValues, CameraParameters::SCENE_MODE_HDR)) {
+        /* Current camera device has HDR support, assume this is always
+         * the rear camera sensor.
+         */
+        return true;
+    } else {
+        return false;
+    }
+}
 
-static int32_t getColorFormat(const char* colorFormat) {
+static int32_t getColorFormat(const CameraParameters& params) {
+    const char* colorFormat = params.get(
+            CameraParameters::KEY_VIDEO_FRAME_FORMAT);
+
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420P)) {
        return OMX_COLOR_FormatYUV420Planar;
     }
@@ -111,6 +128,13 @@ static int32_t getColorFormat(const char* colorFormat) {
 #ifdef USE_SAMSUNG_COLORFORMAT
         static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
         return OMX_SEC_COLOR_FormatNV12LPhysicalAddress;
+#elif defined(USE_SAMSUNG_COLORFORMAT_NV21)
+        static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
+        if (isRearCamera(params)) {
+            return OMX_SEC_COLOR_FormatNV21Linear;
+        } else {
+            return OMX_COLOR_FormatYUV420SemiPlanar;
+        }
 #else
         return OMX_COLOR_FormatYUV420SemiPlanar;
 #endif
@@ -300,8 +324,7 @@ static void getSupportedVideoSizes(
  */
 status_t CameraSource::isCameraColorFormatSupported(
         const CameraParameters& params) {
-    mColorFormat = getColorFormat(params.get(
-            CameraParameters::KEY_VIDEO_FRAME_FORMAT));
+    mColorFormat = getColorFormat(params);
     if (mColorFormat == -1) {
         return BAD_VALUE;
     }
