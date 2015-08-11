@@ -141,3 +141,6 @@ LOCAL_MODULE := libstagefright_soft_amrwbenc
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
+
+################################################################################
+include $(call all-makefiles-under,$(LOCAL_PATH))

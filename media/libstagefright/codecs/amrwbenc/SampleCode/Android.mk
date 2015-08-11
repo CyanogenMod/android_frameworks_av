@@ -5,16 +5,19 @@ LOCAL_SRC_FILES := \
     AMRWB_E_SAMPLE.c \
     ../../common/cmnMemory.c
 
-LOCAL_MODULE_TAGS := optional
+LOCAL_MODULE_TAGS := tests
 LOCAL_MODULE := AMRWBEncTest
 
 LOCAL_ARM_MODE := arm
 
-LOCAL_CFLAGS := -DLINUX
+LOCAL_CFLAGS :=
 
 LOCAL_SHARED_LIBRARIES := \
     libstagefright \
     libdl
+
+LOCAL_STATIC_LIBRARIES := \
+    libstagefright_amrwbenc
 
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/ \
