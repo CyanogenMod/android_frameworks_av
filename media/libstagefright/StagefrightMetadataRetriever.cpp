@@ -158,6 +158,8 @@ static VideoFrame *extractVideoFrame(
     // TODO: Use Flexible color instead
     videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
 
+    videoFormat->setInt32("thumbnail-mode", 1);
+
     status_t err;
     sp<ALooper> looper = new ALooper;
     looper->start();
@@ -498,7 +500,7 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
     MediaCodecList::findMatchingCodecs(
             mime,
             false, /* encoder */
-            MediaCodecList::kPreferSoftwareCodecs,
+            0 /* MediaCodecList::kPreferSoftwareCodecs */,
             &matchingCodecs);
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
