@@ -632,10 +632,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             ALOGD("onSetVideoSurface(%p, %s video decoder)",
                     surface.get(),
-                    (mSource != NULL && mSource->getFormat(false /* audio */) != NULL
+                    (mSource != NULL && mStarted && mSource->getFormat(false /* audio */) != NULL
                             && mVideoDecoder != NULL) ? "have" : "no");
 
-            if (mSource == NULL || mSource->getFormat(false /* audio */) == NULL
+            // Need to check mStarted before calling mSource->getFormat because NuPlayer might
+            // be in preparing state and it could take long time.
+            // When mStarted is true, mSource must have been set.
+            if (mSource == NULL || !mStarted || mSource->getFormat(false /* audio */) == NULL
                     // NOTE: mVideoDecoder's mSurface is always non-null
                     || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)) {
                 performSetSurface(surface);
