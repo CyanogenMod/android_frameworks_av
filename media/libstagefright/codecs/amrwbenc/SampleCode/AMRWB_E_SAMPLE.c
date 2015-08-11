@@ -21,6 +21,7 @@
 
 #include      <stdio.h>
 #include      <stdlib.h>
+#include      <string.h>
 #include      <time.h>
 #include      "voAMRWB.h"
 #include      "cmnMemory.h"
@@ -222,12 +223,12 @@ int encode(
 					fflush(fdst);
 				}
 			}
-			else if(returnCode == VO_ERR_LICENSE_ERROR)
+			else if((unsigned)returnCode == VO_ERR_LICENSE_ERROR)
 			{
 		        printf("Encoder time reach upper limit......");
 		        goto safe_exit;
 			}
-		} while(returnCode != VO_ERR_INPUT_BUFFER_SMALL);
+		} while((unsigned)returnCode != VO_ERR_INPUT_BUFFER_SMALL);
 
 		finish = clock();
 		duration += finish - start;
