@@ -1690,7 +1690,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
     }
 
     status_t err = OK;
-    for (size_t i = mPacketSources.size(); i-- > 0;) {
+    for (size_t i = mPacketSources.size(); i > 0;) {
+        i--;
         sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
 
         const LiveSession::StreamType stream = mPacketSources.keyAt(i);
@@ -1814,7 +1815,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
     }
 
     if (err != OK) {
-        for (size_t i = mPacketSources.size(); i-- > 0;) {
+        for (size_t i = mPacketSources.size(); i > 0;) {
+            i--;
             sp<AnotherPacketSource> packetSource = mPacketSources.valueAt(i);
             packetSource->clear();
         }
