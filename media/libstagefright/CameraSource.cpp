@@ -108,12 +108,7 @@ static int32_t getColorFormat(const char* colorFormat) {
     }
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420SP)) {
-#ifdef USE_SAMSUNG_COLORFORMAT
-        static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
-        return OMX_SEC_COLOR_FormatNV12LPhysicalAddress;
-#else
         return OMX_COLOR_FormatYUV420SemiPlanar;
-#endif
     }
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV422I)) {
@@ -300,8 +295,33 @@ static void getSupportedVideoSizes(
  */
 status_t CameraSource::isCameraColorFormatSupported(
         const CameraParameters& params) {
-    mColorFormat = getColorFormat(params.get(
-            CameraParameters::KEY_VIDEO_FRAME_FORMAT));
+    const char *frameFormat = params.get(
+                    CameraParameters::KEY_VIDEO_FRAME_FORMAT);
+    mColorFormat = -1;
+    if (frameFormat) {
+#ifdef USE_SAMSUNG_COLORFORMAT
+        /* Handle the special case for the samsung color format */
+        static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
+        static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
+        if (!strcmp(frameFormat, CameraParameters::PIXEL_FORMAT_YUV420SP)) {
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+            const char *sceneModeValues =
+                    params.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES);
+            /* Guess the camera to be back-facing */
+            bool isBackCamera = (sceneModeValues &&
+                    strstr(sceneModeValues, CameraParameters::SCENE_MODE_HDR));
+            if (isBackCamera)
+                mColorFormat = OMX_SEC_COLOR_FormatNV21Linear;
+            else
+                mColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+#else
+            mColorFormat = OMX_SEC_COLOR_FormatNV12LPhysicalAddress;
+#endif
+            return OK;
+        }
+#endif
+        mColorFormat = getColorFormat(frameFormat);
+    }
     if (mColorFormat == -1) {
         return BAD_VALUE;
     }

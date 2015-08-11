@@ -232,6 +232,9 @@ endif
 
 ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT_NV21), true)
+LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT_NV21
+endif
 
 # Include native color format header path
 ifeq ($(TARGET_SLSI_VARIANT),insignal)
