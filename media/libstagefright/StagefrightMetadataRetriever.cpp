@@ -158,6 +158,8 @@ static VideoFrame *extractVideoFrame(
     // TODO: Use Flexible color instead
     videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
 
+    videoFormat->setInt32("thumbnail-mode", 1);
+
     status_t err;
     sp<ALooper> looper = new ALooper;
     looper->start();
