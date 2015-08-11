@@ -225,9 +225,15 @@ ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
 
 # Include native color format header path
+ifeq ($(TARGET_SLSI_VARIANT),insignal)
+LOCAL_CFLAGS += -DUSE_EXYNOS_FORMAT
+LOCAL_C_INCLUDES += \
+	$(TOP)/hardware/samsung_slsi/exynos/include
+else
 LOCAL_C_INCLUDES += \
 	$(TOP)/hardware/samsung/exynos4/hal/include \
 	$(TOP)/hardware/samsung/exynos4/include
+endif
 endif
 
 # FFMPEG plugin
