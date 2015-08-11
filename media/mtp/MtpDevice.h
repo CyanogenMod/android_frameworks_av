@@ -101,6 +101,7 @@ public:
                                     size_t objectSize, void* clientData);
     bool                    readObject(MtpObjectHandle handle, const char* destPath, int group,
                                     int perm);
+    bool                    readObject(MtpObjectHandle handle, int fd);
 
 private:
     bool                    sendRequest(MtpOperationCode operation);
