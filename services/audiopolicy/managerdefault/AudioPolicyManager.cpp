@@ -1351,6 +1351,8 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         } else if (audio_is_remote_submix_device(device)) {
             address = String8("0");
             *inputType = API_INPUT_MIX_CAPTURE;
+        } else if (device == AUDIO_DEVICE_IN_TELEPHONY_RX) {
+            *inputType = API_INPUT_TELEPHONY_RX;
         } else {
             *inputType = API_INPUT_LEGACY;
         }
