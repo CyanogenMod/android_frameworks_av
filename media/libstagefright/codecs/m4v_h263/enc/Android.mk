@@ -77,3 +77,23 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS += -Werror
 
 include $(BUILD_SHARED_LIBRARY)
+
+################################################################################
+
+include $(CLEAR_VARS)
+LOCAL_SRC_FILES := \
+        test/m4v_h263_enc_test.cpp
+
+LOCAL_C_INCLUDES := \
+        $(LOCAL_PATH)/src \
+        $(LOCAL_PATH)/include
+
+LOCAL_CFLAGS := -DOSCL_EXPORT_REF= -DOSCL_IMPORT_REF= -DBX_RC
+
+LOCAL_STATIC_LIBRARIES := \
+        libstagefright_m4vh263enc
+
+LOCAL_MODULE := libstagefright_m4vh263enc_test
+LOCAL_MODULE_TAGS := tests
+
+include $(BUILD_EXECUTABLE)
