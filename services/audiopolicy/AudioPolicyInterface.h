@@ -64,6 +64,7 @@ public:
         API_INPUT_MIX_EXT_POLICY_REROUTE,// used for platform audio rerouting, where mixes are
                                          // handled by external and dynamically installed
                                          // policies which reroute audio mixes
+        API_INPUT_TELEPHONY_RX, // used for capture from telephony RX path
     } input_type_t;
 
 public:
