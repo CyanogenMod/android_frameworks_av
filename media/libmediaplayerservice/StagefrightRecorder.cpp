@@ -367,7 +367,7 @@ status_t StagefrightRecorder::setParamAudioSamplingRate(int32_t sampleRate) {
 
 status_t StagefrightRecorder::setParamAudioNumberOfChannels(int32_t channels) {
     ALOGV("setParamAudioNumberOfChannels: %d", channels);
-    if (channels <= 0 || channels >= 3) {
+    if (channels <= 0 || channels >= 7) {
         ALOGE("Invalid number of audio channels: %d", channels);
         return BAD_VALUE;
     }

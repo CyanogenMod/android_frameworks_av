@@ -61,7 +61,7 @@ AudioSource::AudioSource(
       mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %u, outSampleRate: %u, channelCount: %u",
             sampleRate, outSampleRate, channelCount);
-    CHECK(channelCount == 1 || channelCount == 2);
+    CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
     CHECK(sampleRate > 0);
 
     size_t minFrameCount;
