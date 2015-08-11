@@ -300,8 +300,26 @@ static void getSupportedVideoSizes(
  */
 status_t CameraSource::isCameraColorFormatSupported(
         const CameraParameters& params) {
-    mColorFormat = getColorFormat(params.get(
-            CameraParameters::KEY_VIDEO_FRAME_FORMAT));
+    const char *frameFormat = params.get(
+                    CameraParameters::KEY_VIDEO_FRAME_FORMAT);
+    if (frameFormat) {
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+        if (!strcmp(frameFormat, CameraParameters::PIXEL_FORMAT_YUV420SP)) {
+            static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
+            const char *sceneModeValues =
+                    params.get(CameraParameters::KEY_SUPPORTED_SCENE_MODES);
+            /* Guess the camera is back-facing */
+            bool isBackCamera = (sceneModeValues &&
+                    strstr(sceneModeValues, CameraParameters::SCENE_MODE_HDR));
+            if (isBackCamera)
+                mColorFormat = OMX_SEC_COLOR_FormatNV21Linear;
+            else
+                mColorFormat = OMX_COLOR_FormatYUV420SemiPlanar;
+            return OK;
+        }
+#endif
+        mColorFormat = getColorFormat(frameFormat);
+    }
     if (mColorFormat == -1) {
         return BAD_VALUE;
     }

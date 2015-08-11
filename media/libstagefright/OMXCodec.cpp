@@ -135,6 +135,7 @@ static const int OMX_SEC_COLOR_FormatNV12TPhysicalAddress = 0x7F000001;
 static const int OMX_SEC_COLOR_FormatNV12LPhysicalAddress = 0x7F000002;
 static const int OMX_SEC_COLOR_FormatNV12LVirtualAddress = 0x7F000003;
 static const int OMX_SEC_COLOR_FormatNV12Tiled = 0x7FC00002;
+static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
 static int calc_plane(int width, int height)
 {
     int mbX, mbY;
@@ -1124,6 +1125,7 @@ static size_t getFrameSize(
         case OMX_SEC_COLOR_FormatNV12LVirtualAddress:
             return ALIGN((ALIGN(width, 16) * ALIGN(height, 16)), 2048) + ALIGN((ALIGN(width, 16) * ALIGN(height >> 1, 8)), 2048);
         case OMX_SEC_COLOR_FormatNV12Tiled:
+        case OMX_SEC_COLOR_FormatNV21Linear:
             static unsigned int frameBufferYSise = calc_plane(width, height);
             static unsigned int frameBufferUVSise = calc_plane(width, height >> 1);
             return (frameBufferYSise + frameBufferUVSise);
@@ -1681,6 +1683,7 @@ status_t OMXCodec::setVideoOutputFormat(
 #ifdef USE_SAMSUNG_COLORFORMAT
                || format.eColorFormat == OMX_SEC_COLOR_FormatNV12TPhysicalAddress
                || format.eColorFormat == OMX_SEC_COLOR_FormatNV12Tiled
+               || format.eColorFormat == OMX_SEC_COLOR_FormatNV21Linear
 #endif
                );
 
@@ -2494,6 +2497,9 @@ void OMXCodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorForm
             break;
         case OMX_SEC_COLOR_FormatNV12Tiled:
             eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED;
+            break;
+        case OMX_SEC_COLOR_FormatNV21Linear:
+            eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCrCb_420_SP;
             break;
         // In case of OpenMAX color formats
         case OMX_COLOR_FormatYUV420SemiPlanar:
