@@ -116,7 +116,11 @@
 #endif
 
 #ifdef USE_SAMSUNG_COLORFORMAT
+#ifdef USE_EXYNOS_FORMAT
+#include "exynos_format.h"
+#else
 #include <sec_format.h>
+#endif
 #endif
 
 #ifdef USE_S3D_SUPPORT
