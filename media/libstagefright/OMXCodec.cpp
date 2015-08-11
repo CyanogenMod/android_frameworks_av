@@ -145,6 +145,10 @@ static int calc_plane(int width, int height)
 }
 #endif // USE_SAMSUNG_COLORFORMAT
 
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
+#endif
+
 // Treat time out as an error if we have not received any output
 // buffers after 3 seconds.
 const static int64_t kBufferFilledEventTimeOutNs = 3000000000LL;
@@ -1114,6 +1118,9 @@ static size_t getFrameSize(
         case OMX_SEC_COLOR_FormatNV12TPhysicalAddress:
         case OMX_SEC_COLOR_FormatNV12LPhysicalAddress:
 #endif
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+        case OMX_SEC_COLOR_FormatNV21Linear:
+#endif
             return (width * height * 3) / 2;
 #ifdef USE_SAMSUNG_COLORFORMAT
 
@@ -1677,6 +1684,9 @@ status_t OMXCodec::setVideoOutputFormat(
 #ifdef USE_SAMSUNG_COLORFORMAT
                || format.eColorFormat == OMX_SEC_COLOR_FormatNV12TPhysicalAddress
                || format.eColorFormat == OMX_SEC_COLOR_FormatNV12Tiled
+#endif
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+               || format.eColorFormat == OMX_SEC_COLOR_FormatNV21Linear
 #endif
                );
 
@@ -2251,7 +2261,7 @@ status_t OMXCodec::allocateOutputBuffersFromNativeWindow() {
         return err;
     }
 
-#ifdef USE_SAMSUNG_COLORFORMAT
+#if defined(USE_SAMSUNG_COLORFORMAT) || defined(USE_SAMSUNG_COLORFORMAT_NV21)
     OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
     setNativeWindowColorFormat(eNativeColorFormat);
 
@@ -2491,6 +2501,9 @@ void OMXCodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorForm
         case OMX_SEC_COLOR_FormatNV12Tiled:
             eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP_TILED;
             break;
+        case OMX_SEC_COLOR_FormatNV21Linear:
+            eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCrCb_420_SP;
+            break;
         // In case of OpenMAX color formats
         case OMX_COLOR_FormatYUV420SemiPlanar:
             eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP;
@@ -2502,6 +2515,21 @@ void OMXCodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorForm
     }
 }
 #endif // USE_SAMSUNG_COLORFORMAT
+
+#ifdef USE_SAMSUNG_COLORFORMAT_NV21
+void OMXCodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat)
+{
+    // Convert OpenMAX color format to native color format
+    switch (eNativeColorFormat) {
+        // In case of SAMSUNG color format
+        case OMX_SEC_COLOR_FormatNV21Linear:
+            eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCrCb_420_SP;
+            break;
+        default:
+            break;
+    }
+}
+#endif
 
 status_t OMXCodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)OWNED_BY_US);
