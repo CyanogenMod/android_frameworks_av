@@ -438,9 +438,10 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
             if (onDrainAudioQueue()) {
                 uint32_t numFramesPlayed;
-                CHECK_EQ(mAudioSink->getPosition(&numFramesPlayed),
-                         (status_t)OK);
-
+                if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
+                    ALOGW("mAudioSink->getPosition failed");
+                    break;
+                }
                 uint32_t numFramesPendingPlayout =
                     mNumFramesWritten - numFramesPlayed;
 
@@ -1539,6 +1540,7 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
     int64_t numFramesPlayedAt;
     AudioTimestamp ts;
     static const int64_t kStaleTimestamp100ms = 100000;
+    int64_t durationUs;
 
     status_t res = mAudioSink->getTimestamp(ts);
     if (res == OK) {                 // case 1: mixing audio tracks and offloaded tracks.
@@ -1565,14 +1567,20 @@ int64_t NuPlayer::Renderer::getPlayedOutAudioDurationUs(int64_t nowUs) {
         //        numFramesPlayed, (long long)numFramesPlayedAt);
     } else {                         // case 3: transitory at new track or audio fast tracks.
         res = mAudioSink->getPosition(&numFramesPlayed);
-        CHECK_EQ(res, (status_t)OK);
-        numFramesPlayedAt = nowUs;
-        numFramesPlayedAt += 1000LL * mAudioSink->latency() / 2; /* XXX */
+        if (res != OK) {
+            //query to getPosition fails, use media clock to simulate render position
+            getCurrentPosition(&durationUs);
+            durationUs = durationUs - mAnchorTimeMediaUs;
+            return durationUs;
+        } else {
+            numFramesPlayedAt = nowUs;
+            numFramesPlayedAt += 1000LL * mAudioSink->latency() / 2; /* XXX */
+        }
         //ALOGD("getPosition: %u %lld", numFramesPlayed, (long long)numFramesPlayedAt);
     }
 
     //CHECK_EQ(numFramesPlayed & (1 << 31), 0);  // can't be negative until 12.4 hrs, test
-    int64_t durationUs = getDurationUsIfPlayedAtSampleRate(numFramesPlayed)
+    durationUs = getDurationUsIfPlayedAtSampleRate(numFramesPlayed)
             + nowUs - numFramesPlayedAt;
     if (durationUs < 0) {
         // Occurs when numFramesPlayed position is very small and the following:
