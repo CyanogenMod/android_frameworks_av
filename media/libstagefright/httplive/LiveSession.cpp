@@ -953,10 +953,6 @@ sp<M3UParser> LiveSession::fetchPlaylist(
         return NULL;
     }
 
-    // MD5 functionality is not available on the simulator, treat all
-    // playlists as changed.
-
-#if defined(HAVE_ANDROID_OS)
     uint8_t hash[16];
 
     MD5_CTX m;
@@ -975,7 +971,6 @@ sp<M3UParser> LiveSession::fetchPlaylist(
     if (curPlaylistHash != NULL) {
         memcpy(curPlaylistHash, hash, sizeof(hash));
     }
-#endif
 
     sp<M3UParser> playlist =
         new M3UParser(actualUrl.string(), buffer->data(), buffer->size());
