@@ -325,7 +325,7 @@ status_t AudioTrack::set(
     mTransfer = transferType;
     mDoNotReconnect = doNotReconnect;
 
-    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
+    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %zu", sharedBuffer->pointer(),
             sharedBuffer->size());
 
     ALOGV("set() streamType %d frameCount %zu flags %04x", streamType, frameCount, flags);
