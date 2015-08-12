@@ -153,9 +153,11 @@ class Camera3Device :
   private:
     static const size_t        kDumpLockAttempts  = 10;
     static const size_t        kDumpSleepDuration = 100000; // 0.10 sec
-    static const size_t        kInFlightWarnLimit = 20;
     static const nsecs_t       kShutdownTimeout   = 5000000000; // 5 sec
     static const nsecs_t       kActiveTimeout     = 500000000;  // 500 ms
+    static const size_t        kInFlightWarnLimit = 20;
+    static const size_t        kInFlightWarnLimitHighSpeed = 256; // batch size 32 * pipe depth 8
+
     struct                     RequestTrigger;
     // minimal jpeg buffer size: 256KB + blob header
     static const ssize_t       kMinJpegBufferSize = 256 * 1024 + sizeof(camera3_jpeg_blob);
