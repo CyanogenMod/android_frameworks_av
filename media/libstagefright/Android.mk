@@ -135,7 +135,6 @@ LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
 endif
 
 LOCAL_CLANG := true
-LOCAL_SANITIZE := unsigned-integer-overflow
 
 LOCAL_MODULE:= libstagefright
 
