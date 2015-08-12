@@ -60,6 +60,7 @@ Camera3Device::Camera3Device(int id):
         mIsConstrainedHighSpeedConfiguration(false),
         mHal3Device(NULL),
         mStatus(STATUS_UNINITIALIZED),
+        mStatusWaiters(0),
         mUsePartialResult(false),
         mNumPartialResults(1),
         mNextResultFrameNumber(0),
@@ -191,7 +192,8 @@ status_t Camera3Device::initialize(CameraModule *module)
     mDeviceVersion = device->common.version;
     mDeviceInfo = info.static_camera_characteristics;
     mHal3Device = device;
-    mStatus = STATUS_UNCONFIGURED;
+
+    internalUpdateStatusLocked(STATUS_UNCONFIGURED);
     mNextStreamId = 0;
     mDummyStreamId = NO_STREAM;
     mNeedConfig = true;
@@ -296,7 +298,7 @@ status_t Camera3Device::disconnect() {
             mHal3Device = NULL;
         }
 
-        mStatus = STATUS_UNINITIALIZED;
+        internalUpdateStatusLocked(STATUS_UNINITIALIZED);
     }
 
     ALOGV("%s: X", __FUNCTION__);
@@ -1166,6 +1168,13 @@ status_t Camera3Device::waitUntilDrainedLocked() {
     return res;
 }
 
+
+void Camera3Device::internalUpdateStatusLocked(Status status) {
+    mStatus = status;
+    mRecentStatusUpdates.add(mStatus);
+    mStatusChanged.broadcast();
+}
+
 // Pause to reconfigure
 status_t Camera3Device::internalPauseAndWaitLocked() {
     mRequestThread->setPaused(true);
@@ -1196,29 +1205,48 @@ status_t Camera3Device::internalResumeLocked() {
     return OK;
 }
 
-status_t Camera3Device::waitUntilStateThenRelock(bool active,
-        nsecs_t timeout) {
+status_t Camera3Device::waitUntilStateThenRelock(bool active, nsecs_t timeout) {
     status_t res = OK;
-    if (active == (mStatus == STATUS_ACTIVE)) {
-        // Desired state already reached
-        return res;
+
+    size_t startIndex = 0;
+    if (mStatusWaiters == 0) {
+        // Clear the list of recent statuses if there are no existing threads waiting on updates to
+        // this status list
+        mRecentStatusUpdates.clear();
+    } else {
+        // If other threads are waiting on updates to this status list, set the position of the
+        // first element that this list will check rather than clearing the list.
+        startIndex = mRecentStatusUpdates.size();
     }
+
+    mStatusWaiters++;
 
     bool stateSeen = false;
     do {
-        mRecentStatusUpdates.clear();
+        if (active == (mStatus == STATUS_ACTIVE)) {
+            // Desired state is current
+            break;
+        }
 
         res = mStatusChanged.waitRelative(mLock, timeout);
         if (res != OK) break;
 
-        // Check state change history during wait
-        for (size_t i = 0; i < mRecentStatusUpdates.size(); i++) {
+        // This is impossible, but if not, could result in subtle deadlocks and invalid state
+        // transitions.
+        LOG_ALWAYS_FATAL_IF(startIndex > mRecentStatusUpdates.size(),
+                "%s: Skipping status updates in Camera3Device, may result in deadlock.",
+                __FUNCTION__);
+
+        // Encountered desired state since we began waiting
+        for (size_t i = startIndex; i < mRecentStatusUpdates.size(); i++) {
             if (active == (mRecentStatusUpdates[i] == STATUS_ACTIVE) ) {
                 stateSeen = true;
                 break;
             }
         }
     } while (!stateSeen);
+
+    mStatusWaiters--;
 
     return res;
 }
@@ -1461,9 +1489,7 @@ void Camera3Device::notifyStatus(bool idle) {
         }
         ALOGV("%s: Camera %d: Now %s", __FUNCTION__, mId,
                 idle ? "idle" : "active");
-        mStatus = idle ? STATUS_CONFIGURED : STATUS_ACTIVE;
-        mRecentStatusUpdates.add(mStatus);
-        mStatusChanged.signal();
+        internalUpdateStatusLocked(idle ? STATUS_CONFIGURED : STATUS_ACTIVE);
 
         // Skip notifying listener if we're doing some user-transparent
         // state changes
@@ -1672,7 +1698,7 @@ status_t Camera3Device::configureStreamsLocked() {
 
         // Return state to that at start of call, so that future configures
         // properly clean things up
-        mStatus = STATUS_UNCONFIGURED;
+        internalUpdateStatusLocked(STATUS_UNCONFIGURED);
         mNeedConfig = true;
 
         ALOGV("%s: Camera %d: Stream configuration failed", __FUNCTION__, mId);
@@ -1719,11 +1745,8 @@ status_t Camera3Device::configureStreamsLocked() {
 
     mNeedConfig = false;
 
-    if (mDummyStreamId == NO_STREAM) {
-        mStatus = STATUS_CONFIGURED;
-    } else {
-        mStatus = STATUS_UNCONFIGURED;
-    }
+    internalUpdateStatusLocked((mDummyStreamId == NO_STREAM) ?
+            STATUS_CONFIGURED : STATUS_UNCONFIGURED);
 
     ALOGV("%s: Camera %d: Stream configuration complete", __FUNCTION__, mId);
 
@@ -1831,7 +1854,7 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
     mErrorCause = errorCause;
 
     mRequestThread->setPaused(true);
-    mStatus = STATUS_ERROR;
+    internalUpdateStatusLocked(STATUS_ERROR);
 
     // Notify upstream about a device error
     if (mListener != NULL) {

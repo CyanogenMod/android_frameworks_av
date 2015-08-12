@@ -205,7 +205,11 @@ class Camera3Device :
         STATUS_CONFIGURED,
         STATUS_ACTIVE
     }                          mStatus;
+
+    // Only clear mRecentStatusUpdates, mStatusWaiters from waitUntilStateThenRelock
     Vector<Status>             mRecentStatusUpdates;
+    int                        mStatusWaiters;
+
     Condition                  mStatusChanged;
 
     // Tracking cause of fatal errors when in STATUS_ERROR
@@ -274,6 +278,13 @@ class Camera3Device :
      * Takes mLock.
      */
     virtual CameraMetadata getLatestRequestLocked();
+
+    /**
+     * Update the current device status and wake all waiting threads.
+     *
+     * Must be called with mLock held.
+     */
+    void internalUpdateStatusLocked(Status status);
 
     /**
      * Pause processing and flush everything, but don't tell the clients.
