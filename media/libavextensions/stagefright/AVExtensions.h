@@ -83,8 +83,8 @@ struct AVUtils {
 
     virtual bool is24bitPCMOffloadEnabled();
     virtual bool is16bitPCMOffloadEnabled();
-    virtual int getPcmSampleBits(const sp<MetaData> &);
-    virtual int getPcmSampleBits(const sp<AMessage> &);
+    virtual int getAudioSampleBits(const sp<MetaData> &);
+    virtual int getAudioSampleBits(const sp<AMessage> &);
     virtual void setPcmSampleBits(const sp<MetaData> &, int32_t /*bitWidth*/);
     virtual void setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/);
 

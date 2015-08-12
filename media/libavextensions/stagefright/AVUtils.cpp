@@ -62,11 +62,11 @@ status_t AVUtils::sendMetaDataToHal(
 bool AVUtils::is24bitPCMOffloadEnabled() {return false;}
 bool AVUtils::is16bitPCMOffloadEnabled() {return false;}
 
-int AVUtils::getPcmSampleBits(const sp<MetaData> &) {
+int AVUtils::getAudioSampleBits(const sp<MetaData> &) {
     return 16;
 }
 
-int AVUtils::getPcmSampleBits(const sp<AMessage> &) {
+int AVUtils::getAudioSampleBits(const sp<AMessage> &) {
     return 16;
 }
 
