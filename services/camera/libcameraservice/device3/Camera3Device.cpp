@@ -370,7 +370,7 @@ ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const 
     // Get max jpeg size (area-wise).
     Size maxJpegResolution = getMaxJpegResolution();
     if (maxJpegResolution.width == 0) {
-        ALOGE("%s: Camera %d: Can't find find valid available jpeg sizes in static metadata!",
+        ALOGE("%s: Camera %d: Can't find valid available jpeg sizes in static metadata!",
                 __FUNCTION__, mId);
         return BAD_VALUE;
     }
@@ -396,6 +396,21 @@ ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const 
 
     return jpegBufferSize;
 }
+
+ssize_t Camera3Device::getPointCloudBufferSize() const {
+    const int FLOATS_PER_POINT=4;
+    camera_metadata_ro_entry maxPointCount = mDeviceInfo.find(ANDROID_DEPTH_MAX_DEPTH_SAMPLES);
+    if (maxPointCount.count == 0) {
+        ALOGE("%s: Camera %d: Can't find maximum depth point cloud size in static metadata!",
+                __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+    ssize_t maxBytesForPointCloud = sizeof(android_depth_points) +
+            maxPointCount.data.i32[0] * sizeof(float) * FLOATS_PER_POINT;
+    return maxBytesForPointCloud;
+}
+
+
 
 status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     ATRACE_CALL();
@@ -865,14 +880,22 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
 
     sp<Camera3OutputStream> newStream;
     if (format == HAL_PIXEL_FORMAT_BLOB) {
-        ssize_t jpegBufferSize = getJpegBufferSize(width, height);
-        if (jpegBufferSize <= 0) {
-            SET_ERR_L("Invalid jpeg buffer size %zd", jpegBufferSize);
-            return BAD_VALUE;
+        ssize_t blobBufferSize;
+        if (dataSpace != HAL_DATASPACE_DEPTH) {
+            blobBufferSize = getJpegBufferSize(width, height);
+            if (blobBufferSize <= 0) {
+                SET_ERR_L("Invalid jpeg buffer size %zd", blobBufferSize);
+                return BAD_VALUE;
+            }
+        } else {
+            blobBufferSize = getPointCloudBufferSize();
+            if (blobBufferSize <= 0) {
+                SET_ERR_L("Invalid point cloud buffer size %zd", blobBufferSize);
+                return BAD_VALUE;
+            }
         }
-
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, jpegBufferSize, format, dataSpace, rotation);
+                width, height, blobBufferSize, format, dataSpace, rotation);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
                 width, height, format, dataSpace, rotation);
