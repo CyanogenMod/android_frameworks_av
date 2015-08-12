@@ -46,9 +46,6 @@ const char* cameraPermission = "android.permission.CAMERA";
 const char* recordAudioPermission = "android.permission.RECORD_AUDIO";
 
 static bool checkPermission(const char* permissionString) {
-#ifndef HAVE_ANDROID_OS
-    return true;
-#endif
     if (getpid() == IPCThreadState::self()->getCallingPid()) return true;
     bool ok = checkCallingPermission(String16(permissionString));
     if (!ok) ALOGE("Request requires %s", permissionString);
