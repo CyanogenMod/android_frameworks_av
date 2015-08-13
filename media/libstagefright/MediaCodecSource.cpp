@@ -401,10 +401,14 @@ status_t MediaCodecSource::initEncoder() {
     }
 
     AString outputMIME;
+    AString role;
     CHECK(mOutputFormat->findString("mime", &outputMIME));
-
-    mEncoder = MediaCodec::CreateByType(
+    if (AVUtils::get()->useQCHWEncoder(mOutputFormat, role)) {
+        mEncoder = MediaCodec::CreateByComponentName(mCodecLooper, role.c_str());
+    } else {
+        mEncoder = MediaCodec::CreateByType(
             mCodecLooper, outputMIME.c_str(), true /* encoder */);
+    }
 
     if (mEncoder == NULL) {
         return NO_INIT;

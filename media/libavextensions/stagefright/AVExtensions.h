@@ -105,6 +105,7 @@ struct AVUtils {
     virtual void addDecodingTimesFromBatch(MediaBuffer * /*buf*/,
             List<int64_t> &/*decodeTimeQueue*/) {}
 
+    virtual bool useQCHWEncoder(const sp<AMessage> &, AString &) { return false; }
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
 };
