@@ -1047,6 +1047,10 @@ void ACodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat
     // In case of Samsung decoders, we set proper native color format for the Native Window
     if (!strcasecmp(mComponentName.c_str(), "OMX.SEC.AVC.Decoder")
         || !strcasecmp(mComponentName.c_str(), "OMX.SEC.FP.AVC.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.MPEG4.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.H263.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.WMV.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.VP8.Decoder")
         || !strcasecmp(mComponentName.c_str(), "OMX.Exynos.AVC.Decoder")) {
         switch (eNativeColorFormat) {
             case OMX_COLOR_FormatYUV420SemiPlanar:
