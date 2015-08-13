@@ -134,7 +134,9 @@ void NuPlayer::RTSPSource::pause() {
             return;
         }
     }
-    mHandler->pause();
+    if (mHandler != NULL) {
+        mHandler->pause();
+    }
 }
 
 void NuPlayer::RTSPSource::resume() {
