@@ -307,7 +307,7 @@ status_t SoftMPEG2::initDecoder() {
 
         s_fill_mem_ip.u4_share_disp_buf = u4_share_disp_buf;
         s_fill_mem_ip.e_output_format = mIvColorFormat;
-
+        s_fill_mem_ip.u4_deinterlace = 1;
         s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.e_cmd = IV_CMD_FILL_NUM_MEM_REC;
         s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.pv_mem_rec_location = mMemRecords;
         s_fill_mem_ip.s_ivd_fill_mem_rec_ip_t.u4_max_frm_wd = displayStride;
@@ -361,6 +361,7 @@ status_t SoftMPEG2::initDecoder() {
         s_init_ip.s_ivd_init_ip_t.u4_frm_max_ht = displayHeight;
 
         s_init_ip.u4_share_disp_buf = u4_share_disp_buf;
+        s_init_ip.u4_deinterlace = 1;
 
         s_init_op.s_ivd_init_op_t.u4_size = sizeof(s_init_op);
 
