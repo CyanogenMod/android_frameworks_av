@@ -245,7 +245,6 @@ MatroskaSource::MatroskaSource(
     mIsAudio = !strncasecmp("audio/", mime, 6);
 
     if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-        mType = AVC;
 
         uint32_t dummy;
         const uint8_t *avcc;
@@ -253,10 +252,15 @@ MatroskaSource::MatroskaSource(
         CHECK(meta->findData(
                     kKeyAVCC, &dummy, (const void **)&avcc, &avccSize));
 
-        CHECK_GE(avccSize, 5u);
+        if (avccSize < 5) {
+            ALOGW("Invalid AVCC atom in track, size %d", avccSize);
+        } else {
 
-        mNALSizeLen = 1 + (avcc[4] & 3);
-        ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+            mNALSizeLen = 1 + (avcc[4] & 3);
+            ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+
+            mType = AVC;
+        }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
         mType = HEVC;
 
