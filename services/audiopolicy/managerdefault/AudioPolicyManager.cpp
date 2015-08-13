@@ -1066,7 +1066,7 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
     *delayMs = 0;
     if (stream == AUDIO_STREAM_TTS) {
         ALOGV("\t found BEACON stream");
-        if (mOutputs.isAnyOutputActive(AUDIO_STREAM_TTS /*streamToIgnore*/)) {
+        if (!mTtsOutputAvailable && mOutputs.isAnyOutputActive(AUDIO_STREAM_TTS /*streamToIgnore*/)) {
             return INVALID_OPERATION;
         } else {
             beaconMuteLatency = handleEventForBeacon(STARTING_BEACON);
@@ -1998,6 +1998,9 @@ status_t AudioPolicyManager::dump(int fd)
     snprintf(buffer, SIZE, " Force use for hdmi system audio %d\n",
             mEngine->getForceUse(AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO));
     result.append(buffer);
+    snprintf(buffer, SIZE, " TTS output %s\n", mTtsOutputAvailable ? "available" : "not available");
+    result.append(buffer);
+
     write(fd, result.string(), result.size());
 
     mAvailableOutputDevices.dump(fd, String8("output"));
@@ -2678,7 +2681,8 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mAudioPortGeneration(1),
     mBeaconMuteRefCount(0),
     mBeaconPlayingRefCount(0),
-    mBeaconMuted(false)
+    mBeaconMuted(false),
+    mTtsOutputAvailable(false)
 {
     audio_policy::EngineInstance *engineInstance = audio_policy::EngineInstance::getInstance();
     if (!engineInstance) {
@@ -2734,6 +2738,9 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             if (outProfile->mSupportedDevices.isEmpty()) {
                 ALOGW("Output profile contains no device on module %s", mHwModules[i]->mName);
                 continue;
+            }
+            if ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_TTS) != 0) {
+                mTtsOutputAvailable = true;
             }
 
             if ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
@@ -4034,6 +4041,12 @@ void AudioPolicyManager::handleNotificationRoutingForStream(audio_stream_type_t 
 }
 
 uint32_t AudioPolicyManager::handleEventForBeacon(int event) {
+
+    // skip beacon mute management if a dedicated TTS output is available
+    if (mTtsOutputAvailable) {
+        return 0;
+    }
+
     switch(event) {
     case STARTING_OUTPUT:
         mBeaconMuteRefCount++;
