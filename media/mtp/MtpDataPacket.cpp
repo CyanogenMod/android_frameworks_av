@@ -525,16 +525,9 @@ int MtpDataPacket::writeDataHeader(struct usb_request *request, uint32_t length)
 int MtpDataPacket::write(struct usb_request *request) {
     MtpPacket::putUInt32(MTP_CONTAINER_LENGTH_OFFSET, mPacketSize);
     MtpPacket::putUInt16(MTP_CONTAINER_TYPE_OFFSET, MTP_CONTAINER_TYPE_DATA);
-
-    // send header separately from data
     request->buffer = mBuffer;
-    request->buffer_length = MTP_CONTAINER_HEADER_SIZE;
+    request->buffer_length = mPacketSize;
     int ret = transfer(request);
-    if (ret == MTP_CONTAINER_HEADER_SIZE) {
-        request->buffer = mBuffer + MTP_CONTAINER_HEADER_SIZE;
-        request->buffer_length = mPacketSize - MTP_CONTAINER_HEADER_SIZE;
-        ret = transfer(request);
-    }
     return (ret < 0 ? ret : 0);
 }
 
