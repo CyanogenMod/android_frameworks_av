@@ -97,7 +97,7 @@ DataSource::SnifferFunc AVUtils::getExtendedSniffer() {
 }
 
 sp<MediaCodec> AVUtils::createCustomComponentByName(
-        const sp<ALooper> &, const char* , bool ) {
+        const sp<ALooper> &, const char* , bool, const sp<AMessage> &) {
     return NULL;
 }
 

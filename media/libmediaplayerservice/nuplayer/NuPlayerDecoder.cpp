@@ -252,7 +252,7 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mComponentName.append(" decoder");
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), mSurface.get());
 
-    mCodec = AVUtils::get()->createCustomComponentByName(mCodecLooper, mime.c_str(), false /* encoder */);
+    mCodec = AVUtils::get()->createCustomComponentByName(mCodecLooper, mime.c_str(), false /* encoder */, format);
     if (mCodec == NULL) {
         mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
     }
