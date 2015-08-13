@@ -2090,8 +2090,12 @@ void Camera3Device::removeInFlightRequestIfReadyLocked(int idx) {
 
     // Sanity check - if we have too many in-flight frames, something has
     // likely gone wrong
-    if (mInFlightMap.size() > kInFlightWarnLimit) {
+    if (!mIsConstrainedHighSpeedConfiguration && mInFlightMap.size() > kInFlightWarnLimit) {
         CLOGE("In-flight list too large: %zu", mInFlightMap.size());
+    } else if (mIsConstrainedHighSpeedConfiguration && mInFlightMap.size() >
+            kInFlightWarnLimitHighSpeed) {
+        CLOGE("In-flight list too large for high speed configuration: %zu",
+                mInFlightMap.size());
     }
 }
 
