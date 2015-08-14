@@ -42,4 +42,6 @@ LOCAL_MODULE_TAGS := optional
 
 LOCAL_32_BIT_ONLY := true
 
+LOCAL_INIT_RC := drmserver.rc
+
 include $(BUILD_EXECUTABLE)
