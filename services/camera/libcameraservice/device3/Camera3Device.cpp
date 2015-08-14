@@ -1380,6 +1380,10 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
 }
 
 status_t Camera3Device::prepare(int streamId) {
+    return prepare(camera3::Camera3StreamInterface::ALLOCATE_PIPELINE_MAX, streamId);
+}
+
+status_t Camera3Device::prepare(int maxCount, int streamId) {
     ATRACE_CALL();
     ALOGV("%s: Camera %d: Preparing stream %d", __FUNCTION__, mId, streamId);
     Mutex::Autolock il(mInterfaceLock);
@@ -1404,7 +1408,7 @@ status_t Camera3Device::prepare(int streamId) {
         return BAD_VALUE;
     }
 
-    return mPreparerThread->prepare(stream);
+    return mPreparerThread->prepare(maxCount, stream);
 }
 
 status_t Camera3Device::tearDown(int streamId) {
@@ -3455,12 +3459,12 @@ Camera3Device::PreparerThread::~PreparerThread() {
     clear();
 }
 
-status_t Camera3Device::PreparerThread::prepare(sp<Camera3StreamInterface>& stream) {
+status_t Camera3Device::PreparerThread::prepare(int maxCount, sp<Camera3StreamInterface>& stream) {
     status_t res;
 
     Mutex::Autolock l(mLock);
 
-    res = stream->startPrepare();
+    res = stream->startPrepare(maxCount);
     if (res == OK) {
         // No preparation needed, fire listener right off
         ALOGV("%s: Stream %d already prepared", __FUNCTION__, stream->getId());
