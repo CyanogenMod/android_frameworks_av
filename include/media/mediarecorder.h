@@ -74,6 +74,9 @@ enum output_format {
     /* VP8/VORBIS data in a WEBM container */
     OUTPUT_FORMAT_WEBM = 9,
 
+    OUTPUT_FORMAT_QCP = 20,
+    OUTPUT_FORMAT_WAVE = 21,
+
     OUTPUT_FORMAT_LIST_END // must be last - used to validate format type
 };
 
@@ -85,6 +88,10 @@ enum audio_encoder {
     AUDIO_ENCODER_HE_AAC = 4,
     AUDIO_ENCODER_AAC_ELD = 5,
     AUDIO_ENCODER_VORBIS = 6,
+
+    AUDIO_ENCODER_EVRC = 10,
+    AUDIO_ENCODER_QCELP = 11,
+    AUDIO_ENCODER_LPCM = 12,
 
     AUDIO_ENCODER_LIST_END // must be the last - used to validate the audio encoder type
 };
