@@ -6392,6 +6392,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         if (list != NULL && list->findCodecByName(componentName.c_str()) >= 0) {
             matchingCodecs.add(componentName);
         }
+        if (matchingCodecs.size() == 0 && componentName.find("qcom", 0) > 0) {
+            matchingCodecs.add(componentName);
+        }
+
     } else {
         CHECK(msg->findString("mime", &mime));
 

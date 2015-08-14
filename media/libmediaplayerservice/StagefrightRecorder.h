@@ -195,6 +195,10 @@ protected:
     void clipNumberOfAudioChannels();
     void setDefaultProfileIfNecessary();
     void setDefaultVideoEncoderIfNecessary();
+    virtual status_t handleCustomOutputFormats() {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomRecording() {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomAudioSource(sp<AMessage> /*format*/) {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomAudioEncoder() {return UNKNOWN_ERROR;}
 
 
     StagefrightRecorder(const StagefrightRecorder &);

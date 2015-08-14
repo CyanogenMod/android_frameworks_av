@@ -458,12 +458,15 @@ status_t MediaCodecSource::initEncoder() {
     CHECK(mOutputFormat->findString("mime", &outputMIME));
 
     Vector<AString> matchingCodecs;
-    MediaCodecList::findMatchingCodecs(
-            outputMIME.c_str(), true /* encoder */,
-            ((mFlags & FLAG_PREFER_SOFTWARE_CODEC) ? MediaCodecList::kPreferSoftwareCodecs : 0),
-            &matchingCodecs);
-    if (matchingCodecs.size() == 0)
-        AVUtils::get()->useQCHWEncoder(mOutputFormat, &matchingCodecs);
+    if (AVUtils::get()->useQCHWEncoder(mOutputFormat, &matchingCodecs)) {
+        ;
+    } else {
+        MediaCodecList::findMatchingCodecs(
+                outputMIME.c_str(), true /* encoder */,
+                ((mFlags & FLAG_PREFER_SOFTWARE_CODEC) ? MediaCodecList::kPreferSoftwareCodecs : 0),
+                &matchingCodecs);
+    }
+
     status_t err = NO_INIT;
     for (size_t ix = 0; ix < matchingCodecs.size(); ++ix) {
         mEncoder = MediaCodec::CreateByComponentName(
