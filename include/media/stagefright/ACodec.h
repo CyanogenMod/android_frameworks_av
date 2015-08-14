@@ -188,6 +188,7 @@ private:
     bool mSentFormat;
     bool mIsEncoder;
     bool mUseMetadataOnEncoderOutput;
+    bool mFatalError;
     bool mShutdownInProgress;
     bool mIsConfiguredForAdaptivePlayback;
 
