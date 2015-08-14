@@ -31,6 +31,7 @@
 #include <openssl/aes.h>
 #include <openssl/md5.h>
 #include <utils/Mutex.h>
+#include <inttypes.h>
 
 namespace android {
 
@@ -165,7 +166,10 @@ ssize_t HTTPDownloader::fetchBlock(
         size_t maxBytesToRead = bufferRemaining;
         if (range_length >= 0) {
             int64_t bytesLeftInRange = range_length - buffer->size();
-            if (bytesLeftInRange < (int64_t)maxBytesToRead) {
+            if (bytesLeftInRange < 0) {
+                ALOGE("range_length %" PRId64 " wrapped around", range_length);
+                return ERROR_OUT_OF_RANGE;
+            } else if (bytesLeftInRange < (int64_t)maxBytesToRead) {
                 maxBytesToRead = bytesLeftInRange;
 
                 if (bytesLeftInRange == 0) {
