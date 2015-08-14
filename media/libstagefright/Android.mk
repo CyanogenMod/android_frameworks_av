@@ -127,17 +127,26 @@ LOCAL_WHOLE_STATIC_LIBRARIES := libavextensions
 
 ifeq ($(BOARD_USE_S3D_SUPPORT), true)
 ifeq ($(BOARD_USES_HWC_SERVICES), true)
+
+ifeq ($(TARGET_SLSI_VARIANT),cm)
+SLSI_DIR := samsung_slsi-cm
+PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)
+else
+SLSI_DIR := samsung_slsi
+PLATFORM_DIR := $(TARGET_BOARD_PLATFORM)-$(TARGET_SLSI_VARIANT)
+endif
+
 LOCAL_CFLAGS += -DUSE_S3D_SUPPORT -DHWC_SERVICES
 LOCAL_C_INCLUDES += \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include \
-        $(TOP)/hardware/samsung_slsi/openmax/include/exynos \
-        $(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)-insignal/libhwcService \
-        $(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)-insignal/libhwc \
-        $(TOP)/hardware/samsung_slsi/$(TARGET_BOARD_PLATFORM)-insignal/include \
-        $(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/libhwcmodule \
-        $(TOP)/hardware/samsung_slsi/$(TARGET_SOC)/include \
-        $(TOP)/hardware/samsung_slsi/exynos/libexynosutils \
-        $(TOP)/hardware/samsung_slsi/exynos/include
+        $(TOP)/hardware/$(SLSI_DIR)/openmax/include/exynos \
+        $(TOP)/hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/libhwcService \
+        $(TOP)/hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/libhwc \
+        $(TOP)/hardware/$(SLSI_DIR)/$(PLATFORM_DIR)/include \
+        $(TOP)/hardware/$(SLSI_DIR)/$(TARGET_SOC)/libhwcmodule \
+        $(TOP)/hardware/$(SLSI_DIR)/$(TARGET_SOC)/include \
+        $(TOP)/hardware/$(SLSI_DIR)/exynos/libexynosutils \
+        $(TOP)/hardware/$(SLSI_DIR)/exynos/include
 
 LOCAL_ADDITIONAL_DEPENDENCIES := \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
