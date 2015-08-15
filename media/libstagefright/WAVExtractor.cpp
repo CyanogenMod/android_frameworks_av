@@ -315,9 +315,17 @@ status_t WAVExtractor::init() {
                         1000000LL * (mDataSize / 65 * 320) / 8000;
                 } else {
                     size_t bytesPerSample = mBitsPerSample >> 3;
+
+                    if (!bytesPerSample || !mNumChannels)
+                        return ERROR_MALFORMED;
+
+                    size_t num_samples = mDataSize / (mNumChannels * bytesPerSample);
+
+                    if (!mSampleRate)
+                        return ERROR_MALFORMED;
+
                     durationUs =
-                        1000000LL * (mDataSize / (mNumChannels * bytesPerSample))
-                            / mSampleRate;
+                        1000000LL * num_samples / mSampleRate;
                 }
 
                 mTrackMeta->setInt64(kKeyDuration, durationUs);
