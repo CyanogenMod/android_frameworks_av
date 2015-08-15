@@ -100,7 +100,9 @@ public:
 
     /////////////////////////////////////////////////////////////////////
     // ICameraService
+    virtual int32_t     getNumberOfCameras(int type);
     virtual int32_t     getNumberOfCameras();
+
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
     virtual status_t    getCameraCharacteristics(int cameraId,
@@ -509,6 +511,11 @@ private:
     std::set<userid_t> mAllowedUsers;
 
     /**
+     * Check camera capabilities, such as support for basic color operation
+     */
+    int checkCameraCapabilities(int id, camera_info info, int *latestStrangeCameraId);
+
+    /**
      * Get the camera state for a given camera id.
      *
      * This acquires mCameraStatesLock.
@@ -610,6 +617,7 @@ private:
     void dumpEventLog(int fd);
 
     int                 mNumberOfCameras;
+    int                 mNumberOfNormalCameras;
 
     // sounds
     MediaPlayer*        newMediaPlayer(const char *file);
