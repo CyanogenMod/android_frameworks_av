@@ -619,6 +619,11 @@ const uint8_t *ID3::Iterator::getData(size_t *length) const {
         return NULL;
     }
 
+    // Prevent integer underflow
+    if (mFrameSize < getHeaderLength()) {
+        return NULL;
+    }
+
     *length = mFrameSize - getHeaderLength();
 
     return mFrameData;
@@ -833,6 +838,9 @@ ID3::getAlbumArt(size_t *length, String8 *mime) const {
     while (!it.done()) {
         size_t size;
         const uint8_t *data = it.getData(&size);
+        if (!data) {
+            return NULL;
+        }
 
         if (mVersion == ID3_V2_3 || mVersion == ID3_V2_4) {
             uint8_t encoding = data[0];
