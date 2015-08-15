@@ -207,7 +207,8 @@ LOCAL_C_INCLUDES += \
         $(TOP)/hardware/$(SLSI_DIR)/$(TARGET_SOC)/libhwcmodule \
         $(TOP)/hardware/$(SLSI_DIR)/$(TARGET_SOC)/include \
         $(TOP)/hardware/$(SLSI_DIR)/exynos/libexynosutils \
-        $(TOP)/hardware/$(SLSI_DIR)/exynos/include
+        $(TOP)/hardware/$(SLSI_DIR)/exynos/include \
+        $(TOP)/hardware/$(SLSI_DIR)/exynos/libhwc
 
 LOCAL_ADDITIONAL_DEPENDENCIES := \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
