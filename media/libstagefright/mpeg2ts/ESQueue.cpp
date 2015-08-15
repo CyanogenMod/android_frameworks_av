@@ -1120,10 +1120,6 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
         }
 
         if (mFormat != NULL && currentStartCode == 0xb8) {
-            if (offset + 7 <= size) {
-                ALOGE("Size too small");
-                return NULL;
-            }
             // GOP layer
             gopFound = true;
             isClosedGop = (data[offset + 7] & 0x40) != 0;
