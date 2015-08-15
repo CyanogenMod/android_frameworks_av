@@ -656,6 +656,11 @@ void ID3::Iterator::findFrame() {
 
             mFrameSize += 6;
 
+            // Prevent integer overflow in validation
+            if (SIZE_MAX - mOffset <= mFrameSize) {
+                return;
+            }
+
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %d (size = %d, bytes-remaining = %d)",
                      mOffset, mFrameSize, mParent.mSize - mOffset - 6);
@@ -685,7 +690,7 @@ void ID3::Iterator::findFrame() {
                 return;
             }
 
-            size_t baseSize;
+            size_t baseSize = 0;
             if (mParent.mVersion == ID3_V2_4) {
                 if (!ParseSyncsafeInteger(
                             &mParent.mData[mOffset + 4], &baseSize)) {
@@ -695,7 +700,21 @@ void ID3::Iterator::findFrame() {
                 baseSize = U32_AT(&mParent.mData[mOffset + 4]);
             }
 
-            mFrameSize = 10 + baseSize;
+            if (baseSize == 0) {
+                return;
+            }
+
+            // Prevent integer overflow when adding
+            if (SIZE_MAX - 10 <= baseSize) {
+                return;
+            }
+
+            mFrameSize = 10 + baseSize; // add tag id, size field and flags
+
+            // Prevent integer overflow in validation
+            if (SIZE_MAX - mOffset <= mFrameSize) {
+                return;
+            }
 
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %d (size = %d, bytes-remaining = %d)",
