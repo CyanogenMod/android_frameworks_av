@@ -236,6 +236,7 @@ private:
     bool mSentFormat;
     bool mIsVideo;
     bool mIsEncoder;
+    bool mFatalError;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
 
