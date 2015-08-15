@@ -138,7 +138,8 @@ LOCAL_C_INCLUDES += \
         $(TOP)/hardware/samsung_slsi-cm/$(TARGET_SOC)/libhwcmodule \
         $(TOP)/hardware/samsung_slsi-cm/$(TARGET_SOC)/include \
         $(TOP)/hardware/samsung_slsi-cm/exynos/libexynosutils \
-        $(TOP)/hardware/samsung_slsi-cm/exynos/include
+        $(TOP)/hardware/samsung_slsi-cm/exynos/include \
+        $(TOP)/hardware/samsung_slsi-cm/exynos/libhwc
 
 LOCAL_ADDITIONAL_DEPENDENCIES := \
         $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
