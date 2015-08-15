@@ -1518,6 +1518,9 @@ status_t PlaylistFetcher::extractAndQueueAccessUnits(
             while (!it.done()) {
                 size_t length;
                 const uint8_t *data = it.getData(&length);
+                if (!data) {
+                    return ERROR_MALFORMED;
+                }
 
                 static const char *kMatchName =
                     "com.apple.streaming.transportStreamTimestamp";

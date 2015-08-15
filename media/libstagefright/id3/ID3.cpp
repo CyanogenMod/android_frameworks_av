@@ -507,6 +507,9 @@ void ID3::Iterator::getstring(String8 *id, bool otherdata) const {
         return;
     }
 
+    if (mFrameSize < getHeaderLength() + 1) {
+        return;
+    }
     size_t n = mFrameSize - getHeaderLength() - 1;
     if (otherdata) {
         // skip past the encoding, language, and the 0 separator
@@ -593,6 +596,11 @@ const uint8_t *ID3::Iterator::getData(size_t *length) const {
     *length = 0;
 
     if (mFrameData == NULL) {
+        return NULL;
+    }
+
+    // Prevent integer underflow
+    if (mFrameSize < getHeaderLength()) {
         return NULL;
     }
 
@@ -788,6 +796,9 @@ ID3::getAlbumArt(size_t *length, String8 *mime) const {
     while (!it.done()) {
         size_t size;
         const uint8_t *data = it.getData(&size);
+        if (!data) {
+            return NULL;
+        }
 
         if (mVersion == ID3_V2_3 || mVersion == ID3_V2_4) {
             uint8_t encoding = data[0];
