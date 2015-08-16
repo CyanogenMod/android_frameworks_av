@@ -171,6 +171,7 @@ void CameraService::onFirstRef()
     }
 
     mNumberOfCameras = mModule->getNumberOfCameras();
+    mNumberOfNormalCameras = mNumberOfCameras;
 
     mFlashlight = new CameraFlashlight(*mModule, *this);
     status_t res = mFlashlight->findFlashUnits();
@@ -179,8 +180,30 @@ void CameraService::onFirstRef()
         ALOGE("Failed to find flash units.");
     }
 
+    int latestStrangeCameraId = INT_MAX;
     for (int i = 0; i < mNumberOfCameras; i++) {
         String8 cameraId = String8::format("%d", i);
+
+        // Get camera info
+
+        struct camera_info info;
+        bool haveInfo = true;
+        status_t rc = mModule->getCameraInfo(i, &info);
+        if (rc != NO_ERROR) {
+            ALOGE("%s: Received error loading camera info for device %d, cost and"
+                    " conflicting devices fields set to defaults for this device.",
+                    __FUNCTION__, i);
+            haveInfo = false;
+        }
+
+        // Check for backwards-compatibility support
+        if (haveInfo) {
+            if (checkCameraCapabilities(i, info, &latestStrangeCameraId) != OK) {
+                delete mModule;
+                mModule = nullptr;
+                return;
+            }
+        }
 
         // Defaults to use for cost and conflicting devices
         int cost = 100;
@@ -188,18 +211,10 @@ void CameraService::onFirstRef()
         size_t conflicting_devices_length = 0;
 
         // If using post-2.4 module version, query the cost + conflicting devices from the HAL
-        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
-            struct camera_info info;
-            status_t rc = mModule->getCameraInfo(i, &info);
-            if (rc == NO_ERROR) {
-                cost = info.resource_cost;
-                conflicting_devices = info.conflicting_devices;
-                conflicting_devices_length = info.conflicting_devices_length;
-            } else {
-                ALOGE("%s: Received error loading camera info for device %d, cost and"
-                        " conflicting devices fields set to defaults for this device.",
-                        __FUNCTION__, i);
-            }
+        if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4 && haveInfo) {
+            cost = info.resource_cost;
+            conflicting_devices = info.conflicting_devices;
+            conflicting_devices_length = info.conflicting_devices_length;
         }
 
         std::set<String8> conflicting;
@@ -382,9 +397,21 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
     }
 }
 
-
 int32_t CameraService::getNumberOfCameras() {
-    return mNumberOfCameras;
+    return getNumberOfCameras(CAMERA_TYPE_BACKWARD_COMPATIBLE);
+}
+
+int32_t CameraService::getNumberOfCameras(int type) {
+    switch (type) {
+        case CAMERA_TYPE_BACKWARD_COMPATIBLE:
+            return mNumberOfNormalCameras;
+        case CAMERA_TYPE_ALL:
+            return mNumberOfCameras;
+        default:
+            ALOGW("%s: Unknown camera type %d, returning 0",
+                    __FUNCTION__, type);
+            return 0;
+    }
 }
 
 status_t CameraService::getCameraInfo(int cameraId,
@@ -1493,6 +1520,53 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
     return ret;
 }
 
+
+/**
+ * Check camera capabilities, such as support for basic color operation
+ */
+int CameraService::checkCameraCapabilities(int id, camera_info info, int *latestStrangeCameraId) {
+
+    // Assume all devices pre-v3.3 are backward-compatible
+    bool isBackwardCompatible = true;
+    if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_0
+            && info.device_version >= CAMERA_DEVICE_API_VERSION_3_3) {
+        isBackwardCompatible = false;
+        status_t res;
+        camera_metadata_ro_entry_t caps;
+        res = find_camera_metadata_ro_entry(
+            info.static_camera_characteristics,
+            ANDROID_REQUEST_AVAILABLE_CAPABILITIES,
+            &caps);
+        if (res != 0) {
+            ALOGW("%s: Unable to find camera capabilities for camera device %d",
+                    __FUNCTION__, id);
+            caps.count = 0;
+        }
+        for (size_t i = 0; i < caps.count; i++) {
+            if (caps.data.u8[i] ==
+                    ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE) {
+                isBackwardCompatible = true;
+                break;
+            }
+        }
+    }
+
+    if (!isBackwardCompatible) {
+        mNumberOfNormalCameras--;
+        *latestStrangeCameraId = id;
+    } else {
+        if (id > *latestStrangeCameraId) {
+            ALOGE("%s: Normal camera ID %d higher than strange camera ID %d. "
+                    "This is not allowed due backward-compatibility requirements",
+                    __FUNCTION__, id, *latestStrangeCameraId);
+            logServiceError("Invalid order of camera devices", ENODEV);
+            mNumberOfCameras = 0;
+            mNumberOfNormalCameras = 0;
+            return INVALID_OPERATION;
+        }
+    }
+    return OK;
+}
 
 std::shared_ptr<CameraService::CameraState> CameraService::getCameraState(
         const String8& cameraId) const {

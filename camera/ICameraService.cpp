@@ -94,11 +94,18 @@ public:
     {
     }
 
-    // get number of cameras available
+    // get number of cameras available that support standard camera operations
     virtual int32_t getNumberOfCameras()
+    {
+        return getNumberOfCameras(CAMERA_TYPE_BACKWARD_COMPATIBLE);
+    }
+
+    // get number of cameras available of a given type
+    virtual int32_t getNumberOfCameras(int type)
     {
         Parcel data, reply;
         data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeInt32(type);
         remote()->transact(BnCameraService::GET_NUMBER_OF_CAMERAS, data, &reply);
 
         if (readExceptionCode(reply)) return 0;
@@ -337,7 +344,7 @@ status_t BnCameraService::onTransact(
         case GET_NUMBER_OF_CAMERAS: {
             CHECK_INTERFACE(ICameraService, data, reply);
             reply->writeNoException();
-            reply->writeInt32(getNumberOfCameras());
+            reply->writeInt32(getNumberOfCameras(data.readInt32()));
             return NO_ERROR;
         } break;
         case GET_CAMERA_INFO: {
