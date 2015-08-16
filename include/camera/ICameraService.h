@@ -64,6 +64,11 @@ public:
     };
 
     enum {
+        CAMERA_TYPE_BACKWARD_COMPATIBLE = 0,
+        CAMERA_TYPE_ALL = 1,
+    };
+
+    enum {
         CAMERA_HAL_API_VERSION_UNSPECIFIED = -1
     };
 
@@ -81,7 +86,12 @@ public:
 public:
     DECLARE_META_INTERFACE(CameraService);
 
+    // Get the number of cameras that support basic color camera operation
+    // (type CAMERA_TYPE_BACKWARD_COMPATIBLE)
     virtual int32_t  getNumberOfCameras() = 0;
+    // Get the number of cameras of the specified type, one of CAMERA_TYPE_*
+    // enums
+    virtual int32_t  getNumberOfCameras(int cameraType) = 0;
     virtual status_t getCameraInfo(int cameraId,
             /*out*/
             struct CameraInfo* cameraInfo) = 0;
