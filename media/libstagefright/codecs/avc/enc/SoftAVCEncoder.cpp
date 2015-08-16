@@ -257,10 +257,6 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
     if (mVideoColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
         // Color conversion is needed.
         CHECK(mInputFrameData == NULL);
-        if (((uint64_t)mVideoWidth * mVideoHeight) > ((uint64_t)INT32_MAX / 3)) {
-            ALOGE("Buffer size is too big.");
-            return OMX_ErrorUndefined;
-        }
         mInputFrameData =
             (uint8_t *) malloc((mVideoWidth * mVideoHeight * 3 ) >> 1);
         CHECK(mInputFrameData != NULL);
@@ -282,10 +278,6 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
     int32_t nMacroBlocks = ((((mVideoWidth + 15) >> 4) << 4) *
             (((mVideoHeight + 15) >> 4) << 4)) >> 8;
     CHECK(mSliceGroup == NULL);
-    if (nMacroBlocks > SIZE_MAX / sizeof(uint32_t)) {
-        ALOGE("requested memory size is too big.");
-        return OMX_ErrorUndefined;
-    }
     mSliceGroup = (uint32_t *) malloc(sizeof(uint32_t) * nMacroBlocks);
     CHECK(mSliceGroup != NULL);
     for (int ii = 0, idx = 0; ii < nMacroBlocks; ++ii) {
@@ -706,10 +698,6 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
             if (mStoreMetaDataInBuffers) {
                 mVideoColorFormat == OMX_COLOR_FormatYUV420SemiPlanar;
                 if (mInputFrameData == NULL) {
-                    if (((uint64_t)mVideoWidth * mVideoHeight) > ((uint64_t)INT32_MAX / 3)) {
-                        ALOGE("Buffer size is too big.");
-                        return OMX_ErrorUndefined;
-                    }
                     mInputFrameData =
                             (uint8_t *) malloc((mVideoWidth * mVideoHeight * 3 ) >> 1);
                 }
