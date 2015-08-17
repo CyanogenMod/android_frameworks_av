@@ -5,6 +5,7 @@ LOCAL_CPPFLAGS += -D__STDINT_LIMITS
 
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
+LOCAL_SANITIZE := unsigned-integer-overflow
 
 LOCAL_SRC_FILES:= EbmlUtil.cpp        \
                   WebmElement.cpp     \
