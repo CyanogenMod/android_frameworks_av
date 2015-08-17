@@ -140,6 +140,11 @@ public:
     virtual status_t        prepare(int streamId) = 0;
 
     /**
+     * Preallocate up to maxCount buffers for a given output stream asynchronously.
+     */
+    virtual status_t        prepare2(int maxCount, int streamId) = 0;
+
+    /**
      * Free all unused buffers for a given output stream.
      */
     virtual status_t        tearDown(int streamId) = 0;
