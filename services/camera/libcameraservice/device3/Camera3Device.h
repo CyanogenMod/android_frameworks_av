@@ -62,6 +62,7 @@ class Camera3Device :
             public CameraDeviceBase,
             private camera3_callback_ops {
   public:
+
     Camera3Device(int id);
 
     virtual ~Camera3Device();
@@ -142,6 +143,8 @@ class Camera3Device :
     virtual status_t prepare(int streamId);
 
     virtual status_t tearDown(int streamId);
+
+    virtual status_t prepare(int maxCount, int streamId);
 
     virtual uint32_t getDeviceVersion();
 
@@ -698,10 +701,11 @@ class Camera3Device :
         void setNotificationListener(NotificationListener *listener);
 
         /**
-         * Queue up a stream to be prepared. Streams are processed by
-         * a background thread in FIFO order
+         * Queue up a stream to be prepared. Streams are processed by a background thread in FIFO
+         * order.  Pre-allocate up to maxCount buffers for the stream, or the maximum number needed
+         * for the pipeline if maxCount is ALLOCATE_PIPELINE_MAX.
          */
-        status_t prepare(sp<camera3::Camera3StreamInterface>& stream);
+        status_t prepare(int maxCount, sp<camera3::Camera3StreamInterface>& stream);
 
         /**
          * Cancel all current and pending stream preparation
