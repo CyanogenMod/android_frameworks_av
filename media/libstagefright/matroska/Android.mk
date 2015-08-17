@@ -10,6 +10,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
+LOCAL_SANITIZE := unsigned-integer-overflow
 
 LOCAL_MODULE:= libstagefright_matroska
 
