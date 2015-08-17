@@ -15,6 +15,9 @@
  * and limitations under the License.
  * -------------------------------------------------------------------
  */
+
+#include <stdint.h>
+
 #include "mp4dec_lib.h"
 #include "vlc_decode.h"
 #include "bitstream.h"
