@@ -53,7 +53,8 @@ Camera3Stream::Camera3Stream(int id,
     mName(String8::format("Camera3Stream[%d]", id)),
     mMaxSize(maxSize),
     mState(STATE_CONSTRUCTED),
-    mStatusId(StatusTracker::NO_STATUS_ID) {
+    mStatusId(StatusTracker::NO_STATUS_ID),
+    mLastMaxCount(Camera3StreamInterface::ALLOCATE_PIPELINE_MAX) {
 
     camera3_stream::stream_type = type;
     camera3_stream::width = width;
@@ -252,11 +253,17 @@ bool Camera3Stream::isUnpreparable() {
     return mStreamUnpreparable;
 }
 
-status_t Camera3Stream::startPrepare() {
+status_t Camera3Stream::startPrepare(int maxCount) {
     ATRACE_CALL();
 
     Mutex::Autolock l(mLock);
     status_t res = OK;
+
+    if (maxCount < 0) {
+        ALOGE("%s: Stream %d: Can't prepare stream if max buffer count (%d) is < 0",
+                __FUNCTION__, mId, maxCount);
+        return BAD_VALUE;
+    }
 
     // This function should be only called when the stream is configured already.
     if (mState != STATE_CONFIGURED) {
@@ -279,9 +286,19 @@ status_t Camera3Stream::startPrepare() {
         return INVALID_OPERATION;
     }
 
+
+
+    size_t pipelineMax = getBufferCountLocked();
+    size_t clampedCount = (pipelineMax < static_cast<size_t>(maxCount)) ?
+            pipelineMax : static_cast<size_t>(maxCount);
+    size_t bufferCount = (maxCount == Camera3StreamInterface::ALLOCATE_PIPELINE_MAX) ?
+            pipelineMax : clampedCount;
+
+    mPrepared = bufferCount <= mLastMaxCount;
+
     if (mPrepared) return OK;
 
-    size_t bufferCount = getBufferCountLocked();
+    mLastMaxCount = bufferCount;
 
     mPreparedBuffers.insertAt(camera3_stream_buffer_t(), /*index*/0, bufferCount);
     mPreparedBufferIdx = 0;
