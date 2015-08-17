@@ -16,8 +16,6 @@
  * -------------------------------------------------------------------
  */
 
-#include <stdint.h>
-
 #include "mp4enc_lib.h"
 #include "bitstream_io.h"
 #include "rate_control.h"
