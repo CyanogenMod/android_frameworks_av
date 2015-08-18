@@ -19,6 +19,14 @@
 #include "vlc_decode.h"
 #include "bitstream.h"
 
+#ifndef INT32_MAX
+#define INT32_MAX 0x7fffffff
+#endif
+
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t) -1)
+#endif
+
 #define OSCL_DISABLE_WARNING_CONDITIONAL_IS_CONSTANT
 
 #ifdef DEC_INTERNAL_MEMORY_OPT

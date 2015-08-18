@@ -21,6 +21,13 @@
 #include "rate_control.h"
 #include "m4venc_oscl.h"
 
+#ifndef INT32_MAX
+#define INT32_MAX 0x7fffffff
+#endif
+
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t) -1)
+#endif
 
 /* Inverse normal zigzag */
 const static Int zigzag_i[NCOEFF_BLOCK] =
