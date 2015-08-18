@@ -1319,6 +1319,7 @@ bool ATSParser::PTSTimeDeltaEstablished() {
     return mPrograms.editItemAt(0)->PTSTimeDeltaEstablished();
 }
 
+__attribute__((no_sanitize("integer")))
 void ATSParser::updatePCR(
         unsigned /* PID */, uint64_t PCR, size_t byteOffsetFromStart) {
     ALOGV("PCR 0x%016" PRIx64 " @ %zu", PCR, byteOffsetFromStart);
@@ -1337,6 +1338,7 @@ void ATSParser::updatePCR(
     ++mNumPCRs;
 
     if (mNumPCRs == 2) {
+        /* Unsigned overflow here */
         double transportRate =
             (mPCRBytes[1] - mPCRBytes[0]) * 27E6 / (mPCR[1] - mPCR[0]);
 
