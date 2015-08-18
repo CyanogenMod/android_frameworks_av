@@ -259,7 +259,7 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
     int32_t nMacroBlocks = ((((mVideoWidth + 15) >> 4) << 4) *
             (((mVideoHeight + 15) >> 4) << 4)) >> 8;
     CHECK(mSliceGroup == NULL);
-    if (nMacroBlocks > SIZE_MAX / sizeof(uint32_t)) {
+    if ((size_t)nMacroBlocks > SIZE_MAX / sizeof(uint32_t)) {
         ALOGE("requested memory size is too big.");
         return OMX_ErrorUndefined;
     }
