@@ -683,7 +683,6 @@ fail:
     return result;
 }
 
-
 // reads the object's data and writes it to the specified file path
 bool MtpDevice::readObject(MtpObjectHandle handle, const char* destPath, int group, int perm) {
     ALOGD("readObject: %s", destPath);
@@ -708,25 +707,26 @@ bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
     ALOGD("readObject: %d", fd);
 
     Mutex::Autolock autoLock(mMutex);
-    bool result = false;
 
     mRequest.reset();
     mRequest.setParameter(1, handle);
-    if (sendRequest(MTP_OPERATION_GET_OBJECT)
-            && mData.readDataHeader(mRequestIn1)) {
+    if (sendRequest(MTP_OPERATION_GET_OBJECT) && mData.readDataHeader(mRequestIn1)) {
         uint32_t length = mData.getContainerLength();
-        if (length < MTP_CONTAINER_HEADER_SIZE)
-            goto fail;
+        if (length < MTP_CONTAINER_HEADER_SIZE) {
+            ALOGE("Invalid container length.");
+            return false;
+        }
         length -= MTP_CONTAINER_HEADER_SIZE;
         uint32_t remaining = length;
 
+        bool writingError = false;
         int initialDataLength = 0;
         void* initialData = mData.getData(initialDataLength);
         if (initialData) {
             if (initialDataLength > 0) {
                 if (write(fd, initialData, initialDataLength) != initialDataLength) {
-                    free(initialData);
-                    goto fail;
+                    ALOGE("Failed to write initial data.");
+                    writingError = true;
                 }
                 remaining -= initialDataLength;
             }
@@ -747,29 +747,27 @@ bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
                 req->buffer_length = (remaining > sizeof(buffer1) ? sizeof(buffer1) : remaining);
                 if (mData.readDataAsync(req)) {
                     ALOGE("readDataAsync failed");
-                    goto fail;
+                    return false;
                 }
             } else {
                 req = NULL;
             }
 
-            if (writeBuffer) {
+            if (writeBuffer && !writingError) {
                 // write previous buffer
                 if (write(fd, writeBuffer, writeLength) != writeLength) {
-                    ALOGE("write failed");
-                    // wait for pending read before failing
-                    if (req)
-                        mData.readDataWait(mDevice);
-                    goto fail;
+                    writingError = true;
                 }
-                writeBuffer = NULL;
             }
+            writeBuffer = NULL;
 
             // wait for read to complete
             if (req) {
                 int read = mData.readDataWait(mDevice);
-                if (read < 0)
-                    goto fail;
+                if (read < 0) {
+                    ALOGE("readDataWait failed.");
+                    return false;
+                }
 
                 if (read > 0) {
                     writeBuffer = req->buffer;
@@ -783,12 +781,10 @@ bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
         }
 
         MtpResponseCode response = readResponse();
-        if (response == MTP_RESPONSE_OK)
-            result = true;
+        return response == MTP_RESPONSE_OK && !writingError;
     }
 
-fail:
-    return result;
+    return false;
 }
 
 bool MtpDevice::sendRequest(MtpOperationCode operation) {
