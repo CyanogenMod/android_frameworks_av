@@ -1199,6 +1199,7 @@ status_t AudioTrack::createTrack_l()
             frameCount = mSharedBuffer->size();
         } else if (frameCount == 0) {
             frameCount = mAfFrameCount;
+            frameCount = AVMediaUtils::get()->AudioTrackGetOffloadFrameCount(frameCount);
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;

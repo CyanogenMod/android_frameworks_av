@@ -53,6 +53,10 @@ struct AVMediaUtils {
                                              AudioTimestamp /*timestamp*/) {
         return NO_INIT;
     }
+
+    virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount) {
+        return frameCount;
+    }
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaUtils);
 };
