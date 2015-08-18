@@ -1480,7 +1480,10 @@ void NuPlayer::Renderer::onResume() {
 
     if (mHasAudio) {
         cancelAudioOffloadPauseTimeout();
-        mAudioSink->start();
+        status_t err = mAudioSink->start();
+        if (err != OK) {
+            notifyAudioTearDown();
+        }
     }
 
     {
