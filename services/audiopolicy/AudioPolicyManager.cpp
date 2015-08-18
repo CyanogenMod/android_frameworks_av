@@ -2035,6 +2035,7 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
             }
 
             outputDesc->mStopTime[stream] = systemTime();
+            audio_devices_t prevDevice = outputDesc->device();
             audio_devices_t newDevice = getNewOutputDevice(output, false /*fromCache*/);
 #ifdef HDMI_PASSTHROUGH_ENABLED
             // Use the stream ref count to check if ringtone/ notification
@@ -2068,10 +2069,16 @@ status_t AudioPolicyManager::stopOutput(audio_io_handle_t output,
 #ifdef HDMI_PASSTHROUGH_ENABLED
                         dev = handleHDMIPassthrough(dev, curOutput);
 #endif
+                    uint32_t delayMs;
+                    if (dev == prevDevice) {
+                        delayMs = 0;
+                    } else {
+                        delayMs = outputDesc->mLatency*2;
+                    }
                     setOutputDevice(curOutput,
                                     dev,
                                     true,
-                                    outputDesc->mLatency*2);
+                                    delayMs);
                 }
             }
             // update the outputs if stopping one with a stream that can affect notification routing
