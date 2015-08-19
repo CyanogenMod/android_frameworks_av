@@ -404,8 +404,9 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
                 break;
             }
         }
-
-        CHECK_LE(offset + payloadLength, buffer->size());
+        
+        CHECK_LT(offset, buffer->size());
+        CHECK_LE(payloadLength, buffer->size() - offset);
 
         memcpy(out->data() + out->size(), &ptr[offset], payloadLength);
         out->setRange(0, out->size() + payloadLength);
