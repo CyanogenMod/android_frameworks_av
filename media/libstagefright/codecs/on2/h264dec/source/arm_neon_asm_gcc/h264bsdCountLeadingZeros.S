@@ -15,7 +15,7 @@
 @
 #include "asm_common.S"
 
-    preserve8
+    PRESERVE8
     .arm
     .text
 

@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_InterpolateLuma_HorDiagCopy_unsafe
-    .func   armVCM4P10_InterpolateLuma_HorDiagCopy_unsafe
 armVCM4P10_InterpolateLuma_HorDiagCopy_unsafe:
     PUSH     {r4-r6,lr}
     MOV      lr,#4
@@ -57,10 +56,8 @@ LoopStart1:
     SUB      r0,r7,#0x20
     MOV      r1,#8
     POP      {r4-r6,pc}
-    .endfunc
 
     .global armVCM4P10_InterpolateLuma_VerDiagCopy_unsafe
-    .func   armVCM4P10_InterpolateLuma_VerDiagCopy_unsafe
 armVCM4P10_InterpolateLuma_VerDiagCopy_unsafe:
     PUSH     {r4-r6,lr}
     LDR      r6, =0xfe00fe0
@@ -116,7 +113,6 @@ LoopStart:
     SUB      r0,r7,#0x18
     MOV      r1,#4
     POP      {r4-r6,pc}
-    .endfunc
 
     .end
 

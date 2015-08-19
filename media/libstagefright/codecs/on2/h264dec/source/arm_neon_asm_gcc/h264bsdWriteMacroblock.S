@@ -16,8 +16,8 @@
 
 #include "asm_common.S"
 
-    require8
-    preserve8
+    REQUIRE8
+    PRESERVE8
 
     .arm
     .fpu neon
@@ -34,39 +34,39 @@
 
 /* -- NEON registers -- */
 
-#define qRow0     Q0.U8
-#define qRow1     Q1.U8
-#define qRow2     Q2.U8
-#define qRow3     Q3.U8
-#define qRow4     Q4.U8
-#define qRow5     Q5.U8
-#define qRow6     Q6.U8
-#define qRow7     Q7.U8
-#define qRow8     Q8.U8
-#define qRow9     Q9.U8
-#define qRow10    Q10.U8
-#define qRow11    Q11.U8
-#define qRow12    Q12.U8
-#define qRow13    Q13.U8
-#define qRow14    Q14.U8
-#define qRow15    Q15.U8
+#define qRow0     Q0
+#define qRow1     Q1
+#define qRow2     Q2
+#define qRow3     Q3
+#define qRow4     Q4
+#define qRow5     Q5
+#define qRow6     Q6
+#define qRow7     Q7
+#define qRow8     Q8
+#define qRow9     Q9
+#define qRow10    Q10
+#define qRow11    Q11
+#define qRow12    Q12
+#define qRow13    Q13
+#define qRow14    Q14
+#define qRow15    Q15
 
-#define dRow0     D0.U8
-#define dRow1     D1.U8
-#define dRow2     D2.U8
-#define dRow3     D3.U8
-#define dRow4     D4.U8
-#define dRow5     D5.U8
-#define dRow6     D6.U8
-#define dRow7     D7.U8
-#define dRow8     D8.U8
-#define dRow9     D9.U8
-#define dRow10    D10.U8
-#define dRow11    D11.U8
-#define dRow12    D12.U8
-#define dRow13    D13.U8
-#define dRow14    D14.U8
-#define dRow15    D15.U8
+#define dRow0     D0
+#define dRow1     D1
+#define dRow2     D2
+#define dRow3     D3
+#define dRow4     D4
+#define dRow5     D5
+#define dRow6     D6
+#define dRow7     D7
+#define dRow8     D8
+#define dRow9     D9
+#define dRow10    D10
+#define dRow11    D11
+#define dRow12    D12
+#define dRow13    D13
+#define dRow14    D14
+#define dRow15    D15
 
 /*------------------------------------------------------------------------------
 
@@ -99,59 +99,58 @@ function h264bsdWriteMacroblock, export=1
 
 
 @   Write luma
-    VLD1    {qRow0, qRow1}, [data]!
+    VLD1.8  {qRow0, qRow1}, [data]!
     LSL     width, width, #4
-    VLD1    {qRow2, qRow3}, [data]!
+    VLD1.8  {qRow2, qRow3}, [data]!
     LSR     cwidth, width, #1
-    VST1    {qRow0}, [luma,:128], width
-    VLD1    {qRow4, qRow5}, [data]!
-    VST1    {qRow1}, [luma,:128], width
-    VLD1    {qRow6, qRow7}, [data]!
-    VST1    {qRow2}, [luma,:128], width
-    VLD1    {qRow8, qRow9}, [data]!
-    VST1    {qRow3}, [luma,:128], width
-    VLD1    {qRow10, qRow11}, [data]!
-    VST1    {qRow4}, [luma,:128], width
-    VLD1    {qRow12, qRow13}, [data]!
-    VST1    {qRow5}, [luma,:128], width
-    VLD1    {qRow14, qRow15}, [data]!
-    VST1    {qRow6}, [luma,:128], width
+    VST1.8  {qRow0}, [luma,:128], width
+    VLD1.8  {qRow4, qRow5}, [data]!
+    VST1.8  {qRow1}, [luma,:128], width
+    VLD1.8  {qRow6, qRow7}, [data]!
+    VST1.8  {qRow2}, [luma,:128], width
+    VLD1.8  {qRow8, qRow9}, [data]!
+    VST1.8  {qRow3}, [luma,:128], width
+    VLD1.8  {qRow10, qRow11}, [data]!
+    VST1.8  {qRow4}, [luma,:128], width
+    VLD1.8  {qRow12, qRow13}, [data]!
+    VST1.8  {qRow5}, [luma,:128], width
+    VLD1.8  {qRow14, qRow15}, [data]!
+    VST1.8  {qRow6}, [luma,:128], width
 
-    VLD1    {qRow0, qRow1}, [data]! ;//cb rows 0,1,2,3
-    VST1    {qRow7}, [luma,:128], width
-    VLD1    {qRow2, qRow3}, [data]! ;//cb rows 4,5,6,7
-    VST1    {qRow8}, [luma,:128], width
-    VLD1    {qRow4, qRow5}, [data]! ;//cr rows 0,1,2,3
-    VST1    {qRow9}, [luma,:128], width
-    VLD1    {qRow6, qRow7}, [data]! ;//cr rows 4,5,6,7
-    VST1    {qRow10}, [luma,:128], width
-    VST1    {dRow0}, [cb,:64], cwidth
-    VST1    {dRow8}, [cr,:64], cwidth
-    VST1    {qRow11}, [luma,:128], width
-    VST1    {dRow1}, [cb,:64], cwidth
-    VST1    {dRow9}, [cr,:64], cwidth
-    VST1    {qRow12}, [luma,:128], width
-    VST1    {dRow2}, [cb,:64], cwidth
-    VST1    {dRow10}, [cr,:64], cwidth
-    VST1    {qRow13}, [luma,:128], width
-    VST1    {dRow3}, [cb,:64], cwidth
-    VST1    {dRow11}, [cr,:64], cwidth
-    VST1    {qRow14}, [luma,:128], width
-    VST1    {dRow4}, [cb,:64], cwidth
-    VST1    {dRow12}, [cr,:64], cwidth
-    VST1    {qRow15}, [luma]
-    VST1    {dRow5}, [cb,:64], cwidth
-    VST1    {dRow13}, [cr,:64], cwidth
-    VST1    {dRow6}, [cb,:64], cwidth
-    VST1    {dRow14}, [cr,:64], cwidth
-    VST1    {dRow7}, [cb,:64]
-    VST1    {dRow15}, [cr,:64]
+    VLD1.8  {qRow0, qRow1}, [data]! ;//cb rows 0,1,2,3
+    VST1.8  {qRow7}, [luma,:128], width
+    VLD1.8  {qRow2, qRow3}, [data]! ;//cb rows 4,5,6,7
+    VST1.8  {qRow8}, [luma,:128], width
+    VLD1.8  {qRow4, qRow5}, [data]! ;//cr rows 0,1,2,3
+    VST1.8  {qRow9}, [luma,:128], width
+    VLD1.8  {qRow6, qRow7}, [data]! ;//cr rows 4,5,6,7
+    VST1.8  {qRow10}, [luma,:128], width
+    VST1.8  {dRow0}, [cb,:64], cwidth
+    VST1.8  {dRow8}, [cr,:64], cwidth
+    VST1.8  {qRow11}, [luma,:128], width
+    VST1.8  {dRow1}, [cb,:64], cwidth
+    VST1.8  {dRow9}, [cr,:64], cwidth
+    VST1.8  {qRow12}, [luma,:128], width
+    VST1.8  {dRow2}, [cb,:64], cwidth
+    VST1.8  {dRow10}, [cr,:64], cwidth
+    VST1.8  {qRow13}, [luma,:128], width
+    VST1.8  {dRow3}, [cb,:64], cwidth
+    VST1.8  {dRow11}, [cr,:64], cwidth
+    VST1.8  {qRow14}, [luma,:128], width
+    VST1.8  {dRow4}, [cb,:64], cwidth
+    VST1.8  {dRow12}, [cr,:64], cwidth
+    VST1.8  {qRow15}, [luma]
+    VST1.8  {dRow5}, [cb,:64], cwidth
+    VST1.8  {dRow13}, [cr,:64], cwidth
+    VST1.8  {dRow6}, [cb,:64], cwidth
+    VST1.8  {dRow14}, [cr,:64], cwidth
+    VST1.8  {dRow7}, [cb,:64]
+    VST1.8  {dRow15}, [cr,:64]
 
     VPOP    {q4-q7}
     POP     {r4-r6,pc}
 @    BX      lr
 
-    .endfunc
 
 
 

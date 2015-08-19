@@ -94,8 +94,6 @@ ifeq ($(TARGET_ARCH),arm)
     LOCAL_C_INCLUDES += $(LOCAL_PATH)/./omxdl/arm_neon/api \
                         $(LOCAL_PATH)/./omxdl/arm_neon/vc/api \
                         $(LOCAL_PATH)/./omxdl/arm_neon/vc/m4p10/api
-    # h264bsdWriteMacroblock.S does not compile with Clang.
-    LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
   endif
 endif
 

@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_InterpolateLuma_Copy4x4_unsafe
-    .func   armVCM4P10_InterpolateLuma_Copy4x4_unsafe
 armVCM4P10_InterpolateLuma_Copy4x4_unsafe:
     PUSH     {r4-r6,lr}
     AND      r12,r0,#3
@@ -114,7 +113,6 @@ Copy4x4Align3:
     STR      r8,[r2],r3
 Copy4x4End:
     POP      {r4-r6,pc}
-    .endfunc
 
     .end
 
