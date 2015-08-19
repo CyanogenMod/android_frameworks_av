@@ -99,8 +99,8 @@ ssize_t FileSource::readAt(off64_t offset, void *data, size_t size) {
         if (offset >= mLength) {
             return 0;  // read beyond EOF.
         }
-        int64_t numAvailable = mLength - offset;
-        if ((int64_t)size > numAvailable) {
+        uint64_t numAvailable = mLength - offset;
+        if ((uint64_t)size > numAvailable) {
             size = numAvailable;
         }
     }
