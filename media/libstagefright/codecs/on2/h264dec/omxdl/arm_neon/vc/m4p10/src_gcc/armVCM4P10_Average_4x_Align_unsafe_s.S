@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_Average_4x4_Align0_unsafe
-    .func   armVCM4P10_Average_4x4_Align0_unsafe
 armVCM4P10_Average_4x4_Align0_unsafe:
     PUSH     {r4-r6,lr}
     LDR      r7, =0x80808080
@@ -55,10 +54,8 @@ armVCM4P10_Average_4x4_Align0_unsafe:
     EOR      r4,r4,r7
     STR      r4,[r2],r3
     POP      {r4-r6,pc}
-    .endfunc
 
     .global armVCM4P10_Average_4x4_Align2_unsafe
-    .func   armVCM4P10_Average_4x4_Align2_unsafe
 armVCM4P10_Average_4x4_Align2_unsafe:
     PUSH     {r4-r6,lr}
     LDR      r7, =0x80808080
@@ -99,10 +96,8 @@ armVCM4P10_Average_4x4_Align2_unsafe:
     EOR      r4,r4,r7
     STR      r4,[r2],r3
     POP      {r4-r6,pc}
-    .endfunc
 
     .global armVCM4P10_Average_4x4_Align3_unsafe
-    .func   armVCM4P10_Average_4x4_Align3_unsafe
 armVCM4P10_Average_4x4_Align3_unsafe:
     PUSH     {r4-r6,lr}
     LDR      r7, =0x80808080
@@ -143,7 +138,6 @@ armVCM4P10_Average_4x4_Align3_unsafe:
     EOR      r4,r4,r7
     STR      r4,[r2],r3
     POP      {r4-r6,pc}
-    .endfunc
 
     .end
 

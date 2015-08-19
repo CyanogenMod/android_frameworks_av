@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_InterpolateLuma_HorAlign9x_unsafe
-    .func   armVCM4P10_InterpolateLuma_HorAlign9x_unsafe
 armVCM4P10_InterpolateLuma_HorAlign9x_unsafe:
     MOV      r12,r8
     AND      r7,r0,#3
@@ -83,10 +82,8 @@ CopyEnd:
     MOV      r0,r12
     MOV      r1,#0xc
     BX       lr
-    .endfunc
 
     .global armVCM4P10_InterpolateLuma_VerAlign4x_unsafe
-    .func   armVCM4P10_InterpolateLuma_VerAlign4x_unsafe
 armVCM4P10_InterpolateLuma_VerAlign4x_unsafe:
     AND      r7,r0,#3
     BIC      r0,r0,#3
@@ -132,7 +129,6 @@ CopyVEnd:
     SUB      r0,r8,#0x1c
     MOV      r1,#4
     BX       lr
-    .endfunc
 
     .end
 

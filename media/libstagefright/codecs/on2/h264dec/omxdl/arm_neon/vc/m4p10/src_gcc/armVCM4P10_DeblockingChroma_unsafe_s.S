@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_DeblockingChromabSLT4_unsafe
-    .func   armVCM4P10_DeblockingChromabSLT4_unsafe
 armVCM4P10_DeblockingChromabSLT4_unsafe:
     VLD1.32  {d18[0]},[r5]!
     VSUBL.U8 q11,d5,d9
@@ -50,10 +49,8 @@ armVCM4P10_DeblockingChromabSLT4_unsafe:
     VQMOVUN.S16 d29,q14
     VQMOVUN.S16 d24,q12
     BX       lr
-    .endfunc
 
     .global armVCM4P10_DeblockingChromabSGE4_unsafe
-    .func   armVCM4P10_DeblockingChromabSGE4_unsafe
 armVCM4P10_DeblockingChromabSGE4_unsafe:
     VHADD.U8 d13,d4,d9
     VHADD.U8 d31,d8,d5
@@ -63,7 +60,6 @@ armVCM4P10_DeblockingChromabSGE4_unsafe:
     VRHADD.U8 d13,d13,d5
     VRHADD.U8 d31,d31,d9
     BX       lr
-    .endfunc
 
     .end
 
