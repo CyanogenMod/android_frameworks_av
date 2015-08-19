@@ -74,7 +74,7 @@ status_t FrameOutput::createInputSurface(int width, int height,
                 GL_TEXTURE_EXTERNAL_OES, true, false);
     mGlConsumer->setName(String8("virtual display"));
     mGlConsumer->setDefaultBufferSize(width, height);
-    mGlConsumer->setDefaultMaxBufferCount(5);
+    producer->setMaxDequeuedBufferCount(4);
     mGlConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_TEXTURE);
 
     mGlConsumer->setFrameAvailableListener(this);
