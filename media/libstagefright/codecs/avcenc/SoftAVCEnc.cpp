@@ -640,7 +640,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
                 mConversionBuffers[i] = 0;
             }
 
-            if (((uint64_t)mStride * mHeight) > (((uint64_t)INT32_MAX / 3) * 2)) {
+            if (((uint64_t)mStride * mHeight) > ((uint64_t)INT32_MAX / 3)) {
                 ALOGE("Buffer size is too big.");
                 return OMX_ErrorUndefined;
             }
