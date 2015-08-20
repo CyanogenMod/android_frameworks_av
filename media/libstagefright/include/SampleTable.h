@@ -142,8 +142,9 @@ private:
     // normally we don't round
     inline uint64_t getSampleTime(
             size_t sample_index, uint64_t scale_num, uint64_t scale_den) const {
-        return (mSampleTimeEntries[sample_index].mCompositionTime
-            * scale_num) / scale_den;
+        return (sample_index < (size_t)mNumSampleSizes && mSampleTimeEntries != NULL
+                && scale_den != 0)
+                ? (mSampleTimeEntries[sample_index].mCompositionTime * scale_num) / scale_den : 0;
     }
 
     status_t getSampleSize_l(uint32_t sample_index, size_t *sample_size);
