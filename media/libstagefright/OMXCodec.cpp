@@ -389,7 +389,7 @@ status_t OMXCodec::parseHEVCCodecSpecificData(
     const uint8_t *ptr = (const uint8_t *)data;
 
     // verify minimum size and configurationVersion == 1.
-    if (size < 7 || ptr[0] != 1) {
+    if (size < 23 || ptr[0] != 1) {
         return ERROR_MALFORMED;
     }
 
@@ -404,6 +404,9 @@ status_t OMXCodec::parseHEVCCodecSpecificData(
     size -= 1;
     size_t j = 0, i = 0;
     for (i = 0; i < numofArrays; i++) {
+        if (size < 3) {
+            return ERROR_MALFORMED;
+        }
         ptr += 1;
         size -= 1;
 
