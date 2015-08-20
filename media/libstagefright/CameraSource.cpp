@@ -881,18 +881,23 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         return;
     }
 
-    if (mNumFramesReceived > 0) {
-        CHECK(timestampUs > mLastFrameTimestampUs);
-        if (timestampUs - mLastFrameTimestampUs > mGlitchDurationThresholdUs) {
-            ++mNumGlitches;
-        }
-    }
-
     // May need to skip frame or modify timestamp. Currently implemented
     // by the subclass CameraSourceTimeLapse.
     if (skipCurrentFrame(timestampUs)) {
         releaseOneRecordingFrame(data);
         return;
+    }
+
+    if (mNumFramesReceived > 0) {
+        if (timestampUs <= mLastFrameTimestampUs) {
+            ALOGW("Dropping frame with backward timestamp %lld (last %lld)",
+                    (long long)timestampUs, (long long)mLastFrameTimestampUs);
+            releaseOneRecordingFrame(data);
+            return;
+        }
+        if (timestampUs - mLastFrameTimestampUs > mGlitchDurationThresholdUs) {
+            ++mNumGlitches;
+        }
     }
 
     mLastFrameTimestampUs = timestampUs;
