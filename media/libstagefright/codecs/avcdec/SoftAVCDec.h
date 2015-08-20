@@ -23,9 +23,6 @@
 
 namespace android {
 
-#define ivd_aligned_malloc(alignment, size) memalign(alignment, size)
-#define ivd_aligned_free(buf) free(buf)
-
 /** Number of entries in the time-stamp array */
 #define MAX_TIME_STAMPS 64
 
@@ -62,7 +59,6 @@ protected:
     virtual void onQueueFilled(OMX_U32 portIndex);
     virtual void onPortFlushCompleted(OMX_U32 portIndex);
     virtual void onReset();
-    virtual OMX_ERRORTYPE internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR params);
 private:
     // Number of input and output buffers
     enum {
@@ -70,8 +66,6 @@ private:
     };
 
     iv_obj_t *mCodecCtx;         // Codec context
-    iv_mem_rec_t *mMemRecords;   // Memory records requested by the codec
-    size_t mNumMemRecords;       // Number of memory records requested by the codec
 
     size_t mNumCores;            // Number of cores to be uesd by the codec
 
@@ -97,17 +91,15 @@ private:
 
     bool mIsInFlush;        // codec is flush mode
     bool mReceivedEOS;      // EOS is receieved on input port
-    bool mInitNeeded;
-    uint32_t mNewWidth;
-    uint32_t mNewHeight;
-    uint32_t mNewLevel;
+
     // The input stream has changed to a different resolution, which is still supported by the
     // codec. So the codec is switching to decode the new resolution.
     bool mChangingResolution;
     bool mFlushNeeded;
     bool mSignalledError;
+    size_t mStride;
 
-    status_t initDecoder(uint32_t width, uint32_t height);
+    status_t initDecoder();
     status_t deInitDecoder();
     status_t setFlushMode();
     status_t setParams(size_t stride);
@@ -115,7 +107,7 @@ private:
     status_t setNumCores();
     status_t resetDecoder();
     status_t resetPlugin();
-    status_t reInitDecoder(uint32_t width, uint32_t height);
+
 
     void setDecodeArgs(
             ivd_video_decode_ip_t *ps_dec_ip,
