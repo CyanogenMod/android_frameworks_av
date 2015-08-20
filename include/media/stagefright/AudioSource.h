@@ -61,7 +61,8 @@ protected:
     virtual ~AudioSource();
 
     enum {
-        kMaxBufferSize = 2048,
+        //calculated for max duration 80 msec with 48K sampling rate.
+        kMaxBufferSize = 30720,
 
         // After the initial mute, we raise the volume linearly
         // over kAutoRampDurationUs.
@@ -104,7 +105,7 @@ protected:
     void queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs);
     void releaseQueuedFrames_l();
     void waitOutstandingEncodingFrames_l();
-    status_t reset();
+    virtual status_t reset();
 
     AudioSource(const AudioSource &);
     AudioSource &operator=(const AudioSource &);

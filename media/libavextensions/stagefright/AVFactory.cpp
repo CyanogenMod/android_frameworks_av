@@ -42,6 +42,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/CameraSourceTimeLapse.h>
 #include <media/stagefright/MPEG4Writer.h>
+#include <media/stagefright/AudioSource.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
@@ -98,7 +99,15 @@ ElementaryStreamQueue* AVFactory::createESQueue(
          ElementaryStreamQueue::Mode , uint32_t ) {
     return NULL;
 }
-
+AudioSource* AVFactory::createAudioSource(
+            audio_source_t inputSource,
+            const String16 &opPackageName,
+            uint32_t sampleRate,
+            uint32_t channels,
+            uint32_t outSampleRate) {
+    return new AudioSource(inputSource, opPackageName, sampleRate,
+                            channels, outSampleRate);
+}
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVFactory::AVFactory() {
 }

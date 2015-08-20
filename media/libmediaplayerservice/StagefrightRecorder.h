@@ -21,7 +21,7 @@
 #include <media/MediaRecorderBase.h>
 #include <camera/CameraParameters.h>
 #include <utils/String8.h>
-
+#include <media/stagefright/MediaSource.h>
 #include <system/audio.h>
 
 #include <MetadataBufferType.h>
@@ -199,7 +199,7 @@ protected:
     virtual status_t handleCustomRecording() {return UNKNOWN_ERROR;}
     virtual status_t handleCustomAudioSource(sp<AMessage> /*format*/) {return UNKNOWN_ERROR;}
     virtual status_t handleCustomAudioEncoder() {return UNKNOWN_ERROR;}
-
+    virtual sp<MediaSource> setPCMRecording() {return NULL;}
 
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);
