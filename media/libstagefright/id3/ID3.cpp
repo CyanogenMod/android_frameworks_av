@@ -349,7 +349,7 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
         if (flags & 1) {
             // Strip data length indicator
 
-            if (mSize < 14 || mSize - 14 < offset) {
+            if (mSize < 14 || mSize - 14 < offset || dataSize < 4) {
                 return false;
             }
             memmove(&mData[offset + 10], &mData[offset + 14], mSize - offset - 14);
