@@ -199,7 +199,7 @@ status_t WAVExtractor::init() {
                             mNumChannels);
                 }
             } else {
-                if (mNumChannels < 1 && mNumChannels > 8) {
+                if (mNumChannels < 1 || mNumChannels > 8) {
                     return ERROR_UNSUPPORTED;
                 }
             }
