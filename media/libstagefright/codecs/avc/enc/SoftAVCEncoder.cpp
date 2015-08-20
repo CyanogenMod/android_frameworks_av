@@ -244,7 +244,7 @@ OMX_ERRORTYPE SoftAVCEncoder::initEncParams() {
     if (mColorFormat != OMX_COLOR_FormatYUV420Planar || mInputDataIsMeta) {
         // Color conversion is needed.
         free(mInputFrameData);
-        if (((uint64_t)mVideoWidth * mVideoHeight) > ((uint64_t)INT32_MAX / 3)) {
+        if (((uint64_t)mWidth * mHeight) > ((uint64_t)INT32_MAX / 3)) {
             ALOGE("Buffer size is too big.");
             return OMX_ErrorUndefined;
         }
