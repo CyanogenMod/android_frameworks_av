@@ -117,7 +117,7 @@ public:
 
     inline bool         hasData() const { return mPacketSize > MTP_CONTAINER_HEADER_SIZE; }
     inline uint32_t     getContainerLength() const { return MtpPacket::getUInt32(MTP_CONTAINER_LENGTH_OFFSET); }
-    void*               getData(int& outLength) const;
+    void*               getData(int* outLength) const;
 };
 
 }; // namespace android

@@ -60,6 +60,7 @@ private:
     Mutex                   mMutex;
 
 public:
+    typedef bool (*ReadObjectCallback)(void* data, int offset, int length, void* clientData);
                             MtpDevice(struct usb_device* device, int interface,
                                     const struct usb_endpoint_descriptor *ep_in,
                                     const struct usb_endpoint_descriptor *ep_out,
@@ -95,15 +96,16 @@ public:
     MtpProperty*            getDevicePropDesc(MtpDeviceProperty code);
     MtpProperty*            getObjectPropDesc(MtpObjectProperty code, MtpObjectFormat format);
 
-    bool                    readObject(MtpObjectHandle handle,
-                                    bool (* callback)(void* data, int offset,
-                                            int length, void* clientData),
+    bool                    readObject(MtpObjectHandle handle, ReadObjectCallback callback,
                                     size_t objectSize, void* clientData);
     bool                    readObject(MtpObjectHandle handle, const char* destPath, int group,
                                     int perm);
     bool                    readObject(MtpObjectHandle handle, int fd);
 
 private:
+    // If |objectSize| is not NULL, it checks object size before reading data bytes.
+    bool                    readObjectInternal(MtpObjectHandle handle, ReadObjectCallback callback,
+                                     const size_t* objectSize, void* clientData);
     bool                    sendRequest(MtpOperationCode operation);
     bool                    sendData();
     bool                    readData();
