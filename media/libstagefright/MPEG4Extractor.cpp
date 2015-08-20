@@ -44,6 +44,10 @@
 #include <byteswap.h>
 #include "include/ID3.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX       (4294967295U)
+#endif
+
 namespace android {
 
 class MPEG4Source : public MediaSource {
