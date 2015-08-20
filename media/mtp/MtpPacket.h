@@ -19,6 +19,7 @@
 
 #include "MtpTypes.h"
 
+struct usb_device;
 struct usb_request;
 
 namespace android {
