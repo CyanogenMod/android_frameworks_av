@@ -117,6 +117,8 @@ LOCAL_SHARED_LIBRARIES += \
         libdl
 
 LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CLANG := true
+LOCAL_SANITIZE := unsigned-integer-overflow
 
 LOCAL_MODULE:= libstagefright
 
