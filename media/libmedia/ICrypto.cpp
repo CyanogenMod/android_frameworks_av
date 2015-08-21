@@ -247,7 +247,7 @@ status_t BnCrypto::onTransact(
                     subSamples,
                     sizeof(CryptoPlugin::SubSample) * numSubSamples);
 
-            void *secureBufferId, dstPtr;
+            void *secureBufferId, *dstPtr;
             if (secure) {
                 secureBufferId = (void *)data.readIntPtr();
             } else {
