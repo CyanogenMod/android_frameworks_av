@@ -34,6 +34,8 @@ LOCAL_SHARED_LIBRARIES :=               \
         libdl
 
 LOCAL_MODULE:= libstagefright_omx
+LOCAL_CLANG := true
+LOCAL_SANITIZE := unsigned-integer-overflow
 
 include $(BUILD_SHARED_LIBRARY)
 
