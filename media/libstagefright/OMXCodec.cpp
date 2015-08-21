@@ -2646,7 +2646,8 @@ status_t OMXCodec::freeBuffersOnPort(
 
     status_t stickyErr = OK;
 
-    for (size_t i = buffers->size(); i-- > 0;) {
+    for (size_t i = buffers->size(); i > 0;) {
+        i--;
         BufferInfo *info = &buffers->editItemAt(i);
 
         if (onlyThoseWeOwn && info->mStatus == OWNED_BY_COMPONENT) {
