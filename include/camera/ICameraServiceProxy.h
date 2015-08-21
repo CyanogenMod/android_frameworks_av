@@ -23,15 +23,30 @@
 
 namespace android {
 
+/**
+ * Interface from native camera service to managed-side camera service proxy.
+ *
+ * Keep in sync with frameworks/base/core/java/android/hardware/ICameraServiceProxy.aidl
+ *
+ */
 class ICameraServiceProxy : public IInterface {
 public:
     enum {
         PING_FOR_USER_UPDATE = IBinder::FIRST_CALL_TRANSACTION,
+        NOTIFY_CAMERA_STATE
+    };
+
+    enum CameraState {
+        CAMERA_STATE_OPEN,
+        CAMERA_STATE_ACTIVE,
+        CAMERA_STATE_IDLE,
+        CAMERA_STATE_CLOSED
     };
 
     DECLARE_META_INTERFACE(CameraServiceProxy);
 
     virtual void pingForUserUpdate() = 0;
+    virtual void notifyCameraState(String16 cameraId, CameraState newCameraState) = 0;
 };
 
 class BnCameraServiceProxy: public BnInterface<ICameraServiceProxy>
@@ -48,5 +63,3 @@ public:
 }; // namespace android
 
 #endif // ANDROID_HARDWARE_ICAMERASERVICEPROXY_H
-
-

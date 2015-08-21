@@ -24,6 +24,7 @@
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
+#include <camera/ICameraServiceProxy.h>
 #include <hardware/camera.h>
 
 #include <camera/ICamera.h>
@@ -163,6 +164,14 @@ public:
     void                loadSound();
     void                playSound(sound_kind kind);
     void                releaseSound();
+
+    /**
+     * Update the state of a given camera device (open/close/active/idle) with
+     * the camera proxy service in the system service
+     */
+    static void         updateProxyDeviceState(
+            ICameraServiceProxy::CameraState newState,
+            const String8& cameraId);
 
     /////////////////////////////////////////////////////////////////////
     // CameraDeviceFactory functionality
@@ -728,6 +737,7 @@ private:
 
     static String8 toString(std::set<userid_t> intSet);
 
+    static sp<ICameraServiceProxy> getCameraServiceProxy();
     static void pingCameraServiceProxy();
 
 };

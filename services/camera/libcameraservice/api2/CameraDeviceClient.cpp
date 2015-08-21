@@ -836,6 +836,7 @@ void CameraDeviceClient::notifyIdle() {
     if (remoteCb != 0) {
         remoteCb->onDeviceIdle();
     }
+    Camera2ClientBase::notifyIdle();
 }
 
 void CameraDeviceClient::notifyShutter(const CaptureResultExtras& resultExtras,
@@ -845,6 +846,7 @@ void CameraDeviceClient::notifyShutter(const CaptureResultExtras& resultExtras,
     if (remoteCb != 0) {
         remoteCb->onCaptureStarted(resultExtras, timestamp);
     }
+    Camera2ClientBase::notifyShutter(resultExtras, timestamp);
 }
 
 void CameraDeviceClient::notifyPrepared(int streamId) {

@@ -136,6 +136,8 @@ protected:
     status_t              checkPid(const char *checkLocation) const;
 
     virtual void          detachDevice();
+
+    bool                  mDeviceActive;
 };
 
 }; // namespace android
