@@ -1214,9 +1214,17 @@ int PreProcessingFx_Process(effect_handle_t     self,
                 fr = inBuffer->frameCount;
             }
             if (session->inBufSize < session->framesIn + fr) {
+                int16_t *buf;
                 session->inBufSize = session->framesIn + fr;
-                session->inBuf = (int16_t *)realloc(session->inBuf,
+                buf = (int16_t *)realloc(session->inBuf,
                                  session->inBufSize * session->inChannelCount * sizeof(int16_t));
+                if (buf == NULL) {
+                    session->framesIn = 0;
+                    free(session->inBuf);
+                    session->inBuf = NULL;
+                    return -ENOMEM;
+                }
+                session->inBuf = buf;
             }
             memcpy(session->inBuf + session->framesIn * session->inChannelCount,
                    inBuffer->s16,
@@ -1286,9 +1294,17 @@ int PreProcessingFx_Process(effect_handle_t     self,
         effect->session->apm->ProcessStream(session->procFrame);
 
         if (session->outBufSize < session->framesOut + session->frameCount) {
+            int16_t *buf;
             session->outBufSize = session->framesOut + session->frameCount;
-            session->outBuf = (int16_t *)realloc(session->outBuf,
-                              session->outBufSize * session->outChannelCount * sizeof(int16_t));
+            buf = (int16_t *)realloc(session->outBuf,
+                             session->outBufSize * session->outChannelCount * sizeof(int16_t));
+            if (buf == NULL) {
+                session->framesOut = 0;
+                free(session->outBuf);
+                session->outBuf = NULL;
+                return -ENOMEM;
+            }
+            session->outBuf = buf;
         }
 
         if (session->outResampler != NULL) {
@@ -1744,9 +1760,17 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
                 fr = inBuffer->frameCount;
             }
             if (session->revBufSize < session->framesRev + fr) {
+                int16_t *buf;
                 session->revBufSize = session->framesRev + fr;
-                session->revBuf = (int16_t *)realloc(session->revBuf,
-                                  session->revBufSize * session->inChannelCount * sizeof(int16_t));
+                buf = (int16_t *)realloc(session->revBuf,
+                                 session->revBufSize * session->inChannelCount * sizeof(int16_t));
+                if (buf == NULL) {
+                    session->framesRev = 0;
+                    free(session->revBuf);
+                    session->revBuf = NULL;
+                    return -ENOMEM;
+                }
+                session->revBuf = buf;
             }
             memcpy(session->revBuf + session->framesRev * session->inChannelCount,
                    inBuffer->s16,
