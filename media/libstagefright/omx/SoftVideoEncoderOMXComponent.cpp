@@ -349,6 +349,7 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
 }
 
 // static
+__attribute__((no_sanitize("integer")))
 void SoftVideoEncoderOMXComponent::ConvertFlexYUVToPlanar(
         uint8_t *dst, size_t dstStride, size_t dstVStride,
         struct android_ycbcr *ycbcr, int32_t width, int32_t height) {
@@ -391,6 +392,7 @@ void SoftVideoEncoderOMXComponent::ConvertFlexYUVToPlanar(
 }
 
 // static
+__attribute__((no_sanitize("integer")))
 void SoftVideoEncoderOMXComponent::ConvertYUV420SemiPlanarToYUV420Planar(
         const uint8_t *inYVU, uint8_t* outYUV, int32_t width, int32_t height) {
     // TODO: add support for stride
@@ -421,6 +423,7 @@ void SoftVideoEncoderOMXComponent::ConvertYUV420SemiPlanarToYUV420Planar(
 }
 
 // static
+__attribute__((no_sanitize("integer")))
 void SoftVideoEncoderOMXComponent::ConvertRGB32ToPlanar(
         uint8_t *dstY, size_t dstStride, size_t dstVStride,
         const uint8_t *src, size_t width, size_t height, size_t srcStride,
