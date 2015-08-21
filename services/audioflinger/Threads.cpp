@@ -832,8 +832,8 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
     dprintf(fd, "  Channel count: %u\n", mChannelCount);
     dprintf(fd, "  Channel mask: 0x%08x (%s)\n", mChannelMask,
             channelMaskToString(mChannelMask, mType != RECORD).string());
-    dprintf(fd, "  Format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
-    dprintf(fd, "  Frame size: %zu bytes\n", mFrameSize);
+    dprintf(fd, "  Processing format: 0x%x (%s)\n", mFormat, formatToString(mFormat));
+    dprintf(fd, "  Processing frame size: %zu bytes\n", mFrameSize);
     dprintf(fd, "  Pending config events:");
     size_t numConfig = mConfigEvents.size();
     if (numConfig) {
