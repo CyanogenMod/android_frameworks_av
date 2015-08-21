@@ -722,17 +722,20 @@ int LvmBundle_process(LVM_INT16        *pIn,
 
     if (pContext->config.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_WRITE){
         pOutTmp = pOut;
-    }else if (pContext->config.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE){
+    } else if (pContext->config.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE){
         if (pContext->pBundledContext->frameCount != frameCount) {
             if (pContext->pBundledContext->workBuffer != NULL) {
                 free(pContext->pBundledContext->workBuffer);
             }
             pContext->pBundledContext->workBuffer =
-                    (LVM_INT16 *)malloc(frameCount * sizeof(LVM_INT16) * 2);
+                    (LVM_INT16 *)calloc(frameCount, sizeof(LVM_INT16) * 2);
+            if (pContext->pBundledContext->workBuffer == NULL) {
+                return -ENOMEM;
+            }
             pContext->pBundledContext->frameCount = frameCount;
         }
         pOutTmp = pContext->pBundledContext->workBuffer;
-    }else{
+    } else {
         ALOGV("LVM_ERROR : LvmBundle_process invalid access mode");
         return -EINVAL;
     }
@@ -2872,7 +2875,7 @@ int Effect_process(effect_handle_t     self,
     EffectContext * pContext = (EffectContext *) self;
     LVM_ReturnStatus_en     LvmStatus = LVM_SUCCESS;                /* Function call status */
     int    status = 0;
-    int    lvmStatus = 0;
+    int    processStatus = 0;
     LVM_INT16   *in  = (LVM_INT16 *)inBuffer->raw;
     LVM_INT16   *out = (LVM_INT16 *)outBuffer->raw;
 
@@ -2960,19 +2963,22 @@ int Effect_process(effect_handle_t     self,
         //pContext->pBundledContext->NumberEffectsEnabled,
         //pContext->pBundledContext->NumberEffectsCalled, pContext->EffectType);
 
-        if(status == -ENODATA){
+        if (status == -ENODATA){
             ALOGV("\tEffect_process() processing last frame");
         }
         pContext->pBundledContext->NumberEffectsCalled = 0;
         /* Process all the available frames, block processing is
            handled internalLY by the LVM bundle */
-        lvmStatus = android::LvmBundle_process(    (LVM_INT16 *)inBuffer->raw,
+        processStatus = android::LvmBundle_process(    (LVM_INT16 *)inBuffer->raw,
                                                 (LVM_INT16 *)outBuffer->raw,
                                                 outBuffer->frameCount,
                                                 pContext);
-        if(lvmStatus != LVM_SUCCESS){
-            ALOGV("\tLVM_ERROR : LvmBundle_process returned error %d", lvmStatus);
-            return lvmStatus;
+        if (processStatus != 0){
+            ALOGV("\tLVM_ERROR : LvmBundle_process returned error %d", processStatus);
+            if (status == 0) {
+                status = processStatus;
+            }
+            return status;
         }
     } else {
         //ALOGV("\tEffect_process Not Calling process with %d effects enabled, %d called: Effect %d",
