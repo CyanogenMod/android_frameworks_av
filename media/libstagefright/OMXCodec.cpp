@@ -2094,6 +2094,9 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
             def.nBufferCountActual, def.nBufferSize,
             portIndex == kPortIndexInput ? "input" : "output");
 
+    if (def.nBufferSize != 0 && def.nBufferCountActual > SIZE_MAX / def.nBufferSize) {
+        return BAD_VALUE;
+    }
 #ifdef MTK_HARDWARE
     OMX_U32 memoryAlign = 32;
     size_t totalSize = def.nBufferCountActual *
