@@ -149,7 +149,10 @@ AudioPolicyService::~AudioPolicyService()
 // connects to AudioPolicyService.
 void AudioPolicyService::registerClient(const sp<IAudioPolicyServiceClient>& client)
 {
-
+    if (client == 0) {
+        ALOGW("%s got NULL client", __FUNCTION__);
+        return;
+    }
     Mutex::Autolock _l(mNotificationClientsLock);
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
