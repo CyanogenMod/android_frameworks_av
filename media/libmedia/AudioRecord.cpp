@@ -26,6 +26,7 @@
 #include <utils/Log.h>
 #include <private/media/AudioTrackShared.h>
 #include <media/IAudioFlinger.h>
+#include "SeempLog.h"
 
 #define WAIT_PERIOD_MS          10
 
@@ -293,6 +294,7 @@ status_t AudioRecord::set(
 status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 {
     ALOGV("start, sync event %d trigger session %d", event, triggerSession);
+    SEEMPLOG_RECORD(89,"");
 
     AutoMutex lock(mLock);
     if (mActive) {
@@ -340,6 +342,7 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 
 void AudioRecord::stop()
 {
+    SEEMPLOG_RECORD(90,"");
     AutoMutex lock(mLock);
     if (!mActive) {
         return;
