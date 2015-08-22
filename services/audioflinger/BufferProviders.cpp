@@ -386,34 +386,37 @@ status_t TimestretchBufferProvider::getNextBuffer(
 
     // need to fetch more data
     const size_t outputDesired = pBuffer->frameCount - mRemaining;
-    mBuffer.frameCount = mPlaybackRate.mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
-            ? outputDesired : outputDesired * mPlaybackRate.mSpeed + 1;
+    size_t dstAvailable;
+    do {
+        mBuffer.frameCount = mPlaybackRate.mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
+                ? outputDesired : outputDesired * mPlaybackRate.mSpeed + 1;
 
-    status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
+        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
 
-    ALOG_ASSERT(res == OK || mBuffer.frameCount == 0);
-    if (res != OK || mBuffer.frameCount == 0) { // not needed by API spec, but to be safe.
-        ALOGD("buffer error");
-        if (mRemaining == 0) {
-            pBuffer->raw = NULL;
-            pBuffer->frameCount = 0;
-            return res;
-        } else { // return partial count
-            pBuffer->raw = mLocalBufferData;
-            pBuffer->frameCount = mRemaining;
-            return OK;
+        ALOG_ASSERT(res == OK || mBuffer.frameCount == 0);
+        if (res != OK || mBuffer.frameCount == 0) { // not needed by API spec, but to be safe.
+            ALOGV("upstream provider cannot provide data");
+            if (mRemaining == 0) {
+                pBuffer->raw = NULL;
+                pBuffer->frameCount = 0;
+                return res;
+            } else { // return partial count
+                pBuffer->raw = mLocalBufferData;
+                pBuffer->frameCount = mRemaining;
+                return OK;
+            }
         }
-    }
 
-    // time-stretch the data
-    size_t dstAvailable = min(mLocalBufferFrameCount - mRemaining, outputDesired);
-    size_t srcAvailable = mBuffer.frameCount;
-    processFrames((uint8_t*)mLocalBufferData + mRemaining * mFrameSize, &dstAvailable,
-            mBuffer.raw, &srcAvailable);
+        // time-stretch the data
+        dstAvailable = min(mLocalBufferFrameCount - mRemaining, outputDesired);
+        size_t srcAvailable = mBuffer.frameCount;
+        processFrames((uint8_t*)mLocalBufferData + mRemaining * mFrameSize, &dstAvailable,
+                mBuffer.raw, &srcAvailable);
 
-    // release all data consumed
-    mBuffer.frameCount = srcAvailable;
-    mTrackBufferProvider->releaseBuffer(&mBuffer);
+        // release all data consumed
+        mBuffer.frameCount = srcAvailable;
+        mTrackBufferProvider->releaseBuffer(&mBuffer);
+    } while (dstAvailable == 0); // try until we get output data or upstream provider fails.
 
     // update buffer vars with the actual data processed and return with buffer
     mRemaining += dstAvailable;
