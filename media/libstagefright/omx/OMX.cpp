@@ -261,6 +261,10 @@ status_t OMX::allocateNode(
 status_t OMX::freeNode(node_id node) {
     OMXNodeInstance *instance = findInstance(node);
 
+    if (instance == NULL) {
+        return OK;
+    }
+
     {
         Mutex::Autolock autoLock(mLock);
         ssize_t index = mLiveNodes.indexOfKey(IInterface::asBinder(instance->observer()));
