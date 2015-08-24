@@ -192,6 +192,7 @@ private:
     Vector<int> mStreamingRequestList;
 
     int32_t mRequestIdCounter;
+
 };
 
 }; // namespace android
