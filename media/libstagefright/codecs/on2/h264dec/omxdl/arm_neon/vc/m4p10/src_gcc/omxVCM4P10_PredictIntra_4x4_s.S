@@ -35,7 +35,6 @@ armVCM4P10_pSwitchTable4x4:
     .word OMX_VC_4x4_HU-(P0+8)
 
     .global omxVCM4P10_PredictIntra_4x4
-    .func   omxVCM4P10_PredictIntra_4x4
 omxVCM4P10_PredictIntra_4x4:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d12}
@@ -270,6 +269,5 @@ L0x348:
     MOV      r0,#0
     VPOP     {d8-d12}
     POP      {r4-r12,pc}
-    .endfunc
 
     .end

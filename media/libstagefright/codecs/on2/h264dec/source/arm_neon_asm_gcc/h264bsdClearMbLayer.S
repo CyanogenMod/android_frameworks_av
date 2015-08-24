@@ -16,7 +16,7 @@
 
 #include "asm_common.S"
 
-    preserve8
+    PRESERVE8
 
     .fpu neon
     .text
@@ -29,7 +29,7 @@
 
 /* -- NEON registers -- */
 
-#define qZero   Q0.U8
+#define qZero   Q0
 
 /*------------------------------------------------------------------------------
 
@@ -47,17 +47,17 @@
 
 function h264bsdClearMbLayer, export=1
 
-    VMOV    qZero, #0
+    VMOV.I8 qZero, #0
     ADD     pTmp, pMbLayer, #16
     MOV     step, #32
     SUBS    size, size, #64
 
 loop:
-    VST1    {qZero}, [pMbLayer], step
+    VST1.8  {qZero}, [pMbLayer], step
     SUBS    size, size, #64
-    VST1    {qZero}, [pTmp], step
-    VST1    {qZero}, [pMbLayer], step
-    VST1    {qZero}, [pTmp], step
+    VST1.8  {qZero}, [pTmp], step
+    VST1.8  {qZero}, [pMbLayer], step
+    VST1.8  {qZero}, [pTmp], step
     BCS     loop
 
     BX      lr
