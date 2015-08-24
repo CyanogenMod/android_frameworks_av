@@ -31,11 +31,9 @@
     .global \name
 .endif
     .type   \name, %function
-    .func   \name
 \name:
     .endm
 
     .macro endfunction
-    .endfunc
     .endm
 

@@ -36,7 +36,6 @@ armVCM4P10_MultiplierTableChroma8x8:
     .hword   1, 2, 3,4
 
     .global omxVCM4P10_PredictIntraChroma_8x8
-    .func   omxVCM4P10_PredictIntraChroma_8x8
 omxVCM4P10_PredictIntraChroma_8x8:
     PUSH     {r4-r10,lr}
     VPUSH    {d8-d15}
@@ -226,7 +225,6 @@ L0x28c:
     MOV      r0,#0
     VPOP     {d8-d15}
     POP      {r4-r10,pc}
-    .endfunc
 
     .end
 

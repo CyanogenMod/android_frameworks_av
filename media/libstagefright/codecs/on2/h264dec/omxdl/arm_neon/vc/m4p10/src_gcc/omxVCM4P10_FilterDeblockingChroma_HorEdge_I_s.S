@@ -26,7 +26,6 @@
     .text
 
     .global omxVCM4P10_FilterDeblockingChroma_HorEdge_I
-    .func   omxVCM4P10_FilterDeblockingChroma_HorEdge_I
 omxVCM4P10_FilterDeblockingChroma_HorEdge_I:
     PUSH     {r4-r10,lr}
     VPUSH    {d8-d15}
@@ -96,7 +95,6 @@ L0xe4:
     MOV      r0,#0
     VPOP     {d8-d15}
     POP      {r4-r10,pc}
-    .endfunc
 
     .end
 

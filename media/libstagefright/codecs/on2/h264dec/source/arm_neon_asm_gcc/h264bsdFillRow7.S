@@ -16,7 +16,7 @@
 
 #include "asm_common.S"
 
-    preserve8
+    PRESERVE8
 
     .fpu neon
     .text
@@ -33,12 +33,12 @@
 
 /* -- NEON registers -- */
 
-#define qTmp0     Q0.U8
-#define qTmp1     Q1.U8
-#define dTmp0     D0.U8
-#define dTmp1     D1.U8
-#define dTmp2     D2.U8
-#define dTmp3     D3.U8
+#define qTmp0     Q0
+#define qTmp1     Q1
+#define dTmp0     D0
+#define dTmp1     D1
+#define dTmp2     D2
+#define dTmp3     D3
 
 /*
 void h264bsdFillRow7(const u8 * ref, u8 * fill, i32 left, i32 center,
@@ -74,40 +74,40 @@ switch_center:
         B        case_8
 
 case_8:
-        VLD1    {qTmp0, qTmp1}, [ref]!
+        VLD1.8  {qTmp0, qTmp1}, [ref]!
         SUB     center, center, #32
-        VST1    {qTmp0}, [fill]!
-        VST1    {qTmp1}, [fill]!
+        VST1.8  {qTmp0}, [fill]!
+        VST1.8  {qTmp1}, [fill]!
         B       loop_center
 case_7:
-        VLD1    {dTmp0,dTmp1,dTmp2}, [ref]!
+        VLD1.8  {dTmp0,dTmp1,dTmp2}, [ref]!
         SUB     center, center, #28
         LDR     tmp2, [ref], #4
-        VST1    {dTmp0,dTmp1,dTmp2}, [fill]!
+        VST1.8  {dTmp0,dTmp1,dTmp2}, [fill]!
         STR     tmp2, [fill],#4
         B       loop_center
 case_6:
-        VLD1    {dTmp0,dTmp1,dTmp2}, [ref]!
+        VLD1.8  {dTmp0,dTmp1,dTmp2}, [ref]!
         SUB     center, center, #24
-        VST1    {dTmp0,dTmp1,dTmp2}, [fill]!
+        VST1.8  {dTmp0,dTmp1,dTmp2}, [fill]!
         B       loop_center
 case_5:
-        VLD1    {qTmp0}, [ref]!
+        VLD1.8  {qTmp0}, [ref]!
         SUB     center, center, #20
         LDR     tmp2, [ref], #4
-        VST1    {qTmp0}, [fill]!
+        VST1.8  {qTmp0}, [fill]!
         STR     tmp2, [fill],#4
         B       loop_center
 case_4:
-        VLD1    {qTmp0}, [ref]!
+        VLD1.8  {qTmp0}, [ref]!
         SUB     center, center, #16
-        VST1    {qTmp0}, [fill]!
+        VST1.8  {qTmp0}, [fill]!
         B       loop_center
 case_3:
-        VLD1    {dTmp0}, [ref]!
+        VLD1.8  {dTmp0}, [ref]!
         SUB     center, center, #12
         LDR     tmp2, [ref], #4
-        VST1    dTmp0, [fill]!
+        VST1.8  dTmp0, [fill]!
         STR     tmp2, [fill],#4
         B       loop_center
 case_2:
