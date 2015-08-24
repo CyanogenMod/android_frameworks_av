@@ -26,7 +26,6 @@
     .text
 
     .global omxVCM4P10_DequantTransformResidualFromPairAndAdd
-    .func   omxVCM4P10_DequantTransformResidualFromPairAndAdd
 omxVCM4P10_DequantTransformResidualFromPairAndAdd:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d9}
@@ -131,7 +130,6 @@ L0x130:
     ADD      sp,sp,#0x20
     VPOP     {d8-d9}
     POP      {r4-r12,pc}
-    .endfunc
 
 .LarmVCM4P10_QPModuloTable:
     .word   armVCM4P10_QPModuloTable-(P0+8)
