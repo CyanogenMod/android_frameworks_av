@@ -251,6 +251,9 @@ void CameraClient::disconnect() {
     // Turn off all messages.
     disableMsgType(CAMERA_MSG_ALL_MSGS);
     mHardware->stopPreview();
+    mCameraService->updateProxyDeviceState(
+        ICameraServiceProxy::CAMERA_STATE_IDLE,
+        String8::format("%d", mCameraId));
     mHardware->cancelPicture();
     // Release the hardware resources.
     mHardware->release();
@@ -409,7 +412,11 @@ status_t CameraClient::startPreviewMode() {
     }
     mHardware->setPreviewWindow(mPreviewWindow);
     result = mHardware->startPreview();
-
+    if (result == NO_ERROR) {
+        mCameraService->updateProxyDeviceState(
+            ICameraServiceProxy::CAMERA_STATE_ACTIVE,
+            String8::format("%d", mCameraId));
+    }
     return result;
 }
 
@@ -449,7 +456,9 @@ void CameraClient::stopPreview() {
 
     disableMsgType(CAMERA_MSG_PREVIEW_FRAME);
     mHardware->stopPreview();
-
+    mCameraService->updateProxyDeviceState(
+        ICameraServiceProxy::CAMERA_STATE_IDLE,
+        String8::format("%d", mCameraId));
     mPreviewBuffer.clear();
 }
 
@@ -789,6 +798,12 @@ void CameraClient::handleShutter(void) {
         if (!lockIfMessageWanted(CAMERA_MSG_SHUTTER)) return;
     }
     disableMsgType(CAMERA_MSG_SHUTTER);
+
+    // Shutters only happen in response to takePicture, so mark device as
+    // idle now, until preview is restarted
+    mCameraService->updateProxyDeviceState(
+        ICameraServiceProxy::CAMERA_STATE_IDLE,
+        String8::format("%d", mCameraId));
 
     mLock.unlock();
 }
