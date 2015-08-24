@@ -26,7 +26,6 @@
     .text
 
     .global omxVCM4P10_InterpolateLuma
-    .func   omxVCM4P10_InterpolateLuma
 omxVCM4P10_InterpolateLuma:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d15}
@@ -332,7 +331,6 @@ L0x434:
     ADD      sp,sp,#0x10
     VPOP     {d8-d15}
     POP      {r4-r12,pc}
-    .endfunc
 
     .end
 
