@@ -33,7 +33,6 @@
 #include <binder/MemoryBase.h>
 #include <binder/MemoryHeapBase.h>
 #include <binder/ProcessInfoService.h>
-#include <camera/ICameraServiceProxy.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
 #include <gui/Surface.h>
@@ -250,13 +249,19 @@ void CameraService::onFirstRef()
     CameraService::pingCameraServiceProxy();
 }
 
-void CameraService::pingCameraServiceProxy() {
+sp<ICameraServiceProxy> CameraService::getCameraServiceProxy() {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.camera.proxy"));
     if (binder == nullptr) {
-        return;
+        return nullptr;
     }
     sp<ICameraServiceProxy> proxyBinder = interface_cast<ICameraServiceProxy>(binder);
+    return proxyBinder;
+}
+
+void CameraService::pingCameraServiceProxy() {
+    sp<ICameraServiceProxy> proxyBinder = getCameraServiceProxy();
+    if (proxyBinder == nullptr) return;
     proxyBinder->pingForUserUpdate();
 }
 
@@ -1948,6 +1953,10 @@ status_t CameraService::BasicClient::startCameraOps() {
     mCameraService->updateStatus(ICameraServiceListener::STATUS_NOT_AVAILABLE,
             String8::format("%d", mCameraId));
 
+    // Transition device state to OPEN
+    mCameraService->updateProxyDeviceState(ICameraServiceProxy::CAMERA_STATE_OPEN,
+            String8::format("%d", mCameraId));
+
     return OK;
 }
 
@@ -1965,6 +1974,10 @@ status_t CameraService::BasicClient::finishCameraOps() {
         // Transition to PRESENT if the camera is not in either of the rejected states
         mCameraService->updateStatus(ICameraServiceListener::STATUS_PRESENT,
                 String8::format("%d", mCameraId), rejected);
+
+        // Transition device state to CLOSED
+        mCameraService->updateProxyDeviceState(ICameraServiceProxy::CAMERA_STATE_CLOSED,
+                String8::format("%d", mCameraId));
 
         // Notify flashlight that a camera device is closed.
         mCameraService->mFlashlight->deviceClosed(
@@ -2464,6 +2477,14 @@ void CameraService::updateStatus(ICameraServiceListener::Status status, const St
                 if (id != -1) listener->onStatusChanged(status, id);
             }
         });
+}
+
+void CameraService::updateProxyDeviceState(ICameraServiceProxy::CameraState newState,
+        const String8& cameraId) {
+    sp<ICameraServiceProxy> proxyBinder = getCameraServiceProxy();
+    if (proxyBinder == nullptr) return;
+    String16 id(cameraId);
+    proxyBinder->notifyCameraState(id, newState);
 }
 
 status_t CameraService::getTorchStatusLocked(
