@@ -774,8 +774,13 @@ status_t MyOggExtractor::_readNextPacket(MediaBuffer **out, bool calcVorbisTimes
             return n < 0 ? n : (status_t)ERROR_END_OF_STREAM;
         }
 
-        mCurrentPageSamples =
-            mCurrentPage.mGranulePosition - mPrevGranulePosition;
+        // Prevent a harmless unsigned integer overflow by clamping to 0
+        if (mCurrentPage.mGranulePosition >= mPrevGranulePosition) {
+            mCurrentPageSamples =
+                    mCurrentPage.mGranulePosition - mPrevGranulePosition;
+        } else {
+            mCurrentPageSamples = 0;
+        }
         mFirstPacketInPage = true;
 
         mPrevGranulePosition = mCurrentPage.mGranulePosition;
