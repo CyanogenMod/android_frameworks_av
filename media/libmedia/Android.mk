@@ -100,5 +100,12 @@ LOCAL_C_INCLUDES := \
 LOCAL_CFLAGS += -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CLANG := true
 
+ifeq ($(MTK_HARDWARE),true)
+LOCAL_SRC_FILES += \
+    mtkaudio_stubs.cpp
+
+# StrongPointer.h
+LOCAL_C_INCLUDES += $(TOP)/frameworks/rs/server
+
 include $(BUILD_SHARED_LIBRARY)
 
