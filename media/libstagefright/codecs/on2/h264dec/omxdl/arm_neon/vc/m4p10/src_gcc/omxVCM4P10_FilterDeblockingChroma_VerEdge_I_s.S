@@ -26,7 +26,6 @@
     .text
 
     .global omxVCM4P10_FilterDeblockingChroma_VerEdge_I
-    .func   omxVCM4P10_FilterDeblockingChroma_VerEdge_I
 omxVCM4P10_FilterDeblockingChroma_VerEdge_I:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d15}
@@ -132,7 +131,6 @@ L0x170:
     MOV      r0,#0
     VPOP     {d8-d15}
     POP      {r4-r12,pc}
-    .endfunc
 
     .end
 
