@@ -130,6 +130,34 @@ void SoftVideoDecoderOMXComponent::initPorts(
     updatePortDefinitions(true /* updateCrop */, true /* updateInputSize */);
 }
 
+// For MTK blob compatibility
+void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop) {
+    OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(kInputPortIndex)->mDef;
+    def->format.video.nFrameWidth = mWidth;
+    def->format.video.nFrameHeight = mHeight;
+    def->format.video.nStride = def->format.video.nFrameWidth;
+    def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+
+    def->nBufferSize = def->format.video.nFrameWidth * def->format.video.nFrameHeight * 3 / 2;
+
+    def = &editPortInfo(kOutputPortIndex)->mDef;
+    def->format.video.nFrameWidth = outputBufferWidth();
+    def->format.video.nFrameHeight = outputBufferHeight();
+    def->format.video.nStride = def->format.video.nFrameWidth;
+    def->format.video.nSliceHeight = def->format.video.nFrameHeight;
+
+    def->nBufferSize =
+            (def->format.video.nFrameWidth *
+             def->format.video.nFrameHeight * 3) / 2;
+
+    if (updateCrop) {
+        mCropLeft = 0;
+        mCropTop = 0;
+        mCropWidth = mWidth;
+        mCropHeight = mHeight;
+    }
+}
+
 void SoftVideoDecoderOMXComponent::updatePortDefinitions(bool updateCrop, bool updateInputSize) {
     OMX_PARAM_PORTDEFINITIONTYPE *outDef = &editPortInfo(kOutputPortIndex)->mDef;
     outDef->format.video.nFrameWidth = outputBufferWidth();
@@ -202,12 +230,12 @@ void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
                     mAdaptiveMaxHeight = height;
                 }
             }
-            updatePortDefinitions(updateCrop);
+            updatePortDefinitions(updateCrop, false);
             notify(OMX_EventPortSettingsChanged, kOutputPortIndex, 0, NULL);
             mOutputPortSettingsChange = AWAITING_DISABLED;
             *portWillReset = true;
         } else {
-            updatePortDefinitions(updateCrop);
+            updatePortDefinitions(updateCrop, false);
 
             if (fakeStride) {
                 // MAJOR HACK that is not pretty, it's just to fool the renderer to read the correct
