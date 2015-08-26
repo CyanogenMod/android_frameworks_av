@@ -64,6 +64,14 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
 
+#QTI Resampler
+ifeq ($(call is-vendor-board-platform,QCOM), true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)), true)
+LOCAL_CFLAGS += -DQTI_RESAMPLER
+endif
+endif
+#QTI Resampler
+
 LOCAL_MODULE:= libaudioflinger
 
 LOCAL_SRC_FILES += \
@@ -130,7 +138,19 @@ LOCAL_C_INCLUDES := \
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
     libdl \
-    liblog
+    liblog \
+    libaudioutils
+
+#QTI Resampler
+ifeq ($(call is-vendor-board-platform,QCOM), true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)), true)
+LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) += AudioResamplerQTI.cpp.arm
+LOCAL_C_INCLUDES_$(TARGET_2ND_ARCH) += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
+LOCAL_SHARED_LIBRARIES_$(TARGET_2ND_ARCH) += libqct_resampler
+LOCAL_CFLAGS_$(TARGET_2ND_ARCH) += -DQTI_RESAMPLER
+endif
+endif
+#QTI Resampler
 
 LOCAL_MODULE := libaudioresampler
 
