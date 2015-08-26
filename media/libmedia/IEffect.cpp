@@ -154,14 +154,14 @@ status_t BnEffect::onTransact(
             uint32_t cmdSize = data.readInt32();
             char *cmd = NULL;
             if (cmdSize) {
-                cmd = (char *)malloc(cmdSize);
+                cmd = (char *)calloc(cmdSize, 1);
                 data.read(cmd, cmdSize);
             }
             uint32_t replySize = data.readInt32();
             uint32_t replySz = replySize;
             char *resp = NULL;
             if (replySize) {
-                resp = (char *)malloc(replySize);
+                resp = (char *)calloc(replySize, 1);
             }
             status_t status = command(cmdCode, cmdSize, cmd, &replySz, resp);
             reply->writeInt32(status);
