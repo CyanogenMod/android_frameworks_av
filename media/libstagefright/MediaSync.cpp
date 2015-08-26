@@ -677,7 +677,6 @@ void MediaSync::renderOneBufferItem_l(const BufferItem &bufferItem) {
             bufferItem.mCrop,
             static_cast<int32_t>(bufferItem.mScalingMode),
             bufferItem.mTransform,
-            bufferItem.mIsDroppable,
             bufferItem.mFence);
 
     // Attach and queue the buffer to the output.
