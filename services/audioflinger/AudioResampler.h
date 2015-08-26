@@ -47,6 +47,9 @@ public:
         DYN_LOW_QUALITY=5,
         DYN_MED_QUALITY=6,
         DYN_HIGH_QUALITY=7,
+#ifdef QTI_RESAMPLER
+        QTI_QUALITY=8,
+#endif
     };
 
     static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
