@@ -25,8 +25,6 @@
 #include "MtpDataPacket.h"
 #include "MtpStringBuffer.h"
 
-#define MTP_BUFFER_SIZE 16384
-
 namespace android {
 
 MtpDataPacket::MtpDataPacket()
@@ -540,17 +538,17 @@ int MtpDataPacket::write(struct usb_request *request, void* buffer, uint32_t len
 
 #endif // MTP_HOST
 
-void* MtpDataPacket::getData(int& outLength) const {
+void* MtpDataPacket::getData(int* outLength) const {
     int length = mPacketSize - MTP_CONTAINER_HEADER_SIZE;
     if (length > 0) {
         void* result = malloc(length);
         if (result) {
             memcpy(result, mBuffer + MTP_CONTAINER_HEADER_SIZE, length);
-            outLength = length;
+            *outLength = length;
             return result;
         }
     }
-    outLength = 0;
+    *outLength = 0;
     return NULL;
 }
 

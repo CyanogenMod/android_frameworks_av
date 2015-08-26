@@ -19,6 +19,7 @@
 #include "MtpDebug.h"
 #include "MtpDevice.h"
 #include "MtpDeviceInfo.h"
+#include "MtpEventPacket.h"
 #include "MtpObjectInfo.h"
 #include "MtpProperty.h"
 #include "MtpStorageInfo.h"
@@ -49,6 +50,15 @@ static bool isMtpDevice(uint16_t vendor, uint16_t product) {
     return false;
 }
 #endif
+
+namespace {
+
+bool writeToFd(void* data, int /* unused_offset */, int length, void* clientData) {
+    const int fd = *static_cast<int*>(clientData);
+    return write(fd, data, length) == length;
+}
+
+}
 
 MtpDevice* MtpDevice::open(const char* deviceName, int fd) {
     struct usb_device *device = usb_device_new(deviceName, fd);
@@ -414,7 +424,7 @@ void* MtpDevice::getThumbnail(MtpObjectHandle handle, int& outLength) {
     if (sendRequest(MTP_OPERATION_GET_THUMB) && readData()) {
         MtpResponseCode ret = readResponse();
         if (ret == MTP_RESPONSE_OK) {
-            return mData.getData(outLength);
+            return mData.getData(&outLength);
         }
     }
     outLength = 0;
@@ -593,94 +603,10 @@ MtpProperty* MtpDevice::getObjectPropDesc(MtpObjectProperty code, MtpObjectForma
 }
 
 bool MtpDevice::readObject(MtpObjectHandle handle,
-        bool (* callback)(void* data, int offset, int length, void* clientData),
-        size_t objectSize, void* clientData) {
-    Mutex::Autolock autoLock(mMutex);
-    bool result = false;
-
-    mRequest.reset();
-    mRequest.setParameter(1, handle);
-    if (sendRequest(MTP_OPERATION_GET_OBJECT)
-            && mData.readDataHeader(mRequestIn1)) {
-        uint32_t length = mData.getContainerLength();
-        if (length - MTP_CONTAINER_HEADER_SIZE != objectSize) {
-            ALOGE("readObject error objectSize: %d, length: %d",
-                    objectSize, length);
-            goto fail;
-        }
-        length -= MTP_CONTAINER_HEADER_SIZE;
-        uint32_t remaining = length;
-        int offset = 0;
-
-        int initialDataLength = 0;
-        void* initialData = mData.getData(initialDataLength);
-        if (initialData) {
-            if (initialDataLength > 0) {
-                if (!callback(initialData, 0, initialDataLength, clientData))
-                    goto fail;
-                remaining -= initialDataLength;
-                offset += initialDataLength;
-            }
-            free(initialData);
-        }
-
-        // USB reads greater than 16K don't work
-        char buffer1[16384], buffer2[16384];
-        mRequestIn1->buffer = buffer1;
-        mRequestIn2->buffer = buffer2;
-        struct usb_request* req = mRequestIn1;
-        void* writeBuffer = NULL;
-        int writeLength = 0;
-
-        while (remaining > 0 || writeBuffer) {
-            if (remaining > 0) {
-                // queue up a read request
-                req->buffer_length = (remaining > sizeof(buffer1) ? sizeof(buffer1) : remaining);
-                if (mData.readDataAsync(req)) {
-                    ALOGE("readDataAsync failed");
-                    goto fail;
-                }
-            } else {
-                req = NULL;
-            }
-
-            if (writeBuffer) {
-                // write previous buffer
-                if (!callback(writeBuffer, offset, writeLength, clientData)) {
-                    ALOGE("write failed");
-                    // wait for pending read before failing
-                    if (req)
-                        mData.readDataWait(mDevice);
-                    goto fail;
-                }
-                offset += writeLength;
-                writeBuffer = NULL;
-            }
-
-            // wait for read to complete
-            if (req) {
-                int read = mData.readDataWait(mDevice);
-                if (read < 0)
-                    goto fail;
-
-                if (read > 0) {
-                    writeBuffer = req->buffer;
-                    writeLength = read;
-                    remaining -= read;
-                    req = (req == mRequestIn1 ? mRequestIn2 : mRequestIn1);
-                } else {
-                    writeBuffer = NULL;
-                }
-            }
-        }
-
-        MtpResponseCode response = readResponse();
-        if (response == MTP_RESPONSE_OK)
-            result = true;
-    }
-
-fail:
-    return result;
+                           ReadObjectCallback callback,
+                           size_t expectedLength,
+                           void* clientData) {
+    return readObjectInternal(handle, callback, &expectedLength, clientData);
 }
 
 // reads the object's data and writes it to the specified file path
@@ -705,86 +631,98 @@ bool MtpDevice::readObject(MtpObjectHandle handle, const char* destPath, int gro
 
 bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
     ALOGD("readObject: %d", fd);
+    return readObjectInternal(handle, writeToFd, NULL /* expected size */, &fd);
+}
 
+bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
+                                   ReadObjectCallback callback,
+                                   const size_t* expectedLength,
+                                   void* clientData) {
     Mutex::Autolock autoLock(mMutex);
 
     mRequest.reset();
     mRequest.setParameter(1, handle);
-    if (sendRequest(MTP_OPERATION_GET_OBJECT) && mData.readDataHeader(mRequestIn1)) {
-        uint32_t length = mData.getContainerLength();
-        if (length < MTP_CONTAINER_HEADER_SIZE) {
-            ALOGE("Invalid container length.");
-            return false;
-        }
-        length -= MTP_CONTAINER_HEADER_SIZE;
-        uint32_t remaining = length;
+    if (!sendRequest(MTP_OPERATION_GET_OBJECT)) {
+        ALOGE("Failed to send a read request.");
+        return false;
+    }
 
-        bool writingError = false;
+    if (!mData.readDataHeader(mRequestIn1)) {
+        ALOGE("Failed to read header.");
+        return false;
+    }
+
+    const uint32_t fullLength = mData.getContainerLength();
+    if ((!expectedLength && fullLength < MTP_CONTAINER_HEADER_SIZE) ||
+        (expectedLength && *expectedLength + MTP_CONTAINER_HEADER_SIZE != fullLength)) {
+        ALOGE("readObject error length: %d", fullLength);
+        return false;
+    }
+
+    const uint32_t length = fullLength - MTP_CONTAINER_HEADER_SIZE;
+    uint32_t offset = 0;
+    bool writingError = false;
+
+    {
         int initialDataLength = 0;
-        void* initialData = mData.getData(initialDataLength);
+        void* const initialData = mData.getData(&initialDataLength);
         if (initialData) {
             if (initialDataLength > 0) {
-                if (write(fd, initialData, initialDataLength) != initialDataLength) {
+                if (!callback(initialData, offset, initialDataLength, clientData)) {
                     ALOGE("Failed to write initial data.");
                     writingError = true;
                 }
-                remaining -= initialDataLength;
+                offset += initialDataLength;
             }
             free(initialData);
         }
+    }
 
-        // USB reads greater than 16K don't work
-        char buffer1[16384], buffer2[16384];
-        mRequestIn1->buffer = buffer1;
-        mRequestIn2->buffer = buffer2;
-        struct usb_request* req = mRequestIn1;
+    // USB reads greater than 16K don't work.
+    char buffer1[MTP_BUFFER_SIZE], buffer2[MTP_BUFFER_SIZE];
+    mRequestIn1->buffer = buffer1;
+    mRequestIn2->buffer = buffer2;
+    struct usb_request* req = NULL;
+
+    while (offset < length) {
+        // Wait for previous read to complete.
         void* writeBuffer = NULL;
         int writeLength = 0;
-
-        while (remaining > 0 || writeBuffer) {
-            if (remaining > 0) {
-                // queue up a read request
-                req->buffer_length = (remaining > sizeof(buffer1) ? sizeof(buffer1) : remaining);
-                if (mData.readDataAsync(req)) {
-                    ALOGE("readDataAsync failed");
-                    return false;
-                }
-            } else {
-                req = NULL;
+        if (req) {
+            const int read = mData.readDataWait(mDevice);
+            if (read < 0) {
+                ALOGE("readDataWait failed.");
+                return false;
             }
+            writeBuffer = req->buffer;
+            writeLength = read;
+        }
 
-            if (writeBuffer && !writingError) {
-                // write previous buffer
-                if (write(fd, writeBuffer, writeLength) != writeLength) {
-                    writingError = true;
-                }
-            }
-            writeBuffer = NULL;
-
-            // wait for read to complete
-            if (req) {
-                int read = mData.readDataWait(mDevice);
-                if (read < 0) {
-                    ALOGE("readDataWait failed.");
-                    return false;
-                }
-
-                if (read > 0) {
-                    writeBuffer = req->buffer;
-                    writeLength = read;
-                    remaining -= read;
-                    req = (req == mRequestIn1 ? mRequestIn2 : mRequestIn1);
-                } else {
-                    writeBuffer = NULL;
-                }
+        // Request to read next chunk.
+        const uint32_t nextOffset = offset + writeLength;
+        if (nextOffset < length) {
+            // Queue up a read request.
+            const size_t remaining = length - nextOffset;
+            req = (req == mRequestIn1 ? mRequestIn2 : mRequestIn1);
+            req->buffer_length =
+                    remaining > MTP_BUFFER_SIZE ? static_cast<size_t>(MTP_BUFFER_SIZE) : remaining;
+            if (mData.readDataAsync(req) != 0) {
+                ALOGE("readDataAsync failed");
+                return false;
             }
         }
 
-        MtpResponseCode response = readResponse();
-        return response == MTP_RESPONSE_OK && !writingError;
+        // Write previous buffer.
+        if (writeBuffer && !writingError) {
+            if (!callback(writeBuffer, offset, writeLength, clientData)) {
+                ALOGE("write failed");
+                writingError = true;
+            }
+        }
+        offset = nextOffset;
     }
 
-    return false;
+    return readResponse() == MTP_RESPONSE_OK && !writingError;
 }
 
 bool MtpDevice::sendRequest(MtpOperationCode operation) {
