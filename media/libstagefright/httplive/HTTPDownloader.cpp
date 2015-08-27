@@ -237,7 +237,7 @@ sp<M3UParser> HTTPDownloader::fetchPlaylist(
     // MD5 functionality is not available on the simulator, treat all
     // playlists as changed.
 
-#if defined(HAVE_ANDROID_OS)
+#if defined(__ANDROID__)
     uint8_t hash[16];
 
     MD5_CTX m;
