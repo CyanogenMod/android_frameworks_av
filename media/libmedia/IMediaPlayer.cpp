@@ -525,6 +525,7 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
 
             struct sockaddr_in endpoint;
+            memset(&endpoint, 0, sizeof(endpoint));
             int amt = data.readInt32();
             if (amt == sizeof(endpoint)) {
                 data.read(&endpoint, sizeof(struct sockaddr_in));
@@ -539,6 +540,7 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
 
             struct sockaddr_in endpoint;
+            memset(&endpoint, 0, sizeof(endpoint));
             status_t res = getRetransmitEndpoint(&endpoint);
 
             reply->writeInt32(res);
