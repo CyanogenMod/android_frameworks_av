@@ -766,6 +766,11 @@ static void convertTimeToDate(int64_t time_1904, String8 *s) {
 
 status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
     ALOGV("entering parseChunk %lld/%d", (long long)*offset, depth);
+
+    if (*offset < 0) {
+        ALOGE("b/23540914");
+        return ERROR_MALFORMED;
+    }
     uint32_t hdr[2];
     if (mDataSource->readAt(*offset, hdr, 8) < 8) {
         return ERROR_IO;
@@ -831,7 +836,12 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
     PathAdder autoAdder(&mPath, chunk_type);
 
-    off64_t chunk_data_size = *offset + chunk_size - data_offset;
+    // (data_offset - *offset) is either 8 or 16
+    off64_t chunk_data_size = chunk_size - (data_offset - *offset);
+    if (chunk_data_size < 0) {
+        ALOGE("b/23540914");
+        return ERROR_MALFORMED;
+    }
 
     if (chunk_type != FOURCC('c', 'p', 'r', 't')
             && chunk_type != FOURCC('c', 'o', 'v', 'r')
@@ -4678,12 +4688,18 @@ static bool BetterSniffMPEG4(
                 // The smallest valid chunk is 16 bytes long in this case.
                 return false;
             }
+
         } else if (chunkSize < 8) {
             // The smallest valid chunk is 8 bytes long.
             return false;
         }
 
-        off64_t chunkDataSize = offset + chunkSize - chunkDataOffset;
+        // (data_offset - offset) is either 8 or 16
+        off64_t chunkDataSize = chunkSize - (chunkDataOffset - offset);
+        if (chunkDataSize < 0) {
+            ALOGE("b/23540914");
+            return ERROR_MALFORMED;
+        }
 
         char chunkstring[5];
         MakeFourCCString(chunkType, chunkstring);
