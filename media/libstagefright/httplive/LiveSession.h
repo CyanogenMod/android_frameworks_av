@@ -73,7 +73,7 @@ struct LiveSession : public AHandler {
             const sp<IMediaHTTPService> &httpService);
 
     int64_t calculateMediaTimeUs(int64_t firstTimeUs, int64_t timeUs, int32_t discontinuitySeq);
-    status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
+    virtual status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
     status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
 
@@ -117,7 +117,6 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-private:
     friend struct PlaylistFetcher;
 
     enum {
@@ -141,6 +140,14 @@ private:
     static const int64_t kReadyMarkUs;
     static const int64_t kPrepareMarkUs;
     static const int64_t kUnderflowMarkUs;
+
+    struct BandwidthBaseEstimator : public RefBase {
+        virtual void addBandwidthMeasurement(size_t numBytes, int64_t delayUs) = 0;
+        virtual bool estimateBandwidth(
+                int32_t *bandwidth,
+                bool *isStable = NULL,
+                int32_t *shortTermBps = NULL) = 0;
+    };
 
     struct BandwidthEstimator;
     struct BandwidthItem {
@@ -201,7 +208,7 @@ private:
     ssize_t mOrigBandwidthIndex;
     int32_t mLastBandwidthBps;
     bool mLastBandwidthStable;
-    sp<BandwidthEstimator> mBandwidthEstimator;
+    sp<BandwidthBaseEstimator> mBandwidthEstimator;
 
     sp<M3UParser> mPlaylist;
     int32_t mMaxWidth;
@@ -251,10 +258,10 @@ private:
     KeyedVector<size_t, int64_t> mDiscontinuityAbsStartTimesUs;
     KeyedVector<size_t, int64_t> mDiscontinuityOffsetTimesUs;
 
-    sp<PlaylistFetcher> addFetcher(const char *uri);
+    virtual sp<PlaylistFetcher> addFetcher(const char *uri);
 
     void onConnect(const sp<AMessage> &msg);
-    void onMasterPlaylistFetched(const sp<AMessage> &msg);
+    virtual void onMasterPlaylistFetched(const sp<AMessage> &msg);
     void onSeek(const sp<AMessage> &msg);
 
     bool UriIsSameAsIndex( const AString &uri, int32_t index, bool newUri);
@@ -284,7 +291,7 @@ private:
     void onChangeConfiguration2(const sp<AMessage> &msg);
     void onChangeConfiguration3(const sp<AMessage> &msg);
 
-    void swapPacketSource(StreamType stream);
+    virtual void swapPacketSource(StreamType stream);
     void tryToFinishBandwidthSwitch(const AString &oldUri);
     void cancelBandwidthSwitch(bool resume = false);
     bool checkSwitchProgress(
@@ -296,7 +303,7 @@ private:
     void schedulePollBuffering();
     void cancelPollBuffering();
     void restartPollBuffering();
-    void onPollBuffering();
+    virtual void onPollBuffering();
     bool checkBuffering(bool &underflow, bool &ready, bool &down, bool &up);
     void startBufferingIfNecessary();
     void stopBufferingIfNecessary();
@@ -304,7 +311,7 @@ private:
 
     void finishDisconnect();
 
-    void postPrepared(status_t err);
+    virtual void postPrepared(status_t err);
     void postError(status_t err);
 
     DISALLOW_EVIL_CONSTRUCTORS(LiveSession);

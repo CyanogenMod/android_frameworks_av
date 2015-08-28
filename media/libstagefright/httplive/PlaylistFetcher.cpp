@@ -1418,6 +1418,10 @@ void PlaylistFetcher::onDownloadNext() {
         }
     }
 
+    if (checkSwitchBandwidth()) {
+        return;
+    }
+
     ++mSeqNumber;
 
     // if adapting, pause after found the next starting point

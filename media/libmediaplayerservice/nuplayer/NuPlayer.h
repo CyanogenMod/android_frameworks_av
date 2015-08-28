@@ -267,7 +267,7 @@ protected:
     void performSetSurface(const sp<Surface> &wrapper);
     void performResumeDecoders(bool needNotify);
 
-    void onSourceNotify(const sp<AMessage> &msg);
+    virtual void onSourceNotify(const sp<AMessage> &msg);
     void onClosedCaptionNotify(const sp<AMessage> &msg);
 
     void queueDecoderShutdown(
