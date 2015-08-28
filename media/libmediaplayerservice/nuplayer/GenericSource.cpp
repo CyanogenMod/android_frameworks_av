@@ -211,6 +211,9 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
 
     for (size_t i = 0; i < numtracks; ++i) {
         sp<MediaSource> track = extractor->getTrack(i);
+        if (track == NULL) {
+            continue;
+        }
 
         sp<MetaData> meta = extractor->getTrackMetaData(i);
 
@@ -253,22 +256,25 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             }
         }
 
-        if (track != NULL) {
-            mSources.push(track);
-            int64_t durationUs;
-            if (meta->findInt64(kKeyDuration, &durationUs)) {
-                if (durationUs > mDurationUs) {
-                    mDurationUs = durationUs;
-                }
-            }
-
-            int32_t bitrate;
-            if (totalBitrate >= 0 && meta->findInt32(kKeyBitRate, &bitrate)) {
-                totalBitrate += bitrate;
-            } else {
-                totalBitrate = -1;
+        mSources.push(track);
+        int64_t durationUs;
+        if (meta->findInt64(kKeyDuration, &durationUs)) {
+            if (durationUs > mDurationUs) {
+                mDurationUs = durationUs;
             }
         }
+
+        int32_t bitrate;
+        if (totalBitrate >= 0 && meta->findInt32(kKeyBitRate, &bitrate)) {
+            totalBitrate += bitrate;
+        } else {
+            totalBitrate = -1;
+        }
+    }
+
+    if (mSources.size() == 0) {
+        ALOGE("b/23705695");
+        return UNKNOWN_ERROR;
     }
 
     mBitrate = totalBitrate;
@@ -318,7 +324,7 @@ int64_t NuPlayer::GenericSource::getLastReadPosition() {
 
 status_t NuPlayer::GenericSource::setBuffers(
         bool audio, Vector<MediaBuffer *> &buffers) {
-    if (mIsSecure && !audio) {
+    if (mIsWidevine && !audio && mVideoTrack.mSource != NULL) {
         return mVideoTrack.mSource->setBuffers(buffers);
     }
     return INVALID_OPERATION;
