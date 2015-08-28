@@ -483,17 +483,18 @@ MtpObjectHandle MtpDevice::sendObjectInfo(MtpObjectInfo* info) {
     return (MtpObjectHandle)-1;
 }
 
-bool MtpDevice::sendObject(MtpObjectInfo* info, int srcFD) {
+bool MtpDevice::sendObject(MtpObjectHandle handle, int size, int srcFD) {
     Mutex::Autolock autoLock(mMutex);
 
-    int remaining = info->mCompressedSize;
+    int remaining = size;
     mRequest.reset();
-    mRequest.setParameter(1, info->mHandle);
+    mRequest.setParameter(1, handle);
     if (sendRequest(MTP_OPERATION_SEND_OBJECT)) {
         // send data header
         writeDataHeader(MTP_OPERATION_SEND_OBJECT, remaining);
 
-        char buffer[65536];
+        // USB writes greater than 16K don't work
+        char buffer[MTP_BUFFER_SIZE];
         while (remaining > 0) {
             int count = read(srcFD, buffer, sizeof(buffer));
             if (count > 0) {
