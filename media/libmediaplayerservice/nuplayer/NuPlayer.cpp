@@ -1488,7 +1488,9 @@ void NuPlayer::determineAudioModeChange() {
 }
 
 status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
-    if (*decoder != NULL) {
+    // The audio decoder could be cleared by tear down. If still in shut down
+    // process, no need to create a new audio decoder.
+    if (*decoder != NULL || (audio && mFlushingAudio == SHUT_DOWN)) {
         return OK;
     }
 
