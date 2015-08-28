@@ -1885,6 +1885,12 @@ nsecs_t AudioTrack::processAudioBuffer()
         case NO_ERROR:
         case DEAD_OBJECT:
         case TIMED_OUT:
+            if (isOffloaded_l()) {
+                if (mCblk->mFlags & (CBLK_INVALID)){
+                    // will trigger EVENT_STREAM_END in next iteration
+                    return 0;
+                }
+            }
             mCbf(EVENT_STREAM_END, mUserData, NULL);
             {
                 AutoMutex lock(mLock);
