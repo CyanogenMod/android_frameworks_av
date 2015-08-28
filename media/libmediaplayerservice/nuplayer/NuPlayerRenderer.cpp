@@ -95,6 +95,7 @@ NuPlayer::Renderer::Renderer(
       mVideoQueueGeneration(0),
       mAudioDrainGeneration(0),
       mVideoDrainGeneration(0),
+      mAudioEOSGeneration(0),
       mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mAudioFirstAnchorTimeMediaUs(-1),
       mAnchorTimeMediaUs(-1),
@@ -496,6 +497,19 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatQueueEOS:
         {
             onQueueEOS(msg);
+            break;
+        }
+
+        case kWhatEOS:
+        {
+            int32_t generation;
+            CHECK(msg->findInt32("audioEOSGeneration", &generation));
+            if (generation != mAudioEOSGeneration) {
+                break;
+            }
+            status_t finalResult;
+            CHECK(msg->findInt32("finalResult", &finalResult));
+            notifyEOS(true /* audio */, finalResult);
             break;
         }
 
@@ -1155,6 +1169,13 @@ void NuPlayer::Renderer::notifyVideoRenderingStart() {
 }
 
 void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult, int64_t delayUs) {
+    if (audio && delayUs > 0) {
+        sp<AMessage> msg = new AMessage(kWhatEOS, this);
+        msg->setInt32("audioEOSGeneration", mAudioEOSGeneration);
+        msg->setInt32("finalResult", finalResult);
+        msg->post(delayUs);
+        return;
+    }
     sp<AMessage> notify = mNotify->dup();
     notify->setInt32("what", kWhatEOS);
     notify->setInt32("audio", static_cast<int32_t>(audio));
@@ -1330,6 +1351,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             flushQueue(&mAudioQueue);
 
             ++mAudioDrainGeneration;
+            ++mAudioEOSGeneration;
             prepareForMediaRenderingStart_l();
 
             // the frame count will be reset after flush.

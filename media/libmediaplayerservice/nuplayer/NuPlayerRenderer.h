@@ -148,6 +148,7 @@ private:
     int32_t mVideoQueueGeneration;
     int32_t mAudioDrainGeneration;
     int32_t mVideoDrainGeneration;
+    int32_t mAudioEOSGeneration;
 
     sp<MediaClock> mMediaClock;
     float mPlaybackRate; // audio track rate
