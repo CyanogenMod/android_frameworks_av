@@ -35,7 +35,7 @@
 #include <media/IOMX.h>
 #include <camera/android/hardware/ICamera.h>
 #include <media/mediarecorder.h>
-
+#include "ESQueue.h"
 
 namespace android {
 
@@ -64,7 +64,8 @@ struct AVFactory {
     virtual MediaExtractor* updateExtractor(
             MediaExtractor* ext, const sp<DataSource> &source,
             const char *mime, const sp<AMessage> &meta);
-
+    virtual ElementaryStreamQueue* createESQueue(
+            ElementaryStreamQueue::Mode mode, uint32_t flags = 0);
     virtual CameraSource *CreateCameraSourceFromCamera(
             const sp<hardware::ICamera> &camera,
             const sp<ICameraRecordingProxy> &proxy,
@@ -148,6 +149,9 @@ struct AVUtils {
     virtual void setIntraPeriod(
                 int nPFrames, int nBFrames, const sp<IOMX> OMXhandle,
                 IOMX::node_id nodeID);
+
+    // Used by ATSParser
+    virtual bool IsHevcIDR(const sp<ABuffer> &accessUnit);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);

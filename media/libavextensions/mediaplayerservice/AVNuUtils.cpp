@@ -56,6 +56,10 @@ void AVNuUtils::addFlagsInMeta(const sp<ABuffer> & /*buffer*/,
         int32_t /*flags*/, bool /*isAudio*/) {
 }
 
+void AVNuUtils::checkFormatChange(bool * /*formatChange*/,
+        const sp<ABuffer> & /*accessUnit*/) {
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVNuUtils::AVNuUtils() {}
 

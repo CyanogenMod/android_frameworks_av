@@ -54,7 +54,7 @@ const int64_t LiveSession::kReadyMarkUs = 5000000ll;
 const int64_t LiveSession::kPrepareMarkUs = 1500000ll;
 const int64_t LiveSession::kUnderflowMarkUs = 1000000ll;
 
-struct LiveSession::BandwidthEstimator : public RefBase {
+struct LiveSession::BandwidthEstimator : public LiveSession::BandwidthBaseEstimator {
     BandwidthEstimator();
 
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);

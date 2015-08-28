@@ -58,6 +58,7 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/external/tremolo/Tremolo                                 \
     libcore/include                                                 \
     $(TOP)/frameworks/av/media/libavextensions                      \
+    $(TOP)/frameworks/av/media/libstagefright/mpeg2ts               \
 
 LOCAL_CFLAGS += -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CLANG := true

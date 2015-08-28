@@ -100,6 +100,11 @@ MPEG4Writer* AVFactory::CreateMPEG4Writer(int fd) {
     return new MPEG4Writer(fd);
 }
 
+ElementaryStreamQueue* AVFactory::createESQueue(
+         ElementaryStreamQueue::Mode , uint32_t ) {
+    return NULL;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVFactory::AVFactory() {
 }

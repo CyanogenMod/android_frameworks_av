@@ -137,6 +137,10 @@ const char *AVUtils::getCustomCodecsPerformanceLocation() {
     return "/etc/media_codecs_performance.xml";
 }
 
+bool AVUtils::IsHevcIDR(const sp<ABuffer> &) {
+   return false;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVUtils::AVUtils() {}
 

@@ -730,6 +730,7 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
                     // treat seamless format change separately
                     formatChange = !seamlessFormatChange;
                 }
+                AVNuUtils::get()->checkFormatChange(&formatChange, accessUnit);
 
                 // For format or time change, return EOS to queue EOS input,
                 // then wait for EOS on output.

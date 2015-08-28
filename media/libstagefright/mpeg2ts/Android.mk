@@ -11,7 +11,8 @@ LOCAL_SRC_FILES:=                 \
 
 LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/av/media/libstagefright \
-	$(TOP)/frameworks/native/include/media/openmax
+	$(TOP)/frameworks/native/include/media/openmax \
+        $(TOP)/frameworks/av/media/libavextensions \
 
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
