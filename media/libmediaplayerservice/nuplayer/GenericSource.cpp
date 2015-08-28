@@ -69,16 +69,19 @@ void NuPlayer::GenericSource::initFromDataSource(
     CHECK(extractor != NULL);
 
     for (size_t i = 0; i < extractor->countTracks(); ++i) {
+        sp<MediaSource> track = extractor->getTrack(i);
+        if (track == NULL) {
+            continue;
+        }
+
         sp<MetaData> meta = extractor->getTrackMetaData(i);
 
         const char *mime;
         CHECK(meta->findCString(kKeyMIMEType, &mime));
 
-        sp<MediaSource> track;
-
         if (!strncasecmp(mime, "audio/", 6)) {
             if (mAudioTrack.mSource == NULL) {
-                mAudioTrack.mSource = track = extractor->getTrack(i);
+                mAudioTrack.mSource = track;
 
                 if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_VORBIS)) {
                     mAudioIsVorbis = true;
@@ -92,14 +95,13 @@ void NuPlayer::GenericSource::initFromDataSource(
             }
         }
 
-        if (track != NULL) {
-            int64_t durationUs;
-            if (meta->findInt64(kKeyDuration, &durationUs)) {
-                if (durationUs > mDurationUs) {
-                    mDurationUs = durationUs;
-                }
+        int64_t durationUs;
+        if (meta->findInt64(kKeyDuration, &durationUs)) {
+            if (durationUs > mDurationUs) {
+                mDurationUs = durationUs;
             }
         }
+        
     }
 }
 
