@@ -285,19 +285,27 @@ status_t Camera3Device::disconnect() {
         mStatusTracker->join();
     }
 
+    camera3_device_t *hal3Device;
     {
         Mutex::Autolock l(mLock);
 
         mRequestThread.clear();
         mStatusTracker.clear();
 
-        if (mHal3Device != NULL) {
-            ATRACE_BEGIN("camera3->close");
-            mHal3Device->common.close(&mHal3Device->common);
-            ATRACE_END();
-            mHal3Device = NULL;
-        }
+        hal3Device = mHal3Device;
+    }
 
+    // Call close without internal mutex held, as the HAL close may need to
+    // wait on assorted callbacks,etc, to complete before it can return.
+    if (hal3Device != NULL) {
+        ATRACE_BEGIN("camera3->close");
+        hal3Device->common.close(&hal3Device->common);
+        ATRACE_END();
+    }
+
+    {
+        Mutex::Autolock l(mLock);
+        mHal3Device = NULL;
         internalUpdateStatusLocked(STATUS_UNINITIALIZED);
     }
 
