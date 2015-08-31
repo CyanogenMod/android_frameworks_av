@@ -201,6 +201,13 @@ status_t CameraBase<TCam, TCamTraits>::getCameraInfo(int cameraId,
     return cs->getCameraInfo(cameraId, cameraInfo);
 }
 
+status_t CameraBase<TCam, TCamTraits>::getCameraInfoExtended(int cameraId,
+                               struct CameraInfoExtended* cameraInfoExtended) {
+    const sp<ICameraService>& cs = getCameraService();
+    if (cs == 0) return UNKNOWN_ERROR;
+    return cs->getCameraInfoExtended(cameraId, cameraInfoExtended);
+}
+
 template <typename TCam, typename TCamTraits>
 status_t CameraBase<TCam, TCamTraits>::addServiceListener(
                             const sp<ICameraServiceListener>& listener) {

@@ -1527,6 +1527,26 @@ String8 Camera2Client::getParameters() const {
     return l.mParameters.get();
 }
 
+status_t Camera2Client::setCustomParameters(const String8& params) {
+    // STUB TODO
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
+    Mutex::Autolock icl(mICameraLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    return OK;
+}
+
+String8 Camera2Client::getCustomParameters() const {
+    // STUB TODO
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d", __FUNCTION__, mCameraId);
+    Mutex::Autolock icl(mICameraLock);
+
+    return String8();
+}
+
 status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
     ATRACE_CALL();
     Mutex::Autolock icl(mBinderSerializationLock);

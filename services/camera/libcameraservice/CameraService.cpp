@@ -146,7 +146,7 @@ void CameraService::onFirstRef()
 }
 
 CameraService::~CameraService() {
-    for (int i = 0; i < mNumberOfCameras; i++) {
+    for (int i = 0; i < MAX_CAMERAS; i++) {
         if (mBusy[i]) {
             ALOGE("camera %d is still in use in destructor!", i);
         }
@@ -221,6 +221,16 @@ void CameraService::onDeviceStatusChanged(int cameraId,
 }
 
 int32_t CameraService::getNumberOfCameras() {
+    if (!mModule) {
+        return 0;
+    }
+
+    mNumberOfCameras = mModule->get_number_of_cameras();
+    if (mNumberOfCameras > MAX_CAMERAS) {
+        ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
+                mNumberOfCameras, MAX_CAMERAS);
+        mNumberOfCameras = MAX_CAMERAS;
+    }
     return mNumberOfCameras;
 }
 
@@ -228,6 +238,13 @@ status_t CameraService::getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo) {
     if (!mModule) {
         return -ENODEV;
+    }
+
+    mNumberOfCameras = mModule->get_number_of_cameras();
+    if (mNumberOfCameras > MAX_CAMERAS) {
+        ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
+                mNumberOfCameras, MAX_CAMERAS);
+        mNumberOfCameras = MAX_CAMERAS;
     }
 
     if (cameraId < 0 || cameraId >= mNumberOfCameras) {
@@ -242,6 +259,33 @@ status_t CameraService::getCameraInfo(int cameraId,
     return rc;
 }
 
+status_t CameraService::getCameraInfoExtended(int cameraId,
+                                      struct CameraInfoExtended* cameraInfo) {
+
+    if (!mModule) {
+        return -ENODEV;
+    }
+
+    mNumberOfCameras = mModule->get_number_of_cameras();
+    if (mNumberOfCameras > MAX_CAMERAS) {
+        ALOGE("Number of cameras(%d) > MAX_CAMERAS(%d).",
+                mNumberOfCameras, MAX_CAMERAS);
+        mNumberOfCameras = MAX_CAMERAS;
+    }
+
+    if (cameraId < 0 || cameraId >= mNumberOfCameras) {
+        return BAD_VALUE;
+    }
+
+    struct camera_info_extended info;
+    status_t rc = filterGetInfoErrorCode(
+        mModule->get_camera_info_extended(cameraId, &info));
+    cameraInfo->facing = info.facing;
+    cameraInfo->orientation = info.orientation;
+    cameraInfo->stereoCaps = info.stereoCaps;
+    cameraInfo->connection = info.connection;
+    return rc;
+}
 
 status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata* cameraInfo) {
     status_t ret = OK;
@@ -1399,6 +1443,10 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mCameraId = cameraId;
     mCameraFacing = cameraFacing;
     mClientPid = clientPid;
+    mNSLBurstCount = 0;
+    mBurstCount = 1;
+    mPictureCount_Compressed = 0;
+    mPictureCount_Raw = 0;
     mClientUid = clientUid;
     mServicePid = servicePid;
     mOpsActive = false;

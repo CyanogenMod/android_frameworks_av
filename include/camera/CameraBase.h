@@ -46,6 +46,34 @@ struct CameraInfo {
     int orientation;
 };
 
+enum {
+    STEREO_CAPS_UNDEFINED = 0, /* Unspecified stereoscopic capabilities. */
+    STEREO_CAPS_MONO = 1, /* Camera is monoscopic. */
+    STEREO_CAPS_STEREO = 2 /* Camera is stereoscopic. */
+};
+enum {
+    CONNECTION_UNDEFINED = 0, /* Unspecified connection type. */
+    CONNECTION_INTERNAL = 1, /* Camera is internal (built into the device). */
+    CONNECTION_USB = 2 /* Camera is connected via USB. */
+};
+struct CameraInfoExtended : public CameraInfo {
+    /**
+    * Read-only field.
+    * Indicates whether the camera can be used in stereo mode. It should be
+    * STEREO_CAPS_UNDEFINED, STEREO_CAPS_MONO or STEREO_CAPS_STEREO.
+    */
+    int stereoCaps;
+
+    /**
+    * Read-only field.
+    * It indicates whether camera is connected via USB, or is built-in.
+    * CAMERA_INTERNAL indicates a built-in camera,
+    * while CONNECTION_USB indicates a camera connected via USB. It should be
+    * CONNECTION_UNDEFINED, CONNECTION_INTERNAL or CONNECTION_USB.
+    */
+    int connection;
+};
+
 template <typename TCam>
 struct CameraTraits {
 };
@@ -71,6 +99,9 @@ public:
     static status_t      getCameraInfo(int cameraId,
                                        /*out*/
                                        struct CameraInfo* cameraInfo);
+    static status_t      getCameraInfoExtended(int cameraId,
+                                       /*out*/
+                                       struct CameraInfoExtended* cameraInfoExtended);
 
     static status_t      addServiceListener(
                                     const sp<ICameraServiceListener>& listener);

@@ -245,6 +245,14 @@ status_t Camera::setParameters(const String8& params)
     return c->setParameters(params);
 }
 
+status_t Camera::setCustomParameters(const String8& params)
+{
+    ALOGV("setCustomParameters");
+    sp <ICamera> c = mCamera;
+    if (c == 0) return NO_INIT;
+    return c->setCustomParameters(params);
+}
+
 // get preview/capture parameters - key/value pairs
 String8 Camera::getParameters() const
 {
@@ -252,6 +260,15 @@ String8 Camera::getParameters() const
     String8 params;
     sp <ICamera> c = mCamera;
     if (c != 0) params = mCamera->getParameters();
+    return params;
+}
+
+String8 Camera::getCustomParameters() const
+{
+    ALOGV("getCustomParameters");
+    String8 params;
+    sp <ICamera> c = mCamera;
+    if (c != 0) params = mCamera->getCustomParameters();
     return params;
 }
 

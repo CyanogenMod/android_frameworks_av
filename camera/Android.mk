@@ -22,6 +22,7 @@ LOCAL_SRC_FILES:= \
 	Camera.cpp \
 	CameraMetadata.cpp \
 	CameraParameters.cpp \
+	NvCameraParameters.cpp \
 	CaptureResult.cpp \
 	CameraParameters2.cpp \
 	ICamera.cpp \
