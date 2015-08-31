@@ -51,6 +51,8 @@ public:
     virtual     status_t   start();
     virtual     status_t   stop();
     virtual     status_t   reset();
+    virtual     status_t   pause();
+    virtual     status_t   resume();
     virtual     status_t   init();
     virtual     status_t   close();
     virtual     status_t   release();

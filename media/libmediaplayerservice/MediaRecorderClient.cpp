@@ -250,6 +250,29 @@ status_t MediaRecorderClient::stop()
     return mRecorder->stop();
 }
 
+status_t MediaRecorderClient::pause()
+{
+    ALOGV("pause");
+    Mutex::Autolock lock(mLock);
+    if (mRecorder == NULL) {
+        ALOGE("recorder is not initialized");
+        return NO_INIT;
+    }
+    return mRecorder->pause();
+
+}
+
+status_t MediaRecorderClient::resume()
+{
+    ALOGV("resume");
+    Mutex::Autolock lock(mLock);
+    if (mRecorder == NULL) {
+        ALOGE("recorder is not initialized");
+        return NO_INIT;
+    }
+    return mRecorder->resume();
+}
+
 status_t MediaRecorderClient::init()
 {
     ALOGV("init");

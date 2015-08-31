@@ -274,6 +274,12 @@ sp<MediaCodecSource> MediaCodecSource::Create(
     return NULL;
 }
 
+void MediaCodecSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
+    sp<AMessage> msg = new AMessage(kWhatSetInputBufferTimeOffset, mReflector);
+    msg->setInt64("time-offset-us", timeOffsetUs);
+    postSynchronouslyAndReturnError(msg);
+}
+
 status_t MediaCodecSource::start(MetaData* params) {
     sp<AMessage> msg = new AMessage(kWhatStart, mReflector);
     msg->setObject("meta", params);
@@ -348,6 +354,7 @@ MediaCodecSource::MediaCodecSource(
       mEncoderFormat(0),
       mEncoderDataSpace(0),
       mGraphicBufferConsumer(consumer),
+      mInputBufferTimeOffsetUs(0),
       mFirstSampleTimeUs(-1ll),
       mEncoderReachedEOS(false),
       mErrorCode(OK) {
@@ -568,6 +575,7 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
         if (mbuf != NULL) {
             CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
+            timeUs += mInputBufferTimeOffsetUs;
 
             // push decoding time for video, or drift time for audio
             if (mIsVideo) {
@@ -749,6 +757,9 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 if (mIsVideo) {
                     int64_t decodingTimeUs;
                     if (mFlags & FLAG_USE_SURFACE_INPUT) {
+                        // Time offset is not applied at
+                        // feedEncoderInputBuffer() in surface input case.
+                        timeUs += mInputBufferTimeOffsetUs;
                         // GraphicBufferSource is supposed to discard samples
                         // queued before start, and offset timeUs by start time
                         CHECK_GE(timeUs, 0ll);
@@ -852,12 +863,23 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     }
     case kWhatPause:
     {
-        if (mFlags && FLAG_USE_SURFACE_INPUT) {
+        if (mFlags & FLAG_USE_SURFACE_INPUT) {
             suspend();
         } else {
             CHECK(mPuller != NULL);
             mPuller->pause();
         }
+        break;
+    }
+    case kWhatSetInputBufferTimeOffset:
+    {
+        sp<AReplyToken> replyID;
+        CHECK(msg->senderAwaitsResponse(&replyID));
+
+        CHECK(msg->findInt64("time-offset-us", &mInputBufferTimeOffsetUs));
+
+        sp<AMessage> response = new AMessage;
+        response->postReply(replyID);
         break;
     }
     default:

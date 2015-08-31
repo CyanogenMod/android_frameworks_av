@@ -233,6 +233,8 @@ public:
     status_t    start();
     status_t    stop();
     status_t    reset();
+    status_t    pause();
+    status_t    resume();
     status_t    init();
     status_t    close();
     status_t    release();

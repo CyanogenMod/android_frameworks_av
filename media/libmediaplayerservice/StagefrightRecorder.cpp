@@ -907,7 +907,7 @@ status_t StagefrightRecorder::start() {
     return status;
 }
 
-sp<MediaSource> StagefrightRecorder::createAudioSource() {
+sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
     int32_t sourceSampleRate = mSampleRate;
 
     if (mCaptureFpsEnable && mCaptureFps >= mFrameRate) {
@@ -982,7 +982,7 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
     }
     format->setInt32("priority", 0 /* realtime */);
 
-    sp<MediaSource> audioEncoder =
+    sp<MediaCodecSource> audioEncoder =
             MediaCodecSource::Create(mLooper, format, audioSource);
     mAudioSourceNode = audioSource;
 
@@ -1041,13 +1041,14 @@ status_t StagefrightRecorder::setupRawAudioRecording() {
         return status;
     }
 
-    sp<MediaSource> audioEncoder = createAudioSource();
+    sp<MediaCodecSource> audioEncoder = createAudioSource();
     if (audioEncoder == NULL) {
         return UNKNOWN_ERROR;
     }
 
     CHECK(mWriter != 0);
     mWriter->addSource(audioEncoder);
+    mAudioEncoderSource = audioEncoder;
 
     if (mMaxFileDurationUs != 0) {
         mWriter->setMaxFileDuration(mMaxFileDurationUs);
@@ -1075,10 +1076,11 @@ status_t StagefrightRecorder::setupRTPRecording() {
         return BAD_VALUE;
     }
 
-    sp<MediaSource> source;
+    sp<MediaCodecSource> source;
 
     if (mAudioSource != AUDIO_SOURCE_CNT) {
         source = createAudioSource();
+        mAudioEncoderSource = source;
     } else {
         setDefaultVideoEncoderIfNecessary();
 
@@ -1092,6 +1094,7 @@ status_t StagefrightRecorder::setupRTPRecording() {
         if (err != OK) {
             return err;
         }
+        mVideoEncoderSource = source;
     }
 
     mWriter = new ARTPWriter(mOutputFd);
@@ -1132,7 +1135,7 @@ status_t StagefrightRecorder::setupMPEG2TSRecording() {
             return err;
         }
 
-        sp<MediaSource> encoder;
+        sp<MediaCodecSource> encoder;
         err = setupVideoEncoder(mediaSource, &encoder);
 
         if (err != OK) {
@@ -1140,6 +1143,7 @@ status_t StagefrightRecorder::setupMPEG2TSRecording() {
         }
 
         writer->addSource(encoder);
+        mVideoEncoderSource = encoder;
     }
 
     if (mMaxFileDurationUs != 0) {
@@ -1489,7 +1493,7 @@ status_t StagefrightRecorder::setupCameraSource(
 
 status_t StagefrightRecorder::setupVideoEncoder(
         sp<MediaSource> cameraSource,
-        sp<MediaSource> *source) {
+        sp<MediaCodecSource> *source) {
     source->clear();
 
     sp<AMessage> format = new AMessage();
@@ -1618,12 +1622,13 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
             return UNKNOWN_ERROR;
     }
 
-    sp<MediaSource> audioEncoder = createAudioSource();
+    sp<MediaCodecSource> audioEncoder = createAudioSource();
     if (audioEncoder == NULL) {
         return UNKNOWN_ERROR;
     }
 
     writer->addSource(audioEncoder);
+    mAudioEncoderSource = audioEncoder;
     return OK;
 }
 
@@ -1649,13 +1654,14 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
             return err;
         }
 
-        sp<MediaSource> encoder;
+        sp<MediaCodecSource> encoder;
         err = setupVideoEncoder(mediaSource, &encoder);
         if (err != OK) {
             return err;
         }
 
         writer->addSource(encoder);
+        mVideoEncoderSource = encoder;
         mTotalBitRate += mVideoBitRate;
     }
 
@@ -1726,25 +1732,49 @@ void StagefrightRecorder::setupMPEG4orWEBMMetaData(sp<MetaData> *meta) {
 
 status_t StagefrightRecorder::pause() {
     ALOGV("pause");
-    if (mWriter == NULL) {
-        return UNKNOWN_ERROR;
-    }
-    mWriter->pause();
-
-    if (mStarted) {
-        mStarted = false;
-
-        uint32_t params = 0;
-        if (mAudioSource != AUDIO_SOURCE_CNT) {
-            params |= IMediaPlayerService::kBatteryDataTrackAudio;
-        }
-        if (mVideoSource != VIDEO_SOURCE_LIST_END) {
-            params |= IMediaPlayerService::kBatteryDataTrackVideo;
-        }
-
-        addBatteryData(params);
+    if (!mStarted) {
+        return INVALID_OPERATION;
     }
 
+    // Already paused --- no-op.
+    if (mPauseStartTimeUs != 0) {
+        return OK;
+    }
+
+    if (mAudioEncoderSource != NULL) {
+        mAudioEncoderSource->pause();
+    }
+    if (mVideoEncoderSource != NULL) {
+        mVideoEncoderSource->pause();
+    }
+
+    mPauseStartTimeUs = systemTime() / 1000;
+
+    return OK;
+}
+
+status_t StagefrightRecorder::resume() {
+    ALOGV("resume");
+    if (!mStarted) {
+        return INVALID_OPERATION;
+    }
+
+    // Not paused --- no-op.
+    if (mPauseStartTimeUs == 0) {
+        return OK;
+    }
+
+    // 30 ms buffer to avoid timestamp overlap
+    mTotalPausedDurationUs += (systemTime() / 1000) - mPauseStartTimeUs - 30000;
+    if (mAudioEncoderSource != NULL) {
+        mAudioEncoderSource->setInputBufferTimeOffset(-mTotalPausedDurationUs);
+        mAudioEncoderSource->start();
+    }
+    if (mVideoEncoderSource != NULL) {
+        mVideoEncoderSource->setInputBufferTimeOffset(-mTotalPausedDurationUs);
+        mVideoEncoderSource->start();
+    }
+    mPauseStartTimeUs = 0;
 
     return OK;
 }
@@ -1765,6 +1795,8 @@ status_t StagefrightRecorder::stop() {
 
     mGraphicBufferProducer.clear();
     mPersistentSurface.clear();
+    mAudioEncoderSource.clear();
+    mVideoEncoderSource.clear();
 
     if (mOutputFd >= 0) {
         ::close(mOutputFd);
@@ -1840,6 +1872,8 @@ status_t StagefrightRecorder::reset() {
     mTotalBitRate = 0;
 
     mOutputFd = -1;
+    mPauseStartTimeUs = 0;
+    mTotalPausedDurationUs = 0;
 
     return OK;
 }

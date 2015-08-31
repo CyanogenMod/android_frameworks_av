@@ -54,7 +54,9 @@ enum {
     SET_PREVIEW_SURFACE,
     SET_CAMERA,
     SET_LISTENER,
-    SET_CLIENT_NAME
+    SET_CLIENT_NAME,
+    PAUSE,
+    RESUME
 };
 
 class BpMediaRecorder: public BpInterface<IMediaRecorder>
@@ -276,6 +278,24 @@ public:
         return reply.readInt32();
     }
 
+    status_t pause()
+    {
+        ALOGV("pause");
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
+        remote()->transact(PAUSE, data, &reply);
+        return reply.readInt32();
+    }
+
+    status_t resume()
+    {
+        ALOGV("resume");
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaRecorder::getInterfaceDescriptor());
+        remote()->transact(RESUME, data, &reply);
+        return reply.readInt32();
+    }
+
     status_t close()
     {
         ALOGV("close");
@@ -338,6 +358,18 @@ status_t BnMediaRecorder::onTransact(
             ALOGV("START");
             CHECK_INTERFACE(IMediaRecorder, data, reply);
             reply->writeInt32(start());
+            return NO_ERROR;
+        } break;
+        case PAUSE: {
+            ALOGV("PAUSE");
+            CHECK_INTERFACE(IMediaRecorder, data, reply);
+            reply->writeInt32(pause());
+            return NO_ERROR;
+        } break;
+        case RESUME: {
+            ALOGV("RESUME");
+            CHECK_INTERFACE(IMediaRecorder, data, reply);
+            reply->writeInt32(resume());
             return NO_ERROR;
         } break;
         case PREPARE: {

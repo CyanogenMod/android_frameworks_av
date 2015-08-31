@@ -47,6 +47,7 @@ struct MediaCodecSource : public MediaSource,
 
     bool isVideo() const { return mIsVideo; }
     sp<IGraphicBufferProducer> getGraphicBufferProducer();
+    void setInputBufferTimeOffset(int64_t timeOffsetUs);
 
     // MediaSource
     virtual status_t start(MetaData *params = NULL);
@@ -75,6 +76,7 @@ private:
         kWhatStart,
         kWhatStop,
         kWhatPause,
+        kWhatSetInputBufferTimeOffset,
     };
 
     MediaCodecSource(
@@ -117,6 +119,7 @@ private:
     List<MediaBuffer *> mInputBufferQueue;
     List<size_t> mAvailEncoderInputIndices;
     List<int64_t> mDecodingTimeQueue; // decoding time (us) for video
+    int64_t mInputBufferTimeOffsetUs;
 
     // audio drift time
     int64_t mFirstSampleTimeUs;
