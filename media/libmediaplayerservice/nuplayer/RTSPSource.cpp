@@ -569,6 +569,14 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case MyHandler::kWhatByeReceived:
+        {
+            sp<AMessage> msg = dupNotify();
+            msg->setInt32("what", kWhatRTCPByeReceived);
+            msg->post();
+            break;
+        }
+
         case SDPLoader::kWhatSDPLoaded:
         {
             onSDPLoaded(msg);

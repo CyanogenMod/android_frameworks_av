@@ -110,6 +110,7 @@ struct MyHandler : public AHandler {
         kWhatSeekDiscontinuity          = 'seeD',
         kWhatNormalPlayTimeMapping      = 'nptM',
         kWhatCancelCheck                = 'canC',
+        kWhatByeReceived                = 'byeR',
     };
 
     MyHandler(
@@ -1053,6 +1054,13 @@ struct MyHandler : public AHandler {
                 int32_t eos;
                 if (msg->findInt32("eos", &eos)) {
                     ALOGI("received BYE on track index %zu", trackIndex);
+                    char value[PROPERTY_VALUE_MAX] = {0};
+                    if (property_get("rtcp.bye.notify", value, "false")
+                            && !strcasecmp(value, "true")) {
+                        sp<AMessage> msg = mNotify->dup();
+                        msg->setInt32("what", kWhatByeReceived);
+                        msg->post();
+                    }
                     if (!mAllTracksHaveTime && dataReceivedOnAllChannels()) {
                         ALOGI("No time established => fake existing data");
 
