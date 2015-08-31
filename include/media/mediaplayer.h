@@ -53,8 +53,7 @@ enum media_event_type {
     MEDIA_ERROR             = 100,
     MEDIA_INFO              = 200,
     MEDIA_SUBTITLE_DATA     = 201,
-    MEDIA_META_DATA         = 202,
-    MEDIA_QOE               = 300,
+    MEDIA_META_DATA         = 202
 };
 
 // Generic error codes for the media player framework.  Errors are fatal, the
