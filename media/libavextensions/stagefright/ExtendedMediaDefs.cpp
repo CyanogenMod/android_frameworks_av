@@ -33,6 +33,7 @@ namespace android {
 
 const char *MEDIA_MIMETYPE_AUDIO_EVRC = "audio/evrc";
 const char *MEDIA_MIMETYPE_VIDEO_WMV = "video/x-ms-wmv";
+const char *MEDIA_MIMETYPE_VIDEO_WMV_VC1 = "video/wvc1";
 const char *MEDIA_MIMETYPE_AUDIO_WMA = "audio/x-ms-wma";
 const char *MEDIA_MIMETYPE_AUDIO_WMA_PRO = "audio/x-ms-wma-pro";
 const char *MEDIA_MIMETYPE_AUDIO_WMA_LOSSLESS = "audio/x-ms-wma-lossless";

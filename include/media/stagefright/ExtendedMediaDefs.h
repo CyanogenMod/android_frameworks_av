@@ -32,6 +32,7 @@ namespace android {
 
 extern const char *MEDIA_MIMETYPE_AUDIO_EVRC;
 extern const char *MEDIA_MIMETYPE_VIDEO_WMV;
+extern const char *MEDIA_MIMETYPE_VIDEO_WMV_VC1;
 extern const char *MEDIA_MIMETYPE_AUDIO_WMA;
 extern const char *MEDIA_MIMETYPE_AUDIO_WMA_PRO;
 extern const char *MEDIA_MIMETYPE_AUDIO_WMA_LOSSLESS;
