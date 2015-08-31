@@ -75,6 +75,8 @@ public:
     virtual int32_t     getNumberOfCameras();
     virtual status_t    getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo);
+    virtual status_t    getCameraInfoExtended(int cameraId,
+                                      struct CameraInfoExtended* cameraInfoExtended);
     virtual status_t    getCameraCharacteristics(int cameraId,
                                                  CameraMetadata* cameraInfo);
     virtual status_t    getCameraVendorTagDescriptor(/*out*/ sp<VendorTagDescriptor>& desc);
@@ -195,6 +197,10 @@ public:
         uid_t                           mClientUid;      // immutable after constructor
         pid_t                           mServicePid;     // immutable after constructor
         int                             mBurstCnt;
+        int                             mNSLBurstCount;
+        int                             mBurstCount;
+        int                             mPictureCount_Compressed;
+        int                             mPictureCount_Raw;
 
         // - The app-side Binder interface to receive callbacks from us
         sp<IBinder>                     mRemoteBinder;   // immutable after constructor

@@ -123,6 +123,25 @@ public:
         return result;
     }
 
+    // get extended information about a camera
+    virtual status_t getCameraInfoExtended(int cameraId,
+                                  struct CameraInfoExtended* cameraInfoExtended) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraService::getInterfaceDescriptor());
+        data.writeInt32(cameraId);
+        remote()->transact(BnCameraService::GET_CAMERA_INFO_EXTENDED, data, &reply);
+
+        if (readExceptionCode(reply)) return -EPROTO;
+        status_t result = reply.readInt32();
+        if (reply.readInt32() != 0) {
+            cameraInfoExtended->facing = reply.readInt32();
+            cameraInfoExtended->orientation = reply.readInt32();
+            cameraInfoExtended->stereoCaps = reply.readInt32();
+            cameraInfoExtended->connection = reply.readInt32();
+        }
+        return result;
+    }
+
     // get camera characteristics (static metadata)
     virtual status_t getCameraCharacteristics(int cameraId,
                                               CameraMetadata* cameraInfo) {
@@ -340,6 +359,22 @@ status_t BnCameraService::onTransact(
             reply->writeInt32(1); // means the parcelable is included
             reply->writeInt32(cameraInfo.facing);
             reply->writeInt32(cameraInfo.orientation);
+            return NO_ERROR;
+        } break;
+        case GET_CAMERA_INFO_EXTENDED: {
+            CHECK_INTERFACE(ICameraService, data, reply);
+            CameraInfoExtended cameraInfoExtended = CameraInfoExtended();
+            memset(&cameraInfoExtended, 0, sizeof(cameraInfoExtended));
+            status_t result = getCameraInfoExtended(data.readInt32(), &cameraInfoExtended);
+            reply->writeNoException();
+            reply->writeInt32(result);
+
+            // Fake a parcelable object here
+            reply->writeInt32(1); // means the parcelable is included
+            reply->writeInt32(cameraInfoExtended.facing);
+            reply->writeInt32(cameraInfoExtended.orientation);
+            reply->writeInt32(cameraInfoExtended.stereoCaps);
+            reply->writeInt32(cameraInfoExtended.connection);
             return NO_ERROR;
         } break;
         case GET_CAMERA_CHARACTERISTICS: {

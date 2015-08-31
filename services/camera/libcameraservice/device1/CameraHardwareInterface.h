@@ -24,6 +24,7 @@
 #include <ui/GraphicBuffer.h>
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
+#include <camera/NvCameraParameters.h>
 #include <system/window.h>
 #include "hardware/camera.h"
 #ifdef USE_MEMORY_HEAP_ION
@@ -404,6 +405,18 @@ public:
         return INVALID_OPERATION;
     }
 
+    /**
+    * Set the custom camera parameters. This returns BAD_VALUE if any
+    * parameter is invalid or not supported. */
+    status_t setCustomParameters(const CameraParameters &params)
+    {
+        ALOGV("%s(%s)", __FUNCTION__, mName.string());
+        if (mDevice->ops->set_custom_parameters)
+            return mDevice->ops->set_custom_parameters(mDevice,
+                                                    params.flatten().string());
+        return INVALID_OPERATION;
+    }
+
     /** Return the camera parameters. */
     CameraParameters getParameters() const
     {
@@ -417,6 +430,23 @@ public:
             else
                 free(temp);
             parms.unflatten(str_parms);
+        }
+        return parms;
+    }
+
+    /** Return the custom camera parameters. */
+    CameraParameters getCustomParameters() const
+    {
+        ALOGV("%s(%s)", __FUNCTION__, mName.string());
+        CameraParameters parms;
+        if (mDevice->ops->get_custom_parameters) {
+            char *temp = mDevice->ops->get_custom_parameters(mDevice);
+            String8 str_parms(temp);
+            if (mDevice->ops->put_parameters)
+                mDevice->ops->put_parameters(mDevice, temp);
+            else
+               free(temp);
+           parms.unflatten(str_parms);
         }
         return parms;
     }

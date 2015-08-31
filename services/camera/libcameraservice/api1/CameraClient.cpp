@@ -560,6 +560,9 @@ status_t CameraClient::takePicture(int msgType) {
         return BAD_VALUE;
     }
 
+    mPictureCount_Compressed += mNSLBurstCount + mBurstCount;
+    mPictureCount_Raw += mNSLBurstCount + mBurstCount;
+
     // We only accept picture related message types
     // and ignore other types of messages for takePicture().
     int picMsgType = msgType
@@ -589,6 +592,42 @@ status_t CameraClient::setParameters(const String8& params) {
     mLatestSetParameters = CameraParameters(params);
     CameraParameters p(params);
     return mHardware->setParameters(p);
+}
+
+status_t CameraClient::setCustomParameters(const String8& params) {
+    LOG1("setCustomParameters (pid %d) (%s)", getCallingPid(), params.string());
+
+    Mutex::Autolock lock(mLock);
+    status_t result = checkPidAndHardware();
+    if (result != NO_ERROR) return result;
+
+    NvCameraParameters p(params);
+
+    mNSLBurstCount = p.getInt(NvCameraParameters::NV_NSL_BURST_PICTURE_COUNT);
+    if (mNSLBurstCount < 0) mNSLBurstCount = 0;
+    LOG1("setCustomParameters: NSL burst picture count is %d\n", mNSLBurstCount);
+    mBurstCount = p.getInt(NvCameraParameters::NV_BURST_PICTURE_COUNT);
+    if (mBurstCount < 0) mBurstCount = 0;
+    LOG1("setCustomParameters: burst picture count is %d\n", mBurstCount);
+
+    if (mNSLBurstCount + mBurstCount == 0)
+    {
+        //stop command
+        mPictureCount_Compressed = 0;
+        mPictureCount_Raw = 0;
+        disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
+    }
+
+    return mHardware->setCustomParameters(p);
+}
+
+String8 CameraClient::getCustomParameters() const {
+    Mutex::Autolock lock(mLock);
+    if (checkPidAndHardware() != NO_ERROR) return String8();
+
+    String8 params(mHardware->getCustomParameters().flatten());
+    LOG1("getCustomParameters (pid %d) (%s)", getCallingPid(), params.string());
+    return params;
 }
 
 // get preview/capture parameters - key/value pairs
@@ -963,6 +1002,9 @@ void CameraClient::handlePostview(const sp<IMemory>& mem) {
 
 // picture callback - raw image ready
 void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
+    if (mPictureCount_Raw == 0)
+        return;
+    if (--mPictureCount_Raw == 0)
     disableMsgType(CAMERA_MSG_RAW_IMAGE);
 
     ssize_t offset;
@@ -983,6 +1025,9 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
 
     if (!mBurstCnt && !mLongshotEnabled) {
         LOG1("handleCompressedPicture mBurstCnt = %d", mBurstCnt);
+    if (mPictureCount_Compressed == 0)
+        return;
+    if (--mPictureCount_Compressed == 0)
         disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
     }
 
