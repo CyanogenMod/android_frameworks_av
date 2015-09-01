@@ -107,7 +107,7 @@ bool MetaData::findCString(uint32_t key, const char **value) {
 }
 
 bool MetaData::findInt32(uint32_t key, int32_t *value) {
-    uint32_t type;
+    uint32_t type = 0;
     const void *data;
     size_t size;
     if (!findData(key, &type, &data, &size) || type != TYPE_INT32) {
@@ -122,7 +122,7 @@ bool MetaData::findInt32(uint32_t key, int32_t *value) {
 }
 
 bool MetaData::findInt64(uint32_t key, int64_t *value) {
-    uint32_t type;
+    uint32_t type = 0;
     const void *data;
     size_t size;
     if (!findData(key, &type, &data, &size) || type != TYPE_INT64) {
@@ -137,7 +137,7 @@ bool MetaData::findInt64(uint32_t key, int64_t *value) {
 }
 
 bool MetaData::findFloat(uint32_t key, float *value) {
-    uint32_t type;
+    uint32_t type = 0;
     const void *data;
     size_t size;
     if (!findData(key, &type, &data, &size) || type != TYPE_FLOAT) {
@@ -152,7 +152,7 @@ bool MetaData::findFloat(uint32_t key, float *value) {
 }
 
 bool MetaData::findPointer(uint32_t key, void **value) {
-    uint32_t type;
+    uint32_t type = 0;
     const void *data;
     size_t size;
     if (!findData(key, &type, &data, &size) || type != TYPE_POINTER) {
@@ -170,7 +170,7 @@ bool MetaData::findRect(
         uint32_t key,
         int32_t *left, int32_t *top,
         int32_t *right, int32_t *bottom) {
-    uint32_t type;
+    uint32_t type = 0;
     const void *data;
     size_t size;
     if (!findData(key, &type, &data, &size) || type != TYPE_RECT) {
