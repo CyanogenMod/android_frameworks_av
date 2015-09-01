@@ -107,6 +107,7 @@ NuPlayer::Renderer::Renderer(
       mNotifyCompleteVideo(false),
       mSyncQueues(false),
       mPaused(false),
+      mPauseDrainAudioAllowedUs(0),
       mVideoSampleReceived(false),
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
@@ -643,6 +644,14 @@ void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
 
     if (mAudioQueue.empty()) {
         return;
+    }
+
+    // FIXME: if paused, wait until AudioTrack stop() is complete before delivering data.
+    if (mPaused) {
+        const int64_t diffUs = mPauseDrainAudioAllowedUs - ALooper::GetNowUs();
+        if (diffUs > delayUs) {
+            delayUs = diffUs;
+        }
     }
 
     mDrainAudioQueuePending = true;
@@ -1371,8 +1380,16 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             mAudioSink->flush();
             // Call stop() to signal to the AudioSink to completely fill the
             // internal buffer before resuming playback.
+            // FIXME: this is ignored after flush().
             mAudioSink->stop();
-            if (!mPaused) {
+            if (mPaused) {
+                // Race condition: if renderer is paused and audio sink is stopped,
+                // we need to make sure that the audio track buffer fully drains
+                // before delivering data.
+                // FIXME: remove this if we can detect if stop() is complete.
+                const int delayUs = 2 * 50 * 1000; // (2 full mixer thread cycles at 50ms)
+                mPauseDrainAudioAllowedUs = ALooper::GetNowUs() + delayUs;
+            } else {
                 mAudioSink->start();
             }
             mNumFramesWritten = 0;
