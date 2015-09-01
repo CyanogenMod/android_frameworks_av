@@ -173,8 +173,10 @@ status_t convertMetaDataToMessage(
 
         const uint8_t *ptr = (const uint8_t *)data;
 
-        CHECK(size >= 7);
-        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
+        if (size < 7 || ptr[0] != 1) {  // configurationVersion == 1
+            ALOGE("b/23680780");
+            return BAD_VALUE;
+        }
         uint8_t profile = ptr[1];
         uint8_t level = ptr[3];
 
@@ -200,7 +202,10 @@ status_t convertMetaDataToMessage(
         buffer->setRange(0, 0);
 
         for (size_t i = 0; i < numSeqParameterSets; ++i) {
-            CHECK(size >= 2);
+            if (size < 2) {
+                ALOGE("b/23680780");
+                return BAD_VALUE;
+            }
             size_t length = U16_AT(ptr);
 
             ptr += 2;
@@ -229,13 +234,19 @@ status_t convertMetaDataToMessage(
         }
         buffer->setRange(0, 0);
 
-        CHECK(size >= 1);
+        if (size < 1) {
+            ALOGE("b/23680780");
+            return BAD_VALUE;
+        }
         size_t numPictureParameterSets = *ptr;
         ++ptr;
         --size;
 
         for (size_t i = 0; i < numPictureParameterSets; ++i) {
-            CHECK(size >= 2);
+            if (size < 2) {
+                ALOGE("b/23680780");
+                return BAD_VALUE;
+            }
             size_t length = U16_AT(ptr);
 
             ptr += 2;
