@@ -118,7 +118,7 @@ protected:
                     DataSource::CreateFromURI(
                             NULL /* httpService */, mURI.c_str());
 
-                sp<MediaExtractor> extractor =
+                sp<IMediaExtractor> extractor =
                     MediaExtractor::Create(dataSource);
 
                 for (size_t i = 0; i < extractor->countTracks(); ++i) {
@@ -264,7 +264,7 @@ private:
     sp<Surface> mSurface;
     bool mRenderToSurface;
     sp<ACodec> mCodec;
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
     bool mIsVorbis;
 
     Vector<sp<ABuffer> > mCSD;

@@ -139,7 +139,7 @@ status_t StagefrightMetadataRetriever::setDataSource(
 static VideoFrame *extractVideoFrame(
         const char *componentName,
         const sp<MetaData> &trackMeta,
-        const sp<MediaSource> &source,
+        const sp<IMediaSource> &source,
         int64_t frameTimeUs,
         int seekMode) {
 
@@ -459,7 +459,7 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
     sp<MetaData> trackMeta = mExtractor->getTrackMetaData(
             i, MediaExtractor::kIncludeExtensiveMetaData);
 
-    sp<MediaSource> source = mExtractor->getTrack(i);
+    sp<IMediaSource> source = mExtractor->getTrack(i);
 
     if (source.get() == NULL) {
         ALOGV("unable to instantiate video track.");

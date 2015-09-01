@@ -34,7 +34,7 @@ struct OMXCodecObserver;
 struct CodecProfileLevel;
 class SkipCutBuffer;
 
-struct OMXCodec : public MediaSource,
+struct OMXCodec : public BnMediaSource,
                   public MediaBufferObserver {
     enum CreationFlags {
         kPreferSoftwareCodecs    = 1,
@@ -61,10 +61,10 @@ struct OMXCodec : public MediaSource,
         // Secure decoding mode
         kUseSecureInputBuffers = 256,
     };
-    static sp<MediaSource> Create(
+    static sp<IMediaSource> Create(
             const sp<IOMX> &omx,
             const sp<MetaData> &meta, bool createEncoder,
-            const sp<MediaSource> &source,
+            const sp<IMediaSource> &source,
             const char *matchComponentName = NULL,
             uint32_t flags = 0,
             const sp<ANativeWindow> &nativeWindow = NULL);
@@ -189,7 +189,7 @@ private:
     char *mMIME;
     char *mComponentName;
     sp<MetaData> mOutputFormat;
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
     Vector<CodecSpecificData *> mCodecSpecificData;
     size_t mCodecSpecificDataIndex;
 
@@ -234,7 +234,7 @@ private:
     OMXCodec(const sp<IOMX> &omx, IOMX::node_id node,
              uint32_t quirks, uint32_t flags,
              bool isEncoder, const char *mime, const char *componentName,
-             const sp<MediaSource> &source,
+             const sp<IMediaSource> &source,
              const sp<ANativeWindow> &nativeWindow);
 
     void addCodecSpecificData(const void *data, size_t size);

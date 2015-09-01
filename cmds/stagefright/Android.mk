@@ -35,7 +35,7 @@ LOCAL_SRC_FILES:=         \
         record.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libstagefright liblog libutils libbinder libstagefright_foundation
+	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -59,7 +59,7 @@ LOCAL_SRC_FILES:=         \
         recordvideo.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libstagefright liblog libutils libbinder libstagefright_foundation
+	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -84,7 +84,7 @@ LOCAL_SRC_FILES:=         \
         audioloop.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libstagefright liblog libutils libbinder libstagefright_foundation
+	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \

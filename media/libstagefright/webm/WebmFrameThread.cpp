@@ -246,7 +246,7 @@ void WebmFrameMediaSourceThread::clearFlags() {
 }
 
 WebmFrameMediaSourceThread::WebmFrameMediaSourceThread(
-        const sp<MediaSource>& source,
+        const sp<IMediaSource>& source,
         int type,
         LinkedBlockingQueue<const sp<WebmFrame> >& sink,
         uint64_t timeCodeScale,

@@ -328,7 +328,7 @@ status_t WebmWriter::reset() {
     return err;
 }
 
-status_t WebmWriter::addSource(const sp<MediaSource> &source) {
+status_t WebmWriter::addSource(const sp<IMediaSource> &source) {
     Mutex::Autolock l(mLock);
     if (mStarted) {
         ALOGE("Attempt to add source AFTER recording is started");

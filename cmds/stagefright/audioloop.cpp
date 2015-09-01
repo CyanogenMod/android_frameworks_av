@@ -109,7 +109,7 @@ int main(int argc, char* argv[])
         meta->setInt32(kKeyMaxInputSize, maxInputSize);
     }
 
-    sp<MediaSource> encoder = OMXCodec::Create(
+    sp<IMediaSource> encoder = OMXCodec::Create(
             client.interface(),
             meta, true /* createEncoder */,
             source);
@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
         writer->stop();
     } else {
         // otherwise decode to speaker
-        sp<MediaSource> decoder = OMXCodec::Create(
+        sp<IMediaSource> decoder = OMXCodec::Create(
                 client.interface(),
                 meta, false /* createEncoder */,
                 encoder);

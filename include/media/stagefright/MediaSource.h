@@ -20,6 +20,7 @@
 
 #include <sys/types.h>
 
+#include <media/IMediaSource.h>
 #include <media/stagefright/MediaErrors.h>
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
@@ -29,7 +30,7 @@ namespace android {
 class MediaBuffer;
 class MetaData;
 
-struct MediaSource : public virtual RefBase {
+struct MediaSource : public BnMediaSource {
     MediaSource();
 
     // To be called before any other methods on this object, except
@@ -47,8 +48,6 @@ struct MediaSource : public virtual RefBase {
     // Returns the format of the data output by this media source.
     virtual sp<MetaData> getFormat() = 0;
 
-    struct ReadOptions;
-
     // Returns a new buffer of data. Call blocks until a
     // buffer is available, an error is encountered of the end of the stream
     // is reached.
@@ -58,45 +57,6 @@ struct MediaSource : public virtual RefBase {
     // but should be prepared for buffers of the new configuration.
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
-
-    // Options that modify read() behaviour. The default is to
-    // a) not request a seek
-    // b) not be late, i.e. lateness_us = 0
-    struct ReadOptions {
-        enum SeekMode {
-            SEEK_PREVIOUS_SYNC,
-            SEEK_NEXT_SYNC,
-            SEEK_CLOSEST_SYNC,
-            SEEK_CLOSEST,
-        };
-
-        ReadOptions();
-
-        // Reset everything back to defaults.
-        void reset();
-
-        void setSeekTo(int64_t time_us, SeekMode mode = SEEK_CLOSEST_SYNC);
-        void clearSeekTo();
-        bool getSeekTo(int64_t *time_us, SeekMode *mode) const;
-
-        void setLateBy(int64_t lateness_us);
-        int64_t getLateBy() const;
-
-        void setNonBlocking();
-        void clearNonBlocking();
-        bool getNonBlocking() const;
-
-    private:
-        enum Options {
-            kSeekTo_Option      = 1,
-        };
-
-        uint32_t mOptions;
-        int64_t mSeekTimeUs;
-        SeekMode mSeekMode;
-        int64_t mLatenessUs;
-        bool mNonBlocking;
-    };
 
     // Causes this source to suspend pulling data from its upstream source
     // until a subsequent read-with-seek. Currently only supported by

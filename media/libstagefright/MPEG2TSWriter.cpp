@@ -35,7 +35,7 @@
 namespace android {
 
 struct MPEG2TSWriter::SourceInfo : public AHandler {
-    SourceInfo(const sp<MediaSource> &source);
+    SourceInfo(const sp<IMediaSource> &source);
 
     void start(const sp<AMessage> &notify);
     void stop();
@@ -69,7 +69,7 @@ private:
         kWhatRead  = 'read',
     };
 
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
     sp<ALooper> mLooper;
     sp<AMessage> mNotify;
 
@@ -93,7 +93,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(SourceInfo);
 };
 
-MPEG2TSWriter::SourceInfo::SourceInfo(const sp<MediaSource> &source)
+MPEG2TSWriter::SourceInfo::SourceInfo(const sp<IMediaSource> &source)
     : mSource(source),
       mLooper(new ALooper),
       mEOSReceived(false),
@@ -523,7 +523,7 @@ MPEG2TSWriter::~MPEG2TSWriter() {
     }
 }
 
-status_t MPEG2TSWriter::addSource(const sp<MediaSource> &source) {
+status_t MPEG2TSWriter::addSource(const sp<IMediaSource> &source) {
     CHECK(!mStarted);
 
     sp<MetaData> meta = source->getFormat();

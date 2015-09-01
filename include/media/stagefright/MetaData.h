@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 
+#include <binder/Parcel.h>
 #include <utils/RefBase.h>
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
@@ -238,6 +239,10 @@ public:
     bool hasData(uint32_t key) const;
 
     void dumpToLog() const;
+
+    status_t writeToParcel(Parcel &parcel);
+    status_t updateFromParcel(const Parcel &parcel);
+    static sp<MetaData> createFromParcel(const Parcel &parcel);
 
 protected:
     virtual ~MetaData();

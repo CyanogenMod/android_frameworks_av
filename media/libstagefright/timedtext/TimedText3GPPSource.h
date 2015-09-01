@@ -29,7 +29,7 @@ class Parcel;
 
 class TimedText3GPPSource : public TimedTextSource {
 public:
-    TimedText3GPPSource(const sp<MediaSource>& mediaSource);
+    TimedText3GPPSource(const sp<IMediaSource>& mediaSource);
     virtual status_t start() { return mSource->start(); }
     virtual status_t stop() { return mSource->stop(); }
     virtual status_t read(
@@ -44,7 +44,7 @@ protected:
     virtual ~TimedText3GPPSource();
 
 private:
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
 
     status_t extractAndAppendLocalDescriptions(
             int64_t timeUs, const MediaBuffer *textBuffer, Parcel *parcel);

@@ -1,0 +1,5 @@
+service mediaextractor /system/bin/mediaextractor
+    class main
+    user mediaex
+    group drmrpc mediadrm
+    ioprio rt 4

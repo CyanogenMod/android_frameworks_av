@@ -188,7 +188,7 @@ status_t TimedTextDriver::seekToAsync(int64_t timeUs) {
 }
 
 status_t TimedTextDriver::addInBandTextSource(
-        size_t trackIndex, const sp<MediaSource>& mediaSource) {
+        size_t trackIndex, const sp<IMediaSource>& mediaSource) {
     sp<TimedTextSource> source =
             TimedTextSource::CreateTimedTextSource(mediaSource);
     if (source == NULL) {

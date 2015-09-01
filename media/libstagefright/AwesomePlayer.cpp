@@ -370,7 +370,7 @@ status_t AwesomePlayer::setDataSource(const sp<IStreamSource> &source __unused) 
 
 status_t AwesomePlayer::setDataSource_l(
         const sp<DataSource> &dataSource) {
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
+    sp<IMediaExtractor> extractor = MediaExtractor::Create(dataSource);
 
     if (extractor == NULL) {
         return UNKNOWN_ERROR;
@@ -393,7 +393,7 @@ void AwesomePlayer::checkDrmStatus(const sp<DataSource>& dataSource) {
     }
 }
 
-status_t AwesomePlayer::setDataSource_l(const sp<MediaExtractor> &extractor) {
+status_t AwesomePlayer::setDataSource_l(const sp<IMediaExtractor> &extractor) {
     // Attempt to approximate overall stream bitrate by summing all
     // tracks' individual bitrates, if not all of them advertise bitrate,
     // we have to fail.
@@ -1354,7 +1354,7 @@ void AwesomePlayer::shutdownVideoDecoder_l() {
     // The following hack is necessary to ensure that the OMX
     // component is completely released by the time we may try
     // to instantiate it again.
-    wp<MediaSource> tmp = mVideoSource;
+    wp<IMediaSource> tmp = mVideoSource;
     mVideoSource.clear();
     while (tmp.promote() != NULL) {
         usleep(1000);
@@ -1518,13 +1518,13 @@ void AwesomePlayer::seekAudioIfNecessary_l() {
     }
 }
 
-void AwesomePlayer::setAudioSource(sp<MediaSource> source) {
+void AwesomePlayer::setAudioSource(sp<IMediaSource> source) {
     CHECK(source != NULL);
 
     mAudioTrack = source;
 }
 
-void AwesomePlayer::addTextSource_l(size_t trackIndex, const sp<MediaSource>& source) {
+void AwesomePlayer::addTextSource_l(size_t trackIndex, const sp<IMediaSource>& source) {
     CHECK(source != NULL);
 
     if (mTextDriver == NULL) {
@@ -1610,7 +1610,7 @@ status_t AwesomePlayer::initAudioDecoder() {
     return mAudioSource != NULL ? OK : UNKNOWN_ERROR;
 }
 
-void AwesomePlayer::setVideoSource(sp<MediaSource> source) {
+void AwesomePlayer::setVideoSource(sp<IMediaSource> source) {
     CHECK(source != NULL);
 
     mVideoTrack = source;
@@ -2393,7 +2393,7 @@ status_t AwesomePlayer::finishSetDataSource_l() {
         return UNKNOWN_ERROR;
     }
 
-    sp<MediaExtractor> extractor;
+    sp<IMediaExtractor> extractor;
 
     if (isWidevineStreaming) {
         String8 mimeType;
@@ -2696,7 +2696,7 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
 }
 
 status_t AwesomePlayer::selectAudioTrack_l(
-        const sp<MediaSource>& source, size_t trackIndex) {
+        const sp<IMediaSource>& source, size_t trackIndex) {
 
     ALOGI("selectAudioTrack_l: trackIndex=%zu, mFlags=0x%x", trackIndex, mFlags);
 

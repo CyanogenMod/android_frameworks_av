@@ -15,6 +15,8 @@ LOCAL_SRC_FILES:=                 \
     AString.cpp                   \
     AStringUtils.cpp              \
     AWakeLock.cpp                 \
+    MediaBuffer.cpp               \
+    MetaData.cpp                  \
     ParsedMessage.cpp             \
     base64.cpp                    \
     hexdump.cpp

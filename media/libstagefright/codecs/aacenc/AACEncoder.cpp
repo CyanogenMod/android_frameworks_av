@@ -30,7 +30,7 @@
 
 namespace android {
 
-AACEncoder::AACEncoder(const sp<MediaSource> &source, const sp<MetaData> &meta)
+AACEncoder::AACEncoder(const sp<IMediaSource> &source, const sp<MetaData> &meta)
     : mSource(source),
       mMeta(meta),
       mStarted(false),

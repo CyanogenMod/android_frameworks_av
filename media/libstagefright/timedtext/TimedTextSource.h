@@ -35,7 +35,7 @@ class TimedTextSource : public RefBase {
       OUT_OF_BAND_FILE_SMI = 2,
   };
   static sp<TimedTextSource> CreateTimedTextSource(
-      const sp<MediaSource>& source);
+      const sp<IMediaSource>& source);
   static sp<TimedTextSource> CreateTimedTextSource(
       const sp<DataSource>& source, FileType filetype);
   TimedTextSource() {}

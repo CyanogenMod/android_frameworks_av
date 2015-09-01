@@ -19,6 +19,7 @@
 
 #include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/MediaSource.h>
+#include <media/IMediaExtractor.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
@@ -84,7 +85,7 @@ private:
     };
 
     struct TrackInfo {
-        sp<MediaSource> mSource;
+        sp<IMediaSource> mSource;
         size_t mTrackIndex;
         status_t mFinalResult;
         MediaBuffer *mSample;
@@ -97,7 +98,7 @@ private:
 
     sp<DataSource> mDataSource;
 
-    sp<MediaExtractor> mImpl;
+    sp<IMediaExtractor> mImpl;
     bool mIsWidevineExtractor;
 
     Vector<TrackInfo> mSelectedTracks;

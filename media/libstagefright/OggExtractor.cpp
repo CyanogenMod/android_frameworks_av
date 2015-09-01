@@ -1325,7 +1325,7 @@ size_t OggExtractor::countTracks() {
     return mInitCheck != OK ? 0 : 1;
 }
 
-sp<MediaSource> OggExtractor::getTrack(size_t index) {
+sp<IMediaSource> OggExtractor::getTrack(size_t index) {
     if (index >= 1) {
         return NULL;
     }

@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 
+#include <media/IMediaSource.h>
 #include <media/stagefright/MediaWriter.h>
 #include <utils/List.h>
 #include <utils/threads.h>
@@ -28,7 +29,6 @@ namespace android {
 
 class AMessage;
 class MediaBuffer;
-class MediaSource;
 class MetaData;
 
 class MPEG4Writer : public MediaWriter {
@@ -39,7 +39,7 @@ public:
     // 1. No more than 2 tracks can be added
     // 2. Only video or audio source can be added
     // 3. No more than one video and/or one audio source can be added.
-    virtual status_t addSource(const sp<MediaSource> &source);
+    virtual status_t addSource(const sp<IMediaSource> &source);
 
     // Returns INVALID_OPERATION if there is no source or track.
     virtual status_t start(MetaData *param = NULL);

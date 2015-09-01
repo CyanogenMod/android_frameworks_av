@@ -18,6 +18,7 @@
 
 #define AUDIO_PLAYER_H_
 
+#include <media/IMediaSource.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/TimeSource.h>
@@ -28,7 +29,6 @@ namespace android {
 struct AudioPlaybackRate;
 class AudioTrack;
 struct AwesomePlayer;
-class MediaSource;
 
 class AudioPlayer : public TimeSource {
 public:
@@ -52,7 +52,7 @@ public:
     virtual ~AudioPlayer();
 
     // Caller retains ownership of "source".
-    void setSource(const sp<MediaSource> &source);
+    void setSource(const sp<IMediaSource> &source);
 
     // Return time in us.
     virtual int64_t getRealTimeUs();
@@ -81,7 +81,7 @@ public:
 
 private:
     friend class VideoEditorAudioPlayer;
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
     sp<AudioTrack> mAudioTrack;
 
     MediaBuffer *mInputBuffer;

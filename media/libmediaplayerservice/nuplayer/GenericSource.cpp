@@ -135,7 +135,7 @@ sp<MetaData> NuPlayer::GenericSource::getFileFormatMeta() const {
 }
 
 status_t NuPlayer::GenericSource::initFromDataSource() {
-    sp<MediaExtractor> extractor;
+    sp<IMediaExtractor> extractor;
     String8 mimeType;
     float confidence;
     sp<AMessage> dummy;
@@ -210,7 +210,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
     }
 
     for (size_t i = 0; i < numtracks; ++i) {
-        sp<MediaSource> track = extractor->getTrack(i);
+        sp<IMediaSource> track = extractor->getTrack(i);
         if (track == NULL) {
             continue;
         }
@@ -791,7 +791,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
       {
           int32_t trackIndex;
           CHECK(msg->findInt32("trackIndex", &trackIndex));
-          const sp<MediaSource> source = mSources.itemAt(trackIndex);
+          const sp<IMediaSource> source = mSources.itemAt(trackIndex);
 
           Track* track;
           const char *mime;
@@ -1034,7 +1034,7 @@ void NuPlayer::GenericSource::onGetFormatMeta(sp<AMessage> msg) const {
 }
 
 sp<MetaData> NuPlayer::GenericSource::doGetFormatMeta(bool audio) const {
-    sp<MediaSource> source = audio ? mAudioTrack.mSource : mVideoTrack.mSource;
+    sp<IMediaSource> source = audio ? mAudioTrack.mSource : mVideoTrack.mSource;
 
     if (source == NULL) {
         return NULL;
@@ -1282,7 +1282,7 @@ status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select, 
         return OK;
     }
 
-    const sp<MediaSource> source = mSources.itemAt(trackIndex);
+    const sp<IMediaSource> source = mSources.itemAt(trackIndex);
     sp<MetaData> meta = source->getFormat();
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));

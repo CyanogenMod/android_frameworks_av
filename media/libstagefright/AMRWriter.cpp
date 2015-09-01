@@ -54,7 +54,7 @@ status_t AMRWriter::initCheck() const {
     return mInitCheck;
 }
 
-status_t AMRWriter::addSource(const sp<MediaSource> &source) {
+status_t AMRWriter::addSource(const sp<IMediaSource> &source) {
     if (mInitCheck != OK) {
         return mInitCheck;
     }

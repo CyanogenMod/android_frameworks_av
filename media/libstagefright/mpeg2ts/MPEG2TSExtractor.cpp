@@ -120,7 +120,7 @@ size_t MPEG2TSExtractor::countTracks() {
     return mSourceImpls.size();
 }
 
-sp<MediaSource> MPEG2TSExtractor::getTrack(size_t index) {
+sp<IMediaSource> MPEG2TSExtractor::getTrack(size_t index) {
     if (index >= mSourceImpls.size()) {
         return NULL;
     }

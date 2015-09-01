@@ -33,11 +33,14 @@ LOCAL_SRC_FILES:= \
     IMediaHTTPConnection.cpp \
     IMediaHTTPService.cpp \
     IMediaLogService.cpp \
+    IMediaExtractor.cpp           \
+    IMediaExtractorService.cpp \
     IMediaPlayerService.cpp \
     IMediaPlayerClient.cpp \
     IMediaRecorderClient.cpp \
     IMediaPlayer.cpp \
     IMediaRecorder.cpp \
+    IMediaSource.cpp \
     IRemoteDisplay.cpp \
     IRemoteDisplayClient.cpp \
     IResourceManagerClient.cpp \

@@ -23,6 +23,7 @@
 
 #include <media/AudioResamplerPublic.h>
 #include <media/MediaPlayerInterface.h>
+#include <media/IMediaExtractor.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/TimeSource.h>
@@ -36,8 +37,6 @@ class AudioPlayer;
 struct ClockEstimator;
 class IDataSource;
 class MediaBuffer;
-struct MediaExtractor;
-struct MediaSource;
 struct NuCachedSource2;
 class IGraphicBufferProducer;
 
@@ -170,8 +169,8 @@ private:
 
     sp<DataSource> mFileSource;
 
-    sp<MediaSource> mVideoTrack;
-    sp<MediaSource> mVideoSource;
+    sp<IMediaSource> mVideoTrack;
+    sp<IMediaSource> mVideoSource;
     sp<AwesomeRenderer> mVideoRenderer;
     bool mVideoRenderingStarted;
     bool mVideoRendererIsPreview;
@@ -179,9 +178,9 @@ private:
     int32_t mStartGeneration;
 
     ssize_t mActiveAudioTrackIndex;
-    sp<MediaSource> mAudioTrack;
-    sp<MediaSource> mOmxSource;
-    sp<MediaSource> mAudioSource;
+    sp<IMediaSource> mAudioTrack;
+    sp<IMediaSource> mOmxSource;
+    sp<IMediaSource> mAudioSource;
     AudioPlayer *mAudioPlayer;
     AudioPlaybackRate mPlaybackSettings;
     int64_t mDurationUs;
@@ -253,7 +252,7 @@ private:
     int32_t mSelectedTimedTextTrack;
 
     sp<WVMExtractor> mWVMExtractor;
-    sp<MediaExtractor> mExtractor;
+    sp<IMediaExtractor> mExtractor;
 
     status_t setDataSource_l(
             const sp<IMediaHTTPService> &httpService,
@@ -261,7 +260,7 @@ private:
             const KeyedVector<String8, String8> *headers = NULL);
 
     status_t setDataSource_l(const sp<DataSource> &dataSource);
-    status_t setDataSource_l(const sp<MediaExtractor> &extractor);
+    status_t setDataSource_l(const sp<IMediaExtractor> &extractor);
     void reset_l();
     status_t seekTo_l(int64_t timeUs);
     status_t pause_l(bool at_eos = false);
@@ -271,14 +270,14 @@ private:
 
     void cancelPlayerEvents(bool keepNotifications = false);
 
-    void setAudioSource(sp<MediaSource> source);
+    void setAudioSource(sp<IMediaSource> source);
     status_t initAudioDecoder();
 
 
-    void setVideoSource(sp<MediaSource> source);
+    void setVideoSource(sp<IMediaSource> source);
     status_t initVideoDecoder(uint32_t flags = 0);
 
-    void addTextSource_l(size_t trackIndex, const sp<MediaSource>& source);
+    void addTextSource_l(size_t trackIndex, const sp<IMediaSource>& source);
 
     void onStreamDone();
 
@@ -360,7 +359,7 @@ private:
     status_t setVideoScalingMode_l(int32_t mode);
     status_t getTrackInfo(Parcel* reply) const;
 
-    status_t selectAudioTrack_l(const sp<MediaSource>& source, size_t trackIndex);
+    status_t selectAudioTrack_l(const sp<IMediaSource>& source, size_t trackIndex);
 
     // when select is true, the given track is selected.
     // otherwise, the given track is unselected.

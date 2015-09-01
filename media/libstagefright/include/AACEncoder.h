@@ -27,9 +27,9 @@ namespace android {
 
 class MediaBufferGroup;
 
-class AACEncoder: public MediaSource {
+class AACEncoder: public BnMediaSource {
     public:
-        AACEncoder(const sp<MediaSource> &source, const sp<MetaData> &meta);
+        AACEncoder(const sp<IMediaSource> &source, const sp<MetaData> &meta);
 
         virtual status_t start(MetaData *params);
         virtual status_t stop();
@@ -42,7 +42,7 @@ class AACEncoder: public MediaSource {
         virtual ~AACEncoder();
 
     private:
-        sp<MediaSource>   mSource;
+        sp<IMediaSource>   mSource;
         sp<MetaData>      mMeta;
         bool              mStarted;
         MediaBufferGroup *mBufferGroup;

@@ -165,7 +165,7 @@ MyConvertingStreamSource::MyConvertingStreamSource(const char *filename)
 
     CHECK(dataSource != NULL);
 
-    sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
+    sp<IMediaExtractor> extractor = MediaExtractor::Create(dataSource);
     CHECK(extractor != NULL);
 
     mWriter = new MPEG2TSWriter(

@@ -18,7 +18,8 @@
 
 #define MEDIA_EXTRACTOR_H_
 
-#include <utils/RefBase.h>
+#include <media/IMediaExtractor.h>
+#include <media/IMediaSource.h>
 
 namespace android {
 
@@ -26,13 +27,15 @@ class DataSource;
 class MediaSource;
 class MetaData;
 
-class MediaExtractor : public RefBase {
+class MediaExtractor : public BnMediaExtractor {
 public:
-    static sp<MediaExtractor> Create(
+    static sp<IMediaExtractor> Create(
+            const sp<DataSource> &source, const char *mime = NULL);
+    static sp<MediaExtractor> CreateFromService(
             const sp<DataSource> &source, const char *mime = NULL);
 
     virtual size_t countTracks() = 0;
-    virtual sp<MediaSource> getTrack(size_t index) = 0;
+    virtual sp<IMediaSource> getTrack(size_t index) = 0;
 
     enum GetTrackMetaDataFlags {
         kIncludeExtensiveMetaData = 1
@@ -68,8 +71,10 @@ public:
     virtual void setUID(uid_t uid) {
     }
 
+    virtual const char * name() { return "<unspecified>"; }
+
 protected:
-    MediaExtractor() : mIsDrm(false) {}
+    MediaExtractor();
     virtual ~MediaExtractor() {}
 
 private:

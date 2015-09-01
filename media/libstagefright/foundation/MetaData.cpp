@@ -377,5 +377,57 @@ void MetaData::dumpToLog() const {
     }
 }
 
+status_t MetaData::writeToParcel(Parcel &parcel) {
+    size_t numItems = mItems.size();
+    parcel.writeUint32(uint32_t(numItems));
+    for (size_t i = 0; i < numItems; i++) {
+        int32_t key = mItems.keyAt(i);
+        const typed_data &item = mItems.valueAt(i);
+        uint32_t type;
+        const void *data;
+        size_t size;
+        item.getData(&type, &data, &size);
+        parcel.writeInt32(key);
+        parcel.writeUint32(type);
+        parcel.writeByteArray(size, (uint8_t*)data);
+    }
+    return OK;
+}
+
+status_t MetaData::updateFromParcel(const Parcel &parcel) {
+    uint32_t numItems;
+    if (parcel.readUint32(&numItems) == OK) {
+
+        for (size_t i = 0; i < numItems; i++) {
+            int32_t key;
+            uint32_t type;
+            uint32_t size;
+            status_t ret = parcel.readInt32(&key);
+            ret |= parcel.readUint32(&type);
+            ret |= parcel.readUint32(&size);
+            if (ret != OK) {
+                break;
+            }
+            // copy data directly from Parcel storage, then advance position
+            setData(key, type, parcel.readInplace(size), size);
+         }
+
+        return OK;
+    }
+    ALOGW("no metadata in parcel");
+    return UNKNOWN_ERROR;
+}
+
+
+/* static */
+sp<MetaData> MetaData::createFromParcel(const Parcel &parcel) {
+
+    sp<MetaData> meta = new MetaData();
+    meta->updateFromParcel(parcel);
+    return meta;
+}
+
+
+
 }  // namespace android
 

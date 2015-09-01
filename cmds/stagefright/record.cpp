@@ -325,7 +325,7 @@ int main(int /* argc */, char ** /* argv */) {
     encMeta->setInt32(kKeyMaxInputSize, 8192);
     encMeta->setInt32(kKeyBitRate, kAudioBitRate);
 
-    sp<MediaSource> encoder =
+    sp<IMediaSource> encoder =
         OMXCodec::Create(client.interface(), encMeta, true, audioSource);
 
     encoder->start();

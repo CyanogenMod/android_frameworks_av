@@ -31,7 +31,7 @@
 
 namespace android {
 
-TimedText3GPPSource::TimedText3GPPSource(const sp<MediaSource>& mediaSource)
+TimedText3GPPSource::TimedText3GPPSource(const sp<IMediaSource>& mediaSource)
     : mSource(mediaSource) {
 }
 

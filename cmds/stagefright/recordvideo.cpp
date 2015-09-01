@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
         enc_meta->setInt32(kKeyVideoProfile, profile);
     }
 
-    sp<MediaSource> encoder =
+    sp<IMediaSource> encoder =
         OMXCodec::Create(
                 client.interface(), enc_meta, true /* createEncoder */, source,
                 0, preferSoftwareCodec ? OMXCodec::kPreferSoftwareCodecs : 0);
