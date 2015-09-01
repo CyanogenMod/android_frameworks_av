@@ -222,96 +222,108 @@ status_t convertMetaDataToMessage(
 
         const uint8_t *ptr = (const uint8_t *)data;
 
-        if (size < 7) {
-            ALOGV("Invalid AVCC atom in track, size=%d", size);
-        } else {
-            CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
-            uint8_t profile __unused = ptr[1];
-            uint8_t level __unused = ptr[3];
-
-            // There is decodable content out there that fails the following
-            // assertion, let's be lenient for now...
-            // CHECK((ptr[4] >> 2) == 0x3f);  // reserved
-
-            size_t lengthSize __unused = 1 + (ptr[4] & 3);
-
-            // commented out check below as H264_QVGA_500_NO_AUDIO.3gp
-            // violates it...
-            // CHECK((ptr[5] >> 5) == 7);  // reserved
-
-            size_t numSeqParameterSets = ptr[5] & 31;
-
-            ptr += 6;
-            size -= 6;
-
-            sp<ABuffer> buffer = new (std::nothrow) ABuffer(1024);
-            if (buffer.get() == NULL || buffer->base() == NULL) {
-                return NO_MEMORY;
-            }
-            buffer->setRange(0, 0);
-
-            for (size_t i = 0; i < numSeqParameterSets; ++i) {
-                CHECK(size >= 2);
-                size_t length = U16_AT(ptr);
-
-                ptr += 2;
-                size -= 2;
-
-                if (size < length) {
-                    return BAD_VALUE;
-                }
-                status_t err = copyNALUToABuffer(&buffer, ptr, length);
-                if (err != OK) {
-                    return err;
-                }
-
-                ptr += length;
-                size -= length;
-            }
-
-            buffer->meta()->setInt32("csd", true);
-            buffer->meta()->setInt64("timeUs", 0);
-
-            msg->setBuffer("csd-0", buffer);
-
-            buffer = new (std::nothrow) ABuffer(1024);
-            if (buffer.get() == NULL || buffer->base() == NULL) {
-                return NO_MEMORY;
-            }
-            buffer->setRange(0, 0);
-
-            CHECK(size >= 1);
-            size_t numPictureParameterSets = *ptr;
-            ++ptr;
-            --size;
-
-            for (size_t i = 0; i < numPictureParameterSets; ++i) {
-                CHECK(size >= 2);
-                size_t length = U16_AT(ptr);
-
-                ptr += 2;
-                size -= 2;
-
-                if (size < length) {
-                    return BAD_VALUE;
-                }
-                status_t err = copyNALUToABuffer(&buffer, ptr, length);
-                if (err != OK) {
-                    return err;
-                }
-
-                ptr += length;
-                size -= length;
-            }
-
-            buffer->meta()->setInt32("csd", true);
-            buffer->meta()->setInt64("timeUs", 0);
-            msg->setBuffer("csd-1", buffer);
+        if (size < 7 || ptr[0] != 1) {  // configurationVersion == 1
+            ALOGE("b/23680780");
+            return BAD_VALUE;
         }
+	uint8_t profile __unused = ptr[1];
+	uint8_t level __unused = ptr[3];
+
+        // There is decodable content out there that fails the following
+        // assertion, let's be lenient for now...
+        // CHECK((ptr[4] >> 2) == 0x3f);  // reserved
+
+        size_t lengthSize __unused = 1 + (ptr[4] & 3);
+
+        // commented out check below as H264_QVGA_500_NO_AUDIO.3gp
+        // violates it...
+        // CHECK((ptr[5] >> 5) == 7);  // reserved
+
+        size_t numSeqParameterSets = ptr[5] & 31;
+
+        ptr += 6;
+        size -= 6;
+
+        sp<ABuffer> buffer = new (std::nothrow) ABuffer(1024);
+        if (buffer.get() == NULL || buffer->base() == NULL) {
+            return NO_MEMORY;
+        }
+        buffer->setRange(0, 0);
+
+        for (size_t i = 0; i < numSeqParameterSets; ++i) {
+            if (size < 2) {
+                ALOGE("b/23680780");
+                return BAD_VALUE;
+            }
+            size_t length = U16_AT(ptr);
+
+            ptr += 2;
+            size -= 2;
+
+            if (size < length) {
+                return BAD_VALUE;
+            }
+            status_t err = copyNALUToABuffer(&buffer, ptr, length);
+            if (err != OK) {
+                return err;
+            }
+
+            ptr += length;
+            size -= length;
+        }
+
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+
+        msg->setBuffer("csd-0", buffer);
+
+        buffer = new (std::nothrow) ABuffer(1024);
+        if (buffer.get() == NULL || buffer->base() == NULL) {
+            return NO_MEMORY;
+        }
+        buffer->setRange(0, 0);
+
+        if (size < 1) {
+            ALOGE("b/23680780");
+            return BAD_VALUE;
+        }
+        size_t numPictureParameterSets = *ptr;
+        ++ptr;
+        --size;
+
+        for (size_t i = 0; i < numPictureParameterSets; ++i) {
+            if (size < 2) {
+                ALOGE("b/23680780");
+                return BAD_VALUE;
+            }
+            size_t length = U16_AT(ptr);
+
+            ptr += 2;
+            size -= 2;
+
+            if (size < length) {
+                return BAD_VALUE;
+            }
+            status_t err = copyNALUToABuffer(&buffer, ptr, length);
+            if (err != OK) {
+                return err;
+            }
+
+            ptr += length;
+            size -= length;
+        }
+
+        buffer->meta()->setInt32("csd", true);
+        buffer->meta()->setInt64("timeUs", 0);
+        msg->setBuffer("csd-1", buffer);
+
     } else if (meta->findData(kKeyHVCC, &type, &data, &size)) {
         const uint8_t *ptr = (const uint8_t *)data;
 
-        CHECK(size >= 7);
+        if (size < 23 || ptr[0] != 1) {  // configurationVersion == 1
+            ALOGE("b/23680780");
+            return BAD_VALUE;
+        }
         uint8_t profile __unused = ptr[1] & 31;
         uint8_t level __unused = ptr[12];
         ptr += 22;
@@ -330,6 +342,10 @@ status_t convertMetaDataToMessage(
         buffer->setRange(0, 0);
 
         for (i = 0; i < numofArrays; i++) {
+            if (size < 3) {
+                ALOGE("b/23680780");
+                return BAD_VALUE;
+            }
             ptr += 1;
             size -= 1;
 
@@ -340,7 +356,10 @@ status_t convertMetaDataToMessage(
             size -= 2;
 
             for (j = 0; j < numofNals; j++) {
-                CHECK(size >= 2);
+                if (size < 2) {
+                    ALOGE("b/23680780");
+                    return BAD_VALUE;
+                }
                 size_t length = U16_AT(ptr);
 
                 ptr += 2;
