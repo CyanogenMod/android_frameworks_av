@@ -894,11 +894,14 @@ static uint8_t *DecodeBase64(const char *s, size_t size, size_t *outSize) {
         }
     }
 
-    size_t outLen = 3 * size / 4 - padding;
-
-    *outSize = outLen;
+    // We divide first to avoid overflow. It's OK to do this because we
+    // already made sure that size % 4 == 0.
+    size_t outLen = (size / 4) * 3 - padding;
 
     void *buffer = malloc(outLen);
+    if (buffer == NULL) {
+        return NULL;
+    }
 
     uint8_t *out = (uint8_t *)buffer;
     size_t j = 0;
@@ -917,10 +920,10 @@ static uint8_t *DecodeBase64(const char *s, size_t size, size_t *outSize) {
         } else if (c == '/') {
             value = 63;
         } else if (c != '=') {
-            return NULL;
+            break;
         } else {
             if (i < n - padding) {
-                return NULL;
+                break;
             }
 
             value = 0;
@@ -938,6 +941,13 @@ static uint8_t *DecodeBase64(const char *s, size_t size, size_t *outSize) {
         }
     }
 
+    // Check if we exited the loop early.
+    if (j < outLen) {
+        free(buffer);
+        return NULL;
+    }
+
+    *outSize = outLen;
     return (uint8_t *)buffer;
 }
 
