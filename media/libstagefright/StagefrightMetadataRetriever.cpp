@@ -489,7 +489,7 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
             mime,
             false, /* encoder */
             NULL, /* matchComponentName */
-            OMXCodec::kPreferSoftwareCodecs,
+            0 /* OMXCodec::kPreferSoftwareCodecs */,
             &matchingCodecs);
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
