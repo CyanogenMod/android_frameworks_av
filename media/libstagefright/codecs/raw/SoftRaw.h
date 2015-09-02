@@ -43,7 +43,7 @@ protected:
 
 private:
     enum {
-        kNumBuffers = 4
+        kNumBuffers = 8
     };
 
     bool mSignalledError;
