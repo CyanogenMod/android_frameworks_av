@@ -1638,8 +1638,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     // only allow deep buffering for music stream type
     if (stream != AUDIO_STREAM_MUSIC) {
         flags = (audio_output_flags_t)(flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
-    } else if (flags == AUDIO_OUTPUT_FLAG_NONE) {
-        //use DEEP_BUFFER as default output for music stream type
+    } else if (!(flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) {
+        //use DEEP_BUFFER as default output for all non offload music stream type
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
 
