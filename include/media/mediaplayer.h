@@ -215,7 +215,6 @@ public:
                     const KeyedVector<String8, String8> *headers);
 
             status_t        setDataSource(int fd, int64_t offset, int64_t length);
-            status_t        setDataSource(const sp<IStreamSource> &source);
             status_t        setDataSource(const sp<IDataSource> &source);
             status_t        setVideoSurfaceTexture(
                                     const sp<IGraphicBufferProducer>& bufferProducer);
