@@ -657,8 +657,10 @@ private:
     sp<CameraFlashlight> mFlashlight;
     // guard mTorchStatusMap
     Mutex                mTorchStatusMutex;
-    // guard mTorchClientMap, mTorchUidMap
+    // guard mTorchClientMap
     Mutex                mTorchClientMapMutex;
+    // guard mTorchUidMap
+    Mutex                mTorchUidMapMutex;
     // camera id -> torch status
     KeyedVector<String8, ICameraServiceListener::TorchStatus> mTorchStatusMap;
     // camera id -> torch client binder
