@@ -75,6 +75,8 @@ public:
 
     // Process state (mirrors frameworks/base/core/java/android/app/ActivityManager.java)
     static const int PROCESS_STATE_NONEXISTENT = -1;
+    static const int PROCESS_STATE_TOP = 2;
+    static const int PROCESS_STATE_TOP_SLEEPING = 5;
 
     // 3 second busy timeout when other clients are connecting
     static const nsecs_t DEFAULT_CONNECT_TIMEOUT_NS = 3000000000;
