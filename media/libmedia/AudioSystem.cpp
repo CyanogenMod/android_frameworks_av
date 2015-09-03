@@ -711,7 +711,14 @@ status_t AudioSystem::startInput(audio_io_handle_t input,
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) return PERMISSION_DENIED;
-    return aps->startInput(input, session);
+    uint32_t returnCode = aps->startInput(input, session);
+    if (returnCode == INVALID_INPUT_MULTIPLE_HOTWORD) {
+        if (gAudioErrorCallback) {
+            gAudioErrorCallback(INVALID_INPUT_MULTIPLE_HOTWORD);
+        }
+        return INVALID_OPERATION;
+    }
+    return returnCode;
 }
 
 status_t AudioSystem::stopInput(audio_io_handle_t input,

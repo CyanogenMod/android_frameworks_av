@@ -44,6 +44,8 @@ namespace android {
 #define MAX_MIXES_PER_POLICY 10
 #define MAX_CRITERIA_PER_MIX 20
 
+#define INVALID_INPUT_MULTIPLE_HOTWORD 1337
+
 class AttributeMatchCriterion {
 public:
     AttributeMatchCriterion() {}

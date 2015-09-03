@@ -2404,9 +2404,17 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
             // otherwise the active input continues and the new input cannot be started.
             sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
             if (activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD) {
-                ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
-                stopInput(activeInput, activeDesc->mSessions.itemAt(0));
-                releaseInput(activeInput, activeDesc->mSessions.itemAt(0));
+                sp<AudioInputDescriptor> inputDesc = mInputs.valueFor(input);
+                bool bothHotword = (activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD
+                    && inputDesc->mInputSource == AUDIO_SOURCE_HOTWORD);
+                if (activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD && !bothHotword) {
+                    ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
+                    stopInput(activeInput, activeDesc->mSessions.itemAt(0));
+                    releaseInput(activeInput, activeDesc->mSessions.itemAt(0));
+                } else {
+                    ALOGE("startInput(%d) failed: other hotword input %d already started", input, activeInput);
+                    return INVALID_INPUT_MULTIPLE_HOTWORD;
+                }
             } else {
                 ALOGE("startInput(%d) failed: other input %d already started", input, activeInput);
                 return INVALID_OPERATION;
