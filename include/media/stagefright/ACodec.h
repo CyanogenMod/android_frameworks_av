@@ -444,6 +444,15 @@ protected:
     virtual status_t allocateBuffer(
         OMX_U32 portIndex, size_t bufSize, BufferInfo &info);
 
+    virtual status_t setDSModeHint(sp<AMessage>& msg,
+        OMX_U32 flags, int64_t timeUs) {
+        return UNKNOWN_ERROR;
+    }
+
+    virtual bool getDSModeHint(const sp<AMessage>& msg) {
+        return false;
+    }
+
     sp<IOMXObserver> createObserver();
 
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
