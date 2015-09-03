@@ -902,6 +902,8 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
                 ALOGV("AudioSink write would block when writing %zu bytes", copy);
             } else {
                 ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
+                // This can only happen when AudioSink was opened with doNotReconnect flag set to
+                // true, in which case the NuPlayer will handle the reconnect.
                 notifyAudioTearDown();
             }
             break;
@@ -1814,6 +1816,12 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         const uint32_t frameCount =
                 (unsigned long long)sampleRate * getAudioSinkPcmMsSetting() / 1000;
 
+        // The doNotReconnect means AudioSink will signal back and let NuPlayer to re-construct
+        // AudioSink. We don't want this when there's video because it will cause a video seek to
+        // the previous I frame. But we do want this when there's only audio because it will give
+        // NuPlayer a chance to switch from non-offload mode to offload mode.
+        // So we only set doNotReconnect when there's no video.
+        const bool doNotReconnect = !hasVideo;
         status_t err = mAudioSink->open(
                     sampleRate,
                     numChannels,
@@ -1824,7 +1832,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     mUseAudioCallback ? this : NULL,
                     (audio_output_flags_t)pcmFlags,
                     NULL,
-                    true /* doNotReconnect */,
+                    doNotReconnect,
                     frameCount);
         if (err == OK) {
             err = mAudioSink->setPlaybackRate(mPlaybackSettings);
