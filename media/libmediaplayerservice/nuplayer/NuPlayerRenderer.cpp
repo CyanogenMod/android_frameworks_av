@@ -945,6 +945,10 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
 int64_t NuPlayer::Renderer::getDurationUsIfPlayedAtSampleRate(uint32_t numFrames) {
     int32_t sampleRate = offloadingAudio() ?
             mCurrentOffloadInfo.sample_rate : mCurrentPcmInfo.mSampleRate;
+    if (sampleRate == 0) {
+        ALOGE("sampleRate is 0 in %s mode", offloadingAudio() ? "offload" : "non-offload");
+        return 0;
+    }
     // TODO: remove the (int32_t) casting below as it may overflow at 12.4 hours.
     return (int64_t)((int32_t)numFrames * 1000000LL / sampleRate);
 }
@@ -1789,6 +1793,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         }
         if (err != OK) {
             ALOGW("openAudioSink: non offloaded open failed status: %d", err);
+            mAudioSink->close();
             mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
             return err;
         }
