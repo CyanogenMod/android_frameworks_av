@@ -877,7 +877,7 @@ status_t BnAudioPolicyService::onTransact(
             if (hasOffloadInfo) {
                 data.read(&offloadInfo, sizeof(audio_offload_info_t));
             }
-            audio_io_handle_t output;
+            audio_io_handle_t output = 0;
             status_t status = getOutputForAttr(hasAttributes ? &attr : NULL,
                     &output, session, &stream, uid,
                     samplingRate, format, channelMask,
