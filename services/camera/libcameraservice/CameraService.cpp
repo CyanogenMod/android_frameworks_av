@@ -368,7 +368,7 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
 
     {
         // Update battery life logging for flashlight
-        Mutex::Autolock al(mTorchClientMapMutex);
+        Mutex::Autolock al(mTorchUidMapMutex);
         auto iter = mTorchUidMap.find(cameraId);
         if (iter != mTorchUidMap.end()) {
             int oldUid = iter->second.second;
@@ -1267,7 +1267,7 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
     {
         // Update UID map - this is used in the torch status changed callbacks, so must be done
         // before setTorchMode
-        Mutex::Autolock al(mTorchClientMapMutex);
+        Mutex::Autolock al(mTorchUidMapMutex);
         if (mTorchUidMap.find(id) == mTorchUidMap.end()) {
             mTorchUidMap[id].first = uid;
             mTorchUidMap[id].second = uid;
