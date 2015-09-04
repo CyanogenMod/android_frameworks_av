@@ -602,6 +602,11 @@ int CameraService::getCameraPriorityFromProcState(int procState) {
                 procState);
         return -1;
     }
+    // Treat sleeping TOP processes the same as regular TOP processes, for
+    // access priority.  This is important for lock-screen camera launch scenarios
+    if (procState == PROCESS_STATE_TOP_SLEEPING) {
+        procState = PROCESS_STATE_TOP;
+    }
     return INT_MAX - procState;
 }
 
