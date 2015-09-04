@@ -748,6 +748,11 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           break;
       }
 
+      case kWhatSendGlobalTimedTextData:
+      {
+          sendGlobalTextData(kWhatTimedTextData, mFetchTimedTextDataGeneration, msg);
+          break;
+      }
       case kWhatSendTimedTextData:
       {
           sendTextData(kWhatTimedTextData, MEDIA_TRACK_TYPE_TIMEDTEXT,
@@ -939,6 +944,37 @@ void NuPlayer::GenericSource::sendTextData(
 
         const int64_t delayUs = nextSubTimeUs - subTimeUs;
         msg->post(delayUs < 0 ? 0 : delayUs);
+    }
+}
+
+void NuPlayer::GenericSource::sendGlobalTextData(
+        uint32_t what,
+        int32_t curGen,
+        sp<AMessage> msg) {
+    int32_t msgGeneration;
+    CHECK(msg->findInt32("generation", &msgGeneration));
+    if (msgGeneration != curGen) {
+        // stale
+        return;
+    }
+
+    uint32_t textType;
+    const void *data;
+    size_t size = 0;
+    if (mTimedTextTrack.mSource->getFormat()->findData(
+                    kKeyTextFormatData, &textType, &data, &size)) {
+        mGlobalTimedText = new ABuffer(size);
+        if (mGlobalTimedText->data()) {
+            memcpy(mGlobalTimedText->data(), data, size);
+            sp<AMessage> globalMeta = mGlobalTimedText->meta();
+            globalMeta->setInt64("timeUs", 0);
+            globalMeta->setString("mime", MEDIA_MIMETYPE_TEXT_3GPP);
+            globalMeta->setInt32("global", 1);
+            sp<AMessage> notify = dupNotify();
+            notify->setInt32("what", what);
+            notify->setBuffer("buffer", mGlobalTimedText);
+            notify->post();
+        }
     }
 }
 
@@ -1253,6 +1289,10 @@ status_t NuPlayer::GenericSource::doSelectTrack(size_t trackIndex, bool select, 
             msg->setInt32("generation", mFetchSubtitleDataGeneration);
             msg->post();
         }
+
+        sp<AMessage> msg2 = new AMessage(kWhatSendGlobalTimedTextData, this);
+        msg2->setInt32("generation", mFetchTimedTextDataGeneration);
+        msg2->post();
 
         if (mTimedTextTrack.mSource != NULL
                 && !mTimedTextTrack.mPackets->hasBufferAvailable(&eosResult)) {

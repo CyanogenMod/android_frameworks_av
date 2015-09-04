@@ -215,6 +215,7 @@ AwesomePlayer::AwesomePlayer()
       mDecryptHandle(NULL),
       mLastVideoTimeUs(-1),
       mTextDriver(NULL),
+      mSelectedTimedTextTrack(-1),
       mOffloadAudio(false),
       mAudioTearDown(false) {
     CHECK_EQ(mClient.connect(), (status_t)OK);
@@ -2679,6 +2680,7 @@ status_t AwesomePlayer::getTrackInfo(Parcel *reply) const {
         } else {
             reply->writeInt32(MEDIA_TRACK_TYPE_UNKNOWN);
         }
+        reply->writeString16(String16(mime));
 
         const char *lang;
         if (!meta->findCString(kKeyMediaLanguage, &lang)) {
@@ -2813,12 +2815,14 @@ status_t AwesomePlayer::selectTrack(size_t trackIndex, bool select) {
                 mTextDriver->start();
                 modifyFlags(TEXT_RUNNING, SET);
             }
+            mSelectedTimedTextTrack = trackIndex;
         }
     } else {
         err = mTextDriver->unselectTrack(trackIndex);
         if (err == OK) {
             modifyFlags(TEXTPLAYER_INITIALIZED, CLEAR);
             modifyFlags(TEXT_RUNNING, CLEAR);
+            mSelectedTimedTextTrack = -1;
         }
     }
     return err;
@@ -2902,6 +2906,15 @@ status_t AwesomePlayer::invoke(const Parcel &request, Parcel *reply) {
         {
             int trackIndex = request.readInt32();
             return selectTrack(trackIndex, false /* select */);
+        }
+        case INVOKE_ID_GET_SELECTED_TRACK:
+        {
+            int trackType = request.readInt32();
+            if (trackType == MEDIA_TRACK_TYPE_TIMEDTEXT) {
+                reply->writeInt32(mSelectedTimedTextTrack);
+                return mSelectedTimedTextTrack;
+            }
+
         }
         default:
         {

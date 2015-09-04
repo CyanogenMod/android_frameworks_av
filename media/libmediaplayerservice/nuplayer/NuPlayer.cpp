@@ -2290,7 +2290,7 @@ void NuPlayer::sendTimedTextData(const sp<ABuffer> &buffer) {
     const void *data;
     size_t size = 0;
     int64_t timeUs;
-    int32_t flag = TextDescriptions::LOCAL_DESCRIPTIONS;
+    int32_t flag = TextDescriptions::IN_BAND_TEXT_3GPP;
 
     AString mime;
     CHECK(buffer->meta()->findString("mime", &mime));
@@ -2302,7 +2302,12 @@ void NuPlayer::sendTimedTextData(const sp<ABuffer> &buffer) {
     Parcel parcel;
     if (size > 0) {
         CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
-        flag |= TextDescriptions::IN_BAND_TEXT_3GPP;
+        int32_t global = 0;
+        if (buffer->meta()->findInt32("global", &global) && global) {
+            flag |= TextDescriptions::GLOBAL_DESCRIPTIONS;
+        } else {
+            flag |= TextDescriptions::LOCAL_DESCRIPTIONS;
+        }
         TextDescriptions::getParcelOfDescriptions(
                 (const uint8_t *)data, size, flag, timeUs / 1000, &parcel);
     }
