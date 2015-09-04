@@ -89,6 +89,7 @@ const size_t DeviceConverter::mSize = sizeof(DeviceConverter::mTable) /
 template <>
 const OutputFlagConverter::Table OutputFlagConverter::mTable[] = {
     MAKE_STRING_FROM_ENUM(AUDIO_OUTPUT_FLAG_DIRECT),
+    MAKE_STRING_FROM_ENUM(AUDIO_OUTPUT_FLAG_DIRECT_PCM),
     MAKE_STRING_FROM_ENUM(AUDIO_OUTPUT_FLAG_PRIMARY),
     MAKE_STRING_FROM_ENUM(AUDIO_OUTPUT_FLAG_FAST),
     MAKE_STRING_FROM_ENUM(AUDIO_OUTPUT_FLAG_DEEP_BUFFER),

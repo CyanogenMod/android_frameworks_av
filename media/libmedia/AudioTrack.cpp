@@ -177,7 +177,9 @@ AudioTrack::AudioTrack()
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
     mAttributes.usage = AUDIO_USAGE_UNKNOWN;
@@ -208,7 +210,9 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -239,7 +243,9 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
@@ -905,6 +911,12 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     //set effective rates
     mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
+
+    // Playback Rate cannot be changed for direct tracks, hence fallback to deep buffer
+    if (mTrackOffloaded) {
+        mPlaybackRateSet = true;
+        android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
+    }
     return NO_ERROR;
 }
 
@@ -1239,6 +1251,13 @@ status_t AudioTrack::createTrack_l()
     // mFlags (not mOrigFlags) is modified depending on whether fast request is accepted.
     // After fast request is denied, we will request again if IAudioTrack is re-created.
 
+    // Playback Rate is set, ensure we dont get a direct output
+    audio_offload_info_t tOffloadInfo = AUDIO_INFO_INITIALIZER;
+    if (mPlaybackRateSet == true && mOffloadInfo == NULL
+        && audio_is_linear_pcm(mFormat)) {
+        mOffloadInfo = &tOffloadInfo;
+    }
+
     status_t status;
     status = AudioSystem::getOutputForAttr(attr, &output,
                                            mSessionId, &streamType, mClientUid,
@@ -1251,11 +1270,15 @@ status_t AudioTrack::createTrack_l()
               mSessionId, streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
+    //reset offload info if forced
+    mOffloadInfo = (mOffloadInfo == &tOffloadInfo) ? NULL : mOffloadInfo;
+
     {
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
 
     // Not all of these values are needed under all conditions, but it is easier to get them all
+    mTrackOffloaded = AVMediaUtils::get()->AudioTrackIsTrackOffloaded(output);
     status = AudioSystem::getLatency(output, &mAfLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
@@ -1392,7 +1415,7 @@ status_t AudioTrack::createTrack_l()
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
-    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+    if ((mFlags & AUDIO_OUTPUT_FLAG_DIRECT) || mTrackOffloaded) {
         trackFlags |= IAudioFlinger::TRACK_DIRECT;
     }
 

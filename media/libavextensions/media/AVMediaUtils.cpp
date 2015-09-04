@@ -46,6 +46,14 @@
 
 namespace android {
 
+size_t AVMediaUtils::AudioTrackGetOffloadFrameCount(size_t frameCount) {
+    return frameCount;
+}
+
+bool AVMediaUtils::AudioTrackIsTrackOffloaded(audio_io_handle_t output __unused) {
+    return false;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVMediaUtils::AVMediaUtils() {
 }

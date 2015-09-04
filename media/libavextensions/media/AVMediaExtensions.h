@@ -43,9 +43,10 @@ class MediaRecorder;
 struct AVMediaUtils {
 
 
-    virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount) {
-        return frameCount;
-    }
+    virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount);
+
+    virtual bool AudioTrackIsTrackOffloaded(audio_io_handle_t /*output*/);
+
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVMediaUtils);
 };
