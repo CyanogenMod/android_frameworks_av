@@ -72,10 +72,10 @@ private:
             int timeMs, Parcel *parcel);
     static status_t extract3GPPGlobalDescriptions(
             const uint8_t *data, ssize_t size,
-            Parcel *parcel, int depth);
+            Parcel *parcel);
     static status_t extract3GPPLocalDescriptions(
             const uint8_t *data, ssize_t size,
-            int timeMs, Parcel *parcel, int depth);
+            int timeMs, Parcel *parcel);
 
     DISALLOW_EVIL_CONSTRUCTORS(TextDescriptions);
 };
