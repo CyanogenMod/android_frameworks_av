@@ -544,6 +544,7 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mSystemReady(systemReady)
 {
     memset(&mPatch, 0, sizeof(struct audio_patch));
+    mIsDirectPcm = false;
 }
 
 AudioFlinger::ThreadBase::~ThreadBase()
@@ -1154,7 +1155,8 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 
     // Reject any effect on Direct output threads for now, since the format of
     // mSinkBuffer is not guaranteed to be compatible with effect processing (PCM 16 stereo).
-    if (mType == DIRECT) {
+    // Exception: allow effects for Direct PCM
+    if (mType == DIRECT && !mIsDirectPcm) {
         ALOGW("createEffect_l() Cannot add effect %s on Direct output type thread %s",
                 desc->name, mThreadName);
         lStatus = BAD_VALUE;
@@ -1171,12 +1173,17 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
     }
 
     // Allow global effects only on offloaded and mixer threads
+    // Exception: allow effects for Direct PCM
     if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
         switch (mType) {
         case MIXER:
         case OFFLOAD:
             break;
         case DIRECT:
+            if (mIsDirectPcm) {
+                // Allow effects when direct PCM enabled on Direct output
+                break;
+            }
         case DUPLICATING:
         case RECORD:
         default:

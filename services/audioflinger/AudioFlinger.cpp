@@ -1840,7 +1840,11 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
                 || !isValidPcmSinkFormat(config->format)
                 || !isValidPcmSinkChannelMask(config->channel_mask)) {
             thread = new DirectOutputThread(this, outputStream, *output, devices, mSystemReady);
-            ALOGV("openOutput_l() created direct output: ID %d thread %p", *output, thread);
+            ALOGV("openOutput_l() created direct output: ID %d thread %p ", *output, thread);
+            //Check if this is DirectPCM, if so
+            if (flags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) {
+                thread->mIsDirectPcm = true;
+            }
         } else {
             thread = new MixerThread(this, outputStream, *output, devices, mSystemReady);
             ALOGV("openOutput_l() created mixer output: ID %d thread %p", *output, thread);
