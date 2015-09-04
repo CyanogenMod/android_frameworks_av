@@ -994,7 +994,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_stream_type_t stream =
                     static_cast <audio_stream_type_t>(data.readInt32());
             audio_devices_t device = static_cast <audio_devices_t>(data.readInt32());
-            int index;
+            int index = 0;
             status_t status = getStreamVolumeIndex(stream, &index, device);
             reply->writeInt32(index);
             reply->writeInt32(static_cast <uint32_t>(status));
