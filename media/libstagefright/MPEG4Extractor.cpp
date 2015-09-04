@@ -2859,6 +2859,39 @@ sp<MediaSource> MPEG4Extractor::getTrack(size_t index) {
 
     ALOGV("getTrack called, pssh: %zu", mPssh.size());
 
+    const char *mime;
+    if (!track->meta->findCString(kKeyMIMEType, &mime)) {
+        return NULL;
+    }
+
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
+        uint32_t type;
+        const void *data;
+        size_t size;
+        if (!track->meta->findData(kKeyAVCC, &type, &data, &size)) {
+            return NULL;
+        }
+
+        const uint8_t *ptr = (const uint8_t *)data;
+
+        if (size < 7 || ptr[0] != 1) {  // configurationVersion == 1
+            return NULL;
+        }
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+        uint32_t type;
+        const void *data;
+        size_t size;
+        if (!track->meta->findData(kKeyHVCC, &type, &data, &size)) {
+            return NULL;
+        }
+
+        const uint8_t *ptr = (const uint8_t *)data;
+
+        if (size < 22 || ptr[0] != 1) {  // configurationVersion == 1
+            return NULL;
+        }
+    }
+
     return new MPEG4Source(this,
             track->meta, mDataSource, track->timescale, track->sampleTable,
             mSidxEntries, trex, mMoofOffset);
@@ -3314,7 +3347,7 @@ MPEG4Source::MPEG4Source(
 
         const uint8_t *ptr = (const uint8_t *)data;
 
-        CHECK(size >= 7);
+        CHECK(size >= 22);
         CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
 
         mNALLengthSize = 1 + (ptr[14 + 7] & 3);
