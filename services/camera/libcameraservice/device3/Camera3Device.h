@@ -264,6 +264,11 @@ class Camera3Device :
         // Used to cancel AE precapture trigger for devices doesn't support
         // CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
         AeTriggerCancelOverride_t           mAeTriggerCancelOverride;
+        // The number of requests that should be submitted to HAL at a time.
+        // For example, if batch size is 8, this request and the following 7
+        // requests will be submitted to HAL at a time. The batch size for
+        // the following 7 requests will be ignored by the request thread.
+        int                                 mBatchSize;
     };
     typedef List<sp<CaptureRequest> > RequestList;
 
@@ -441,6 +446,11 @@ class Camera3Device :
                        int64_t *lastFrameNumber = NULL);
 
         /**
+         * Flush all pending requests in HAL.
+         */
+        status_t flush();
+
+        /**
          * Queue a trigger to be dispatched with the next outgoing
          * process_capture_request. The settings for that request only
          * will be temporarily rewritten to add the trigger tag/value.
@@ -501,16 +511,28 @@ class Camera3Device :
 
         static const nsecs_t kRequestTimeout = 50e6; // 50 ms
 
-        // Waits for a request, or returns NULL if times out.
-        sp<CaptureRequest> waitForNextRequest();
+        // Used to prepare a batch of requests.
+        struct NextRequest {
+            sp<CaptureRequest>              captureRequest;
+            camera3_capture_request_t       halRequest;
+            Vector<camera3_stream_buffer_t> outputBuffers;
+            bool                            submitted;
+        };
 
-        // Return buffers, etc, for a request that couldn't be fully
-        // constructed. The buffers will be returned in the ERROR state
-        // to mark them as not having valid data.
-        // All arguments will be modified.
-        void cleanUpFailedRequest(camera3_capture_request_t &request,
-                sp<CaptureRequest> &nextRequest,
-                Vector<camera3_stream_buffer_t> &outputBuffers);
+        // Wait for the next batch of requests.
+        void waitForNextRequestBatch(Vector<NextRequest> *nextRequests);
+
+        // Waits for a request, or returns NULL if times out. Must be called with mRequestLock hold.
+        sp<CaptureRequest> waitForNextRequestLocked();
+
+        // Prepare a HAL request and output buffers. Return TIMED_OUT if getting any output buffer
+        // timed out. If an error is returned, the caller should clean up the pending request batch.
+        status_t prepareHalRequests(Vector<NextRequest> *nextRequests);
+
+        // Return buffers, etc, for a request that couldn't be fully constructed and send request
+        // errors if sendRequestError is true. The buffers will be returned in the ERROR state
+        // to mark them as not having valid data. nextRequests will be modified.
+        void cleanUpFailedRequests(Vector<NextRequest> *nextRequests, bool sendRequestError);
 
         // Pause handling
         bool               waitIfPaused();
@@ -539,10 +561,13 @@ class Camera3Device :
         Condition          mRequestSignal;
         RequestList        mRequestQueue;
         RequestList        mRepeatingRequests;
-        // The next request being prepped for submission to the HAL, no longer
+        // The next requests being prepped for submission to the HAL, no longer
         // on the request queue. Read-only even with mRequestLock held, outside
         // of threadLoop
-        sp<const CaptureRequest> mNextRequest;
+        RequestList        mNextRequests;
+
+        // To protect flush() and sending a request batch to HAL.
+        Mutex              mFlushLock;
 
         bool               mReconfigured;
 

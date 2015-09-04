@@ -455,8 +455,9 @@ status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
         res = mOutputBufferReturnedSignal.waitRelative(mLock, kWaitForBufferDuration);
         if (res != OK) {
             if (res == TIMED_OUT) {
-                ALOGE("%s: wait for output buffer return timed out after %lldms", __FUNCTION__,
-                        kWaitForBufferDuration / 1000000LL);
+                ALOGE("%s: wait for output buffer return timed out after %lldms (max_buffers %d)",
+                        __FUNCTION__, kWaitForBufferDuration / 1000000LL,
+                        camera3_stream::max_buffers);
             }
             return res;
         }
