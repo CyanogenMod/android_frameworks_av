@@ -34,6 +34,11 @@ class Camera3OutputStreamInterface : public virtual Camera3StreamInterface {
      * HAL_TRANSFORM_* / NATIVE_WINDOW_TRANSFORM_* constants.
      */
     virtual status_t setTransform(int transform) = 0;
+
+    /**
+     * Return if this output stream is for video encoding.
+     */
+    virtual bool isVideoStream() const = 0;
 };
 
 } // namespace camera3
