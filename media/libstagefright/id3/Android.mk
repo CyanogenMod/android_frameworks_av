@@ -6,7 +6,7 @@ LOCAL_SRC_FILES := \
 
 LOCAL_CFLAGS += -Werror
 LOCAL_CLANG := true
-LOCAL_SANITIZE := unsigned-integer-overflow
+LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 
 LOCAL_MODULE := libstagefright_id3
 
