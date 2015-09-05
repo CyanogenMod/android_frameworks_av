@@ -2888,17 +2888,15 @@ bool Camera3Device::RequestThread::threadLoop() {
         return true;
     }
 
-    // Get next batch of requests.
-    Vector<NextRequest> nextRequests;
-    waitForNextRequestBatch(&nextRequests);
-    const size_t numRequests = nextRequests.size();
-    if (numRequests == 0) {
+    // Wait for the next batch of requests.
+    waitForNextRequestBatch();
+    if (mNextRequests.size() == 0) {
         return true;
     }
 
     // Get the latest request ID, if any
     int latestRequestId;
-    camera_metadata_entry_t requestIdEntry = nextRequests[nextRequests.size() - 1].
+    camera_metadata_entry_t requestIdEntry = mNextRequests[mNextRequests.size() - 1].
             captureRequest->mSettings.find(ANDROID_REQUEST_ID);
     if (requestIdEntry.count > 0) {
         latestRequestId = requestIdEntry.data.i32[0];
@@ -2908,13 +2906,13 @@ bool Camera3Device::RequestThread::threadLoop() {
     }
 
     // Prepare a batch of HAL requests and output buffers.
-    res = prepareHalRequests(&nextRequests);
+    res = prepareHalRequests();
     if (res == TIMED_OUT) {
         // Not a fatal error if getting output buffers time out.
-        cleanUpFailedRequests(&nextRequests, /*sendRequestError*/ true);
+        cleanUpFailedRequests(/*sendRequestError*/ true);
         return true;
     } else if (res != OK) {
-        cleanUpFailedRequests(&nextRequests, /*sendRequestError*/ false);
+        cleanUpFailedRequests(/*sendRequestError*/ false);
         return false;
     }
 
@@ -2933,15 +2931,15 @@ bool Camera3Device::RequestThread::threadLoop() {
     // process_capture_request() defeats the purpose of cancelling requests ASAP with flush().
     // For now, only synchronize for high speed recording and we should figure something out for
     // removing the synchronization.
-    bool useFlushLock = nextRequests.size() > 1;
+    bool useFlushLock = mNextRequests.size() > 1;
 
     if (useFlushLock) {
         mFlushLock.lock();
     }
 
     ALOGVV("%s: %d: submitting %d requests in a batch.", __FUNCTION__, __LINE__,
-            nextRequests.size());
-    for (auto& nextRequest : nextRequests) {
+            mNextRequests.size());
+    for (auto& nextRequest : mNextRequests) {
         // Submit request and block until ready for next one
         ATRACE_ASYNC_BEGIN("frame capture", nextRequest.halRequest.frame_number);
         ATRACE_BEGIN("camera3->process_capture_request");
@@ -2955,7 +2953,7 @@ bool Camera3Device::RequestThread::threadLoop() {
             SET_ERR("RequestThread: Unable to submit capture request %d to HAL"
                     " device: %s (%d)", nextRequest.halRequest.frame_number, strerror(-res),
                     res);
-            cleanUpFailedRequests(&nextRequests, /*sendRequestError*/ false);
+            cleanUpFailedRequests(/*sendRequestError*/ false);
             if (useFlushLock) {
                 mFlushLock.unlock();
             }
@@ -2983,7 +2981,7 @@ bool Camera3Device::RequestThread::threadLoop() {
             SET_ERR("RequestThread: Unable to remove triggers "
                   "(capture request %d, HAL device: %s (%d)",
                   nextRequest.halRequest.frame_number, strerror(-res), res);
-            cleanUpFailedRequests(&nextRequests, /*sendRequestError*/ false);
+            cleanUpFailedRequests(/*sendRequestError*/ false);
             if (useFlushLock) {
                 mFlushLock.unlock();
             }
@@ -3004,14 +3002,10 @@ bool Camera3Device::RequestThread::threadLoop() {
     return true;
 }
 
-status_t Camera3Device::RequestThread::prepareHalRequests(Vector<NextRequest> *nextRequests) {
+status_t Camera3Device::RequestThread::prepareHalRequests() {
     ATRACE_CALL();
 
-    if (nextRequests == nullptr) {
-        return BAD_VALUE;
-    }
-
-    for (auto& nextRequest : *nextRequests) {
+    for (auto& nextRequest : mNextRequests) {
         sp<CaptureRequest> captureRequest = nextRequest.captureRequest;
         camera3_capture_request_t* halRequest = &nextRequest.halRequest;
         Vector<camera3_stream_buffer_t>* outputBuffers = &nextRequest.outputBuffers;
@@ -3143,10 +3137,12 @@ bool Camera3Device::RequestThread::isStreamPending(
     Mutex::Autolock l(mRequestLock);
 
     for (const auto& nextRequest : mNextRequests) {
-        for (const auto& s : nextRequest->mOutputStreams) {
-            if (stream == s) return true;
+        if (!nextRequest.submitted) {
+            for (const auto& s : nextRequest.captureRequest->mOutputStreams) {
+                if (stream == s) return true;
+            }
+            if (stream == nextRequest.captureRequest->mInputStream) return true;
         }
-        if (stream == nextRequest->mInputStream) return true;
     }
 
     for (const auto& request : mRequestQueue) {
@@ -3166,13 +3162,12 @@ bool Camera3Device::RequestThread::isStreamPending(
     return false;
 }
 
-void Camera3Device::RequestThread::cleanUpFailedRequests(Vector<NextRequest> *nextRequests,
-        bool sendRequestError) {
-    if (nextRequests == nullptr) {
+void Camera3Device::RequestThread::cleanUpFailedRequests(bool sendRequestError) {
+    if (mNextRequests.empty()) {
         return;
     }
 
-    for (auto& nextRequest : *nextRequests) {
+    for (auto& nextRequest : mNextRequests) {
         // Skip the ones that have been submitted successfully.
         if (nextRequest.submitted) {
             continue;
@@ -3208,19 +3203,13 @@ void Camera3Device::RequestThread::cleanUpFailedRequests(Vector<NextRequest> *ne
 
     Mutex::Autolock l(mRequestLock);
     mNextRequests.clear();
-    nextRequests->clear();
 }
 
-void Camera3Device::RequestThread::waitForNextRequestBatch(Vector<NextRequest> *nextRequests) {
-    if (nextRequests == nullptr) {
-        return;
-    }
-
+void Camera3Device::RequestThread::waitForNextRequestBatch() {
     // Optimized a bit for the simple steady-state case (single repeating
     // request), to avoid putting that request in the queue temporarily.
     Mutex::Autolock l(mRequestLock);
 
-    nextRequests->clear();
     assert(mNextRequests.empty());
 
     NextRequest nextRequest;
@@ -3231,8 +3220,7 @@ void Camera3Device::RequestThread::waitForNextRequestBatch(Vector<NextRequest> *
 
     nextRequest.halRequest = camera3_capture_request_t();
     nextRequest.submitted = false;
-    nextRequests->add(nextRequest);
-    mNextRequests.push_back(nextRequest.captureRequest);
+    mNextRequests.add(nextRequest);
 
     // Wait for additional requests
     const size_t batchSize = nextRequest.captureRequest->mBatchSize;
@@ -3246,14 +3234,13 @@ void Camera3Device::RequestThread::waitForNextRequestBatch(Vector<NextRequest> *
 
         additionalRequest.halRequest = camera3_capture_request_t();
         additionalRequest.submitted = false;
-        nextRequests->add(additionalRequest);
-        mNextRequests.push_back(additionalRequest.captureRequest);
+        mNextRequests.add(additionalRequest);
     }
 
-    if (nextRequests->size() < batchSize) {
+    if (mNextRequests.size() < batchSize) {
         ALOGE("RequestThread: only get %d out of %d requests. Skipping requests.",
-                nextRequests->size(), batchSize);
-        cleanUpFailedRequests(nextRequests, /*sendRequestError*/true);
+                mNextRequests.size(), batchSize);
+        cleanUpFailedRequests(/*sendRequestError*/true);
     }
 
     return;
