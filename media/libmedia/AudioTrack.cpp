@@ -94,7 +94,7 @@ status_t AudioTrack::getMinFrameCount(
 AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
       mIsTimed(false),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL),
+      mPreviousPriority(ANDROID_PRIORITY_AUDIO),
       mPreviousSchedulingGroup(SP_DEFAULT),
 #ifdef QCOM_DIRECTTRACK
       mAudioFlinger(NULL),
@@ -121,7 +121,7 @@ AudioTrack::AudioTrack(
         int uid)
     : mStatus(NO_INIT),
       mIsTimed(false),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL),
+      mPreviousPriority(ANDROID_PRIORITY_AUDIO),
       mPreviousSchedulingGroup(SP_DEFAULT),
 #ifdef QCOM_DIRECTTRACK
       mAudioFlinger(NULL),
@@ -152,7 +152,7 @@ AudioTrack::AudioTrack(
         int uid)
     : mStatus(NO_INIT),
       mIsTimed(false),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL),
+      mPreviousPriority(ANDROID_PRIORITY_AUDIO),
       mPreviousSchedulingGroup(SP_DEFAULT),
 #ifdef QCOM_DIRECTTRACK
       mProxy(NULL),
