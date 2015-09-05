@@ -4918,6 +4918,18 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         sp<Track> l = mLatestActiveTrack.promote();
         bool last = l.get() == track;
 
+        if (track->name() == 0) {
+            // A track name = 0 means most likely that it has not been properly created/prepared.
+            // This scenario leads to out of space issues in the offload driver, thus breaking
+            // soundfx for offload playback. Invalidating the track by removing it triggers the
+            // creation of a properly working one.
+            // TODO: Instead of removing find the real root of the issues and fix it there.
+            ALOGW("A track with a name = 0 shouldn't be used, invalidating and removing track");
+            track->invalidate();
+            tracksToRemove->add(track);
+            continue;
+        }
+
         if (track->isInvalid()) {
             ALOGW("An invalidated track shouldn't be in active list");
             tracksToRemove->add(track);
