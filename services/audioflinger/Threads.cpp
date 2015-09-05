@@ -5068,6 +5068,15 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 }
             }
         }
+
+        // AsyncCallbackThread::threadLoop() reports mDrainSequence = 0 when audio_hw_primary
+        // detects no space in compress driver, thus breaking offload post processing. Invalidate
+        // the track, forcing the client to start() a new, working one.
+        if (!mDrainSequence) {
+            ALOGV("mDrainSequence was: %d. Invalidating track", mDrainSequence);
+            track->invalidate();
+        }
+
         // compute volume for this track
         processVolume_l(track, last);
     }
