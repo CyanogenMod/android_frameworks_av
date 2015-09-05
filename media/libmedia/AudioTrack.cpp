@@ -481,7 +481,7 @@ status_t AudioTrack::set(
 
     if (cbf != NULL) {
         mAudioTrackThread = new AudioTrackThread(*this, threadCanCallJava);
-        mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_AUDIO, 0 /*stack*/);
+        mAudioTrackThread->run("AudioTrack", ANDROID_PRIORITY_HIGHEST, 0 /*stack*/);
     }
 
     // create the IAudioTrack
@@ -604,7 +604,7 @@ status_t AudioTrack::start()
     } else {
         mPreviousPriority = getpriority(PRIO_PROCESS, 0);
         get_sched_policy(0, &mPreviousSchedulingGroup);
-        androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
+        androidSetThreadPriority(0, ANDROID_PRIORITY_HIGHEST);
     }
 
     if (!(flags & (CBLK_INVALID | CBLK_STREAM_FATAL_ERROR))) {
