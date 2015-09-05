@@ -519,20 +519,22 @@ class Camera3Device :
             bool                            submitted;
         };
 
-        // Wait for the next batch of requests.
-        void waitForNextRequestBatch(Vector<NextRequest> *nextRequests);
+        // Wait for the next batch of requests and put them in mNextRequests. mNextRequests will
+        // be empty if it times out.
+        void waitForNextRequestBatch();
 
         // Waits for a request, or returns NULL if times out. Must be called with mRequestLock hold.
         sp<CaptureRequest> waitForNextRequestLocked();
 
-        // Prepare a HAL request and output buffers. Return TIMED_OUT if getting any output buffer
-        // timed out. If an error is returned, the caller should clean up the pending request batch.
-        status_t prepareHalRequests(Vector<NextRequest> *nextRequests);
+        // Prepare HAL requests and output buffers in mNextRequests. Return TIMED_OUT if getting any
+        // output buffer timed out. If an error is returned, the caller should clean up the pending
+        // request batch.
+        status_t prepareHalRequests();
 
-        // Return buffers, etc, for a request that couldn't be fully constructed and send request
-        // errors if sendRequestError is true. The buffers will be returned in the ERROR state
-        // to mark them as not having valid data. nextRequests will be modified.
-        void cleanUpFailedRequests(Vector<NextRequest> *nextRequests, bool sendRequestError);
+        // Return buffers, etc, for requests in mNextRequests that couldn't be fully constructed and
+        // send request errors if sendRequestError is true. The buffers will be returned in the
+        // ERROR state to mark them as not having valid data. mNextRequests will be cleared.
+        void cleanUpFailedRequests(bool sendRequestError);
 
         // Pause handling
         bool               waitIfPaused();
@@ -561,10 +563,10 @@ class Camera3Device :
         Condition          mRequestSignal;
         RequestList        mRequestQueue;
         RequestList        mRepeatingRequests;
-        // The next requests being prepped for submission to the HAL, no longer
+        // The next batch of requests being prepped for submission to the HAL, no longer
         // on the request queue. Read-only even with mRequestLock held, outside
         // of threadLoop
-        RequestList        mNextRequests;
+        Vector<NextRequest> mNextRequests;
 
         // To protect flush() and sending a request batch to HAL.
         Mutex              mFlushLock;
