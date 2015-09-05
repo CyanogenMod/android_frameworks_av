@@ -309,7 +309,13 @@ status_t AMRSource::read(
         buffer->release();
         buffer = NULL;
 
-        return ERROR_IO;
+        if (n < 0) {
+            return ERROR_IO;
+        } else {
+            // only partial frame is available, treat it as EOS.
+            mOffset += n;
+            return ERROR_END_OF_STREAM;
+        }
     }
 
     buffer->set_range(0, frameSize);
