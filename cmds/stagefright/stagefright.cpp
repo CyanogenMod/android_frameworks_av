@@ -1016,7 +1016,10 @@ int main(int argc, char **argv) {
 
             if (meta != NULL) {
                 const char *mime;
-                CHECK(meta->findCString(kKeyMIMEType, &mime));
+                if (!meta->findCString(kKeyMIMEType, &mime)) {
+                    fprintf(stderr, "extractor did not provide MIME type.\n");
+                    return -1;
+                }
 
                 if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) {
                     syncInfoPresent = false;
