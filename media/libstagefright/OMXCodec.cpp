@@ -3536,8 +3536,21 @@ void OMXCodec::setJPEGInputFormat(
 }
 
 void OMXCodec::addCodecSpecificData(const void *data, size_t size) {
+
+    if (size > SIZE_MAX - (sizeof(CodecSpecificData) - 1)) {
+        // this would require the size to be ~4GB, which should be near impossible
+        // given that it is the size of an in-memory chunk of data
+        ALOGE("b/23540411");
+        return;
+    }
+
     CodecSpecificData *specific =
-        (CodecSpecificData *)malloc(sizeof(CodecSpecificData) + size - 1);
+        (CodecSpecificData *)malloc(sizeof(CodecSpecificData) - 1 + size);
+
+    if (specific == NULL) {
+        ALOGE("b/23540411");
+        return;
+    }
 
     specific->mSize = size;
     memcpy(specific->mData, data, size);
