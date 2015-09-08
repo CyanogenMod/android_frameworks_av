@@ -336,7 +336,7 @@ sp<DataSource> DataSource::CreateFromURI(
                 *contentType = httpSource->getMIMEType();
             }
 
-            source = new NuCachedSource2(
+            source = NuCachedSource2::Create(
                     httpSource,
                     cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
                     disconnectAtHighwatermark);
