@@ -874,14 +874,14 @@ status_t MediaCodec::getBufferAndFormat(
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
     if (index >= buffers->size()) {
         ALOGE("getBufferAndFormat - trying to get buffer with "
-              "bad index (index=%u buffer_size=%u)", index, buffers->size());
+              "bad index (index=%zu buffer_size=%zu)", index, buffers->size());
         return INVALID_OPERATION;
     }
 
     const BufferInfo &info = buffers->itemAt(index);
     if (!info.mOwnedByClient) {
         ALOGE("getBufferAndFormat - invalid operation "
-              "(index %u is not owned by client)", index);
+              "(the index %zu is not owned by client)", index);
         return INVALID_OPERATION;
     }
 
