@@ -288,7 +288,7 @@ sp<DataSource> DataSource::CreateFromURI(
                         &copy, &cacheConfig, &disconnectAtHighwatermark);
             }
 
-            source = new NuCachedSource2(
+            source = NuCachedSource2::Create(
                     httpSource,
                     cacheConfig.isEmpty() ? NULL : cacheConfig.string());
         } else {

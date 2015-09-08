@@ -217,9 +217,6 @@ NuCachedSource2::NuCachedSource2(
     mLooper->setName("NuCachedSource2");
     mLooper->registerHandler(mReflector);
     mLooper->start();
-
-    Mutex::Autolock autoLock(mLock);
-    (new AMessage(kWhatFetchMore, mReflector->id()))->post();
 }
 
 NuCachedSource2::~NuCachedSource2() {
@@ -228,6 +225,18 @@ NuCachedSource2::~NuCachedSource2() {
 
     delete mCache;
     mCache = NULL;
+}
+
+// static
+sp<NuCachedSource2> NuCachedSource2::Create(
+        const sp<DataSource> &source,
+        const char *cacheConfig,
+        bool disconnectAtHighwatermark) {
+    sp<NuCachedSource2> instance = new NuCachedSource2(
+            source, cacheConfig, disconnectAtHighwatermark);
+    Mutex::Autolock autoLock(instance->mLock);
+    (new AMessage(kWhatFetchMore, instance->mReflector->id()))->post();
+    return instance;
 }
 
 void NuCachedSource2::enableNonBlockingRead(bool flag) {
