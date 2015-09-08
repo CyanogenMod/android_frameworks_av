@@ -250,8 +250,11 @@ status_t SampleTable::setSampleToChunkParams(
                 != (ssize_t)sizeof(buffer)) {
             return ERROR_IO;
         }
-
-        CHECK(U32_AT(buffer) >= 1);  // chunk index is 1 based in the spec.
+        // chunk index is 1 based in the spec.
+        if (U32_AT(buffer) < 1) {
+            ALOGE("b/23534160");
+            return ERROR_OUT_OF_RANGE;
+        }
 
         // We want the chunk index to be 0-based.
         mSampleToChunkEntries[i].startChunk = U32_AT(buffer) - 1;
