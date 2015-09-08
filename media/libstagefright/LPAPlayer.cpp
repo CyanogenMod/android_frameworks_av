@@ -429,15 +429,33 @@ size_t LPAPlayer::AudioSinkCallback(
         MediaPlayerBase::AudioSink *audioSink,
         void *buffer, size_t size, void *cookie,
         MediaPlayerBase::AudioSink::cb_event_t event) {
-    if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
-        LPAPlayer *me = (LPAPlayer *)cookie;
+    LPAPlayer *me = (LPAPlayer *)cookie;
+    switch(event) {
+    case MediaPlayerBase::AudioSink::CB_EVENT_UNDERRUN:
+        /* Match original case - buffer NULL and event underrun */
+        if (buffer != NULL)
+            break;
         me->mReachedEOS = true;
         me->mReachedOutputEOS = true;
         ALOGV("postAudioEOS");
         mLPAObjectEarlyDeletable = true;
         me->mObserver->postAudioEOS(0);
+        break;
+    case MediaPlayerBase::AudioSink::CB_EVENT_FILL_BUFFER:
+        return me->fillBuffer(buffer, size);
+    case MediaPlayerBase::AudioSink::CB_EVENT_STREAM_END:
+        ALOGV("AudioSinkCallback: stream end");
+        me->mReachedEOS = true;
+        me->mReachedOutputEOS = true;
+        mLPAObjectEarlyDeletable = true;
+        me->mObserver->postAudioEOS(0);
+        break;
+    case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
+        ALOGV("AudioSinkCallback: Tear down event");
+        break;
     }
-    return 1;
+
+    return 0;
 }
 
 void LPAPlayer::reset() {
@@ -901,33 +919,25 @@ status_t  LPAPlayer::setupAudioSink()
 }
 
 
-size_t LPAPlayer::AudioCallback(
-        MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie) {
-
-    return (static_cast<LPAPlayer *>(cookie)->AudioCallback(cookie, buffer, size));
+void LPAPlayer::AudioCallback(int event, void *user, void *info) {
+    static_cast<LPAPlayer *>(user)->AudioCallback(event, info);
 }
 
-size_t LPAPlayer::AudioCallback(void *cookie, void *buffer, size_t size) {
-    size_t size_done = 0;
-    uint32_t numFramesPlayedOut;
-    LPAPlayer *me = (LPAPlayer *)cookie;
-
-    if(me->mReachedOutputEOS)
-        return 0;
-
-    if (buffer == NULL && size == AudioTrack::EVENT_UNDERRUN) {
-        ALOGE("Underrun");
-        return 0;
-     } else {
-        size_done = fillBuffer(buffer, size);
-        ALOGD("RegularTrack:fillbuffersize %d %d", size_done, size);
-        if(mReachedEOS) {
-            me->mReachedOutputEOS = true;
-            me->mObserver->postAudioEOS();
-            ALOGE("postEOSDelayUs ");
+void LPAPlayer::AudioCallback(int event, void *info) {
+    switch (event) {
+    case AudioTrack::EVENT_MORE_DATA:
+        {
+        AudioTrack::Buffer *buffer = (AudioTrack::Buffer *)info;
+        size_t numBytesWritten = fillBuffer(buffer->raw, buffer->size);
+        buffer->size = numBytesWritten;
         }
-        return size_done;
+        break;
+
+    case AudioTrack::EVENT_STREAM_END:
+        mReachedEOS = true;
+        mReachedOutputEOS = true;
+        mObserver->postAudioEOS();
+        break;
     }
 }
 
