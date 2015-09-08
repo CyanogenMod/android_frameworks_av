@@ -844,33 +844,54 @@ status_t MediaCodec::getBufferAndFormat(
         size_t portIndex, size_t index,
         sp<ABuffer> *buffer, sp<AMessage> *format) {
     // use mutex instead of a context switch
-
     if (mReleasedByResourceManager) {
+        ALOGE("getBufferAndFormat - resource already released");
         return DEAD_OBJECT;
+    }
+
+    if (buffer == NULL) {
+        ALOGE("getBufferAndFormat - null ABuffer");
+        return INVALID_OPERATION;
+    }
+
+    if (format == NULL) {
+        ALOGE("getBufferAndFormat - null AMessage");
+        return INVALID_OPERATION;
     }
 
     buffer->clear();
     format->clear();
+
     if (!isExecuting()) {
+        ALOGE("getBufferAndFormat - not executing");
         return INVALID_OPERATION;
     }
 
     // we do not want mPortBuffers to change during this section
     // we also don't want mOwnedByClient to change during this
     Mutex::Autolock al(mBufferLock);
+
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
-    if (index < buffers->size()) {
-        const BufferInfo &info = buffers->itemAt(index);
-        if (info.mOwnedByClient) {
-            // by the time buffers array is initialized, crypto is set
-            if (portIndex == kPortIndexInput && mCrypto != NULL) {
-                *buffer = info.mEncryptedData;
-            } else {
-                *buffer = info.mData;
-            }
-            *format = info.mFormat;
-        }
+    if (index >= buffers->size()) {
+        ALOGE("getBufferAndFormat - trying to get buffer with "
+              "bad index (index=%u buffer_size=%u)", index, buffers->size());
+        return INVALID_OPERATION;
     }
+
+    const BufferInfo &info = buffers->itemAt(index);
+    if (!info.mOwnedByClient) {
+        ALOGE("getBufferAndFormat - invalid operation "
+              "(index %u is not owned by client)", index);
+        return INVALID_OPERATION;
+    }
+
+    // by the time buffers array is initialized, crypto is set
+    *buffer = (portIndex == kPortIndexInput && mCrypto != NULL) ?
+                  info.mEncryptedData :
+                  info.mData;
+
+    *format = info.mFormat;
+
     return OK;
 }
 
