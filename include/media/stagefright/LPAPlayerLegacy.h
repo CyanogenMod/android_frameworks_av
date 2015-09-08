@@ -260,10 +260,8 @@ private:
     void reset();
 
     status_t setupAudioSink();
-    static size_t AudioCallback(
-        MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie);
-    size_t AudioCallback(void *cookie, void *data, size_t size);
+    static void AudioCallback(int event, void *user, void *info);
+    void AudioCallback(int event, void *info);
 
     void convertMonoToStereo(int16_t *data, size_t size);
 
