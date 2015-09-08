@@ -2900,11 +2900,11 @@ status_t AwesomePlayer::finishSetDataSource_l() {
             // The widevine extractor does its own caching.
 
 #if 0
-            mCachedSource = new NuCachedSource2(
+            mCachedSource = NuCachedSource2::Create(
                     new ThrottledSource(
                         mConnectingDataSource, 50 * 1024 /* bytes/sec */));
 #else
-            mCachedSource = new NuCachedSource2(
+            mCachedSource = NuCachedSource2::Create(
                     mConnectingDataSource,
                     cacheConfig.isEmpty() ? NULL : cacheConfig.string(),
                     disconnectAtHighwatermark);

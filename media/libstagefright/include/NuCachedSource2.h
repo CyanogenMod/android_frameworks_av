@@ -28,7 +28,7 @@ struct ALooper;
 struct PageCache;
 
 struct NuCachedSource2 : public DataSource {
-    NuCachedSource2(
+    static sp<NuCachedSource2> Create(
             const sp<DataSource> &source,
             const char *cacheConfig = NULL,
             bool disconnectAtHighwatermark = false);
@@ -74,6 +74,11 @@ protected:
 
 private:
     friend struct AHandlerReflector<NuCachedSource2>;
+
+    NuCachedSource2(
+            const sp<DataSource> &source,
+            const char *cacheConfig,
+            bool disconnectAtHighwatermark);
 
     enum {
         kPageSize                       = 65536,
