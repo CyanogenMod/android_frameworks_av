@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "CameraService"
+#define ATRACE_TAG ATRACE_TAG_CAMERA
 //#define LOG_NDEBUG 0
 
 #include <algorithm>
@@ -156,7 +157,6 @@ void CameraService::onFirstRef()
     }
 
     mModule = new CameraModule(rawModule);
-    ALOGI("Loaded \"%s\" camera module", mModule->getModuleName());
     err = mModule->init();
     if (err != OK) {
         ALOGE("Could not initialize camera HAL module: %d (%s)", err,
@@ -168,6 +168,7 @@ void CameraService::onFirstRef()
         mModule = nullptr;
         return;
     }
+    ALOGI("Loaded \"%s\" camera module", mModule->getModuleName());
 
     mNumberOfCameras = mModule->getNumberOfCameras();
     mNumberOfNormalCameras = mNumberOfCameras;
@@ -403,10 +404,12 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
 }
 
 int32_t CameraService::getNumberOfCameras() {
+    ATRACE_CALL();
     return getNumberOfCameras(CAMERA_TYPE_BACKWARD_COMPATIBLE);
 }
 
 int32_t CameraService::getNumberOfCameras(int type) {
+    ATRACE_CALL();
     switch (type) {
         case CAMERA_TYPE_BACKWARD_COMPATIBLE:
             return mNumberOfNormalCameras;
@@ -421,6 +424,7 @@ int32_t CameraService::getNumberOfCameras(int type) {
 
 status_t CameraService::getCameraInfo(int cameraId,
                                       struct CameraInfo* cameraInfo) {
+    ATRACE_CALL();
     if (!mModule) {
         return -ENODEV;
     }
@@ -448,6 +452,7 @@ int CameraService::cameraIdToInt(const String8& cameraId) {
 }
 
 status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata* cameraInfo) {
+    ATRACE_CALL();
     status_t ret = OK;
     struct CameraInfo info;
     if ((ret = getCameraInfo(cameraId, &info)) != OK) {
@@ -534,6 +539,7 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
 
 status_t CameraService::getCameraCharacteristics(int cameraId,
                                                 CameraMetadata* cameraInfo) {
+    ATRACE_CALL();
     if (!cameraInfo) {
         ALOGE("%s: cameraInfo is NULL", __FUNCTION__);
         return BAD_VALUE;
@@ -611,6 +617,7 @@ int CameraService::getCameraPriorityFromProcState(int procState) {
 }
 
 status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescriptor>& desc) {
+    ATRACE_CALL();
     if (!mModule) {
         ALOGE("%s: camera hardware module doesn't exist", __FUNCTION__);
         return -ENODEV;
@@ -621,6 +628,7 @@ status_t CameraService::getCameraVendorTagDescriptor(/*out*/sp<VendorTagDescript
 }
 
 int CameraService::getDeviceVersion(int cameraId, int* facing) {
+    ATRACE_CALL();
     struct camera_info info;
     if (mModule->getCameraInfo(cameraId, &info) != OK) {
         return -1;
@@ -652,6 +660,7 @@ status_t CameraService::filterGetInfoErrorCode(status_t err) {
 }
 
 bool CameraService::setUpVendorTags() {
+    ATRACE_CALL();
     vendor_tag_ops_t vOps = vendor_tag_ops_t();
 
     // Check if vendor operations have been implemented
@@ -660,9 +669,7 @@ bool CameraService::setUpVendorTags() {
         return false;
     }
 
-    ATRACE_BEGIN("camera3->get_metadata_vendor_tag_ops");
     mModule->getVendorTagOps(&vOps);
-    ATRACE_END();
 
     // Ensure all vendor operations are present
     if (vOps.get_tag_count == NULL || vOps.get_all_tags == NULL ||
@@ -962,7 +969,7 @@ status_t CameraService::handleEvictionsLocked(const String8& cameraId, int clien
         /*out*/
         sp<BasicClient>* client,
         std::shared_ptr<resource_policy::ClientDescriptor<String8, sp<BasicClient>>>* partial) {
-
+    ATRACE_CALL();
     status_t ret = NO_ERROR;
     std::vector<DescriptorPtr> evictedClients;
     DescriptorPtr clientDescriptor;
@@ -1151,6 +1158,7 @@ status_t CameraService::connect(
         /*out*/
         sp<ICamera>& device) {
 
+    ATRACE_CALL();
     status_t ret = NO_ERROR;
     String8 id = String8::format("%d", cameraId);
     sp<Client> client = nullptr;
@@ -1175,6 +1183,7 @@ status_t CameraService::connectLegacy(
         /*out*/
         sp<ICamera>& device) {
 
+    ATRACE_CALL();
     String8 id = String8::format("%d", cameraId);
     int apiVersion = mModule->getModuleApiVersion();
     if (halVersion != CAMERA_HAL_API_VERSION_UNSPECIFIED &&
@@ -1215,6 +1224,7 @@ status_t CameraService::connectDevice(
         /*out*/
         sp<ICameraDeviceUser>& device) {
 
+    ATRACE_CALL();
     status_t ret = NO_ERROR;
     String8 id = String8::format("%d", cameraId);
     sp<CameraDeviceClient> client = nullptr;
@@ -1234,6 +1244,8 @@ status_t CameraService::connectDevice(
 
 status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         const sp<IBinder>& clientBinder) {
+
+    ATRACE_CALL();
     if (enabled && clientBinder == nullptr) {
         ALOGE("%s: torch client binder is NULL", __FUNCTION__);
         return -EINVAL;
@@ -1322,6 +1334,8 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
 }
 
 void CameraService::notifySystemEvent(int32_t eventId, const int32_t* args, size_t length) {
+    ATRACE_CALL();
+
     switch(eventId) {
         case ICameraService::USER_SWITCHED: {
             doUserSwitch(/*newUserIds*/args, /*length*/length);
@@ -1337,6 +1351,8 @@ void CameraService::notifySystemEvent(int32_t eventId, const int32_t* args, size
 }
 
 status_t CameraService::addListener(const sp<ICameraServiceListener>& listener) {
+    ATRACE_CALL();
+
     ALOGV("%s: Add listener %p", __FUNCTION__, listener.get());
 
     if (listener == nullptr) {
@@ -1385,6 +1401,8 @@ status_t CameraService::addListener(const sp<ICameraServiceListener>& listener) 
 }
 
 status_t CameraService::removeListener(const sp<ICameraServiceListener>& listener) {
+    ATRACE_CALL();
+
     ALOGV("%s: Remove listener %p", __FUNCTION__, listener.get());
 
     if (listener == 0) {
@@ -1411,6 +1429,8 @@ status_t CameraService::removeListener(const sp<ICameraServiceListener>& listene
 }
 
 status_t CameraService::getLegacyParameters(int cameraId, /*out*/String16* parameters) {
+
+    ATRACE_CALL();
     ALOGV("%s: for camera ID = %d", __FUNCTION__, cameraId);
 
     if (parameters == NULL) {
@@ -1435,6 +1455,8 @@ status_t CameraService::getLegacyParameters(int cameraId, /*out*/String16* param
 }
 
 status_t CameraService::supportsCameraApi(int cameraId, int apiVersion) {
+    ATRACE_CALL();
+
     ALOGV("%s: for camera ID = %d", __FUNCTION__, cameraId);
 
     switch (apiVersion) {
@@ -1802,6 +1824,8 @@ MediaPlayer* CameraService::newMediaPlayer(const char *file) {
 }
 
 void CameraService::loadSound() {
+    ATRACE_CALL();
+
     Mutex::Autolock lock(mSoundLock);
     LOG1("CameraService::loadSound ref=%d", mSoundRef);
     if (mSoundRef++) return;
@@ -1824,6 +1848,8 @@ void CameraService::releaseSound() {
 }
 
 void CameraService::playSound(sound_kind kind) {
+    ATRACE_CALL();
+
     LOG1("playSound(%d)", kind);
     Mutex::Autolock lock(mSoundLock);
     sp<MediaPlayer> player = mSoundPlayer[kind];
@@ -1933,6 +1959,8 @@ bool CameraService::BasicClient::canCastToApiClient(apiLevel level) const {
 }
 
 status_t CameraService::BasicClient::startCameraOps() {
+    ATRACE_CALL();
+
     int32_t res;
     // Notify app ops that the camera is not available
     mOpsCallback = new OpsCallback(this);
@@ -1974,6 +2002,8 @@ status_t CameraService::BasicClient::startCameraOps() {
 }
 
 status_t CameraService::BasicClient::finishCameraOps() {
+    ATRACE_CALL();
+
     // Check if startCameraOps succeeded, and if so, finish the camera op
     if (mOpsActive) {
         // Notify app ops that the camera is available again
@@ -2006,6 +2036,8 @@ status_t CameraService::BasicClient::finishCameraOps() {
 }
 
 void CameraService::BasicClient::opChanged(int32_t op, const String16& packageName) {
+    ATRACE_CALL();
+
     String8 name(packageName);
     String8 myName(mClientPackageName);
 
@@ -2229,6 +2261,8 @@ static bool tryLock(Mutex& mutex)
 }
 
 status_t CameraService::dump(int fd, const Vector<String16>& args) {
+    ATRACE_CALL();
+
     String8 result("Dump of the Camera Service:\n");
     if (checkCallingPermission(String16("android.permission.DUMP")) == false) {
         result.appendFormat("Permission Denial: "
