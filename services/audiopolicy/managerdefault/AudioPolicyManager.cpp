@@ -351,6 +351,14 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
                                                 AUDIO_OUTPUT_FLAG_NONE,
                                                 AUDIO_FORMAT_INVALID);
         if (output != AUDIO_IO_HANDLE_NONE) {
+            // close active input (if any) before opening new input
+            audio_io_handle_t activeInput = mInputs.getActiveInput();
+            if (activeInput != 0) {
+                ALOGV("updateCallRouting() close active input before opening new input");
+                sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
+                stopInput(activeInput, activeDesc->mSessions.itemAt(0));
+                releaseInput(activeInput, activeDesc->mSessions.itemAt(0));
+            }
             sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
             ALOG_ASSERT(!outputDesc->isDuplicated(),
                         "updateCallRouting() RX device output is duplicated");
@@ -1334,6 +1342,12 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         device = getDeviceAndMixForInputSource(inputSource, &policyMix);
         if (device == AUDIO_DEVICE_NONE) {
             ALOGW("getInputForAttr() could not find device for source %d", inputSource);
+            return BAD_VALUE;
+        }
+        // block request to open input on USB during voice call
+        if((AUDIO_MODE_IN_CALL == mEngine->getPhoneState()) &&
+            (device == AUDIO_DEVICE_IN_USB_DEVICE)) {
+            ALOGV("getInputForAttr(): blocking the request to open input on USB device");
             return BAD_VALUE;
         }
         if (policyMix != NULL) {
