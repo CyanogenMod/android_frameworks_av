@@ -1176,8 +1176,10 @@ status_t BnAudioFlinger::onTransact(
         }
         case CREATE_EFFECT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            effect_descriptor_t desc;
-            data.read(&desc, sizeof(effect_descriptor_t));
+            effect_descriptor_t desc = {};
+            if (data.read(&desc, sizeof(effect_descriptor_t)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             sp<IEffectClient> client = interface_cast<IEffectClient>(data.readStrongBinder());
             int32_t priority = data.readInt32();
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
