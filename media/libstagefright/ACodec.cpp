@@ -617,8 +617,8 @@ void ACodec::initiateShutdown(bool keepComponentAllocated) {
     msg->setInt32("keepComponentAllocated", keepComponentAllocated);
     msg->post();
     if (!keepComponentAllocated) {
-        // ensure shutdown completes in 3 seconds
-        (new AMessage(kWhatReleaseCodecInstance, this))->post(3000000);
+        // ensure shutdown completes in 10 seconds
+        (new AMessage(kWhatReleaseCodecInstance, this))->post(10000000);
     }
 }
 
