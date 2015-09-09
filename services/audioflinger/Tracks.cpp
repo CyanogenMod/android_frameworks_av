@@ -100,13 +100,11 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mType(type),
         mThreadIoHandle(thread->id())
 {
-    // if the caller is us, trust the specified uid
-    if (IPCThreadState::self()->getCallingPid() != getpid_cached || clientUid == -1) {
-        int newclientUid = IPCThreadState::self()->getCallingUid();
-        if (clientUid != -1 && clientUid != newclientUid) {
-            ALOGW("uid %d tried to pass itself off as %d", newclientUid, clientUid);
-        }
-        clientUid = newclientUid;
+    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    if (!isTrustedCallingUid(callingUid) || clientUid == -1) {
+        ALOGW_IF(clientUid != -1 && clientUid != (int)callingUid,
+                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, clientUid);
+        clientUid = (int)callingUid;
     }
     // clientUid contains the uid of the app that is responsible for this track, so we can blame
     // battery usage on it.

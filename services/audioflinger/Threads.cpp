@@ -914,14 +914,14 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
             status = mPowerManager->acquireWakeLockWithUid(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
                     getWakeLockTag(),
-                    String16("media"),
+                    String16("audioserver"),
                     uid,
                     true /* FIXME force oneway contrary to .aidl */);
         } else {
             status = mPowerManager->acquireWakeLock(POWERMANAGER_PARTIAL_WAKE_LOCK,
                     binder,
                     getWakeLockTag(),
-                    String16("media"),
+                    String16("audioserver"),
                     true /* FIXME force oneway contrary to .aidl */);
         }
         if (status == NO_ERROR) {

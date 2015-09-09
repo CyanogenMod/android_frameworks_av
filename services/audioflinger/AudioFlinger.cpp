@@ -1457,8 +1457,15 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     cblk.clear();
     buffers.clear();
 
+    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    if (!isTrustedCallingUid(callingUid)) {
+        ALOGW_IF(clientUid != callingUid,
+                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, clientUid);
+        clientUid = callingUid;
+    }
+
     // check calling permissions
-    if (!recordingAllowed(opPackageName)) {
+    if (!recordingAllowed(opPackageName, tid, clientUid)) {
         ALOGE("openRecord() permission denied: recording not allowed");
         lStatus = PERMISSION_DENIED;
         goto Exit;
@@ -1508,7 +1515,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         }
         ALOGV("openRecord() lSessionId: %d input %d", lSessionId, input);
 
-        // TODO: the uid should be passed in as a parameter to openRecord
         recordTrack = thread->createRecordTrack_l(client, sampleRate, format, channelMask,
                                                   frameCount, lSessionId, notificationFrames,
                                                   clientUid, flags, tid, &lStatus);
@@ -2591,7 +2597,7 @@ sp<IEffect> AudioFlinger::createEffect(
 
         // check recording permission for visualizer
         if ((memcmp(&desc.type, SL_IID_VISUALIZATION, sizeof(effect_uuid_t)) == 0) &&
-            !recordingAllowed(opPackageName)) {
+            !recordingAllowed(opPackageName, pid, IPCThreadState::self()->getCallingUid())) {
             lStatus = PERMISSION_DENIED;
             goto Exit;
         }

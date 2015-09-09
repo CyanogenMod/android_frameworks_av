@@ -32,28 +32,36 @@ namespace android {
 
 // Not valid until initialized by AudioFlinger constructor.  It would have to be
 // re-initialized if the process containing AudioFlinger service forks (which it doesn't).
+// This is often used to validate binder interface calls within audioserver
+// (e.g. AudioPolicyManager to AudioFlinger).
 pid_t getpid_cached;
 
-bool recordingAllowed(const String16& opPackageName) {
-    // Note: We are getting the UID from the calling IPC thread state because all
-    // clients that perform recording create AudioRecord in their own processes
-    // and the system does not create AudioRecord objects on behalf of apps. This
-    // differs from playback where in some situations the system recreates AudioTrack
-    // instances associated with a client's MediaPlayer on behalf of this client.
-    // In the latter case we have to store the client UID and pass in along for
-    // security checks.
+// A trusted calling UID may specify the client UID as part of a binder interface call.
+// otherwise the calling UID must be equal to the client UID.
+bool isTrustedCallingUid(uid_t uid) {
+    switch (uid) {
+    case AID_MEDIA:
+    case AID_AUDIOSERVER:
+        return true;
+    default:
+        return false;
+    }
+}
 
+bool recordingAllowed(const String16& opPackageName, pid_t pid, uid_t uid) {
+    // we're always OK.
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
+
     static const String16 sRecordAudio("android.permission.RECORD_AUDIO");
 
+    // We specify a pid and uid here as mediaserver (aka MediaRecorder or StageFrightRecorder)
+    // may open a record track on behalf of a client.  Note that pid may be a tid.
     // IMPORTANT: Don't use PermissionCache - a runtime permission and may change.
-    const bool ok = checkCallingPermission(sRecordAudio);
+    const bool ok = checkPermission(sRecordAudio, pid, uid);
     if (!ok) {
         ALOGE("Request requires android.permission.RECORD_AUDIO");
         return false;
     }
-
-    const uid_t uid = IPCThreadState::self()->getCallingUid();
 
     // To permit command-line native tests
     if (uid == AID_ROOT) return true;

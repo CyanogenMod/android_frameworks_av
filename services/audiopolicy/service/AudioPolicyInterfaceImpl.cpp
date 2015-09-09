@@ -164,13 +164,11 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
 
-    // if the caller is us, trust the specified uid
-    if (IPCThreadState::self()->getCallingPid() != getpid_cached || uid == (uid_t)-1) {
-        uid_t newclientUid = IPCThreadState::self()->getCallingUid();
-        if (uid != (uid_t)-1 && uid != newclientUid) {
-            ALOGW("%s uid %d tried to pass itself off as %d", __FUNCTION__, newclientUid, uid);
-        }
-        uid = newclientUid;
+    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
+        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
+                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
+        uid = callingUid;
     }
     return mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
                                     format, channelMask, flags, selectedDeviceId, offloadInfo);
@@ -284,13 +282,11 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
     sp<AudioPolicyEffects>audioPolicyEffects;
     status_t status;
     AudioPolicyInterface::input_type_t inputType;
-    // if the caller is us, trust the specified uid
-    if (IPCThreadState::self()->getCallingPid() != getpid_cached || uid == (uid_t)-1) {
-        uid_t newclientUid = IPCThreadState::self()->getCallingUid();
-        if (uid != (uid_t)-1 && uid != newclientUid) {
-            ALOGW("%s uid %d tried to pass itself off as %d", __FUNCTION__, newclientUid, uid);
-        }
-        uid = newclientUid;
+    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
+        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
+                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
+        uid = callingUid;
     }
 
     {
