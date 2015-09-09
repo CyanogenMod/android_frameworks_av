@@ -90,6 +90,7 @@ private:
         kWhatFetchSubtitleData,
         kWhatFetchTimedTextData,
         kWhatSendSubtitleData,
+        kWhatSendGlobalTimedTextData,
         kWhatSendTimedTextData,
         kWhatChangeAVSource,
         kWhatPollBuffering,
@@ -151,6 +152,7 @@ private:
     bool mBuffering;
     bool mPrepareBuffering;
     int32_t mPrevBufferPercentage;
+    sp<ABuffer> mGlobalTimedText;
 
     mutable Mutex mReadBufferLock;
     mutable Mutex mDisconnectLock;
@@ -186,6 +188,10 @@ private:
     void fetchTextData(
             uint32_t what, media_track_type type,
             int32_t curGen, sp<AnotherPacketSource> packets, sp<AMessage> msg);
+
+    void sendGlobalTextData(
+            uint32_t what,
+            int32_t curGen, sp<AMessage> msg);
 
     void sendTextData(
             uint32_t what, media_track_type type,

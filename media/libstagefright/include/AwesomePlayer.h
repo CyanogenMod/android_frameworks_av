@@ -250,6 +250,7 @@ private:
 
     int64_t mLastVideoTimeUs;
     TimedTextDriver *mTextDriver;
+    int32_t mSelectedTimedTextTrack;
 
     sp<WVMExtractor> mWVMExtractor;
     sp<MediaExtractor> mExtractor;
