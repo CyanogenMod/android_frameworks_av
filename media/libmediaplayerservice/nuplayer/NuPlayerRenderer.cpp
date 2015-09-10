@@ -361,10 +361,10 @@ status_t NuPlayer::Renderer::openAudioSink(
     msg->setInt32("isStreaming", isStreaming);
 
     sp<AMessage> response;
-    msg->postAndAwaitResponse(&response);
+    status_t postStatus = msg->postAndAwaitResponse(&response);
 
     int32_t err;
-    if (!response->findInt32("err", &err)) {
+    if (postStatus != OK || !response->findInt32("err", &err)) {
         err = INVALID_OPERATION;
     } else if (err == OK && isOffloaded != NULL) {
         int32_t offload;
