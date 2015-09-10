@@ -487,8 +487,11 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     status_t res = returnBufferLocked(buffer, timestamp);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/true);
-        mOutputBufferReturnedSignal.signal();
     }
+
+    // Even if returning the buffer failed, we still want to signal whoever is waiting for the
+    // buffer to be returned.
+    mOutputBufferReturnedSignal.signal();
 
     return res;
 }
