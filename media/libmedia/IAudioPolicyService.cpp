@@ -932,7 +932,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
             audio_port_handle_t selectedDeviceId = (audio_port_handle_t) data.readInt32();
-            audio_io_handle_t input;
+            audio_io_handle_t input = {};
             status_t status = getInputForAttr(&attr, &input, session, uid,
                                               samplingRate, format, channelMask,
                                               flags, selectedDeviceId);
@@ -1242,9 +1242,9 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
                     data.readStrongBinder());
-            audio_session_t session;
-            audio_io_handle_t ioHandle;
-            audio_devices_t device;
+            audio_session_t session = {};
+            audio_io_handle_t ioHandle = {};
+            audio_devices_t device = {};
             status_t status = acquireSoundTriggerSession(&session, &ioHandle, &device);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
