@@ -971,7 +971,7 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             int clientUid = data.readInt32();
-            status_t status;
+            status_t status = NO_ERROR;
             sp<IAudioTrack> track;
             if ((haveSharedBuffer && (buffer == 0)) ||
                     ((buffer != 0) && (buffer->pointer() == NULL))) {
@@ -1024,7 +1024,7 @@ status_t BnAudioFlinger::onTransact(
             size_t notificationFrames = data.readInt64();
             sp<IMemory> cblk;
             sp<IMemory> buffers;
-            status_t status;
+            status_t status = NO_ERROR;
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, &frameCount, &flags, tid, &sessionId,
                     &notificationFrames,
@@ -1164,7 +1164,7 @@ status_t BnAudioFlinger::onTransact(
             audio_devices_t devices = (audio_devices_t)data.readInt32();
             String8 address(data.readString8());
             audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
-            uint32_t latencyMs;
+            uint32_t latencyMs = 0;
             audio_io_handle_t output;
             status_t status = openOutput(module, &output, &config,
                                          &devices, address, &latencyMs, flags);
@@ -1243,8 +1243,8 @@ status_t BnAudioFlinger::onTransact(
         case GET_RENDER_POSITION: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
-            uint32_t halFrames;
-            uint32_t dspFrames;
+            uint32_t halFrames = 0;
+            uint32_t dspFrames = 0;
             status_t status = getRenderPosition(&halFrames, &dspFrames, output);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1280,7 +1280,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case QUERY_NUM_EFFECTS: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            uint32_t numEffects;
+            uint32_t numEffects = 0;
             status_t status = queryNumberEffects(&numEffects);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1290,7 +1290,7 @@ status_t BnAudioFlinger::onTransact(
         }
         case QUERY_EFFECT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            effect_descriptor_t desc;
+            effect_descriptor_t desc = {};
             status_t status = queryEffect(data.readInt32(), &desc);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1302,7 +1302,7 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             effect_uuid_t uuid;
             data.read(&uuid, sizeof(effect_uuid_t));
-            effect_descriptor_t desc;
+            effect_descriptor_t desc = {};
             status_t status = getEffectDescriptor(&uuid, &desc);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1320,9 +1320,9 @@ status_t BnAudioFlinger::onTransact(
             int32_t priority = data.readInt32();
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             int sessionId = data.readInt32();
-            status_t status;
-            int id;
-            int enabled;
+            status_t status = NO_ERROR;
+            int id = 0;
+            int enabled = 0;
 
             sp<IEffect> effect = createEffect(&desc, client, priority, output, sessionId,
                     &status, &id, &enabled);
