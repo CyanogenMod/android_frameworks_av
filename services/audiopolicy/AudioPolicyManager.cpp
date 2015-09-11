@@ -1634,6 +1634,14 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
 
+#ifdef DEEP_BUFFER_RINGTONE
+    // don't use low latency for ringtones as it could cause i/o starvation
+    // in usecases like camera where a device may be in thermal mitigation
+    if (stream == AUDIO_STREAM_RING) {
+        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+    }
+#endif
+
     sp<IOProfile> profile;
 
     // skip direct output selection if the request can obviously be attached to a mixed output
