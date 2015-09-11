@@ -1062,6 +1062,9 @@ int main(int argc, char **argv) {
                     meta = extractor->getTrackMetaData(
                             i, MediaExtractor::kIncludeExtensiveMetaData);
 
+                    if (meta == NULL) {
+                        break;
+                    }
                     const char *mime;
                     meta->findCString(kKeyMIMEType, &mime);
 
