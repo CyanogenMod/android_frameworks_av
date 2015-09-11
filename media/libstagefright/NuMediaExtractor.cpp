@@ -186,6 +186,10 @@ void NuMediaExtractor::updateDurationAndBitrate() {
 
     for (size_t i = 0; i < mImpl->countTracks(); ++i) {
         sp<MetaData> meta = mImpl->getTrackMetaData(i);
+        if (meta == NULL) {
+            ALOGW("no metadata for track %zu", i);
+            continue;
+        }
 
         int32_t bitrate;
         if (!meta->findInt32(kKeyBitRate, &bitrate)) {

@@ -89,7 +89,13 @@ static status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_
 
 status_t convertMetaDataToMessage(
         const sp<MetaData> &meta, sp<AMessage> *format) {
+
     format->clear();
+
+    if (meta == NULL) {
+        ALOGE("convertMetaDataToMessage: NULL input");
+        return BAD_VALUE;
+    }
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));

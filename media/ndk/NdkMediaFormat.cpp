@@ -46,6 +46,10 @@ AMediaFormat* AMediaFormat_fromMsg(const void* data) {
     ALOGV("private ctor");
     AMediaFormat* mData = new AMediaFormat();
     mData->mFormat = *((sp<AMessage>*)data);
+    if (mData->mFormat == NULL) {
+        ALOGW("got NULL format");
+        mData->mFormat = new AMessage;
+    }
     return mData;
 }
 
