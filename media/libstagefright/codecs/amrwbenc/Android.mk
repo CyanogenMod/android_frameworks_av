@@ -113,6 +113,8 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV7
 endif
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -129,6 +131,8 @@ LOCAL_C_INCLUDES := \
 	frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrwbenc
