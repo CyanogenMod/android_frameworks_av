@@ -23,6 +23,9 @@ LOCAL_SHARED_LIBRARIES  += libstagefright_foundation
 LOCAL_SHARED_LIBRARIES  += libutils
 LOCAL_SHARED_LIBRARIES  += liblog
 
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
+
 LOCAL_LDFLAGS := -Wl,-Bsymbolic
 
 include $(BUILD_SHARED_LIBRARY)
