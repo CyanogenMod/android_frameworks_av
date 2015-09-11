@@ -66,6 +66,10 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 common_cflags += -DENABLE_AV_ENHANCEMENTS
 endif
 
+ifeq ($(AUDIO_FEATURE_DEEP_BUFFER_RINGTONE),true)
+common_cflags += -DDEEP_BUFFER_RINGTONE
+endif
+
 endif
 
 
