@@ -3479,6 +3479,12 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
         if (state->mCommand != FastMixerState::MIX_WRITE &&
                 (kUseFastMixer != FastMixer_Dynamic || state->mTrackMask > 1)) {
             if (state->mCommand == FastMixerState::COLD_IDLE) {
+
+                // FIXME workaround for first HAL write being CPU bound on some devices
+                ATRACE_BEGIN("write");
+                mOutput->write((char *)mSinkBuffer, 0);
+                ATRACE_END();
+
                 int32_t old = android_atomic_inc(&mFastMixerFutex);
                 if (old == -1) {
                     (void) syscall(__NR_futex, &mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);
