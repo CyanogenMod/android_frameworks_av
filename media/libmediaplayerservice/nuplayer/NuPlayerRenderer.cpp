@@ -798,6 +798,10 @@ void NuPlayer::Renderer::drainAudioQueueUntilLastEOS() {
 }
 
 bool NuPlayer::Renderer::onDrainAudioQueue() {
+    // do not drain audio during teardown as queued buffers may be invalid.
+    if (mAudioTornDown) {
+        return false;
+    }
     // TODO: This call to getPosition checks if AudioTrack has been created
     // in AudioSink before draining audio. If AudioTrack doesn't exist, then
     // CHECKs on getPosition will fail.
@@ -1477,6 +1481,7 @@ void NuPlayer::Renderer::onResume() {
         cancelAudioOffloadPauseTimeout();
         status_t err = mAudioSink->start();
         if (err != OK) {
+            ALOGE("cannot start AudioSink err %d", err);
             notifyAudioTearDown();
         }
     }
