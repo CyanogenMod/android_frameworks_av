@@ -2265,7 +2265,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 
     String8 result("Dump of the Camera Service:\n");
     if (checkCallingPermission(String16("android.permission.DUMP")) == false) {
-        result.appendFormat("Permission Denial: "
+        result = result.format("Permission Denial: "
                 "can't dump CameraService from pid=%d, uid=%d\n",
                 getCallingPid(),
                 getCallingUid());
