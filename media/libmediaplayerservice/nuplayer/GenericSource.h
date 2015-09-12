@@ -141,6 +141,7 @@ private:
     int32_t mPollBufferingGeneration;
     uint32_t mPendingReadBufferTypes;
     mutable Mutex mReadBufferLock;
+    mutable Mutex mDisconnectLock;
 
     sp<ALooper> mLooper;
 
