@@ -1417,6 +1417,15 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
 #endif
 
     *stream = streamTypefromAttributesInt(&attributes);
+
+#ifdef DEEP_BUFFER_RINGTONE
+    // don't use low latency for ringtones as it could cause i/o starvation
+    // in usecases like camera where a device may be in thermal mitigation
+    if (attributes.usage == AUDIO_USAGE_NOTIFICATION_TELEPHONY_RINGTONE) {
+        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+    }
+#endif
+
     *output = getOutputForDevice(device, session, *stream,
                                  samplingRate, format, channelMask,
                                  flags, offloadInfo);
@@ -1637,14 +1646,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         //use DEEP_BUFFER as default output for music stream type
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
-
-#ifdef DEEP_BUFFER_RINGTONE
-    // don't use low latency for ringtones as it could cause i/o starvation
-    // in usecases like camera where a device may be in thermal mitigation
-    if (stream == AUDIO_STREAM_RING) {
-        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
-    }
-#endif
 
     sp<IOProfile> profile;
 
