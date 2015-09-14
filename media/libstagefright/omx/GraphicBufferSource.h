@@ -195,7 +195,7 @@ private:
         uint64_t mFrameNumber;
 
         // buffer producer's buffer slot for buffer
-        int mBuf;
+        int mSlot;
 
         sp<GraphicBuffer> mGraphicBuffer;
     };

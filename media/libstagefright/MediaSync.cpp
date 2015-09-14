@@ -635,7 +635,7 @@ void MediaSync::onFrameAvailableFromInput() {
 
     ALOGV("acquired buffer %#llx from input", (long long)bufferItem.mGraphicBuffer->getId());
 
-    status = mInput->detachBuffer(bufferItem.mBuf);
+    status = mInput->detachBuffer(bufferItem.mSlot);
     if (status != NO_ERROR) {
         ALOGE("detaching buffer from input failed (%d)", status);
         if (status == NO_INIT) {

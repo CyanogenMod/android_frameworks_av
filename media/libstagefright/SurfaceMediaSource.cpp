@@ -308,9 +308,9 @@ status_t SurfaceMediaSource::read(
 
             // First time seeing the buffer?  Added it to the SMS slot
             if (item.mGraphicBuffer != NULL) {
-                mSlots[item.mBuf].mGraphicBuffer = item.mGraphicBuffer;
+                mSlots[item.mSlot].mGraphicBuffer = item.mGraphicBuffer;
             }
-            mSlots[item.mBuf].mFrameNumber = item.mFrameNumber;
+            mSlots[item.mSlot].mFrameNumber = item.mFrameNumber;
 
             // check for the timing of this buffer
             if (mNumFramesReceived == 0 && !mUseAbsoluteTimestamps) {
@@ -320,7 +320,7 @@ status_t SurfaceMediaSource::read(
                     if (item.mTimestamp < mStartTimeNs) {
                         // This frame predates start of record, discard
                         mConsumer->releaseBuffer(
-                                item.mBuf, item.mFrameNumber, EGL_NO_DISPLAY,
+                                item.mSlot, item.mFrameNumber, EGL_NO_DISPLAY,
                                 EGL_NO_SYNC_KHR, Fence::NO_FENCE);
                         continue;
                     }
@@ -346,13 +346,13 @@ status_t SurfaceMediaSource::read(
         return ERROR_END_OF_STREAM;
     }
 
-    mCurrentSlot = item.mBuf;
+    mCurrentSlot = item.mSlot;
 
     // First time seeing the buffer?  Added it to the SMS slot
     if (item.mGraphicBuffer != NULL) {
-        mSlots[item.mBuf].mGraphicBuffer = item.mGraphicBuffer;
+        mSlots[item.mSlot].mGraphicBuffer = item.mGraphicBuffer;
     }
-    mSlots[item.mBuf].mFrameNumber = item.mFrameNumber;
+    mSlots[item.mSlot].mFrameNumber = item.mFrameNumber;
 
     mCurrentBuffers.push_back(mSlots[mCurrentSlot].mGraphicBuffer);
     int64_t prevTimeStamp = mCurrentTimestamp;
