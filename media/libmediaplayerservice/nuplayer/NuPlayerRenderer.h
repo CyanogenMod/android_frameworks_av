@@ -170,6 +170,7 @@ private:
 
     // modified on only renderer's thread.
     bool mPaused;
+    int64_t mPauseDrainAudioAllowedUs; // time when we can drain/deliver audio in pause mode.
 
     bool mVideoSampleReceived;
     bool mVideoRenderingStarted;
