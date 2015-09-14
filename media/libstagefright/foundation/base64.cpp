@@ -22,11 +22,11 @@
 namespace android {
 
 sp<ABuffer> decodeBase64(const AString &s) {
-    if ((s.size() % 4) != 0) {
+    size_t n = s.size();
+    if ((n % 4) != 0) {
         return NULL;
     }
 
-    size_t n = s.size();
     size_t padding = 0;
     if (n >= 1 && s.c_str()[n - 1] == '=') {
         padding = 1;
@@ -40,11 +40,16 @@ sp<ABuffer> decodeBase64(const AString &s) {
         }
     }
 
-    size_t outLen = 3 * s.size() / 4 - padding;
+    // We divide first to avoid overflow. It's OK to do this because we
+    // already made sure that n % 4 == 0.
+    size_t outLen = (n / 4) * 3 - padding;
 
     sp<ABuffer> buffer = new ABuffer(outLen);
 
     uint8_t *out = buffer->data();
+    if (out == NULL || buffer->size() < outLen) {
+        return NULL;
+    }
     size_t j = 0;
     uint32_t accum = 0;
     for (size_t i = 0; i < n; ++i) {
