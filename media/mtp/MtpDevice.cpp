@@ -204,7 +204,9 @@ MtpDevice::MtpDevice(struct usb_device* device, int interface,
         mDeviceInfo(NULL),
         mSessionID(0),
         mTransactionID(0),
-        mReceivedResponse(false)
+        mReceivedResponse(false),
+        mProcessingEvent(false),
+        mCurrentEventHandle(0)
 {
     mRequestIn1 = usb_request_new(device, ep_in);
     mRequestIn2 = usb_request_new(device, ep_in);
@@ -792,6 +794,42 @@ MtpResponseCode MtpDevice::readResponse() {
         ALOGD("readResponse failed\n");
         return -1;
     }
+}
+
+int MtpDevice::submitEventRequest() {
+    if (mEventMutex.tryLock()) {
+        // An event is being reaped on another thread.
+        return -1;
+    }
+    if (mProcessingEvent) {
+        // An event request was submitted, but no reapEventRequest called so far.
+        return -1;
+    }
+    Mutex::Autolock autoLock(mEventMutexForInterrupt);
+    mEventPacket.sendRequest(mRequestIntr);
+    const int currentHandle = ++mCurrentEventHandle;
+    mProcessingEvent = true;
+    mEventMutex.unlock();
+    return currentHandle;
+}
+
+int MtpDevice::reapEventRequest(int handle) {
+    Mutex::Autolock autoLock(mEventMutex);
+    if (!mProcessingEvent || mCurrentEventHandle != handle) {
+        return -1;
+    }
+    mProcessingEvent = false;
+    const int readSize = mEventPacket.readResponse(mRequestIntr->dev);
+    const int result = mEventPacket.getEventCode();
+    return readSize == 0 ? 0 : result;
+}
+
+void MtpDevice::discardEventRequest(int handle) {
+    Mutex::Autolock autoLock(mEventMutexForInterrupt);
+    if (mCurrentEventHandle != handle) {
+        return;
+    }
+    usb_request_cancel(mRequestIntr);
 }
 
 }  // namespace android
