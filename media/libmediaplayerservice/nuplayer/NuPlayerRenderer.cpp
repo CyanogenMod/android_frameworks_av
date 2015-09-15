@@ -112,6 +112,7 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
+      mRenderingDataDelivered(false),
       mLastAudioMediaTimeUs(-1),
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioTornDown(false),
@@ -663,11 +664,16 @@ void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
 void NuPlayer::Renderer::prepareForMediaRenderingStart_l() {
     mAudioRenderingStartGeneration = mAudioDrainGeneration;
     mVideoRenderingStartGeneration = mVideoDrainGeneration;
+    mRenderingDataDelivered = false;
 }
 
 void NuPlayer::Renderer::notifyIfMediaRenderingStarted_l() {
     if (mVideoRenderingStartGeneration == mVideoDrainGeneration &&
         mAudioRenderingStartGeneration == mAudioDrainGeneration) {
+        mRenderingDataDelivered = true;
+        if (mPaused) {
+            return;
+        }
         mVideoRenderingStartGeneration = -1;
         mAudioRenderingStartGeneration = -1;
 
@@ -1534,7 +1540,10 @@ void NuPlayer::Renderer::onResume() {
     {
         Mutex::Autolock autoLock(mLock);
         mPaused = false;
-
+        // rendering started message may have been delayed if we were paused.
+        if (mRenderingDataDelivered) {
+            notifyIfMediaRenderingStarted_l();
+        }
         // configure audiosink as we did not do it when pausing
         if (mAudioSink != NULL && mAudioSink->ready()) {
             mAudioSink->setPlaybackRate(mPlaybackSettings);
