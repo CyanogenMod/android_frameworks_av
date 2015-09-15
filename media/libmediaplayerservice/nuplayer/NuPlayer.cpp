@@ -426,7 +426,7 @@ void NuPlayer::writeTrackInfo(
         return;
     }
     int32_t trackType;
-    if (format->findInt32("type", &trackType) != OK) {
+    if (!format->findInt32("type", &trackType)) {
         ALOGE("no track type");
         return;
     }
@@ -448,7 +448,7 @@ void NuPlayer::writeTrackInfo(
     }
 
     AString lang;
-    if (format->findString("language", &lang)) {
+    if (!format->findString("language", &lang)) {
         ALOGE("no language");
         return;
     }
@@ -1306,6 +1306,10 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     }
 
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+    if (audioMeta == NULL) {
+        ALOGE("no metadata for audio source");
+        return;
+    }
     audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
     if (mAudioSink != NULL) {
         streamType = mAudioSink->getAudioStreamType();
