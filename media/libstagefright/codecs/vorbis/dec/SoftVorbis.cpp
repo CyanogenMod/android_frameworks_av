@@ -56,6 +56,7 @@ SoftVorbis::SoftVorbis(
       mNumFramesLeftOnPage(-1),
       mSawInputEos(false),
       mSignalledOutputEos(false),
+      mSignalledError(false),
       mOutputPortSettingsChange(NONE) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
@@ -247,7 +248,7 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
     List<BufferInfo *> &inQueue = getPortQueue(0);
     List<BufferInfo *> &outQueue = getPortQueue(1);
 
-    if (mOutputPortSettingsChange != NONE) {
+    if (mSignalledError || mOutputPortSettingsChange != NONE) {
         return;
     }
 
@@ -271,9 +272,19 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
             mVi = new vorbis_info;
             vorbis_info_init(mVi);
 
-            CHECK_EQ(0, _vorbis_unpack_info(mVi, &bits));
+            int ret = _vorbis_unpack_info(mVi, &bits);
+            if (ret != 0) {
+                notify(OMX_EventError, OMX_ErrorUndefined, ret, NULL);
+                mSignalledError = true;
+                return;
+            }
         } else {
-            CHECK_EQ(0, _vorbis_unpack_books(mVi, &bits));
+            int ret = _vorbis_unpack_books(mVi, &bits);
+            if (ret != 0) {
+                notify(OMX_EventError, OMX_ErrorUndefined, ret, NULL);
+                mSignalledError = true;
+                return;
+            }
 
             CHECK(mState == NULL);
             mState = new vorbis_dsp_state;
@@ -439,6 +450,7 @@ void SoftVorbis::onReset() {
 
     mSawInputEos = false;
     mSignalledOutputEos = false;
+    mSignalledError = false;
     mOutputPortSettingsChange = NONE;
 }
 

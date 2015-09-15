@@ -61,6 +61,7 @@ private:
     int32_t mNumFramesLeftOnPage;
     bool mSawInputEos;
     bool mSignalledOutputEos;
+    bool mSignalledError;
 
     enum {
         NONE,
