@@ -216,6 +216,10 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
 
         sp<MetaData> meta = extractor->getTrackMetaData(i);
+        if (meta == NULL) {
+            ALOGE("no metadata for track %zu", i);
+            return UNKNOWN_ERROR;
+        }
 
         const char *mime;
         CHECK(meta->findCString(kKeyMIMEType, &mime));
@@ -1125,6 +1129,10 @@ sp<AMessage> NuPlayer::GenericSource::getTrackInfo(size_t trackIndex) const {
 
     sp<AMessage> format = new AMessage();
     sp<MetaData> meta = mSources.itemAt(trackIndex)->getFormat();
+    if (meta == NULL) {
+        ALOGE("no metadata for track %zu", trackIndex);
+        return NULL;
+    }
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));

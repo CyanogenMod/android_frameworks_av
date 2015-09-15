@@ -421,8 +421,15 @@ void NuPlayer::seekToAsync(int64_t seekTimeUs, bool needNotify) {
 
 void NuPlayer::writeTrackInfo(
         Parcel* reply, const sp<AMessage> format) const {
+    if (format == NULL) {
+        ALOGE("NULL format");
+        return;
+    }
     int32_t trackType;
-    CHECK(format->findInt32("type", &trackType));
+    if (format->findInt32("type", &trackType) != OK) {
+        ALOGE("no track type");
+        return;
+    }
 
     AString mime;
     if (!format->findString("mime", &mime)) {
@@ -435,12 +442,16 @@ void NuPlayer::writeTrackInfo(
         } else if (trackType == MEDIA_TRACK_TYPE_VIDEO) {
             mime = "video/";
         } else {
-            TRESPASS();
+            ALOGE("unknown track type: %d", trackType);
+            return;
         }
     }
 
     AString lang;
-    CHECK(format->findString("language", &lang));
+    if (format->findString("language", &lang)) {
+        ALOGE("no language");
+        return;
+    }
 
     reply->writeInt32(2); // write something non-zero
     reply->writeInt32(trackType);
