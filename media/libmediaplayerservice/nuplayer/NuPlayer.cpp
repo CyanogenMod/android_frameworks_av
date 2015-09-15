@@ -1687,8 +1687,10 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     // Make sure we don't continue to scan sources until we finish flushing.
     ++mScanSourcesGeneration;
     if (mScanSourcesPending) {
-        mDeferredActions.push_back(
-                new SimpleAction(&NuPlayer::performScanSources));
+        if (!needShutdown) {
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::performScanSources));
+        }
         mScanSourcesPending = false;
     }
 
