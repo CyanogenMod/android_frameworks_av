@@ -33,7 +33,7 @@ endif
 
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
-LOCAL_SANITIZE := unsigned-integer-overflow
+LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
@@ -58,6 +58,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE_TAGS := optional
 
