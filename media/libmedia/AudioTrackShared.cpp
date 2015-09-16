@@ -932,7 +932,7 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
     return (ssize_t) mState.mPosition;
 }
 
-status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush __unused)
+status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
 {
     if (mIsShutdown) {
         buffer->mFrameCount = 0;
@@ -970,7 +970,9 @@ status_t StaticAudioTrackServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush
     // it is always larger or equal to avail.
     LOG_ALWAYS_FATAL_IF(mFramesReady < (int64_t) avail);
     buffer->mNonContig = mFramesReady == INT64_MAX ? SIZE_MAX : clampToSize(mFramesReady - avail);
-    mUnreleased = avail;
+    if (!ackFlush) {
+        mUnreleased = avail;
+    }
     return NO_ERROR;
 }
 
