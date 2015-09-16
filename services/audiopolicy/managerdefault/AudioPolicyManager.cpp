@@ -1718,7 +1718,9 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
                 status = volStatus;
             }
         }
-        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & accessibilityDevice) != 0)) {
+        if ((accessibilityDevice != AUDIO_DEVICE_NONE) &&
+                ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & accessibilityDevice) != 0)))
+        {
             status_t volStatus = checkAndSetVolume(AUDIO_STREAM_ACCESSIBILITY,
                                                    index, desc, curDevice);
         }
