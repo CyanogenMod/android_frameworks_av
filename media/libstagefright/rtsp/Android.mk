@@ -32,6 +32,8 @@ ifeq ($(TARGET_ARCH),arm)
 endif
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
@@ -55,6 +57,8 @@ LOCAL_C_INCLUDES:= \
 	$(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS += -Wno-multichar
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE_TAGS := optional
 
