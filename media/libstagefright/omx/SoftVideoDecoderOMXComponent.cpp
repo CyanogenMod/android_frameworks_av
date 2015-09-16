@@ -388,6 +388,14 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
             uint32_t oldHeight = def->format.video.nFrameHeight;
             uint32_t newWidth = video_def->nFrameWidth;
             uint32_t newHeight = video_def->nFrameHeight;
+            // We need width, height, stride and slice-height to be non-zero and sensible.
+            // These values were chosen to prevent integer overflows further down the line, and do
+            // not indicate support for 32kx32k video.
+            if (newWidth > 32768 || newHeight > 32768
+                    || video_def->nStride > 32768 || video_def->nSliceHeight > 32768) {
+                ALOGE("b/22885421");
+                return OMX_ErrorBadParameter;
+            }
             if (newWidth != oldWidth || newHeight != oldHeight) {
                 bool outputPort = (newParams->nPortIndex == kOutputPortIndex);
                 if (outputPort) {
