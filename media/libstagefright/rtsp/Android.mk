@@ -33,7 +33,6 @@ endif
 
 LOCAL_CFLAGS += -Werror -Wall
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 
@@ -56,14 +55,8 @@ LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
 	$(TOP)/frameworks/native/include/media/openmax
 
-<<<<<<< HEAD
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wall
 LOCAL_CLANG := true
-=======
-LOCAL_CFLAGS += -Wno-multichar
-LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
->>>>>>> c82fcdda59031a3886863be2622994819d80ba25
 
 LOCAL_MODULE_TAGS := optional
 
