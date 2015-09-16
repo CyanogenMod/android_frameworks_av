@@ -808,6 +808,10 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     def.nBufferCountActual, bufSize, allottedSize, def.nBufferSize, asString(type),
                     portIndex == kPortIndexInput ? "input" : "output");
 
+            if (bufSize == 0 || def.nBufferCountActual > SIZE_MAX / bufSize) {
+                ALOGE("b/22885421");
+                return NO_MEMORY;
+            }
             size_t totalSize = def.nBufferCountActual * bufSize;
             mDealer[portIndex] = new MemoryDealer(totalSize, "ACodec");
 
@@ -3852,8 +3856,11 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         params.nSliceHeight = params.nFrameHeight;
     }
 
-    // we need stride and slice-height to be non-zero
-    if (params.nStride == 0 || params.nSliceHeight == 0) {
+    // we need stride and slice-height to be non-zero and sensible. These values were chosen to
+    // prevent integer overflows further down the line, and do not indicate support for
+    // 32kx32k video.
+    if (params.nStride == 0 || params.nSliceHeight == 0
+            || params.nStride > 32768 || params.nSliceHeight > 32768) {
         ALOGW("cannot describe color format 0x%x = %d with stride=%u and sliceHeight=%u",
                 fmt, fmt, params.nStride, params.nSliceHeight);
         return false;
