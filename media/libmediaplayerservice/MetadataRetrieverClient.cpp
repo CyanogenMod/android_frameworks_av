@@ -35,6 +35,7 @@
 #include <media/MediaMetadataRetrieverInterface.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/Utils.h>
 #include <private/media/VideoFrame.h>
 #include "MetadataRetrieverClient.h"
 #include "StagefrightMetadataRetriever.h"
@@ -133,7 +134,8 @@ status_t MetadataRetrieverClient::setDataSource(
 
 status_t MetadataRetrieverClient::setDataSource(int fd, int64_t offset, int64_t length)
 {
-    ALOGV("setDataSource fd=%d, offset=%lld, length=%lld", fd, offset, length);
+    ALOGV("setDataSource fd=%d (%s), offset=%lld, length=%lld",
+            fd, nameForFd(fd).c_str(), (long long) offset, (long long) length);
     Mutex::Autolock lock(mLock);
     struct stat sb;
     int ret = fstat(fd, &sb);
