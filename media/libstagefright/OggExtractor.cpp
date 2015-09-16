@@ -23,7 +23,6 @@
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/foundation/base64.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaBufferGroup.h>
@@ -1203,18 +1202,93 @@ void parseVorbisComment(
 
 }
 
+// The returned buffer should be free()d.
+static uint8_t *DecodeBase64(const char *s, size_t size, size_t *outSize) {
+    *outSize = 0;
+
+    if ((size % 4) != 0) {
+        return NULL;
+    }
+
+    size_t n = size;
+    size_t padding = 0;
+    if (n >= 1 && s[n - 1] == '=') {
+        padding = 1;
+
+        if (n >= 2 && s[n - 2] == '=') {
+            padding = 2;
+        }
+    }
+
+    // We divide first to avoid overflow. It's OK to do this because we
+    // already made sure that size % 4 == 0.
+    size_t outLen = (size / 4) * 3 - padding;
+
+    void *buffer = malloc(outLen);
+    if (buffer == NULL) {
+        return NULL;
+    }
+
+    uint8_t *out = (uint8_t *)buffer;
+    size_t j = 0;
+    uint32_t accum = 0;
+    for (size_t i = 0; i < n; ++i) {
+        char c = s[i];
+        unsigned value;
+        if (c >= 'A' && c <= 'Z') {
+            value = c - 'A';
+        } else if (c >= 'a' && c <= 'z') {
+            value = 26 + c - 'a';
+        } else if (c >= '0' && c <= '9') {
+            value = 52 + c - '0';
+        } else if (c == '+') {
+            value = 62;
+        } else if (c == '/') {
+            value = 63;
+        } else if (c != '=') {
+            break;
+        } else {
+            if (i < n - padding) {
+                break;
+            }
+
+            value = 0;
+        }
+
+        accum = (accum << 6) | value;
+
+        if (((i + 1) % 4) == 0) {
+            out[j++] = (accum >> 16);
+
+            if (j < outLen) { out[j++] = (accum >> 8) & 0xff; }
+            if (j < outLen) { out[j++] = accum & 0xff; }
+
+            accum = 0;
+        }
+    }
+
+    // Check if we exited the loop early.
+    if (j < outLen) {
+        free(buffer);
+        return NULL;
+    }
+
+    *outSize = outLen;
+    return (uint8_t *)buffer;
+}
+
 static void extractAlbumArt(
         const sp<MetaData> &fileMeta, const void *data, size_t size) {
     ALOGV("extractAlbumArt from '%s'", (const char *)data);
 
-    sp<ABuffer> flacBuffer = decodeBase64(AString((const char *)data, size));
-    if (flacBuffer == NULL) {
+    size_t flacSize;
+    uint8_t *flac = DecodeBase64((const char *)data, size, &flacSize);
+
+    if (flac == NULL) {
         ALOGE("malformed base64 encoded data.");
         return;
     }
 
-    size_t flacSize = flacBuffer->size();
-    uint8_t *flac = flacBuffer->data();
     ALOGV("got flac of size %zu", flacSize);
 
     uint32_t picType;
@@ -1224,24 +1298,24 @@ static void extractAlbumArt(
     char type[128];
 
     if (flacSize < 8) {
-        return;
+        goto exit;
     }
 
     picType = U32_AT(flac);
 
     if (picType != 3) {
         // This is not a front cover.
-        return;
+        goto exit;
     }
 
     typeLen = U32_AT(&flac[4]);
     if (typeLen > sizeof(type) - 1) {
-        return;
+        goto exit;
     }
 
     // we've already checked above that flacSize >= 8
     if (flacSize - 8 < typeLen) {
-        return;
+        goto exit;
     }
 
     memcpy(type, &flac[8], typeLen);
@@ -1251,7 +1325,7 @@ static void extractAlbumArt(
 
     if (!strcmp(type, "-->")) {
         // This is not inline cover art, but an external url instead.
-        return;
+        goto exit;
     }
 
     descLen = U32_AT(&flac[8 + typeLen]);
@@ -1259,7 +1333,7 @@ static void extractAlbumArt(
     if (flacSize < 32 ||
         flacSize - 32 < typeLen ||
         flacSize - 32 - typeLen < descLen) {
-        return;
+        goto exit;
     }
 
     dataLen = U32_AT(&flac[8 + typeLen + 4 + descLen + 16]);
@@ -1267,7 +1341,7 @@ static void extractAlbumArt(
 
     // we've already checked above that (flacSize - 32 - typeLen - descLen) >= 0
     if (flacSize - 32 - typeLen - descLen < dataLen) {
-        return;
+        goto exit;
     }
 
     ALOGV("got image data, %zu trailing bytes",
@@ -1277,6 +1351,10 @@ static void extractAlbumArt(
             kKeyAlbumArt, 0, &flac[8 + typeLen + 4 + descLen + 20], dataLen);
 
     fileMeta->setCString(kKeyAlbumArtMIME, type);
+
+exit:
+    free(flac);
+    flac = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
