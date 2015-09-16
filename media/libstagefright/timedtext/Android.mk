@@ -10,6 +10,8 @@ LOCAL_SRC_FILES:=                 \
         TimedTextPlayer.cpp
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/stagefright/timedtext \
