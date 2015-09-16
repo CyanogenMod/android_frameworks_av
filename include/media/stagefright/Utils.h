@@ -85,6 +85,8 @@ void writeToAMessage(sp<AMessage> msg, const AVSyncSettings &sync, float videoFp
 void readFromAMessage(
         const sp<AMessage> &msg, AVSyncSettings *sync /* nonnull */, float *videoFps /* nonnull */);
 
+AString nameForFd(int fd);
+
 }  // namespace android
 
 #endif  // UTILS_H_

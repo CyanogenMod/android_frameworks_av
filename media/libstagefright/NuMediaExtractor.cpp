@@ -129,6 +129,9 @@ status_t NuMediaExtractor::setDataSource(
 
 status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
 
+    ALOGV("setDataSource fd=%d (%s), offset=%lld, length=%lld",
+            fd, nameForFd(fd).c_str(), (long long) offset, (long long) size);
+
     Mutex::Autolock autoLock(mLock);
 
     if (mImpl != NULL) {

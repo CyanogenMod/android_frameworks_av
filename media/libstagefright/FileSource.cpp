@@ -20,6 +20,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/FileSource.h>
+#include <media/stagefright/Utils.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -38,6 +39,7 @@ FileSource::FileSource(const char *filename)
       mDrmBufSize(0),
       mDrmBuf(NULL){
 
+    ALOGV("%s", filename);
     mFd = open(filename, O_LARGEFILE | O_RDONLY);
 
     if (mFd >= 0) {
@@ -56,6 +58,9 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
       mDrmBufOffset(0),
       mDrmBufSize(0),
       mDrmBuf(NULL){
+    ALOGV("fd=%d (%s), offset=%lld, length=%lld",
+            fd, nameForFd(fd).c_str(), (long long) offset, (long long) length);
+
     CHECK(offset >= 0);
     CHECK(length >= 0);
 }
