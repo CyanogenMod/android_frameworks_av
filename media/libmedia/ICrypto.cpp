@@ -297,7 +297,7 @@ status_t BnCrypto::onTransact(
             if (secure) {
                 secureBufferId = reinterpret_cast<void *>(static_cast<uintptr_t>(data.readInt64()));
             } else {
-                dstPtr = malloc(totalSize);
+                dstPtr = calloc(1, totalSize);
             }
 
             AString errorDetailMsg;
