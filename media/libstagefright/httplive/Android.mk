@@ -14,7 +14,7 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Werror
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 
 LOCAL_SHARED_LIBRARIES := \
         libbinder \
