@@ -964,7 +964,11 @@ uint32_t MPEG4Writer::getMpeg4Time() {
     // MP4 file uses time counting seconds since midnight, Jan. 1, 1904
     // while time function returns Unix epoch values which starts
     // at 1970-01-01. Lets add the number of seconds between them
-    uint32_t mpeg4Time = now + (66 * 365 + 17) * (24 * 60 * 60);
+    static const uint32_t delta = (66 * 365 + 17) * (24 * 60 * 60);
+    if (now < 0 || uint32_t(now) > UINT32_MAX - delta) {
+        return 0;
+    }
+    uint32_t mpeg4Time = uint32_t(now) + delta;
     return mpeg4Time;
 }
 
