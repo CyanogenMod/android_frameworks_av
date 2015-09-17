@@ -54,6 +54,7 @@ class CameraParameters;
 class MediaBuffer;
 struct AudioSource;
 class CameraSource;
+class CameraSourceTimeLapse;
 class ICamera;
 class ICameraRecordingProxy;
 class String16;
@@ -85,7 +86,7 @@ struct AVFactory {
             uint32_t channels,
             uint32_t outSampleRate = 0);
 
-    virtual CameraSource *CreateFromCamera(
+    virtual CameraSource *CreateCameraSourceFromCamera(
             const sp<ICamera> &camera,
             const sp<ICameraRecordingProxy> &proxy,
             int32_t cameraId,
@@ -94,6 +95,18 @@ struct AVFactory {
             Size videoSize,
             int32_t frameRate,
             const sp<IGraphicBufferProducer>& surface,
+            bool storeMetaDataInVideoBuffers = true);
+
+    virtual CameraSourceTimeLapse *CreateCameraSourceTimeLapseFromCamera(
+            const sp<ICamera> &camera,
+            const sp<ICameraRecordingProxy> &proxy,
+            int32_t cameraId,
+            const String16& clientName,
+            uid_t clientUid,
+            Size videoSize,
+            int32_t videoFrameRate,
+            const sp<IGraphicBufferProducer>& surface,
+            int64_t timeBetweenFrameCaptureUs,
             bool storeMetaDataInVideoBuffers = true);
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVFactory);
