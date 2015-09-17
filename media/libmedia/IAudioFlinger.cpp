@@ -1112,7 +1112,7 @@ status_t BnAudioFlinger::onTransact(
             String8 address(data.readString8());
             audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
             uint32_t latencyMs = 0;
-            audio_io_handle_t output;
+            audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
             status_t status = openOutput(module, &output, &config,
                                          &devices, address, &latencyMs, flags);
             ALOGV("OPEN_OUTPUT output, %d", output);
