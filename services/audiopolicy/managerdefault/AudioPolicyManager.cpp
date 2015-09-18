@@ -1765,12 +1765,16 @@ audio_io_handle_t AudioPolicyManager::selectOutputForEffects(
 
     audio_io_handle_t outputOffloaded = 0;
     audio_io_handle_t outputDeepBuffer = 0;
+    audio_io_handle_t outputDirectPcm = 0;
 
     for (size_t i = 0; i < outputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(outputs[i]);
         ALOGV("selectOutputForEffects outputs[%zu] flags %x", i, desc->mFlags);
         if ((desc->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
             outputOffloaded = outputs[i];
+        }
+        if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT_PCM) != 0) {
+            outputDirectPcm = outputs[i];
         }
         if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
             outputDeepBuffer = outputs[i];
@@ -1781,6 +1785,9 @@ audio_io_handle_t AudioPolicyManager::selectOutputForEffects(
           outputOffloaded, outputDeepBuffer);
     if (outputOffloaded != 0) {
         return outputOffloaded;
+    }
+    if (outputDirectPcm != 0) {
+        return outputDirectPcm;
     }
     if (outputDeepBuffer != 0) {
         return outputDeepBuffer;

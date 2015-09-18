@@ -1113,7 +1113,8 @@ status_t AudioFlinger::EffectHandle::enable()
         mEnabled = false;
     } else {
         if (thread != 0) {
-            if (thread->type() == ThreadBase::OFFLOAD) {
+            if ((thread->type() == ThreadBase::OFFLOAD) ||
+                (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)) {
                 PlaybackThread *t = (PlaybackThread *)thread.get();
                 Mutex::Autolock _l(t->mLock);
                 t->broadcast_l();

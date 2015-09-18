@@ -1236,7 +1236,13 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             if (lStatus != NO_ERROR) {
                 goto Exit;
             }
-            effect->setOffloaded(mType == OFFLOAD, mId);
+
+            bool setVal = false;
+            if (mType == OFFLOAD || (mType == DIRECT && mIsDirectPcm)) {
+                setVal = true;
+            }
+
+            effect->setOffloaded(setVal, mId);
 
             lStatus = chain->addEffect_l(effect);
             if (lStatus != NO_ERROR) {
@@ -1320,7 +1326,13 @@ status_t AudioFlinger::ThreadBase::addEffect_l(const sp<EffectModule>& effect)
         return BAD_VALUE;
     }
 
-    effect->setOffloaded(mType == OFFLOAD, mId);
+    bool setval = false;
+
+    if ((mType == OFFLOAD) || (mType == DIRECT && mIsDirectPcm)) {
+        setval = true;
+    }
+
+    effect->setOffloaded(setval, mId);
 
     status_t status = chain->addEffect_l(effect);
     if (status != NO_ERROR) {
