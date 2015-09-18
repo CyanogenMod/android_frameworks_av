@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/base64.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
+#include <mediaplayerservice/AVMediaServiceExtensions.h>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -170,7 +171,7 @@ bool ARTSPConnection::ParseURL(
         }
     }
 
-    const char *colonPos = strchr(host->c_str(), ':');
+    const char *colonPos = AVMediaServiceUtils::get()->parseURL(host);
 
     if (colonPos != NULL) {
         unsigned long x;
@@ -252,6 +253,11 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
         ALOGV("user = '%s', pass = '%s'", mUser.c_str(), mPass.c_str());
     }
 
+    performConnect(reply, host, port);
+}
+
+void ARTSPConnection::performConnect(const sp<AMessage> &reply,
+        AString host, unsigned port) {
     struct hostent *ent = gethostbyname(host.c_str());
     if (ent == NULL) {
         ALOGE("Unknown host %s", host.c_str());
@@ -381,7 +387,12 @@ void ARTSPConnection::onCompleteConnection(const sp<AMessage> &msg) {
     socklen_t optionLen = sizeof(err);
     CHECK_EQ(getsockopt(mSocket, SOL_SOCKET, SO_ERROR, &err, &optionLen), 0);
     CHECK_EQ(optionLen, (socklen_t)sizeof(err));
+    performCompleteConnection(msg, err);
+}
 
+void ARTSPConnection::performCompleteConnection(const sp<AMessage> &msg, int err) {
+    sp<AMessage> reply;
+    CHECK(msg->findMessage("reply", &reply));
     if (err != 0) {
         ALOGE("err = %d (%s)", err, strerror(err));
 

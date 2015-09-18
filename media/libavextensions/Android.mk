@@ -67,6 +67,8 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/include/media/ \
         $(TOP)/frameworks/av/media/libmediaplayerservice \
         $(TOP)/frameworks/av/media/libavextensions \
+        $(TOP)/frameworks/av/media/libstagefright/include \
+        $(TOP)/frameworks/av/media/libstagefright/rtsp \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \

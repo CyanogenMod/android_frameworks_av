@@ -32,6 +32,7 @@
 #include <media/stagefright/Utils.h>
 
 #include "mediaplayerservice/AVNuExtensions.h"
+#include "mediaplayerservice/AVMediaServiceExtensions.h"
 
 namespace android {
 
@@ -599,6 +600,8 @@ status_t NuPlayerDriver::getMetadata(
     meta.appendBool(
             Metadata::kSeekAvailable,
             mPlayerFlags & NuPlayer::Source::FLAG_CAN_SEEK);
+
+    AVMediaServiceUtils::get()->appendMeta(&meta);
 
     return OK;
 }

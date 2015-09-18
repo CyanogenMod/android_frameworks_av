@@ -24,13 +24,16 @@
 #include "MyHandler.h"
 #include "SDPLoader.h"
 
+#include <cutils/properties.h>
 #include <media/IMediaHTTPService.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
+#include <mediaplayerservice/AVMediaServiceExtensions.h>
 
 namespace android {
 
 const int64_t kNearEOSTimeoutUs = 2000000ll; // 2 secs
+const uint32_t kMaxNumKeepDamagedAccessUnits = 30;
 
 // Buffer Underflow/Prepare/StartServer/Overflow Marks
 const int64_t NuPlayer::RTSPSource::kUnderflowMarkUs   =  1000000ll;
@@ -60,7 +63,10 @@ NuPlayer::RTSPSource::RTSPSource(
       mInPreparationPhase(true),
       mSeekGeneration(0),
       mEOSTimeoutAudio(0),
-      mEOSTimeoutVideo(0) {
+      mEOSTimeoutVideo(0),
+      mVideoTrackIndex(-1),
+      mKeepDamagedAccessUnits(false),
+      mNumKeepDamagedAccessUnits(0) {
     if (headers) {
         mExtraHeaders = *headers;
 
@@ -486,11 +492,22 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             sp<ABuffer> accessUnit;
             CHECK(msg->findBuffer("accessUnit", &accessUnit));
 
+            bool isVideo = trackIndex == (size_t)mVideoTrackIndex;
             int32_t damaged;
             if (accessUnit->meta()->findInt32("damaged", &damaged)
                     && damaged) {
-                ALOGI("dropping damaged access unit.");
-                break;
+                if (isVideo && mKeepDamagedAccessUnits
+                        && mNumKeepDamagedAccessUnits < kMaxNumKeepDamagedAccessUnits) {
+                    ALOGI("keep a damaged access unit.");
+                    ++mNumKeepDamagedAccessUnits;
+                } else {
+                    ALOGI("dropping damaged access unit.");
+                    break;
+                }
+            } else {
+                if (isVideo) {
+                    mNumKeepDamagedAccessUnits = 0;
+                }
             }
 
             if (mTSParser != NULL) {
@@ -534,8 +551,11 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
                 if (!info->mNPTMappingValid) {
                     // This is a live stream, we didn't receive any normal
                     // playtime mapping. We won't map to npt time.
-                    source->queueAccessUnit(accessUnit);
-                    break;
+                    if (!AVMediaServiceUtils::get()->checkNPTMapping(&info->mRTPTime,
+                            &info->mNormalPlaytimeUs, &info->mNPTMappingValid, rtpTime)) {
+                        source->queueAccessUnit(accessUnit);
+                        break;
+                    }
                 }
 
                 int64_t nptUs =
@@ -621,6 +641,14 @@ void NuPlayer::RTSPSource::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case MyHandler::kWhatByeReceived:
+        {
+            sp<AMessage> msg = dupNotify();
+            msg->setInt32("what", kWhatRTCPByeReceived);
+            msg->post();
+            break;
+        }
+
         case SDPLoader::kWhatSDPLoaded:
         {
             onSDPLoaded(msg);
@@ -654,6 +682,16 @@ void NuPlayer::RTSPSource::onConnected() {
 
         bool isAudio = !strncasecmp(mime, "audio/", 6);
         bool isVideo = !strncasecmp(mime, "video/", 6);
+
+        if (isVideo) {
+            mVideoTrackIndex = i;
+            char value[PROPERTY_VALUE_MAX];
+            if (property_get("rtsp.video.keep-damaged-au", value, NULL)
+                    && !strcasecmp(mime, value)) {
+                ALOGV("enable to keep damaged au for %s", mime);
+                mKeepDamagedAccessUnits = true;
+            }
+        }
 
         TrackInfo info;
         info.mTimeScale = timeScale;

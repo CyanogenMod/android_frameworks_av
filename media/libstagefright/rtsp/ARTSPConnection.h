@@ -42,6 +42,8 @@ struct ARTSPConnection : public AHandler {
 
     void observeBinaryData(const sp<AMessage> &reply);
 
+    virtual bool isIPV6() { return false; }
+
     static bool ParseURL(
             const char *url, AString *host, unsigned *port, AString *path,
             AString *user, AString *pass);
@@ -49,8 +51,11 @@ struct ARTSPConnection : public AHandler {
 protected:
     virtual ~ARTSPConnection();
     virtual void onMessageReceived(const sp<AMessage> &msg);
+    virtual void performConnect(const sp<AMessage> &reply,
+            AString host, unsigned port);
+    virtual void performCompleteConnection(const sp<AMessage> &msg,
+            int err);
 
-private:
     enum State {
         DISCONNECTED,
         CONNECTING,
