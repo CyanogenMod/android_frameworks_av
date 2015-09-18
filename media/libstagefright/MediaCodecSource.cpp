@@ -759,6 +759,8 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
 
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
             memcpy(mbuf->data(), outbuf->data(), outbuf->size());
+            sp<MetaData> meta = mbuf->meta_data();
+            AVUtils::get()->setDeferRelease(meta);
 
             if (!(flags & MediaCodec::BUFFER_FLAG_CODECCONFIG)) {
                 if (mIsVideo) {
