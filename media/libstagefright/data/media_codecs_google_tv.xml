@@ -25,5 +25,5 @@
             <Limit name="bitrate" range="1-20000000" />
             <Feature name="adaptive-playback" />
         </MediaCodec>
-    </Encoders>
+    </Decoders>
 </Included>
