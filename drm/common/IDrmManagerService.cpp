@@ -742,9 +742,11 @@ status_t BpDrmManagerService::decrypt(
     const status_t status = reply.readInt32();
     ALOGV("Return value of decrypt() is %d", status);
 
-    const int size = reply.readInt32();
-    (*decBuffer)->length = size;
-    reply.read((void *)(*decBuffer)->data, size);
+    if (status == NO_ERROR) {
+        const int size = reply.readInt32();
+        (*decBuffer)->length = size;
+        reply.read((void *)(*decBuffer)->data, size);
+    }
 
     return status;
 }
@@ -1470,9 +1472,11 @@ status_t BnDrmManagerService::onTransact(
 
         reply->writeInt32(status);
 
-        const int size = decBuffer->length;
-        reply->writeInt32(size);
-        reply->write(decBuffer->data, size);
+        if (status == NO_ERROR) {
+            const int size = decBuffer->length;
+            reply->writeInt32(size);
+            reply->write(decBuffer->data, size);
+        }
 
         clearDecryptHandle(&handle);
         delete encBuffer; encBuffer = NULL;
