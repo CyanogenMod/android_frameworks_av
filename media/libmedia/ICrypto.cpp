@@ -246,6 +246,7 @@ status_t BnCrypto::onTransact(
 
             size_t totalSize = data.readInt32();
             void *srcData = malloc(totalSize);
+            memset(srcData, 0, totalSize);
             data.read(srcData, totalSize);
 
             int32_t numSubSamples = data.readInt32();
@@ -262,6 +263,7 @@ status_t BnCrypto::onTransact(
                 secureBufferId = reinterpret_cast<void *>(static_cast<uintptr_t>(data.readInt64()));
             } else {
                 dstPtr = malloc(totalSize);
+                memset(dstPtr, 0, totalSize);
             }
 
             AString errorDetailMsg;
