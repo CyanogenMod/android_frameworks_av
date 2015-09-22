@@ -2267,6 +2267,7 @@ size_t MediaCodec::updateBuffers(
 
     uint32_t bufferID;
     CHECK(msg->findInt32("buffer-id", (int32_t*)&bufferID));
+    Mutex::Autolock al(mBufferLock);
 
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
 
