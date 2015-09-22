@@ -2364,9 +2364,9 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         // Convert timestamp position from server time base to client time base.
         // TODO The following code should work OK now because timestamp.mPosition is 32-bit.
         // But if we change it to 64-bit then this could fail.
-        // If (mPosition - mServer) can be negative then should use:
-        //   (int32_t)(mPosition - mServer)
-        timestamp.mPosition += mPosition - mServer;
+        // Split this out instead of using += to prevent unsigned overflow
+        // checks in the outer sum.
+        timestamp.mPosition = timestamp.mPosition + static_cast<int32_t>(mPosition) - mServer;
         // Immediately after a call to getPosition_l(), mPosition and
         // mServer both represent the same frame position.  mPosition is
         // in client's point of view, and mServer is in server's point of
