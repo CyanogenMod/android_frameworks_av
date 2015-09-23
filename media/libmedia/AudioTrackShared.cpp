@@ -38,7 +38,7 @@ size_t clampToSize(T x) {
 // In general, this means (new_self) returned is max(self, other) + 1.
 
 static uint32_t incrementSequence(uint32_t self, uint32_t other) {
-    int32_t diff = self - other;
+    int32_t diff = (int32_t) self - other;
     if (diff >= 0 && diff < INT32_MAX) {
         return self + 1; // we're already ahead of other.
     }
