@@ -338,6 +338,7 @@ void ClientProxy::interrupt()
     }
 }
 
+__attribute__((no_sanitize("integer")))
 size_t ClientProxy::getMisalignment()
 {
     audio_track_cblk_t* cblk = mCblk;
