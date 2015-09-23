@@ -1495,7 +1495,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("width", mVideoWidth);
         format->setInt32("height", mVideoHeight);
         format->setInt32("stride", mVideoWidth);
-        format->setInt32("slice-height", mVideoWidth);
+        format->setInt32("slice-height", mVideoHeight);
         format->setInt32("color-format", OMX_COLOR_FormatAndroidOpaque);
 
         // set up time lapse/slow motion for surface source
