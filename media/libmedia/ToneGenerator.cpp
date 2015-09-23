@@ -1586,7 +1586,8 @@ void ToneGenerator::WaveGenerator::getSamples(short *outBuffer,
         }
         long dec = lAmplitude/count;
         // loop generation
-        while (count--) {
+        while (count) {
+            count--;
             Sample = ((lA1 * lS1) >> S_Q14) - lS2;
             // shift delay
             lS2 = lS1;
@@ -1597,7 +1598,8 @@ void ToneGenerator::WaveGenerator::getSamples(short *outBuffer,
         }
     } else {
         // loop generation
-        while (count--) {
+        while (count) {
+            count--;
             Sample = ((lA1 * lS1) >> S_Q14) - lS2;
             // shift delay
             lS2 = lS1;
