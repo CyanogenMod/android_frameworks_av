@@ -2197,8 +2197,7 @@ uint32_t AudioTrack::updateAndGetPosition_l()
 {
     // This is the sole place to read server consumed frames
     uint32_t newServer = mProxy->getPosition();
-    int32_t delta = newServer - mServer;
-    mServer = newServer;
+    uint32_t delta = newServer > mServer ? newServer - mServer : 0;
     // TODO There is controversy about whether there can be "negative jitter" in server position.
     //      This should be investigated further, and if possible, it should be addressed.
     //      A more definite failure mode is infrequent polling by client.
@@ -2207,11 +2206,12 @@ uint32_t AudioTrack::updateAndGetPosition_l()
     //      That should ensure delta never goes negative for infrequent polling
     //      unless the server has more than 2^31 frames in its buffer,
     //      in which case the use of uint32_t for these counters has bigger issues.
-    if (delta < 0) {
-        ALOGE("detected illegal retrograde motion by the server: mServer advanced by %d", delta);
-        delta = 0;
+    if (newServer < mServer) {
+        ALOGE("detected illegal retrograde motion by the server: mServer advanced by %d",
+              (int32_t) newServer - mServer);
     }
-    return mPosition += (uint32_t) delta;
+    mServer = newServer;
+    return mPosition += delta;
 }
 
 bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const
