@@ -336,7 +336,7 @@ status_t BnCrypto::onTransact(
                 free(dstPtr);
                 dstPtr = NULL;
             } else {
-                AVMediaUtils::get()->closeFileDescriptor(dstPtr);
+                AVMediaUtils::get()->closeFileDescriptor(secureBufferId);
             }
 
             delete[] subSamples;
