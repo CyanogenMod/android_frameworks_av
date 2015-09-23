@@ -155,6 +155,7 @@ protected:
     };
 
     struct BufferInfo {
+        BufferInfo() : mCustomData(-1) {}
         enum Status {
             OWNED_BY_US,
             OWNED_BY_COMPONENT,
