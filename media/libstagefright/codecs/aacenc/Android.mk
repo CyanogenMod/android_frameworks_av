@@ -83,6 +83,8 @@ LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV7
 endif
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -109,6 +111,8 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
   LOCAL_CFLAGS :=
 
   LOCAL_CFLAGS += -Werror
+  LOCAL_CLANG := true
+  LOCAL_SANITIZE := signed-integer-overflow
 
   LOCAL_STATIC_LIBRARIES := libFraunhoferAAC
 
@@ -133,6 +137,8 @@ else # visualon
   LOCAL_CFLAGS := -DOSCL_IMPORT_REF=
 
   LOCAL_CFLAGS += -Werror
+  LOCAL_CLANG := true
+  LOCAL_SANITIZE := signed-integer-overflow
 
   LOCAL_STATIC_LIBRARIES := \
           libstagefright_aacenc
