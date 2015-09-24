@@ -5714,6 +5714,7 @@ void AudioFlinger::RecordThread::readInputParameters()
     mBufferSize = mInput->stream->common.get_buffer_size(&mInput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     mRsmpInBuffer = new int16_t[mFrameCount * mChannelCount];
+    memset(mRsmpInBuffer, 0, mFrameCount * mChannelCount * sizeof(mRsmpInBuffer[0]));
 
     if (mSampleRate != mReqSampleRate && mChannelCount <= FCC_2 && mReqChannelCount <= FCC_2)
     {
