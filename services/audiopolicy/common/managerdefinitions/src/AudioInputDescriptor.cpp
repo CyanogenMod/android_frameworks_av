@@ -93,6 +93,26 @@ void AudioInputDescriptor::toAudioPort(struct audio_port *port) const
     port->ext.mix.latency_class = AUDIO_LATENCY_NORMAL;
 }
 
+void AudioInputDescriptor::setPreemptedSessions(const SortedVector<audio_session_t>& sessions)
+{
+    mPreemptedSessions = sessions;
+}
+
+SortedVector<audio_session_t> AudioInputDescriptor::getPreemptedSessions() const
+{
+    return mPreemptedSessions;
+}
+
+bool AudioInputDescriptor::hasPreemptedSession(audio_session_t session) const
+{
+    return (mPreemptedSessions.indexOf(session) >= 0);
+}
+
+void AudioInputDescriptor::clearPreemptedSessions()
+{
+    mPreemptedSessions.clear();
+}
+
 status_t AudioInputDescriptor::dump(int fd)
 {
     const size_t SIZE = 256;
