@@ -134,6 +134,7 @@ void FastCapture::onStateChange()
             unsigned channelCount = Format_channelCount(format);
             // FIXME frameSize
             readBuffer = new short[frameCount * channelCount];
+            memset(readBuffer, 0, frameCount * channelCount * sizeof(readBuffer[0]));
             periodNs = (frameCount * 1000000000LL) / sampleRate;    // 1.00
             underrunNs = (frameCount * 1750000000LL) / sampleRate;  // 1.75
             overrunNs = (frameCount * 500000000LL) / sampleRate;    // 0.50
