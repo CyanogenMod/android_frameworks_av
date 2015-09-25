@@ -44,6 +44,7 @@
 #include <utils/Timers.h>
 
 #include "utils/CameraTraces.h"
+#include "mediautils/SchedulingPolicyService.h"
 #include "device3/Camera3Device.h"
 #include "device3/Camera3OutputStream.h"
 #include "device3/Camera3InputStream.h"
@@ -1765,6 +1766,21 @@ status_t Camera3Device::configureStreamsLocked() {
     // Request thread needs to know to avoid using repeat-last-settings protocol
     // across configure_streams() calls
     mRequestThread->configurationComplete();
+
+    // Boost priority of request thread for high speed recording to SCHED_FIFO
+    if (mIsConstrainedHighSpeedConfiguration) {
+        pid_t requestThreadTid = mRequestThread->getTid();
+        res = requestPriority(getpid(), requestThreadTid,
+                kConstrainedHighSpeedThreadPriority, true);
+        if (res != OK) {
+            ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
+                    strerror(-res), res);
+        } else {
+            ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
+        }
+    } else {
+        // TODO: Set/restore normal priority for normal use cases
+    }
 
     // Update device state
 
