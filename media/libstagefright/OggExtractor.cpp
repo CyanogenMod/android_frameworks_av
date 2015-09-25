@@ -959,7 +959,7 @@ status_t MyOpusExtractor::verifyOpusHeader(MediaBuffer *buffer) {
     mMeta->setInt32(kKeyChannelCount, mChannelCount);
     mMeta->setInt64(kKeyOpusSeekPreRoll /* ns */, kOpusSeekPreRollUs * 1000 /* = 80 ms*/);
     mMeta->setInt64(kKeyOpusCodecDelay /* ns */,
-            mCodecDelay /* sample/s */ * 1000000000 / kOpusSampleRate);
+            mCodecDelay /* sample/s */ * 1000000000ll / kOpusSampleRate);
 
     return OK;
 }
