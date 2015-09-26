@@ -24,6 +24,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+#include <media/stagefright/foundation/ADebug.h>
+
 namespace android {
 
 MediaScanner::MediaScanner()
@@ -240,6 +242,7 @@ MediaScanResult MediaScanner::doProcessDirectoryEntry(
 MediaAlbumArt *MediaAlbumArt::clone() {
     size_t byte_size = this->size() + sizeof(MediaAlbumArt);
     MediaAlbumArt *result = reinterpret_cast<MediaAlbumArt *>(malloc(byte_size));
+    CHECK(result != NULL);
     result->mSize = this->size();
     memcpy(&result->mData[0], &this->mData[0], this->size());
     return result;
@@ -253,6 +256,7 @@ void MediaAlbumArt::init(MediaAlbumArt *instance, int32_t dataSize, const void *
 MediaAlbumArt *MediaAlbumArt::fromData(int32_t dataSize, const void* data) {
     size_t byte_size = sizeof(MediaAlbumArt) + dataSize;
     MediaAlbumArt *result = reinterpret_cast<MediaAlbumArt *>(malloc(byte_size));
+    CHECK(result != NULL);
     init(result, dataSize, data);
     return result;
 }

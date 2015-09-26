@@ -2986,6 +2986,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             bool firstRead = true;
 #define TEE_SINK_READ 1024                      // frames per I/O operation
             void *buffer = malloc(TEE_SINK_READ * frameSize);
+            CHECK (buffer != NULL);
             for (;;) {
                 size_t count = TEE_SINK_READ;
                 ssize_t actual = teeSource->read(buffer, count,

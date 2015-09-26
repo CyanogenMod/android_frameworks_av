@@ -24,6 +24,7 @@
 #include <media/EffectsFactoryApi.h>
 
 #include <utils/Log.h>
+#include <media/stagefright/foundation/ADebug.h>
 
 #include "Configuration.h"
 #include "BufferProviders.h"
@@ -205,6 +206,7 @@ DownmixerBufferProvider::DownmixerBufferProvider(
      const int downmixParamSize =
              sizeof(effect_param_t) + psizePadded + sizeof(downmix_type_t);
      effect_param_t * const param = (effect_param_t *) malloc(downmixParamSize);
+     CHECK(param != NULL);
      param->psize = sizeof(downmix_params_t);
      const downmix_params_t downmixParam = DOWNMIX_PARAM_TYPE;
      memcpy(param->data, &downmixParam, param->psize);

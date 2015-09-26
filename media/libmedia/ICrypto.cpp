@@ -235,6 +235,7 @@ status_t BnCrypto::onTransact(
 
             if (opaqueSize > 0) {
                 opaqueData = malloc(opaqueSize);
+                CHECK(opaqueData != NULL);
                 data.read(opaqueData, opaqueSize);
             }
 
@@ -298,6 +299,7 @@ status_t BnCrypto::onTransact(
                 secureBufferId = reinterpret_cast<void *>(static_cast<uintptr_t>(data.readInt64()));
             } else {
                 dstPtr = malloc(totalSize);
+                CHECK(dstPtr != NULL);
             }
 
             AString errorDetailMsg;

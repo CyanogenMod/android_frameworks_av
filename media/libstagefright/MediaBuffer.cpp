@@ -54,6 +54,7 @@ MediaBuffer::MediaBuffer(size_t size)
       mOwnsData(true),
       mMetaData(new MetaData),
       mOriginal(NULL) {
+    CHECK(mData != NULL);
 }
 
 MediaBuffer::MediaBuffer(const sp<GraphicBuffer>& graphicBuffer)

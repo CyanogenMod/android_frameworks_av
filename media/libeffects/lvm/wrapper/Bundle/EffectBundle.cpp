@@ -29,6 +29,7 @@
 #include "EffectBundle.h"
 #include "math.h"
 
+#include <media/stagefright/foundation/ADebug.h>
 
 // effect_handle_t interface implementation for bass boost
 extern "C" const struct effect_interface_s gLvmEffectInterface;
@@ -563,6 +564,7 @@ int LvmBundle_init(EffectContext *pContext){
     for (int i=0; i<LVM_NR_MEMORY_REGIONS; i++){
         if (MemTab.Region[i].Size != 0){
             MemTab.Region[i].pBaseAddress = malloc(MemTab.Region[i].Size);
+            CHECK(MemTab.Region[i].pBaseAddress != NULL);
 
             if (MemTab.Region[i].pBaseAddress == LVM_NULL){
                 ALOGV("\tLVM_ERROR :LvmBundle_init CreateInstance Failed to allocate %" PRIu32
@@ -729,6 +731,7 @@ int LvmBundle_process(LVM_INT16        *pIn,
             }
             pContext->pBundledContext->workBuffer =
                     (LVM_INT16 *)malloc(frameCount * sizeof(LVM_INT16) * 2);
+            CHECK(pContext->pBundledContext->workBuffer != NULL);
             pContext->pBundledContext->frameCount = frameCount;
         }
         pOutTmp = pContext->pBundledContext->workBuffer;

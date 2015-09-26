@@ -2128,6 +2128,7 @@ bool CallbackThread::threadLoop() {
     if (mBuffer == NULL) {
         mBufferSize = sink->bufferSize();
         mBuffer = malloc(mBufferSize);
+        CHECK(mBuffer != NULL);
     }
 
     size_t actualSize =

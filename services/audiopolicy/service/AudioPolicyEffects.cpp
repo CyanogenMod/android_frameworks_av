@@ -442,6 +442,7 @@ effect_param_t *AudioPolicyEffects::loadEffectParameter(cnode *root)
     size_t curSize = sizeof(effect_param_t);
     size_t totSize = sizeof(effect_param_t) + 2 * sizeof(int);
     effect_param_t *fx_param = (effect_param_t *)malloc(totSize);
+    CHECK(fx_param != NULL);
 
     param = config_find(root, PARAM_TAG);
     value = config_find(root, VALUE_TAG);

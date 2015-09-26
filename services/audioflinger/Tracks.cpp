@@ -24,6 +24,7 @@
 #include <math.h>
 #include <sys/syscall.h>
 #include <utils/Log.h>
+#include <media/stagefright/foundation/ADebug.h>
 
 #include <private/media/AudioTrackShared.h>
 
@@ -1771,6 +1772,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
             if (mBufferQueue.size() < kMaxOverFlowBuffers) {
                 pInBuffer = new Buffer;
                 pInBuffer->mBuffer = malloc(inBuffer.frameCount * mFrameSize);
+                CHECK(pInBuffer->mBuffer != NULL);
                 pInBuffer->frameCount = inBuffer.frameCount;
                 pInBuffer->raw = pInBuffer->mBuffer;
                 memcpy(pInBuffer->raw, inBuffer.raw, inBuffer.frameCount * mFrameSize);

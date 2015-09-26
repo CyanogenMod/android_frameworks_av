@@ -1225,6 +1225,7 @@ static uint8_t *DecodeBase64(const char *s, size_t size, size_t *outSize) {
     *outSize = outLen;
 
     void *buffer = malloc(outLen);
+    CHECK(buffer != NULL);
 
     uint8_t *out = (uint8_t *)buffer;
     size_t j = 0;

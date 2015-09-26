@@ -27,6 +27,8 @@
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 
+#include <media/stagefright/foundation/ADebug.h>
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -102,6 +104,7 @@ private:
                                                   ((origParam->psize + 3) & ~3) +
                                                   ((origParam->vsize + 3) & ~3);
                                 effect_param_t *dupParam = (effect_param_t *) malloc(origSize);
+                                CHECK(dupParam != NULL);
                                 memcpy(dupParam, origParam, origSize);
                                 // This works because the param buffer allocation is also done by
                                 // multiples of 4 bytes originally. In theory we should memcpy only
