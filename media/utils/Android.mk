@@ -18,6 +18,8 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
   BatteryNotifier.cpp \
+  ISchedulingPolicyService.cpp \
+  SchedulingPolicyService.cpp
 
 LOCAL_SHARED_LIBRARIES := \
   libbinder \

@@ -60,7 +60,7 @@
 #include "FastMixer.h"
 #include "FastCapture.h"
 #include "ServiceUtilities.h"
-#include "SchedulingPolicyService.h"
+#include "mediautils/SchedulingPolicyService.h"
 
 #ifdef ADD_BATTERY_DATA
 #include <media/IMediaPlayerService.h>
