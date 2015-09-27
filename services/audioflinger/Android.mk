@@ -3,17 +3,6 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    ISchedulingPolicyService.cpp \
-    SchedulingPolicyService.cpp
-
-# FIXME Move this library to frameworks/native
-LOCAL_MODULE := libscheduling_policy
-
-include $(BUILD_STATIC_LIBRARY)
-
-include $(CLEAR_VARS)
-
-LOCAL_SRC_FILES := \
     ServiceUtilities.cpp
 
 # FIXME Move this library to frameworks/native
@@ -64,10 +53,10 @@ LOCAL_SHARED_LIBRARIES := \
     libeffects \
     libpowermanager \
     libserviceutility \
-    libsonic
+    libsonic \
+    libmediautils
 
 LOCAL_STATIC_LIBRARIES := \
-    libscheduling_policy \
     libcpustats \
     libmedia_helper
 
