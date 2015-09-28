@@ -2637,6 +2637,12 @@ status_t MPEG4Extractor::parseITunesMetaData(off64_t offset, size_t size) {
                     mLastCommentName.setTo((const char *)buffer + 4);
                     break;
                 case FOURCC('d', 'a', 't', 'a'):
+                    if (size < 8) {
+                        delete[] buffer;
+                        buffer = NULL;
+                        ALOGE("b/24346430");
+                        return ERROR_MALFORMED;
+                    }
                     mLastCommentData.setTo((const char *)buffer + 8);
                     break;
             }
