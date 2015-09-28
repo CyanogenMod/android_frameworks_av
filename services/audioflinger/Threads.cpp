@@ -444,6 +444,8 @@ String8 inputFlagsToString(audio_input_flags_t flags)
     } mappings[] = {
         AUDIO_INPUT_FLAG_FAST,              "FAST",
         AUDIO_INPUT_FLAG_HW_HOTWORD,        "HW_HOTWORD",
+        AUDIO_INPUT_FLAG_RAW,               "RAW",
+        AUDIO_INPUT_FLAG_SYNC,              "SYNC",
         AUDIO_INPUT_FLAG_NONE,              "NONE",         // must be last
     };
     String8 result;
@@ -483,6 +485,9 @@ String8 outputFlagsToString(audio_output_flags_t flags)
         AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD, "COMPRESS_OFFLOAD",
         AUDIO_OUTPUT_FLAG_NON_BLOCKING,     "NON_BLOCKING",
         AUDIO_OUTPUT_FLAG_HW_AV_SYNC,       "HW_AV_SYNC",
+        AUDIO_OUTPUT_FLAG_RAW,              "RAW",
+        AUDIO_OUTPUT_FLAG_SYNC,             "SYNC",
+        AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO,  "IEC958_NONAUDIO",
         AUDIO_OUTPUT_FLAG_NONE,             "NONE",         // must be last
     };
     String8 result;
