@@ -187,6 +187,11 @@ void OMX::binderDied(const wp<IBinder> &the_late_who) {
     instance->onObserverDied(mMaster);
 }
 
+bool OMX::isSecure(node_id node) {
+    OMXNodeInstance *instance = findInstance(node);
+    return (instance == NULL ? false : instance->isSecure());
+}
+
 bool OMX::livesLocally(node_id /* node */, pid_t pid) {
     return pid == getpid();
 }
