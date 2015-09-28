@@ -207,6 +207,12 @@ public:
     virtual status_t onTransact(
             uint32_t code, const Parcel &data, Parcel *reply,
             uint32_t flags = 0);
+
+protected:
+    // check if the codec is secure.
+    virtual bool isSecure(IOMX::node_id node) {
+        return false;
+    }
 };
 
 class BnOMXObserver : public BnInterface<IOMXObserver> {

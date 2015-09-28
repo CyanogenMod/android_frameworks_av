@@ -182,6 +182,7 @@ OMXNodeInstance::OMXNodeInstance(
     mNumPortBuffers[1] = 0;
     mDebugLevelBumpPendingBuffers[0] = 0;
     mDebugLevelBumpPendingBuffers[1] = 0;
+    mIsSecure = AString(name).endsWith(".secure");
 }
 
 OMXNodeInstance::~OMXNodeInstance() {
