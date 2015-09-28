@@ -83,6 +83,9 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-effects) \
     $(call include-path-for, audio-utils)
 
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow unsigned-integer-overflow
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
