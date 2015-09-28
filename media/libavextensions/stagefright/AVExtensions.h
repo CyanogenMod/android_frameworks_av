@@ -34,6 +34,7 @@
 #include <system/audio.h>
 #include <camera/ICamera.h>
 #include <media/mediarecorder.h>
+#include <media/IOMX.h>
 
 namespace android {
 
@@ -182,6 +183,10 @@ struct AVUtils {
     virtual bool isAudioMuxFormatSupported(const char *mime);
     virtual void cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder);
     virtual const char *getCustomCodecsLocation();
+
+    virtual void setIntraPeriod(
+                int nPFrames, int nBFrames, const sp<IOMX> OMXhandle,
+                IOMX::node_id nodeID);
 
 private:
     HEVCMuxer mHEVCMuxer;

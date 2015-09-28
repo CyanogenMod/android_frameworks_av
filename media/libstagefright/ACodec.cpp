@@ -54,6 +54,8 @@
 
 #include "include/avc_utils.h"
 
+#include <stagefright/AVExtensions.h>
+
 namespace android {
 
 // OMX errors are directly mapped into status_t range if
@@ -3509,6 +3511,8 @@ status_t ACodec::setupHEVCEncoderParameters(const sp<AMessage> &msg) {
         }
         frameRate = (float)tmp;
     }
+
+    AVUtils::get()->setIntraPeriod(setPFramesSpacing(iFrameInterval, frameRate), 0, mOMX, mNode);
 
     OMX_VIDEO_PARAM_HEVCTYPE hevcType;
     InitOMXParams(&hevcType);
