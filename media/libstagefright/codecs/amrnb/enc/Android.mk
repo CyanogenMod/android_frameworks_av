@@ -70,6 +70,8 @@ LOCAL_CFLAGS := \
         -D"OSCL_UNUSED_ARG(x)=(void)(x)"
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE := libstagefright_amrnbenc
 
@@ -91,6 +93,8 @@ LOCAL_C_INCLUDES := \
         $(LOCAL_PATH)/../common
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrnbenc
@@ -120,6 +124,9 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_SHARED_LIBRARIES := \
     libstagefright_amrnb_common
+
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE := libstagefright_amrnbenc_test
 LOCAL_MODULE_TAGS := tests
