@@ -39,7 +39,7 @@ struct OMXNodeInstance {
 #endif
 
     OMXNodeInstance(
-            OMX *owner, const sp<IOMXObserver> &observer);
+            OMX *owner, const sp<IOMXObserver> &observer, const char *name);
 
     void setHandle(OMX::node_id node_id, OMX_HANDLETYPE handle);
 
@@ -137,6 +137,10 @@ struct OMXNodeInstance {
             const void *data,
             size_t size);
 
+    bool isSecure() const {
+        return mIsSecure;
+    }
+
     void onMessage(const omx_message &msg);
     void onObserverDied(OMXMaster *master);
     void onGetHandleFailed();
@@ -155,6 +159,7 @@ private:
     OMXNodeInstanceBufferHandler *mMtkBufferHandler;
 #endif
     bool mDying;
+    bool mIsSecure;
 
     // Lock only covers mGraphicBufferSource.  We can't always use mLock
     // because of rare instances where we'd end up locking it recursively.
