@@ -106,6 +106,7 @@ LOCAL_SRC_FILES += \
 
 # StrongPointer.h
 LOCAL_C_INCLUDES += $(TOP)/frameworks/rs/server
+endif
 
 include $(BUILD_SHARED_LIBRARY)
 

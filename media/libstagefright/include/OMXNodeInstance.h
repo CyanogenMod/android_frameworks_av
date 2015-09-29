@@ -156,10 +156,13 @@ private:
     };
     Vector<ActiveBuffer> mActiveBuffers;
     // for buffer ptr to buffer id translation
+    // but don't enable for use with MTK Lollipop- blob
+#ifndef USE_LEGACY_MTK_AV_BLOB
     Mutex mBufferIDLock;
     uint32_t mBufferIDCount;
     KeyedVector<OMX::buffer_id, OMX_BUFFERHEADERTYPE *> mBufferIDToBufferHeader;
     KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
+#endif
     MetadataBufferType mMetadataType[2];
 
     // For debug support

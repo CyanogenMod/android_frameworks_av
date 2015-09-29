@@ -34,7 +34,7 @@ int AudioSystem::GetVoiceUnlockDLLatency()
   return 0;
 }
 
-int AudioSystem::SetVoiceUnlockSRC(uint outSR, uint outChannel)
+int AudioSystem::SetVoiceUnlockSRC(uint outSR __unused, uint outChannel __unused)
 {
   return 0;
 }
@@ -49,12 +49,16 @@ bool AudioSystem::startVoiceUnlockDL()
   return 0;
 }
 
-int AudioSystem::ReadRefFromRing(void*buf, uint32_t datasz,void* DLtime)
+int AudioSystem::ReadRefFromRing(
+        void *buf __unused,
+        uint32_t datasz __unused,
+        void* DLtime __unused
+        )
 {
   return 0;
 }
 
-int AudioSystem::GetVoiceUnlockULTime(void* DLtime)
+int AudioSystem::GetVoiceUnlockULTime(void* DLtime __unused)
 {
   return 0;
 }
@@ -88,15 +92,15 @@ public:
     {
         return 0;
     }
-    virtual int ATVCS_matv_ps_init(int on)
+    virtual int ATVCS_matv_ps_init(int on __unused)
     {
         return 0;
     }
-    virtual int ATVCS_matv_set_parameterb(int in)
+    virtual int ATVCS_matv_set_parameterb(int in __unused)
     {
         return 0;
     }
-    virtual int ATVCS_matv_suspend(int on)
+    virtual int ATVCS_matv_suspend(int on __unused)
     {
         return 0;
     }
@@ -104,17 +108,17 @@ public:
     {
         return 0;
     }
-    virtual void ATVCS_matv_chscan(int mode)
+    virtual void ATVCS_matv_chscan(int mode __unused)
     {
     }
     virtual void ATVCS_matv_chscan_stop()
     {
     }
-    virtual int ATVCS_matv_get_chtable(int ch, void *entry, int len)
+    virtual int ATVCS_matv_get_chtable(int ch __unused, void *entry __unused, int len __unused)
     {
         return 0;
     }
-    virtual int ATVCS_matv_set_chtable(int ch, void *entry, int len)
+    virtual int ATVCS_matv_set_chtable(int ch __unused, void *entry __unused, int len __unused)
     {
         return 0;
     }
@@ -122,13 +126,13 @@ public:
     {
         return 0;
     }
-    virtual void ATVCS_matv_change_channel(int ch)
+    virtual void ATVCS_matv_change_channel(int ch __unused)
     {
     }
-    virtual void ATVCS_matv_set_country(int country)
+    virtual void ATVCS_matv_set_country(int country __unused)
     {
     }
-    virtual void ATVCS_matv_set_tparam(int mode)
+    virtual void ATVCS_matv_set_tparam(int mode __unused)
     {
     }
     virtual void ATVCS_matv_audio_play()
@@ -141,38 +145,38 @@ public:
     {
         return 0;
     }
-    virtual void ATVCS_matv_audio_set_format(int val)
+    virtual void ATVCS_matv_audio_set_format(int val __unused)
     {
     }
     virtual int ATVCS_matv_audio_get_sound_system()
     {
         return 0;
     }
-    virtual int ATVCS_matv_adjust(int item, int val)
+    virtual int ATVCS_matv_adjust(int item __unused, int val __unused)
     {
         return 0;
     }
-    virtual int ATVCS_matv_get_chipdep(int item)
+    virtual int ATVCS_matv_get_chipdep(int item __unused)
     {
         return 0;
     }
-    virtual int ATVCS_matv_set_chipdep(int item, int val)
+    virtual int ATVCS_matv_set_chipdep(int item __unused, int val __unused)
     {
         return 0;
     }
     virtual void ATVCS_matv_register_callback()
     {
     }
-    virtual void registerClient(const sp<IATVCtrlClient>& client)
+    virtual void registerClient(const sp<IATVCtrlClient>& client __unused)
     {
     }
-    virtual void registerClient_FM(const sp<IATVCtrlClient>& client)
+    virtual void registerClient_FM(const sp<IATVCtrlClient>& client __unused)
     {
     }
-    virtual void CLI(char input)
+    virtual void CLI(char input __unused)
     {
     }
-    virtual int ATVCS_fm_powerup(void *parm, int len)
+    virtual int ATVCS_fm_powerup(void *parm __unused, int len __unused)
     {
         return 0;
     }
@@ -184,19 +188,19 @@ public:
     {
         return 0;
     }
-    virtual int ATVCS_fm_tune(void *parm, int len)
+    virtual int ATVCS_fm_tune(void *parm __unused, int len __unused)
     {
         return 0;
     }
-    virtual int ATVCS_fm_seek(void *parm, int len)
+    virtual int ATVCS_fm_seek(void *parm __unused, int len __unused)
     {
         return 0;
     }
-    virtual int ATVCS_fm_scan(void *parm, int len)
+    virtual int ATVCS_fm_scan(void *parm __unused, int len __unused)
     {
         return 0;
     }
-    virtual int ATVCS_fm_mute(int val)
+    virtual int ATVCS_fm_mute(int val __unused)
     {
         return 0;
     }
