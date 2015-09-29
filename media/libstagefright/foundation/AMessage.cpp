@@ -453,13 +453,23 @@ sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
     sp<AMessage> msg = new AMessage(what);
 
     msg->mNumItems = static_cast<size_t>(parcel.readInt32());
+    if (msg->mNumItems > kMaxNumItems) {
+        ALOGE("Too large number of items clipped.");
+        msg->mNumItems = kMaxNumItems;
+    }
 
     for (size_t i = 0; i < msg->mNumItems; ++i) {
         Item *item = &msg->mItems[i];
 
-        item->mName = AAtomizer::Atomize(parcel.readCString());
-        item->mType = static_cast<Type>(parcel.readInt32());
+        const char *name = parcel.readCString();
+        if (name == NULL) {
+            ALOGE("Failed reading name for an item. Parsing aborted.");
+            msg->mNumItems = i;
+            break;
+        }
 
+        item->mName = AAtomizer::Atomize(name);
+        item->mType = static_cast<Type>(parcel.readInt32());
         switch (item->mType) {
             case kTypeInt32:
             {
@@ -493,7 +503,16 @@ sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
 
             case kTypeString:
             {
-                item->u.stringValue = new AString(parcel.readCString());
+                const char *stringValue = parcel.readCString();
+                if (stringValue == NULL) {
+                    ALOGE("Failed reading string value from a parcel. "
+                        "Parsing aborted.");
+                    msg->mNumItems = i;
+                    continue;
+                    // The loop will terminate subsequently.
+                } else {
+                    item->u.stringValue = new AString(stringValue);
+                }
                 break;
             }
 
