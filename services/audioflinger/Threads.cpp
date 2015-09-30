@@ -6991,6 +6991,10 @@ bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValueP
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
+
+    // scope for AutoPark extends to end of method
+    AutoPark<FastCapture> park(mFastCapture);
+
     // TODO Investigate when this code runs. Check with audio policy when a sample rate and
     //      channel count change can be requested. Do we mandate the first client defines the
     //      HAL sampling rate and channel count or do we allow changes on the fly?
