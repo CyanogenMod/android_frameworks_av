@@ -845,16 +845,21 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             bool mHadAnySourcesBefore =
                 (mAudioDecoder != NULL) || (mVideoDecoder != NULL);
+            bool rescan = false;
 
             // initialize video before audio because successful initialization of
             // video may change deep buffer mode of audio.
             if (mSurface != NULL) {
-                instantiateDecoder(false, &mVideoDecoder);
+                if (instantiateDecoder(false, &mVideoDecoder) == -EWOULDBLOCK) {
+                    rescan = true;
+                }
             }
 
             // Don't try to re-open audio sink if there's an existing decoder.
             if (mAudioSink != NULL && mAudioDecoder == NULL) {
-                instantiateDecoder(true, &mAudioDecoder);
+                if (instantiateDecoder(true, &mAudioDecoder) == -EWOULDBLOCK) {
+                    rescan = true;
+                }
             }
 
             if (!mHadAnySourcesBefore
@@ -881,8 +886,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
-            if ((mAudioDecoder == NULL && mAudioSink != NULL)
-                    || (mVideoDecoder == NULL && mSurface != NULL)) {
+            if (rescan) {
                 msg->post(100000ll);
                 mScanSourcesPending = true;
             }
@@ -1519,7 +1523,12 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     sp<AMessage> format = mSource->getFormat(audio);
 
     if (format == NULL) {
-        return -EWOULDBLOCK;
+        return UNKNOWN_ERROR;
+    } else {
+        status_t err;
+        if (format->findInt32("err", &err) && err) {
+            return err;
+        }
     }
 
     format->setInt32("priority", 0 /* realtime */);

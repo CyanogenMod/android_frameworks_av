@@ -101,15 +101,20 @@ void NuPlayer::HTTPLiveSource::start() {
 }
 
 sp<AMessage> NuPlayer::HTTPLiveSource::getFormat(bool audio) {
-    if (mLiveSession == NULL) {
-        return NULL;
+    sp<AMessage> format;
+    status_t err = -EWOULDBLOCK;
+    if (mLiveSession != NULL) {
+        err = mLiveSession->getStreamFormat(
+                audio ? LiveSession::STREAMTYPE_AUDIO
+                      : LiveSession::STREAMTYPE_VIDEO,
+                &format);
     }
 
-    sp<AMessage> format;
-    status_t err = mLiveSession->getStreamFormat(
-            audio ? LiveSession::STREAMTYPE_AUDIO
-                  : LiveSession::STREAMTYPE_VIDEO,
-            &format);
+    if (err == -EWOULDBLOCK) {
+        format = new AMessage();
+        format->setInt32("err", err);
+        return format;
+    }
 
     if (err != OK) {
         return NULL;

@@ -477,7 +477,7 @@ status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
     sp<MetaData> meta = packetSource->getFormat();
 
     if (meta == NULL) {
-        return -EAGAIN;
+        return -EWOULDBLOCK;
     }
 
     if (stream == STREAMTYPE_AUDIO) {
