@@ -771,7 +771,10 @@ class Camera3Device :
     uint32_t               mNextResultFrameNumber;
     // the minimal frame number of the next reprocess result
     uint32_t               mNextReprocessResultFrameNumber;
+    // the minimal frame number of the next non-reprocess shutter
     uint32_t               mNextShutterFrameNumber;
+    // the minimal frame number of the next reprocess shutter
+    uint32_t               mNextReprocessShutterFrameNumber;
     List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;
