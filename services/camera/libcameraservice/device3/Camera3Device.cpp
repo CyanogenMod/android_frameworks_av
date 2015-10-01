@@ -67,6 +67,7 @@ Camera3Device::Camera3Device(int id):
         mNextResultFrameNumber(0),
         mNextReprocessResultFrameNumber(0),
         mNextShutterFrameNumber(0),
+        mNextReprocessShutterFrameNumber(0),
         mListener(NULL)
 {
     ATRACE_CALL();
@@ -2534,18 +2535,6 @@ void Camera3Device::notifyError(const camera3_error_msg_t &msg,
 void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
         NotificationListener *listener) {
     ssize_t idx;
-    // Verify ordering of shutter notifications
-    {
-        Mutex::Autolock l(mOutputLock);
-        // TODO: need to track errors for tighter bounds on expected frame number.
-        if (msg.frame_number < mNextShutterFrameNumber) {
-            SET_ERR("Shutter notification out-of-order. Expected "
-                    "notification for frame %d, got frame %d",
-                    mNextShutterFrameNumber, msg.frame_number);
-            return;
-        }
-        mNextShutterFrameNumber = msg.frame_number + 1;
-    }
 
     // Set timestamp for the request in the in-flight tracking
     // and get the request ID to send upstream
@@ -2554,6 +2543,29 @@ void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
         idx = mInFlightMap.indexOfKey(msg.frame_number);
         if (idx >= 0) {
             InFlightRequest &r = mInFlightMap.editValueAt(idx);
+
+            // Verify ordering of shutter notifications
+            {
+                Mutex::Autolock l(mOutputLock);
+                // TODO: need to track errors for tighter bounds on expected frame number.
+                if (r.hasInputBuffer) {
+                    if (msg.frame_number < mNextReprocessShutterFrameNumber) {
+                        SET_ERR("Shutter notification out-of-order. Expected "
+                                "notification for frame %d, got frame %d",
+                                mNextReprocessShutterFrameNumber, msg.frame_number);
+                        return;
+                    }
+                    mNextReprocessShutterFrameNumber = msg.frame_number + 1;
+                } else {
+                    if (msg.frame_number < mNextShutterFrameNumber) {
+                        SET_ERR("Shutter notification out-of-order. Expected "
+                                "notification for frame %d, got frame %d",
+                                mNextShutterFrameNumber, msg.frame_number);
+                        return;
+                    }
+                    mNextShutterFrameNumber = msg.frame_number + 1;
+                }
+            }
 
             ALOGVV("Camera %d: %s: Shutter fired for frame %d (id %d) at %" PRId64,
                     mId, __FUNCTION__,
