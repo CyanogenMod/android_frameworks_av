@@ -3899,7 +3899,10 @@ status_t MPEG4Source::read(
             (const uint8_t *)mBuffer->data() + mBuffer->range_offset();
 
         size_t nal_size = parseNALSize(src);
-        if (mBuffer->range_length() < mNALLengthSize + nal_size) {
+        if (mNALLengthSize > SIZE_MAX - nal_size) {
+            ALOGE("b/24441553, b/24445122");
+        }
+        if (mBuffer->range_length() - mNALLengthSize < nal_size) {
             ALOGE("incomplete NAL unit.");
 
             mBuffer->release();
@@ -4186,7 +4189,11 @@ status_t MPEG4Source::fragmentedRead(
             (const uint8_t *)mBuffer->data() + mBuffer->range_offset();
 
         size_t nal_size = parseNALSize(src);
-        if (mBuffer->range_length() < mNALLengthSize + nal_size) {
+        if (mNALLengthSize > SIZE_MAX - nal_size) {
+            ALOGE("b/24441553, b/24445122");
+        }
+
+        if (mBuffer->range_length() - mNALLengthSize < nal_size) {
             ALOGE("incomplete NAL unit.");
 
             mBuffer->release();
