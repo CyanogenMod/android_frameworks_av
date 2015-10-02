@@ -162,7 +162,7 @@ class Camera3Device :
     static const size_t        kInFlightWarnLimit = 20;
     static const size_t        kInFlightWarnLimitHighSpeed = 256; // batch size 32 * pipe depth 8
     // SCHED_FIFO priority for request submission thread in HFR mode
-    static const int           kConstrainedHighSpeedThreadPriority = 3;
+    static const int           kConstrainedHighSpeedThreadPriority = 1;
 
     struct                     RequestTrigger;
     // minimal jpeg buffer size: 256KB + blob header
