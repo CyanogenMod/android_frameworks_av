@@ -147,6 +147,7 @@ static VideoFrame *extractVideoFrame(
 
     sp<AMessage> videoFormat;
     if (convertMetaDataToMessage(trackMeta, &videoFormat) != OK) {
+        ALOGE("b/23680780");
         ALOGW("Failed to convert meta data to message");
         return NULL;
     }
