@@ -149,7 +149,7 @@ bool VBRISeeker::getDuration(int64_t *durationUs) {
 }
 
 bool VBRISeeker::getOffsetForTime(int64_t *timeUs, off64_t *pos) {
-    if (mDurationUs < 0) {
+    if (mDurationUs < 0 || mSegments.size() == 0) {
         return false;
     }
 
