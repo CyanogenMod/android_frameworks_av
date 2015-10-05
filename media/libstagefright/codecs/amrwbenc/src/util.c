@@ -35,9 +35,10 @@ void Set_zero(
 	     )
 {
 	Word32 num = (Word32)L;
-	do{
+	while (num > 0) {
 		*x++ = 0;
-	}while(--num !=0);
+                --num;
+	}
 }
 
 
@@ -54,18 +55,22 @@ void Copy(
 	 )
 {
 	Word32	temp1,temp2,num;
+        if (L <= 0) {
+                return;
+        }
 	if(L&1)
 	{
 		temp1 = *x++;
 		*y++ = temp1;
 	}
 	num = (Word32)(L>>1);
-	do{
+	while (num > 0) {
 		temp1 = *x++;
 		temp2 = *x++;
 		*y++ = temp1;
 		*y++ = temp2;
-	}while(--num!=0);
+                --num;
+	}
 }
 
 
