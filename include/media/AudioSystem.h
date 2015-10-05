@@ -399,6 +399,7 @@ private:
         uint32_t                            mInSamplingRate;
         audio_format_t                      mInFormat;
         audio_channel_mask_t                mInChannelMask;
+        sp<AudioIoDescriptor> getIoDescriptor_l(audio_io_handle_t ioHandle);
     };
 
     class AudioPolicyServiceClient: public IBinder::DeathRecipient,
