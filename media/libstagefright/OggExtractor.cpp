@@ -973,11 +973,12 @@ static void extractAlbumArt(
     }
 
     typeLen = U32_AT(&flac[4]);
-    if (typeLen + 1 > sizeof(type)) {
+    if (typeLen > sizeof(type) - 1) {
         goto exit;
     }
 
-    if (flacSize < 8 + typeLen) {
+    // we've already checked above that flacSize >= 8
+    if (flacSize - 8 < typeLen) {
         goto exit;
     }
 
@@ -993,13 +994,17 @@ static void extractAlbumArt(
 
     descLen = U32_AT(&flac[8 + typeLen]);
 
-    if (flacSize < 32 + typeLen + descLen) {
+    if (flacSize < 32 ||
+        flacSize - 32 < typeLen ||
+        flacSize - 32 - typeLen < descLen) {
         goto exit;
     }
 
     dataLen = U32_AT(&flac[8 + typeLen + 4 + descLen + 16]);
 
-    if (flacSize < 32 + typeLen + descLen + dataLen) {
+
+    // we've already checked above that (flacSize - 32 - typeLen - descLen) >= 0
+    if (flacSize - 32 - typeLen - descLen < dataLen) {
         goto exit;
     }
 

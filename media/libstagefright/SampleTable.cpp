@@ -27,6 +27,11 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/Utils.h>
 
+/* TODO: remove after being merged into other branches */
+#ifndef UINT32_MAX
+#define UINT32_MAX       (4294967295U)
+#endif
+
 namespace android {
 
 // static
@@ -284,6 +289,9 @@ status_t SampleTable::setSampleSizeParams(
 
     mDefaultSampleSize = U32_AT(&header[4]);
     mNumSampleSizes = U32_AT(&header[8]);
+    if (mNumSampleSizes > (UINT32_MAX - 12) / 16) {
+        return ERROR_MALFORMED;
+    }
 
     if (type == kSampleSizeType32) {
         mSampleSizeFieldSize = 32;
@@ -507,7 +515,7 @@ int SampleTable::CompareIncreasingTime(const void *_a, const void *_b) {
 void SampleTable::buildSampleEntriesTable() {
     Mutex::Autolock autoLock(mLock);
 
-    if (mSampleTimeEntries != NULL) {
+    if (mSampleTimeEntries != NULL || mNumSampleSizes == 0) {
         return;
     }
 
@@ -551,6 +559,10 @@ status_t SampleTable::findSampleAtTime(
         uint64_t req_time, uint64_t scale_num, uint64_t scale_den,
         uint32_t *sample_index, uint32_t flags) {
     buildSampleEntriesTable();
+
+    if (mSampleTimeEntries == NULL) {
+        return ERROR_OUT_OF_RANGE;
+    }
 
     uint32_t left = 0;
     uint32_t right_plus_one = mNumSampleSizes;

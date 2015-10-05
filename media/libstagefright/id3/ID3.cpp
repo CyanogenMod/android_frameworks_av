@@ -327,7 +327,7 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
     size_t oldSize = mSize;
 
     size_t offset = 0;
-    while (offset + 10 <= mSize) {
+    while (mSize >= 10 && offset <= mSize - 10) {
         if (!memcmp(&mData[offset], "\0\0\0\0", 4)) {
             break;
         }
@@ -339,7 +339,7 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
             return false;
         }
 
-        if (offset + dataSize + 10 > mSize) {
+        if (dataSize > mSize - 10 - offset) {
             return false;
         }
 
@@ -349,6 +349,9 @@ bool ID3::removeUnsynchronizationV2_4(bool iTunesHack) {
         if (flags & 1) {
             // Strip data length indicator
 
+            if (mSize < 14 || mSize - 14 < offset || dataSize < 4) {
+                return false;
+            }
             memmove(&mData[offset + 10], &mData[offset + 14], mSize - offset - 14);
             mSize -= 4;
             dataSize -= 4;
@@ -507,6 +510,9 @@ void ID3::Iterator::getstring(String8 *id, bool otherdata) const {
         return;
     }
 
+    if (mFrameSize < getHeaderLength() + 1) {
+        return;
+    }
     size_t n = mFrameSize - getHeaderLength() - 1;
     if (otherdata) {
         // skip past the encoding, language, and the 0 separator
@@ -633,6 +639,11 @@ void ID3::Iterator::findFrame() {
 
             mFrameSize += 6;
 
+            // Prevent integer overflow in validation
+            if (SIZE_MAX - mOffset <= mFrameSize) {
+                return;
+            }
+
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
                     mOffset, mFrameSize, mParent.mSize - mOffset - (size_t)6);
@@ -662,7 +673,7 @@ void ID3::Iterator::findFrame() {
                 return;
             }
 
-            size_t baseSize;
+            size_t baseSize = 0;
             if (mParent.mVersion == ID3_V2_4) {
                 if (!ParseSyncsafeInteger(
                             &mParent.mData[mOffset + 4], &baseSize)) {
@@ -672,7 +683,21 @@ void ID3::Iterator::findFrame() {
                 baseSize = U32_AT(&mParent.mData[mOffset + 4]);
             }
 
-            mFrameSize = 10 + baseSize;
+            if (baseSize == 0) {
+                return;
+            }
+
+            // Prevent integer overflow when adding
+            if (SIZE_MAX - 10 <= baseSize) {
+                return;
+            }
+
+            mFrameSize = 10 + baseSize; // add tag id, size field and flags
+
+            // Prevent integer overflow in validation
+            if (SIZE_MAX - mOffset <= mFrameSize) {
+                return;
+            }
 
             if (mOffset + mFrameSize > mParent.mSize) {
                 ALOGV("partial frame at offset %zu (size = %zu, bytes-remaining = %zu)",
@@ -805,6 +830,12 @@ ID3::getAlbumArt(size_t *length, String8 *mime) const {
 
             size_t descLen = StringSize(&data[2 + mimeLen], encoding);
 
+            if (size < 2 ||
+                    size - 2 < mimeLen ||
+                    size - 2 - mimeLen < descLen) {
+                ALOGW("bogus album art sizes");
+                return NULL;
+            }
             *length = size - 2 - mimeLen - descLen;
 
             return &data[2 + mimeLen + descLen];

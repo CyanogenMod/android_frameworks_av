@@ -19,6 +19,14 @@
 #include "vlc_decode.h"
 #include "bitstream.h"
 
+#ifndef INT32_MAX
+#define INT32_MAX 0x7fffffff
+#endif
+
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t) -1)
+#endif
+
 #define OSCL_DISABLE_WARNING_CONDITIONAL_IS_CONSTANT
 
 #ifdef DEC_INTERNAL_MEMORY_OPT
@@ -95,6 +103,11 @@ OSCL_EXPORT_REF Bool PVInitVideoDecoder(VideoDecControls *decCtrl, uint8 *volbuf
 #ifdef DEC_INTERNAL_MEMORY_OPT
         video->vol = (Vol **) IMEM_VOL;
 #else
+        if ((size_t)nLayers > SIZE_MAX / sizeof(Vol *)) {
+            status = PV_FALSE;
+            goto fail;
+        }
+
         video->vol = (Vol **) oscl_malloc(nLayers * sizeof(Vol *));
 #endif
         if (video->vol == NULL) status = PV_FALSE;
@@ -127,6 +140,11 @@ OSCL_EXPORT_REF Bool PVInitVideoDecoder(VideoDecControls *decCtrl, uint8 *volbuf
         if (video->prevVop == NULL) status = PV_FALSE;
         else oscl_memset(video->prevVop, 0, sizeof(Vop));
         video->memoryUsage += (sizeof(Vop) * 2);
+
+        if ((size_t)nLayers > SIZE_MAX / sizeof(Vop *)) {
+            status = PV_FALSE;
+            goto fail;
+        }
 
         video->vopHeader = (Vop **) oscl_malloc(sizeof(Vop *) * nLayers);
 #endif
@@ -277,6 +295,7 @@ OSCL_EXPORT_REF Bool PVInitVideoDecoder(VideoDecControls *decCtrl, uint8 *volbuf
         status = PV_FALSE;
     }
 
+fail:
     if (status == PV_FALSE) PVCleanUpVideoDecoder(decCtrl);
 
     return status;
@@ -305,6 +324,10 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
             video->nMBPerRow * video->nMBPerCol;
     }
 
+    if (((uint64_t)video->width * video->height) > (uint64_t)INT32_MAX / sizeof(PIXEL)) {
+        return PV_FALSE;
+    }
+
     size = (int32)sizeof(PIXEL) * video->width * video->height;
 #ifdef PV_MEMORY_POOL
     decCtrl->size = size;
@@ -320,6 +343,9 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
     video->prevVop->uChan = video->prevVop->yChan + size;
     video->prevVop->vChan = video->prevVop->uChan + (size >> 2);
 #else
+    if (size > INT32_MAX / 3) {
+        return PV_FALSE;
+    }
     video->currVop->yChan = (PIXEL *) oscl_malloc(size * 3 / 2); /* Allocate memory for all VOP OKA 3/2/1*/
     if (video->currVop->yChan == NULL) status = PV_FALSE;
 
@@ -347,6 +373,10 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
         {
             oscl_memset(video->prevEnhcVop, 0, sizeof(Vop));
 #ifndef PV_MEMORY_POOL
+            if (size > INT32_MAX / 3) {
+                return PV_FALSE;
+            }
+
             video->prevEnhcVop->yChan = (PIXEL *) oscl_malloc(size * 3 / 2); /* Allocate memory for all VOP OKA 3/2/1*/
             if (video->prevEnhcVop->yChan == NULL) status = PV_FALSE;
             video->prevEnhcVop->uChan = video->prevEnhcVop->yChan + size;
@@ -403,10 +433,17 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
     if (video->acPredFlag == NULL) status = PV_FALSE;
     video->memoryUsage += (nTotalMB);
 
+    if ((size_t)nTotalMB > SIZE_MAX / sizeof(typeDCStore)) {
+        return PV_FALSE;
+    }
     video->predDC = (typeDCStore *) oscl_malloc(nTotalMB * sizeof(typeDCStore));
     if (video->predDC == NULL) status = PV_FALSE;
     video->memoryUsage += (nTotalMB * sizeof(typeDCStore));
 
+    if (nMBPerRow > INT32_MAX - 1
+            || (size_t)(nMBPerRow + 1) > SIZE_MAX / sizeof(typeDCACStore)) {
+        return PV_FALSE;
+    }
     video->predDCAC_col = (typeDCACStore *) oscl_malloc((nMBPerRow + 1) * sizeof(typeDCACStore));
     if (video->predDCAC_col == NULL) status = PV_FALSE;
     video->memoryUsage += ((nMBPerRow + 1) * sizeof(typeDCACStore));
@@ -422,6 +459,10 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
     video->headerInfo.CBP = (uint8 *) oscl_malloc(nTotalMB);
     if (video->headerInfo.CBP == NULL) status = PV_FALSE;
     video->memoryUsage += nTotalMB;
+
+    if ((size_t)nTotalMB > SIZE_MAX / sizeof(int16)) {
+        return PV_FALSE;
+    }
     video->QPMB = (int16 *) oscl_malloc(nTotalMB * sizeof(int16));
     if (video->QPMB == NULL) status = PV_FALSE;
     video->memoryUsage += (nTotalMB * sizeof(int));
@@ -439,6 +480,9 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
         video->memoryUsage += sizeof(MacroBlock);
     }
     /* Allocating motion vector space */
+    if ((size_t)nTotalMB > SIZE_MAX / (sizeof(MOT) * 4)) {
+        return PV_FALSE;
+    }
     video->motX = (MOT *) oscl_malloc(sizeof(MOT) * 4 * nTotalMB);
     if (video->motX == NULL) status = PV_FALSE;
     video->motY = (MOT *) oscl_malloc(sizeof(MOT) * 4 * nTotalMB);
@@ -472,6 +516,9 @@ Bool PVAllocVideoData(VideoDecControls *decCtrl, int width, int height, int nLay
     }
 
 #else
+    if (nTotalMB > INT32_MAX / 6) {
+        return PV_FALSE;
+    }
     video->pstprcTypCur = (uint8 *) oscl_malloc(nTotalMB * 6);
     video->memoryUsage += (nTotalMB * 6);
     if (video->pstprcTypCur == NULL)
