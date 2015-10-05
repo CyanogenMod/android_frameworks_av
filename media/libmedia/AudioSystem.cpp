@@ -476,7 +476,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(audio_io_config_event even
         switch (event) {
         case AUDIO_OUTPUT_OPENED:
         case AUDIO_INPUT_OPENED: {
-            sp<AudioIoDescriptor> oldDesc = getIoDescriptor(ioDesc->mIoHandle);
+            sp<AudioIoDescriptor> oldDesc = getIoDescriptor_l(ioDesc->mIoHandle);
             if (oldDesc == 0) {
                 mIoDescriptors.add(ioDesc->mIoHandle, ioDesc);
             } else {
@@ -498,7 +498,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(audio_io_config_event even
             } break;
         case AUDIO_OUTPUT_CLOSED:
         case AUDIO_INPUT_CLOSED: {
-            if (getIoDescriptor(ioDesc->mIoHandle) == 0) {
+            if (getIoDescriptor_l(ioDesc->mIoHandle) == 0) {
                 ALOGW("ioConfigChanged() closing unknown %s %d",
                       event == AUDIO_OUTPUT_CLOSED ? "output" : "input", ioDesc->mIoHandle);
                 break;
@@ -512,7 +512,7 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(audio_io_config_event even
 
         case AUDIO_OUTPUT_CONFIG_CHANGED:
         case AUDIO_INPUT_CONFIG_CHANGED: {
-            sp<AudioIoDescriptor> oldDesc = getIoDescriptor(ioDesc->mIoHandle);
+            sp<AudioIoDescriptor> oldDesc = getIoDescriptor_l(ioDesc->mIoHandle);
             if (oldDesc == 0) {
                 ALOGW("ioConfigChanged() modifying unknown output! %d", ioDesc->mIoHandle);
                 break;
@@ -575,7 +575,7 @@ status_t AudioSystem::AudioFlingerClient::getInputBufferSize(
     return NO_ERROR;
 }
 
-sp<AudioIoDescriptor> AudioSystem::AudioFlingerClient::getIoDescriptor(audio_io_handle_t ioHandle)
+sp<AudioIoDescriptor> AudioSystem::AudioFlingerClient::getIoDescriptor_l(audio_io_handle_t ioHandle)
 {
     sp<AudioIoDescriptor> desc;
     ssize_t index = mIoDescriptors.indexOfKey(ioHandle);
@@ -583,6 +583,12 @@ sp<AudioIoDescriptor> AudioSystem::AudioFlingerClient::getIoDescriptor(audio_io_
         desc = mIoDescriptors.valueAt(index);
     }
     return desc;
+}
+
+sp<AudioIoDescriptor> AudioSystem::AudioFlingerClient::getIoDescriptor(audio_io_handle_t ioHandle)
+{
+    Mutex::Autolock _l(mLock);
+    return getIoDescriptor_l(ioHandle);
 }
 
 status_t AudioSystem::AudioFlingerClient::addAudioDeviceCallback(
