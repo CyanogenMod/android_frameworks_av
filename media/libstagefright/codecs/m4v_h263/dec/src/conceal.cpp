@@ -19,6 +19,7 @@
 #include "vlc_decode.h"
 #include "bitstream.h"
 #include "scaling.h"
+#include "log/log.h"
 
 /* ====================================================================== /
 Function : ConcealTexture_I()
@@ -137,6 +138,10 @@ Modified:   6/04/2001 rewrote the function
 ****************************************************************************/
 void CopyVopMB(Vop *curr, uint8 *prevFrame, int mbnum, int width_Y, int height)
 {
+    if (curr == NULL || prevFrame == NULL) {
+        ALOGE("b/24630158");
+        return;
+    }
     int width_C = width_Y >> 1;
     int row = MB_SIZE;
     uint8              *y1, *y2, *u1, *u2, *v1, *v2;
