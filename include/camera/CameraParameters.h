@@ -19,7 +19,7 @@
 
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
-#include "camera/CameraParametersExtra.h"
+#include <camera/CameraParametersExtra.h>
 
 namespace android {
 
