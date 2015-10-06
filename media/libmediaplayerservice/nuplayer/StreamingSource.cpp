@@ -32,6 +32,8 @@
 
 namespace android {
 
+const int32_t kNumListenerQueuePackets = 80;
+
 NuPlayer::StreamingSource::StreamingSource(
         const sp<AMessage> &notify,
         const sp<IStreamSource> &source)
@@ -84,7 +86,7 @@ status_t NuPlayer::StreamingSource::feedMoreTSData() {
 }
 
 void NuPlayer::StreamingSource::onReadBuffer() {
-    for (int32_t i = 0; i < 50; ++i) {
+    for (int32_t i = 0; i < kNumListenerQueuePackets; ++i) {
         char buffer[188];
         sp<AMessage> extra;
         ssize_t n = mStreamListener->read(buffer, sizeof(buffer), &extra);
