@@ -747,7 +747,8 @@ void NuPlayerDriver::notifyListener_l(
                         // the last little bit of audio. If we're looping, we need to restart it.
                         mAudioSink->start();
                     }
-                    break;
+                    // don't send completion event when looping
+                    return;
                 }
 
                 mPlayer->pause();
