@@ -848,6 +848,12 @@ status_t BnOMX::onTransact(
 
             node_id node = (node_id)data.readInt32();
             OMX_U32 port_index = data.readInt32();
+            if (!isSecure(node) || port_index != 0 /* kPortIndexInput */) {
+                ALOGE("b/24310423");
+                reply->writeInt32(INVALID_OPERATION);
+                return NO_ERROR;
+            }
+
             size_t size = data.readInt64();
 
             buffer_id buffer;
