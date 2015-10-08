@@ -90,12 +90,13 @@ OMX_CALLBACKTYPE OMXNodeInstance::kCallbacks = {
 };
 
 OMXNodeInstance::OMXNodeInstance(
-        OMX *owner, const sp<IOMXObserver> &observer)
+        OMX *owner, const sp<IOMXObserver> &observer, const char *name)
     : mOwner(owner),
       mNodeID(NULL),
       mHandle(NULL),
       mObserver(observer),
       mDying(false) {
+    mIsSecure = AString(name).endsWith(".secure");
 }
 
 OMXNodeInstance::~OMXNodeInstance() {
