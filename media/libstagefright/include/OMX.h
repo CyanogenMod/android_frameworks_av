@@ -130,6 +130,8 @@ public:
 
     virtual void binderDied(const wp<IBinder> &the_late_who);
 
+    virtual bool isSecure(IOMX::node_id node);
+
     OMX_ERRORTYPE OnEvent(
             node_id node,
             OMX_IN OMX_EVENTTYPE eEvent,
