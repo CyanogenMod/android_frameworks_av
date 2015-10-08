@@ -2024,7 +2024,11 @@ sp<CameraService::Client> CameraService::Client::getClientFromCookie(void* user)
 
 void CameraService::Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
         const CaptureResultExtras& resultExtras) {
-    mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
+    if (mRemoteCallback != NULL) {
+        mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
+    } else {
+        ALOGE("mRemoteCallback is NULL!!");
+    }
 }
 
 // NOTE: function is idempotent
