@@ -26,6 +26,7 @@ class SampleTable;
 
 struct SampleIterator {
     SampleIterator(SampleTable *table);
+    ~SampleIterator();
 
     status_t seekTo(uint32_t sampleIndex);
 
@@ -67,6 +68,10 @@ private:
     size_t mCurrentSampleSize;
     uint32_t mCurrentSampleTime;
     uint32_t mCurrentSampleDuration;
+
+    uint8_t *mSampleCache;
+    uint32_t mSampleCacheSize;
+    uint32_t mCurrentSampleCacheStartIndex;
 
     void reset();
     status_t findChunkRange(uint32_t sampleIndex);
