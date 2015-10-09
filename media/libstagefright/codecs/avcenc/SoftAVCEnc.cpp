@@ -637,6 +637,7 @@ OMX_ERRORTYPE SoftAVC::initEncoder() {
         for (size_t i = 0; i < MAX_CONVERSION_BUFFERS; i++) {
             if (mConversionBuffers[i] != NULL) {
                 free(mConversionBuffers[i]);
+                mConversionBuffers[i] = 0;
             }
 
             if (((uint64_t)mStride * mHeight) > ((uint64_t)INT32_MAX / 3)) {
