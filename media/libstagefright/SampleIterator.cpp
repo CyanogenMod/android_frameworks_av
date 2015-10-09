@@ -30,6 +30,8 @@
 
 namespace android {
 
+const uint32_t kMaxSampleCacheSize = 4096;
+
 SampleIterator::SampleIterator(SampleTable *table)
     : mTable(table),
       mInitialized(false),
@@ -37,7 +39,12 @@ SampleIterator::SampleIterator(SampleTable *table)
       mTTSSampleIndex(0),
       mTTSSampleTime(0),
       mTTSCount(0),
-      mTTSDuration(0) {
+      mTTSDuration(0),
+      mSampleCache(NULL) {
+    reset();
+}
+
+SampleIterator::~SampleIterator() {
     reset();
 }
 
@@ -49,6 +56,10 @@ void SampleIterator::reset() {
     mStopChunkSampleIndex = 0;
     mSamplesPerChunk = 0;
     mChunkDesc = 0;
+    delete[] mSampleCache;
+    mSampleCache = NULL;
+    mSampleCacheSize = 0;
+    mCurrentSampleCacheStartIndex = 0;
 }
 
 status_t SampleIterator::seekTo(uint32_t sampleIndex) {
@@ -235,58 +246,73 @@ status_t SampleIterator::getSampleSizeDirect(
         return OK;
     }
 
+    bool readNewSampleCache = false;
+
+    // Check if current sample is inside cache, otherwise read new cache
+    if (sampleIndex < mCurrentSampleCacheStartIndex ||
+            ((sampleIndex - mCurrentSampleCacheStartIndex) *
+            mTable->mSampleSizeFieldSize + 4) / 8 >= mSampleCacheSize) {
+        uint32_t prevCacheSize = mSampleCacheSize;
+        mSampleCacheSize = ((mTable->mNumSampleSizes - sampleIndex) *
+                mTable->mSampleSizeFieldSize + 4) / 8;
+        mSampleCacheSize = mSampleCacheSize > kMaxSampleCacheSize ?
+                kMaxSampleCacheSize : mSampleCacheSize;
+        mCurrentSampleCacheStartIndex = sampleIndex;
+        readNewSampleCache = true;
+        if (mSampleCacheSize != prevCacheSize) {
+            delete[] mSampleCache;
+            mSampleCache = new uint8_t[mSampleCacheSize];
+        }
+    }
+
+    if (mSampleCache == NULL) {
+        return ERROR_IO;
+    }
+
+    if (mTable->mSampleSizeFieldSize != 32 &&
+        mTable->mSampleSizeFieldSize != 16 &&
+        mTable->mSampleSizeFieldSize != 8 &&
+        mTable->mSampleSizeFieldSize != 4) {
+        return ERROR_IO;
+    }
+
+    if (readNewSampleCache) {
+        if (mTable->mDataSource->readAt(
+                    mTable->mSampleSizeOffset + 12 +
+                        mTable->mSampleSizeFieldSize * sampleIndex / 8,
+                    mSampleCache,
+                    mSampleCacheSize) < (int32_t) mSampleCacheSize) {
+            return ERROR_IO;
+        }
+    }
+
+    uint32_t cacheReadOffset = (sampleIndex - mCurrentSampleCacheStartIndex) *
+                                mTable->mSampleSizeFieldSize / 8;
+
     switch (mTable->mSampleSizeFieldSize) {
         case 32:
         {
-            if (mTable->mDataSource->readAt(
-                        mTable->mSampleSizeOffset + 12 + 4 * sampleIndex,
-                        size, sizeof(*size)) < (ssize_t)sizeof(*size)) {
-                return ERROR_IO;
-            }
-
-            *size = ntohl(*size);
+            *size = ntohl(*((size_t *) &(mSampleCache[cacheReadOffset])));
             break;
         }
 
         case 16:
         {
-            uint16_t x;
-            if (mTable->mDataSource->readAt(
-                        mTable->mSampleSizeOffset + 12 + 2 * sampleIndex,
-                        &x, sizeof(x)) < (ssize_t)sizeof(x)) {
-                return ERROR_IO;
-            }
-
-            *size = ntohs(x);
+            *size = ntohs(*((uint16_t *) &(mSampleCache[cacheReadOffset])));
             break;
         }
 
         case 8:
         {
-            uint8_t x;
-            if (mTable->mDataSource->readAt(
-                        mTable->mSampleSizeOffset + 12 + sampleIndex,
-                        &x, sizeof(x)) < (ssize_t)sizeof(x)) {
-                return ERROR_IO;
-            }
-
-            *size = x;
+            *size = mSampleCache[cacheReadOffset];
             break;
         }
 
         default:
         {
-            CHECK_EQ(mTable->mSampleSizeFieldSize, 4);
-
-            uint8_t x;
-            if (mTable->mDataSource->readAt(
-                        mTable->mSampleSizeOffset + 12 + sampleIndex / 2,
-                        &x, sizeof(x)) < (ssize_t)sizeof(x)) {
-                return ERROR_IO;
-            }
-
-            *size = (sampleIndex & 1) ? x & 0x0f : x >> 4;
-            break;
+            *size = (sampleIndex - mCurrentSampleCacheStartIndex) & 0x01 ?
+                    (mSampleCache[cacheReadOffset] & 0x0f) :
+                    (mSampleCache[cacheReadOffset] & 0xf0) >> 4;
         }
     }
 
