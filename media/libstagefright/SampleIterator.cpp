@@ -166,6 +166,13 @@ status_t SampleIterator::findChunkRange(uint32_t sampleIndex) {
         if (mSampleToChunkIndex + 1 < mTable->mNumSampleToChunkOffsets) {
             mStopChunk = entry[1].startChunk;
 
+            if (mStopChunk < mFirstChunk ||
+                (mStopChunk - mFirstChunk) > UINT32_MAX / mSamplesPerChunk ||
+                ((mStopChunk - mFirstChunk) * mSamplesPerChunk >
+                 UINT32_MAX - mFirstChunkSampleIndex)) {
+
+                return ERROR_OUT_OF_RANGE;
+            }
             mStopChunkSampleIndex =
                 mFirstChunkSampleIndex
                     + (mStopChunk - mFirstChunk) * mSamplesPerChunk;
