@@ -12,7 +12,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
-        $(TOP)/hardware/qcom/media/mm-core/inc \
+        $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc \
         $(TOP)/frameworks/av/media/libstagefright \
         $(TOP)/frameworks/av/media/libstagefright/mpeg2ts \
 
@@ -41,7 +41,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
-        $(TOP)/hardware/qcom/media/mm-core/inc
+        $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
@@ -74,7 +74,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
-        $(TOP)/hardware/qcom/media/mm-core/inc
+        $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
