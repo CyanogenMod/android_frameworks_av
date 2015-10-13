@@ -130,10 +130,10 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     const audio_offload_info_t *offloadInfo)
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
+        return AUDIO_IO_HANDLE_NONE;
     }
     if (mAudioPolicyManager == NULL) {
-        return 0;
+        return AUDIO_IO_HANDLE_NONE;
     }
     ALOGV("getOutput()");
     Mutex::Autolock _l(mLock);
@@ -376,7 +376,7 @@ status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
 uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
+        return 0;
     }
     if (mAudioPolicyManager == NULL) {
         return 0;
@@ -389,10 +389,10 @@ uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stream)
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
+        return AUDIO_DEVICE_NONE;
     }
     if (mAudioPolicyManager == NULL) {
-        return (audio_devices_t)0;
+        return AUDIO_DEVICE_NONE;
     }
     return mAudioPolicyManager->getDevicesForStream(stream);
 }
@@ -438,10 +438,10 @@ status_t AudioPolicyService::setEffectEnabled(int id, bool enabled)
 bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
+        return false;
     }
     if (mAudioPolicyManager == NULL) {
-        return 0;
+        return false;
     }
     Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->isStreamActive(stream, inPastMs);
@@ -450,10 +450,10 @@ bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inP
 bool AudioPolicyService::isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
+        return false;
     }
     if (mAudioPolicyManager == NULL) {
-        return 0;
+        return false;
     }
     Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->isStreamActiveRemotely(stream, inPastMs);
