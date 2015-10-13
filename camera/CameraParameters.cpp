@@ -21,7 +21,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <camera/CameraParameters.h>
-#include "camera/CameraParametersExtra.h"
+#include <camera/CameraParametersExtra.h>
 #include <system/graphics.h>
 
 namespace android {
