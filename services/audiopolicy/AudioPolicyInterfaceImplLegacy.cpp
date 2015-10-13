@@ -134,6 +134,9 @@ audio_io_handle_t AudioPolicyService::getOutput(audio_stream_type_t stream,
                                     audio_output_flags_t flags,
                                     const audio_offload_info_t *offloadInfo)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return 0;
     }
@@ -147,6 +150,9 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
                                          audio_stream_type_t stream,
                                          int session)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
@@ -172,6 +178,9 @@ status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
                                         audio_stream_type_t stream,
                                         int session)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return NO_INIT;
     }
@@ -368,6 +377,9 @@ status_t AudioPolicyService::getStreamVolumeIndex(audio_stream_type_t stream,
 
 uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return 0;
     }
@@ -378,6 +390,9 @@ uint32_t AudioPolicyService::getStrategyForStream(audio_stream_type_t stream)
 
 audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stream)
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return (audio_devices_t)0;
     }
@@ -424,6 +439,9 @@ status_t AudioPolicyService::setEffectEnabled(int id, bool enabled)
 
 bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return 0;
     }
@@ -433,6 +451,9 @@ bool AudioPolicyService::isStreamActive(audio_stream_type_t stream, uint32_t inP
 
 bool AudioPolicyService::isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs) const
 {
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
     if (mpAudioPolicy == NULL) {
         return 0;
     }
