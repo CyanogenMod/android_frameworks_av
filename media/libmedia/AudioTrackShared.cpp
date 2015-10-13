@@ -38,7 +38,7 @@ size_t clampToSize(T x) {
 // In general, this means (new_self) returned is max(self, other) + 1.
 
 static uint32_t incrementSequence(uint32_t self, uint32_t other) {
-    int32_t diff = (int32_t) self - other;
+    int32_t diff = (int32_t) self - (int32_t) other;
     if (diff >= 0 && diff < INT32_MAX) {
         return self + 1; // we're already ahead of other.
     }
@@ -894,7 +894,7 @@ ssize_t StaticAudioTrackServerProxy::pollPosition()
     if (mObserver.poll(state)) {
         StaticAudioTrackState trystate = mState;
         bool result;
-        const int32_t diffSeq = state.mLoopSequence - state.mPositionSequence;
+        const int32_t diffSeq = (int32_t) state.mLoopSequence - (int32_t) state.mPositionSequence;
 
         if (diffSeq < 0) {
             result = updateStateWithLoop(&trystate, state) == OK &&
