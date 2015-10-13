@@ -4615,6 +4615,7 @@ bool ACodec::BaseState::onMessageReceived(const sp<AMessage> &msg) {
             ALOGI("[%s] forcing the release of codec",
                     mCodec->mComponentName.c_str());
             status_t err = mCodec->mOMX->freeNode(mCodec->mNode);
+            mCodec->changeState(mCodec->mUninitializedState);
             ALOGE_IF("[%s] failed to release codec instance: err=%d",
                        mCodec->mComponentName.c_str(), err);
             sp<AMessage> notify = mCodec->mNotify->dup();
