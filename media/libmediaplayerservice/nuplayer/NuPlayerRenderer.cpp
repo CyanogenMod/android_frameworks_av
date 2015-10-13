@@ -910,6 +910,13 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
 
         {
             Mutex::Autolock autoLock(mLock);
+            int64_t maxTimeMedia;
+            maxTimeMedia =
+                mAnchorTimeMediaUs +
+                        (int64_t)(max((long long)mNumFramesWritten - mAnchorNumFramesWritten, 0LL)
+                                * 1000LL * mAudioSink->msecsPerFrame());
+            mMediaClock->updateMaxTimeMedia(maxTimeMedia);
+
             notifyIfMediaRenderingStarted_l();
         }
 
@@ -936,15 +943,6 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             break;
         }
     }
-    int64_t maxTimeMedia;
-    {
-        Mutex::Autolock autoLock(mLock);
-        maxTimeMedia =
-            mAnchorTimeMediaUs +
-                    (int64_t)(max((long long)mNumFramesWritten - mAnchorNumFramesWritten, 0LL)
-                            * 1000LL * mAudioSink->msecsPerFrame());
-    }
-    mMediaClock->updateMaxTimeMedia(maxTimeMedia);
 
     // calculate whether we need to reschedule another write.
     bool reschedule = !mAudioQueue.empty()
