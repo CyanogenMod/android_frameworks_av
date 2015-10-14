@@ -1852,7 +1852,11 @@ nsecs_t AudioTrack::processAudioBuffer()
         case NO_ERROR:
         case DEAD_OBJECT:
         case TIMED_OUT:
-            mCbf(EVENT_STREAM_END, mUserData, NULL);
+            if (status != DEAD_OBJECT) {
+                // for DEAD_OBJECT, we do not send a EVENT_STREAM_END after stop();
+                // instead, the application should handle the EVENT_NEW_IAUDIOTRACK.
+                mCbf(EVENT_STREAM_END, mUserData, NULL);
+            }
             {
                 AutoMutex lock(mLock);
                 // The previously assigned value of waitStreamEnd is no longer valid,
