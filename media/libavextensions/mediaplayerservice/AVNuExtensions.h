@@ -85,6 +85,7 @@ struct AVNuUtils {
 
     virtual void printFileName(int fd);
     virtual void checkFormatChange(bool *formatChange, const sp<ABuffer> &accessUnit);
+    virtual bool dropCorruptFrame();
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);
