@@ -44,6 +44,10 @@
 * Each pulse can have 32 possible positions.                             *
 **************************************************************************/
 
+// There are many integer overflows in this function, as none of them appear to
+// lead to memory accesses, and performing the appropriate checks will lead
+// to considerably larger code, mark this as ignore.
+__attribute__((no_sanitize("integer")))
 void ACELP_2t64_fx(
 		Word16 dn[],                          /* (i) <12b : correlation between target x[] and H[]      */
 		Word16 cn[],                          /* (i) <12b : residual after long term prediction         */
