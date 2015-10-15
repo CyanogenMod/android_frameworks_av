@@ -566,9 +566,15 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
 
     audio_io_handle_t activeInput = mInputs.getActiveInput();
     if (activeInput != 0) {
-        setInputDevice(activeInput, getNewInputDevice(activeInput));
+        sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
+        audio_devices_t newDevice = getNewInputDevice(activeInput);
+        // Force new input selection if the new device can not be reached via current input
+        if (activeDesc->mProfile->mSupportedDevices.types() & (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
+            setInputDevice(activeInput, newDevice);
+        } else {
+            closeInput(activeInput);
+        }
     }
-
 }
 
 void AudioPolicyManager::setSystemProperty(const char* property, const char* value)
