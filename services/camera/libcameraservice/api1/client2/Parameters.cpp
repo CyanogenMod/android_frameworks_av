@@ -1040,7 +1040,7 @@ status_t Parameters::buildFastInfo() {
             ALOGE("%s: Camera %d: Scene mode override list is an "
                     "unexpected size: %zu (expected %zu)", __FUNCTION__,
                     cameraId, sceneModeOverrides.count,
-                    availableSceneModes.count);
+                    availableSceneModes.count * kModesPerSceneMode);
             return NO_INIT;
         }
         for (size_t i = 0; i < availableSceneModes.count; i++) {
