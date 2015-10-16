@@ -276,7 +276,7 @@ protected:
     float getAbortThreshold(
             ssize_t currentBWIndex, ssize_t targetBWIndex) const;
     void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
-    size_t getBandwidthIndex(int32_t bandwidthBps);
+    virtual size_t getBandwidthIndex(int32_t bandwidthBps);
     ssize_t getLowestValidBandwidthIndex() const;
     HLSTime latestMediaSegmentStartTime() const;
 
