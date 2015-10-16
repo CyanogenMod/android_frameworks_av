@@ -360,7 +360,11 @@ status_t SurfaceMediaSource::read(
 
     mNumFramesEncoded++;
     // Pass the data to the MediaBuffer. Pass in only the metadata
-
+    if (mSlots[mCurrentSlot].mGraphicBuffer == NULL) {
+        ALOGV("Read: SurfaceMediaSource mGraphicBuffer is null. Returning"
+              "ERROR_END_OF_STREAM.");
+        return ERROR_END_OF_STREAM;
+    }
     passMetadataBuffer(buffer, mSlots[mCurrentSlot].mGraphicBuffer->handle);
 
     (*buffer)->setObserver(this);
