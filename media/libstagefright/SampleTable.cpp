@@ -246,7 +246,7 @@ status_t SampleTable::setSampleToChunkParams(
     for (uint32_t i = 0; i < mNumSampleToChunkOffsets; ++i) {
         uint8_t buffer[12];
 
-        if (((SIZE_MAX / 12) - 8 - i) < mSampleToChunkOffset) {
+        if ((off64_t)((SIZE_MAX / 12) - 8 - i) < mSampleToChunkOffset) {
             return ERROR_MALFORMED;
         }
 
