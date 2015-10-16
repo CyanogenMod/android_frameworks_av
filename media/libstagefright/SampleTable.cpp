@@ -194,11 +194,11 @@ status_t SampleTable::setChunkOffsetParams(
     mNumChunkOffsets = U32_AT(&header[4]);
 
     if (mChunkOffsetType == kChunkOffsetType32) {
-        if (data_size < 8 + mNumChunkOffsets * 4) {
+      if ((data_size - 8) / 4 < mNumChunkOffsets) {
             return ERROR_MALFORMED;
         }
     } else {
-        if (data_size < 8 + mNumChunkOffsets * 8) {
+      if ((data_size - 8) / 8 < mNumChunkOffsets) {
             return ERROR_MALFORMED;
         }
     }
@@ -231,7 +231,7 @@ status_t SampleTable::setSampleToChunkParams(
 
     mNumSampleToChunkOffsets = U32_AT(&header[4]);
 
-    if (data_size < 8 + mNumSampleToChunkOffsets * 12) {
+    if ((data_size - 8) / 12 < mNumSampleToChunkOffsets) {
         return ERROR_MALFORMED;
     }
 
@@ -245,6 +245,11 @@ status_t SampleTable::setSampleToChunkParams(
 
     for (uint32_t i = 0; i < mNumSampleToChunkOffsets; ++i) {
         uint8_t buffer[12];
+
+        if (((SIZE_MAX / 12) - 8 - i) < mSampleToChunkOffset) {
+            return ERROR_MALFORMED;
+        }
+
         if (mDataSource->readAt(
                     mSampleToChunkOffset + 8 + i * 12, buffer, sizeof(buffer))
                 != (ssize_t)sizeof(buffer)) {
@@ -389,7 +394,7 @@ status_t SampleTable::setCompositionTimeToSampleParams(
 
     size_t numEntries = U32_AT(&header[4]);
 
-    if (data_size != (numEntries + 1) * 8) {
+    if (((SIZE_MAX / 8) - 1 < numEntries) || (data_size != (numEntries + 1) * 8)) {
         return ERROR_MALFORMED;
     }
 
