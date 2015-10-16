@@ -1628,7 +1628,8 @@ status_t PlaylistFetcher::extractAndQueueAccessUnitsFromTs(const sp<ABuffer> &bu
 
     if (mSegmentFirstPTS < 0ll) {
         // get the smallest first PTS from all streams present in this parser
-        for (size_t i = mPacketSources.size(); i-- > 0;) {
+        for (size_t i = mPacketSources.size(); i > 0;) {
+            i--;
             const LiveSession::StreamType stream = mPacketSources.keyAt(i);
             if (stream == LiveSession::STREAMTYPE_SUBTITLES) {
                 ALOGE("MPEG2 Transport streams do not contain subtitles.");
