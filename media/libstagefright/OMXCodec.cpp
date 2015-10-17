@@ -1760,14 +1760,13 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         int32_t numchannels = 0;
         if (delay + padding) {
             if (mOutputFormat->findInt32(kKeyChannelCount, &numchannels)) {
-                size_t frameSize = numchannels * sizeof(int16_t);
                 if (mSkipCutBuffer != NULL) {
                     size_t prevbuffersize = mSkipCutBuffer->size();
                     if (prevbuffersize != 0) {
                         ALOGW("Replacing SkipCutBuffer holding %zu bytes", prevbuffersize);
                     }
                 }
-                mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
+                mSkipCutBuffer = new SkipCutBuffer(delay, padding, numchannels);
             }
         }
     }
