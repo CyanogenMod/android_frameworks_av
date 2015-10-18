@@ -885,7 +885,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             && chunk_type != FOURCC('c', 'o', 'v', 'r')
             && mPath.size() == 5 && underMetaDataPath(mPath)) {
         off64_t stop_offset = *offset + chunk_size;
-        *offset = data_offset;
+        *offset = stop_offset;
         while (*offset < stop_offset) {
             status_t err = parseChunk(offset, depth + 1);
             if (err != OK) {
