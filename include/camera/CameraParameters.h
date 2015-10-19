@@ -697,6 +697,11 @@ CAMERA_PARAMETERS_EXTRA_H
 
 private:
     DefaultKeyedVector<String8,String8>    mMap;
+
+#ifdef CAMERA_PARAMETERS_EXTRA_H_PRIVATE
+CAMERA_PARAMETERS_EXTRA_H_PRIVATE
+#endif
+
 };
 
 }; // namespace android
