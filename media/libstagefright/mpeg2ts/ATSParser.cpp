@@ -524,15 +524,10 @@ int64_t ATSParser::Program::recoverPTS(uint64_t PTS_33bit) {
 }
 
 sp<MediaSource> ATSParser::Program::getSource(SourceType type) {
-    size_t index = (type == AUDIO) ? 0 : 0;
-
     for (size_t i = 0; i < mStreams.size(); ++i) {
         sp<MediaSource> source = mStreams.editValueAt(i)->getSource(type);
         if (source != NULL) {
-            if (index == 0) {
-                return source;
-            }
-            --index;
+            return source;
         }
     }
 
@@ -545,6 +540,8 @@ bool ATSParser::Program::hasSource(SourceType type) const {
         if (type == AUDIO && stream->isAudio()) {
             return true;
         } else if (type == VIDEO && stream->isVideo()) {
+            return true;
+        } else if (type == META && stream->isMeta()) {
             return true;
         }
     }
@@ -1499,23 +1496,38 @@ status_t ATSParser::parseTS(ABitReader *br, SyncEvent *event) {
 }
 
 sp<MediaSource> ATSParser::getSource(SourceType type) {
-    int which = -1;  // any
-
+    sp<MediaSource> firstSourceFound;
     for (size_t i = 0; i < mPrograms.size(); ++i) {
         const sp<Program> &program = mPrograms.editItemAt(i);
-
-        if (which >= 0 && (int)program->number() != which) {
+        sp<MediaSource> source = program->getSource(type);
+        if (source == NULL) {
             continue;
         }
+        if (firstSourceFound == NULL) {
+            firstSourceFound = source;
+        }
+        // Prefer programs with both audio/video
+        switch (type) {
+            case VIDEO: {
+                if (program->hasSource(AUDIO)) {
+                    return source;
+                }
+                break;
+            }
 
-        sp<MediaSource> source = program->getSource(type);
+            case AUDIO: {
+                if (program->hasSource(VIDEO)) {
+                    return source;
+                }
+                break;
+            }
 
-        if (source != NULL) {
-            return source;
+            default:
+                return source;
         }
     }
 
-    return NULL;
+    return firstSourceFound;
 }
 
 bool ATSParser::hasSource(SourceType type) const {
