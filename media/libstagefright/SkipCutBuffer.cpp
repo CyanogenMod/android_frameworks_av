@@ -24,21 +24,32 @@
 
 namespace android {
 
-SkipCutBuffer::SkipCutBuffer(int32_t skip, int32_t cut) {
+SkipCutBuffer::SkipCutBuffer(size_t skip, size_t cut, size_t num16BitChannels) {
 
-    if (skip < 0 || cut < 0 || cut > 64 * 1024) {
-        ALOGW("out of range skip/cut: %d/%d, using passthrough instead", skip, cut);
-        skip = 0;
-        cut = 0;
+    mWriteHead = 0;
+    mReadHead = 0;
+    mCapacity = 0;
+    mCutBuffer = NULL;
+
+    if (num16BitChannels == 0 || num16BitChannels > INT32_MAX / 2) {
+        ALOGW("# channels out of range: %zu, using passthrough instead", num16BitChannels);
+        return;
     }
+    size_t frameSize = num16BitChannels * 2;
+    if (skip > INT32_MAX / frameSize || cut > INT32_MAX / frameSize
+            || cut * frameSize > INT32_MAX - 4096) {
+        ALOGW("out of range skip/cut: %zu/%zu, using passthrough instead",
+                skip, cut);
+        return;
+    }
+    skip *= frameSize;
+    cut *= frameSize;
 
     mFrontPadding = mSkip = skip;
     mBackPadding = cut;
-    mWriteHead = 0;
-    mReadHead = 0;
     mCapacity = cut + 4096;
-    mCutBuffer = new char[mCapacity];
-    ALOGV("skipcutbuffer %d %d %d", skip, cut, mCapacity);
+    mCutBuffer = new (std::nothrow) char[mCapacity];
+    ALOGV("skipcutbuffer %zu %zu %d", skip, cut, mCapacity);
 }
 
 SkipCutBuffer::~SkipCutBuffer() {
@@ -46,6 +57,11 @@ SkipCutBuffer::~SkipCutBuffer() {
 }
 
 void SkipCutBuffer::submit(MediaBuffer *buffer) {
+    if (mCutBuffer == NULL) {
+        // passthrough mode
+        return;
+    }
+
     int32_t offset = buffer->range_offset();
     int32_t buflen = buffer->range_length();
 
@@ -73,6 +89,11 @@ void SkipCutBuffer::submit(MediaBuffer *buffer) {
 }
 
 void SkipCutBuffer::submit(const sp<ABuffer>& buffer) {
+    if (mCutBuffer == NULL) {
+        // passthrough mode
+        return;
+    }
+
     int32_t offset = buffer->offset();
     int32_t buflen = buffer->size();
 
