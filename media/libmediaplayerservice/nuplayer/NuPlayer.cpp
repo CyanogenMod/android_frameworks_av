@@ -1312,10 +1312,7 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     }
 
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
-    if (audioMeta == NULL) {
-        ALOGE("no metadata for audio source");
-        return;
-    }
+    ALOGV_IF(audioMeta == NULL, "no metadata for audio source");  // video only stream
     audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
     if (mAudioSink != NULL) {
         streamType = mAudioSink->getAudioStreamType();
