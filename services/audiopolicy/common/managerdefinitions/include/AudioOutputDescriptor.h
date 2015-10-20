@@ -72,6 +72,7 @@ public:
     sp<AudioPort>       mPort;
     audio_devices_t mDevice;                   // current device this output is routed to
     audio_patch_handle_t mPatchHandle;
+    audio_io_handle_t mIoHandle;           // output handle
     uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
     nsecs_t mStopTime[AUDIO_STREAM_CNT];
     float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume in dB
@@ -116,7 +117,6 @@ public:
     virtual void toAudioPort(struct audio_port *port) const;
 
     const sp<IOProfile> mProfile;          // I/O profile this output derives from
-    audio_io_handle_t mIoHandle;           // output handle
     uint32_t mLatency;                  //
     audio_output_flags_t mFlags;   //
     AudioMix *mPolicyMix;             // non NULL when used by a dynamic policy
