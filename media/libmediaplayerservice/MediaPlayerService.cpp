@@ -1452,6 +1452,76 @@ status_t MediaPlayerService::AudioOutput::getTimestamp(AudioTimestamp &ts) const
     return mTrack->getTimestamp(ts);
 }
 
+// TODO: Remove unnecessary calls to getPlayedOutDurationUs()
+// as it acquires locks and may query the audio driver.
+//
+// Some calls could conceivably retrieve extrapolated data instead of
+// accessing getTimestamp() or getPosition() every time a data buffer with
+// a media time is received.
+//
+// Calculate duration of played samples if played at normal rate (i.e., 1.0).
+int64_t MediaPlayerService::AudioOutput::getPlayedOutDurationUs(int64_t nowUs) const
+{
+    Mutex::Autolock lock(mLock);
+    if (mTrack == 0 || mSampleRateHz == 0) {
+        return NO_INIT;
+    }
+
+    uint32_t numFramesPlayed;
+    int64_t numFramesPlayedAt;
+    AudioTimestamp ts;
+    static const int64_t kStaleTimestamp100ms = 100000;
+
+    status_t res = mTrack->getTimestamp(ts);
+    if (res == OK) {                 // case 1: mixing audio tracks and offloaded tracks.
+        numFramesPlayed = ts.mPosition;
+        numFramesPlayedAt = ts.mTime.tv_sec * 1000000LL + ts.mTime.tv_nsec / 1000;
+        const int64_t timestampAge = nowUs - numFramesPlayedAt;
+        if (timestampAge > kStaleTimestamp100ms) {
+            // This is an audio FIXME.
+            // getTimestamp returns a timestamp which may come from audio mixing threads.
+            // After pausing, the MixerThread may go idle, thus the mTime estimate may
+            // become stale. Assuming that the MixerThread runs 20ms, with FastMixer at 5ms,
+            // the max latency should be about 25ms with an average around 12ms (to be verified).
+            // For safety we use 100ms.
+            ALOGV("getTimestamp: returned stale timestamp nowUs(%lld) numFramesPlayedAt(%lld)",
+                    (long long)nowUs, (long long)numFramesPlayedAt);
+            numFramesPlayedAt = nowUs - kStaleTimestamp100ms;
+        }
+        //ALOGD("getTimestamp: OK %d %lld", numFramesPlayed, (long long)numFramesPlayedAt);
+    } else if (res == WOULD_BLOCK) { // case 2: transitory state on start of a new track
+        numFramesPlayed = 0;
+        numFramesPlayedAt = nowUs;
+        //ALOGD("getTimestamp: WOULD_BLOCK %d %lld",
+        //        numFramesPlayed, (long long)numFramesPlayedAt);
+    } else {                         // case 3: transitory at new track or audio fast tracks.
+        res = mTrack->getPosition(&numFramesPlayed);
+        CHECK_EQ(res, (status_t)OK);
+        numFramesPlayedAt = nowUs;
+        numFramesPlayedAt += 1000LL * mTrack->latency() / 2; /* XXX */
+        //ALOGD("getPosition: %u %lld", numFramesPlayed, (long long)numFramesPlayedAt);
+    }
+
+    // CHECK_EQ(numFramesPlayed & (1 << 31), 0);  // can't be negative until 12.4 hrs, test
+    // TODO: remove the (int32_t) casting below as it may overflow at 12.4 hours.
+    int64_t durationUs = (int64_t)((int32_t)numFramesPlayed * 1000000LL / mSampleRateHz)
+            + nowUs - numFramesPlayedAt;
+    if (durationUs < 0) {
+        // Occurs when numFramesPlayed position is very small and the following:
+        // (1) In case 1, the time nowUs is computed before getTimestamp() is called and
+        //     numFramesPlayedAt is greater than nowUs by time more than numFramesPlayed.
+        // (2) In case 3, using getPosition and adding mAudioSink->latency() to
+        //     numFramesPlayedAt, by a time amount greater than numFramesPlayed.
+        //
+        // Both of these are transitory conditions.
+        ALOGV("getPlayedOutDurationUs: negative duration %lld set to zero", (long long)durationUs);
+        durationUs = 0;
+    }
+    ALOGV("getPlayedOutDurationUs(%lld) nowUs(%lld) frames(%u) framesAt(%lld)",
+            (long long)durationUs, (long long)nowUs, numFramesPlayed, (long long)numFramesPlayedAt);
+    return durationUs;
+}
+
 status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritten) const
 {
     Mutex::Autolock lock(mLock);

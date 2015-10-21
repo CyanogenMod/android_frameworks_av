@@ -88,6 +88,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual float           msecsPerFrame() const;
         virtual status_t        getPosition(uint32_t *position) const;
         virtual status_t        getTimestamp(AudioTimestamp &ts) const;
+        virtual int64_t         getPlayedOutDurationUs(int64_t nowUs) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
         virtual int             getSessionId() const;
         virtual uint32_t        getSampleRate() const;

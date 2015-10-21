@@ -214,7 +214,6 @@ private:
     bool onDrainAudioQueue();
     void drainAudioQueueUntilLastEOS();
     int64_t getPendingAudioPlayoutDurationUs(int64_t nowUs);
-    int64_t getPlayedOutAudioDurationUs(int64_t nowUs);
     void postDrainAudioQueue_l(int64_t delayUs = 0);
 
     void clearAnchorTime_l();
