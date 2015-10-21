@@ -335,7 +335,7 @@ status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
 
         // AudioSink has rendered some frames.
         int64_t nowUs = ALooper::GetNowUs();
-        int64_t nowMediaUs = getPlayedOutAudioDurationUs(nowUs)
+        int64_t nowMediaUs = mAudioSink->getPlayedOutDurationUs(nowUs)
                 + mAudioFirstAnchorTimeMediaUs;
         mMediaClock->updateAnchor(nowMediaUs, nowUs, -1);
     }
