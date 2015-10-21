@@ -25,6 +25,10 @@
 
 namespace android {
 
+// Maximum allowed time backwards from anchor change.
+// If larger than this threshold, it's treated as discontinuity.
+static const int64_t kAnchorFluctuationAllowedUs = 10000ll;
+
 MediaClock::MediaClock()
     : mAnchorTimeMediaUs(-1),
       mAnchorTimeRealUs(-1),
@@ -64,9 +68,20 @@ void MediaClock::updateAnchor(
         ALOGW("reject anchor time since it leads to negative media time.");
         return;
     }
+
+    if (maxTimeMediaUs != -1) {
+        mMaxTimeMediaUs = maxTimeMediaUs;
+    }
+    if (mAnchorTimeRealUs != -1) {
+        int64_t oldNowMediaUs =
+            mAnchorTimeMediaUs + (nowUs - mAnchorTimeRealUs) * (double)mPlaybackRate;
+        if (nowMediaUs < oldNowMediaUs
+                && nowMediaUs > oldNowMediaUs - kAnchorFluctuationAllowedUs) {
+            return;
+        }
+    }
     mAnchorTimeRealUs = nowUs;
     mAnchorTimeMediaUs = nowMediaUs;
-    mMaxTimeMediaUs = maxTimeMediaUs;
 }
 
 void MediaClock::updateMaxTimeMedia(int64_t maxTimeMediaUs) {

@@ -313,8 +313,33 @@ void NuPlayer::Renderer::setVideoFrameRate(float fps) {
     msg->post();
 }
 
-// Called on any threads.
+// Called on any threads without mLock acquired.
 status_t NuPlayer::Renderer::getCurrentPosition(int64_t *mediaUs) {
+    status_t result = mMediaClock->getMediaTime(ALooper::GetNowUs(), mediaUs);
+    if (result == OK) {
+        return result;
+    }
+
+    // MediaClock has not started yet. Try to start it if possible.
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mAudioFirstAnchorTimeMediaUs == -1) {
+            return result;
+        }
+
+        AudioTimestamp ts;
+        status_t res = mAudioSink->getTimestamp(ts);
+        if (res != OK) {
+            return result;
+        }
+
+        // AudioSink has rendered some frames.
+        int64_t nowUs = ALooper::GetNowUs();
+        int64_t nowMediaUs = getPlayedOutAudioDurationUs(nowUs)
+                + mAudioFirstAnchorTimeMediaUs;
+        mMediaClock->updateAnchor(nowMediaUs, nowUs, -1);
+    }
+
     return mMediaClock->getMediaTime(ALooper::GetNowUs(), mediaUs);
 }
 
@@ -1010,9 +1035,14 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
         return;
     }
     setAudioFirstAnchorTimeIfNeeded_l(mediaTimeUs);
-    int64_t nowUs = ALooper::GetNowUs();
-    int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
-    mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+
+    AudioTimestamp ts;
+    status_t res = mAudioSink->getTimestamp(ts);
+    if (res == OK) {
+        int64_t nowUs = ALooper::GetNowUs();
+        int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
+        mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+    }
     mAnchorNumFramesWritten = mNumFramesWritten;
     mAnchorTimeMediaUs = mediaTimeUs;
 }
