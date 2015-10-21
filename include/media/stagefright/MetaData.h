@@ -181,6 +181,9 @@ enum {
 
     // H264 supplemental enhancement information offsets/sizes
     kKeySEI               = 'sei ', // raw data
+
+    // MPEG user data offsets
+    kKeyMpegUserData      = 'mpud', // size_t[]
 };
 
 enum {

@@ -1047,6 +1047,8 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
     const uint8_t *data = mBuffer->data();
     size_t size = mBuffer->size();
 
+    Vector<size_t> userDataPositions;
+
     bool sawPictureStart = false;
     int pprevStartCode = -1;
     int prevStartCode = -1;
@@ -1130,6 +1132,10 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
             brokenLink = (data[offset + 7] & 0x20) != 0;
         }
 
+        if (mFormat != NULL && currentStartCode == 0xb2) {
+            userDataPositions.add(offset);
+        }
+
         if (mFormat != NULL && currentStartCode == 0x00) {
             // Picture start
 
@@ -1162,6 +1168,19 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitMPEGVideo() {
                       timeUs);
 
                 // hexdump(accessUnit->data(), accessUnit->size());
+
+                if (userDataPositions.size() > 0) {
+                    sp<ABuffer> mpegUserData =
+                        new ABuffer(userDataPositions.size() * sizeof(size_t));
+                    if (mpegUserData != NULL && mpegUserData->data() != NULL) {
+                        for (size_t i = 0; i < userDataPositions.size(); ++i) {
+                            memcpy(
+                                    mpegUserData->data() + i * sizeof(size_t),
+                                    &userDataPositions[i], sizeof(size_t));
+                        }
+                        accessUnit->meta()->setBuffer("mpegUserData", mpegUserData);
+                    }
+                }
 
                 return accessUnit;
             }

@@ -216,6 +216,12 @@ status_t AnotherPacketSource::read(
             mediaBuffer->meta_data()->setData(kKeySEI, 0, sei->data(), sei->size());
         }
 
+        sp<ABuffer> mpegUserData;
+        if (buffer->meta()->findBuffer("mpegUserData", &mpegUserData) && mpegUserData != NULL) {
+            mediaBuffer->meta_data()->setData(
+                    kKeyMpegUserData, 0, mpegUserData->data(), mpegUserData->size());
+        }
+
         *out = mediaBuffer;
         return OK;
     }

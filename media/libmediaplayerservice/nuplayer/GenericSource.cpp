@@ -1482,6 +1482,14 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
         meta->setBuffer("sei", sei);
     }
 
+    const void *mpegUserDataPointer;
+    size_t mpegUserDataLength;
+    if (mb->meta_data()->findData(
+            kKeyMpegUserData, &dataType, &mpegUserDataPointer, &mpegUserDataLength)) {
+        sp<ABuffer> mpegUserData = ABuffer::CreateAsCopy(mpegUserDataPointer, mpegUserDataLength);
+        meta->setBuffer("mpegUserData", mpegUserData);
+    }
+
     if (actualTimeUs) {
         *actualTimeUs = timeUs;
     }

@@ -30,6 +30,9 @@
 
 namespace android {
 
+// In CEA-708B, the maximum bandwidth of CC is set to 9600bps.
+static const size_t kMaxBandwithSizeBytes = 9600 / 8;
+
 struct CCData {
     CCData(uint8_t type, uint8_t data1, uint8_t data2)
         : mType(type), mData1(data1), mData2(data2) {
@@ -116,15 +119,19 @@ static void dumpBytePair(const sp<ABuffer> &ccBuf) {
 
 NuPlayer::CCDecoder::CCDecoder(const sp<AMessage> &notify)
     : mNotify(notify),
-      mCurrentChannel(0),
-      mSelectedTrack(-1) {
-      for (size_t i = 0; i < sizeof(mTrackIndices)/sizeof(mTrackIndices[0]); ++i) {
-          mTrackIndices[i] = -1;
-      }
+      mSelectedTrack(-1),
+      mDTVCCPacket(new ABuffer(kMaxBandwithSizeBytes)) {
+    mDTVCCPacket->setRange(0, 0);
+
+    // In CEA-608, streams from packets which have the value 0 of cc_type contain CC1 and CC2, and
+    // streams from packets which have the value 1 of cc_type contain CC3 and CC4.
+    // The following array indicates the current transmitting channels for each value of cc_type.
+    mLine21Channels[0] = 0; // CC1
+    mLine21Channels[1] = 2; // CC3
 }
 
 size_t NuPlayer::CCDecoder::getTrackCount() const {
-    return mFoundChannels.size();
+    return mTracks.size();
 }
 
 sp<AMessage> NuPlayer::CCDecoder::getTrackInfo(size_t index) const {
@@ -134,13 +141,31 @@ sp<AMessage> NuPlayer::CCDecoder::getTrackInfo(size_t index) const {
 
     sp<AMessage> format = new AMessage();
 
+    CCTrack track = mTracks[index];
+
     format->setInt32("type", MEDIA_TRACK_TYPE_SUBTITLE);
     format->setString("language", "und");
-    format->setString("mime", MEDIA_MIMETYPE_TEXT_CEA_608);
-    //CC1, field 0 channel 0
-    bool isDefaultAuto = (mFoundChannels[index] == 0);
+
+    switch (track.mTrackType) {
+        case kTrackTypeCEA608:
+            format->setString("mime", MEDIA_MIMETYPE_TEXT_CEA_608);
+            break;
+        case kTrackTypeCEA708:
+            format->setString("mime", MEDIA_MIMETYPE_TEXT_CEA_708);
+            break;
+        default:
+            ALOGE("Unknown track type: %d", track.mTrackType);
+            return NULL;
+    }
+
+    // For CEA-608 CC1, field 0 channel 0
+    bool isDefaultAuto = track.mTrackType == kTrackTypeCEA608
+            && track.mTrackChannel == 0;
+    // For CEA-708, Primary Caption Service.
+    bool isDefaultOnly = track.mTrackType == kTrackTypeCEA708
+            && track.mTrackChannel == 1;
     format->setInt32("auto", isDefaultAuto);
-    format->setInt32("default", isDefaultAuto);
+    format->setInt32("default", isDefaultAuto || isDefaultOnly);
     format->setInt32("forced", 0);
 
     return format;
@@ -167,22 +192,18 @@ status_t NuPlayer::CCDecoder::selectTrack(size_t index, bool select) {
         mSelectedTrack = -1;
     }
 
+    // Clear the previous track payloads
+    mCCMap.clear();
+
     return OK;
 }
 
 bool NuPlayer::CCDecoder::isSelected() const {
-    return mSelectedTrack >= 0 && mSelectedTrack < (int32_t) getTrackCount();
+    return mSelectedTrack >= 0 && mSelectedTrack < (int32_t)getTrackCount();
 }
 
 bool NuPlayer::CCDecoder::isTrackValid(size_t index) const {
     return index < getTrackCount();
-}
-
-int32_t NuPlayer::CCDecoder::getTrackIndex(size_t channel) const {
-    if (channel < sizeof(mTrackIndices)/sizeof(mTrackIndices[0])) {
-        return mTrackIndices[channel];
-    }
-    return -1;
 }
 
 // returns true if a new CC track is found
@@ -197,7 +218,7 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
 
     bool trackAdded = false;
 
-    const NALPosition *nal = (NALPosition *) sei->data();
+    const NALPosition *nal = (NALPosition *)sei->data();
 
     for (size_t i = 0; i < sei->size() / sizeof(NALPosition); ++i, ++nal) {
         trackAdded |= parseSEINalUnit(
@@ -208,9 +229,8 @@ bool NuPlayer::CCDecoder::extractFromSEI(const sp<ABuffer> &accessUnit) {
 }
 
 // returns true if a new CC track is found
-bool NuPlayer::CCDecoder::parseSEINalUnit(
-        int64_t timeUs, const uint8_t *nalStart, size_t nalSize) {
-    unsigned nalType = nalStart[0] & 0x1f;
+bool NuPlayer::CCDecoder::parseSEINalUnit(int64_t timeUs, const uint8_t *data, size_t size) {
+    unsigned nalType = data[0] & 0x1f;
 
     // the buffer should only have SEI in it
     if (nalType != 6) {
@@ -218,7 +238,8 @@ bool NuPlayer::CCDecoder::parseSEINalUnit(
     }
 
     bool trackAdded = false;
-    NALBitReader br(nalStart + 1, nalSize - 1);
+    NALBitReader br(data + 1, size - 1);
+
     // sei_message()
     while (br.atLeastNumBitsLeft(16)) { // at least 16-bit for sei_message()
         uint32_t payload_type = 0;
@@ -256,53 +277,7 @@ bool NuPlayer::CCDecoder::parseSEINalUnit(
             }
 
             if (isCC && payload_size > 2) {
-                // MPEG_cc_data()
-                // ATSC A/53 Part 4: 6.2.3.1
-                br.skipBits(1); //process_em_data_flag
-                bool process_cc_data_flag = br.getBits(1);
-                br.skipBits(1); //additional_data_flag
-                size_t cc_count = br.getBits(5);
-                br.skipBits(8); // em_data;
-                payload_size -= 2;
-
-                if (process_cc_data_flag) {
-                    AString out;
-
-                    sp<ABuffer> ccBuf = new ABuffer(cc_count * sizeof(CCData));
-                    ccBuf->setRange(0, 0);
-
-                    for (size_t i = 0; i < cc_count && payload_size >= 3; i++) {
-                        uint8_t marker = br.getBits(5);
-                        CHECK_EQ(marker, 0x1f);
-
-                        bool cc_valid = br.getBits(1);
-                        uint8_t cc_type = br.getBits(2);
-                        // remove odd parity bit
-                        uint8_t cc_data_1 = br.getBits(8) & 0x7f;
-                        uint8_t cc_data_2 = br.getBits(8) & 0x7f;
-
-                        payload_size -= 3;
-
-                        if (cc_valid
-                                && (cc_type == 0 || cc_type == 1)) {
-                            CCData cc(cc_type, cc_data_1, cc_data_2);
-                            if (!isNullPad(&cc)) {
-                                size_t channel;
-                                if (cc.getChannel(&channel) && getTrackIndex(channel) < 0) {
-                                    mTrackIndices[channel] = mFoundChannels.size();
-                                    mFoundChannels.push_back(channel);
-                                    trackAdded = true;
-                                }
-                                memcpy(ccBuf->data() + ccBuf->size(),
-                                        (void *)&cc, sizeof(cc));
-                                ccBuf->setRange(0, ccBuf->size() + sizeof(CCData));
-                            }
-                        }
-                    }
-
-                    mCCMap.add(timeUs, ccBuf);
-                    break;
-                }
+                trackAdded |= parseMPEGCCData(timeUs, br.data(), br.numBitsLeft() / 8);
             } else {
                 ALOGV("Malformed SEI payload type 4");
             }
@@ -317,31 +292,202 @@ bool NuPlayer::CCDecoder::parseSEINalUnit(
     return trackAdded;
 }
 
-sp<ABuffer> NuPlayer::CCDecoder::filterCCBuf(
-        const sp<ABuffer> &ccBuf, size_t index) {
-    sp<ABuffer> filteredCCBuf = new ABuffer(ccBuf->size());
-    filteredCCBuf->setRange(0, 0);
+// returns true if a new CC track is found
+bool NuPlayer::CCDecoder::extractFromMPEGUserData(const sp<ABuffer> &accessUnit) {
+    sp<ABuffer> mpegUserData;
+    if (!accessUnit->meta()->findBuffer("mpegUserData", &mpegUserData)
+            || mpegUserData == NULL) {
+        return false;
+    }
 
-    size_t cc_count = ccBuf->size() / sizeof(CCData);
-    const CCData* cc_data = (const CCData*)ccBuf->data();
+    int64_t timeUs;
+    CHECK(accessUnit->meta()->findInt64("timeUs", &timeUs));
+
+    bool trackAdded = false;
+
+    const size_t *userData = (size_t *)mpegUserData->data();
+
+    for (size_t i = 0; i < mpegUserData->size() / sizeof(size_t); ++i) {
+        trackAdded |= parseMPEGUserDataUnit(
+                timeUs, accessUnit->data() + userData[i], accessUnit->size() - userData[i]);
+    }
+
+    return trackAdded;
+}
+
+// returns true if a new CC track is found
+bool NuPlayer::CCDecoder::parseMPEGUserDataUnit(int64_t timeUs, const uint8_t *data, size_t size) {
+    ABitReader br(data + 4, 5);
+
+    uint32_t user_identifier = br.getBits(32);
+    uint8_t user_data_type = br.getBits(8);
+
+    if (user_identifier == 'GA94' && user_data_type == 0x3) {
+        return parseMPEGCCData(timeUs, data + 9, size - 9);
+    }
+
+    return false;
+}
+
+// returns true if a new CC track is found
+bool NuPlayer::CCDecoder::parseMPEGCCData(int64_t timeUs, const uint8_t *data, size_t size) {
+    bool trackAdded = false;
+
+    // MPEG_cc_data()
+    // ATSC A/53 Part 4: 6.2.3.1
+    ABitReader br(data, size);
+
+    if (br.numBitsLeft() <= 16) {
+        return false;
+    }
+
+    br.skipBits(1);
+    bool process_cc_data_flag = br.getBits(1);
+    br.skipBits(1);
+    size_t cc_count = br.getBits(5);
+    br.skipBits(8);
+
+    if (!process_cc_data_flag || 3 * 8 * cc_count >= br.numBitsLeft()) {
+        return false;
+    }
+
+    sp<ABuffer> line21CCBuf = NULL;
+
     for (size_t i = 0; i < cc_count; ++i) {
-        size_t channel;
-        if (cc_data[i].getChannel(&channel)) {
-            mCurrentChannel = channel;
-        }
-        if (mCurrentChannel == mFoundChannels[index]) {
-            memcpy(filteredCCBuf->data() + filteredCCBuf->size(),
-                    (void *)&cc_data[i], sizeof(CCData));
-            filteredCCBuf->setRange(0, filteredCCBuf->size() + sizeof(CCData));
+        br.skipBits(5);
+        bool cc_valid = br.getBits(1);
+        uint8_t cc_type = br.getBits(2);
+
+        if (cc_valid) {
+            if (cc_type == 3) {
+                if (mDTVCCPacket->size() > 0) {
+                    trackAdded |= parseDTVCCPacket(
+                            timeUs, mDTVCCPacket->data(), mDTVCCPacket->size());
+                    mDTVCCPacket->setRange(0, 0);
+                }
+                memcpy(mDTVCCPacket->data() + mDTVCCPacket->size(), br.data(), 2);
+                mDTVCCPacket->setRange(0, mDTVCCPacket->size() + 2);
+                br.skipBits(16);
+            } else if (mDTVCCPacket->size() > 0 && cc_type == 2) {
+                memcpy(mDTVCCPacket->data() + mDTVCCPacket->size(), br.data(), 2);
+                mDTVCCPacket->setRange(0, mDTVCCPacket->size() + 2);
+                br.skipBits(16);
+            } else if (cc_type == 0 || cc_type == 1) {
+                uint8_t cc_data_1 = br.getBits(8) & 0x7f;
+                uint8_t cc_data_2 = br.getBits(8) & 0x7f;
+
+                CCData cc(cc_type, cc_data_1, cc_data_2);
+
+                if (isNullPad(&cc)) {
+                    continue;
+                }
+
+                size_t channel;
+                if (cc.getChannel(&channel)) {
+                    mLine21Channels[cc_type] = channel;
+
+                    // create a new track if it does not exist.
+                    getTrackIndex(kTrackTypeCEA608, channel, &trackAdded);
+                }
+
+                if (isSelected() && mTracks[mSelectedTrack].mTrackType == kTrackTypeCEA608
+                        && mTracks[mSelectedTrack].mTrackChannel == mLine21Channels[cc_type]) {
+                    if (line21CCBuf == NULL) {
+                        line21CCBuf = new ABuffer((cc_count - i) * sizeof(CCData));
+                        line21CCBuf->setRange(0, 0);
+                    }
+                    memcpy(line21CCBuf->data() + line21CCBuf->size(), &cc, sizeof(cc));
+                    line21CCBuf->setRange(0, line21CCBuf->size() + sizeof(CCData));
+                }
+            } else {
+                br.skipBits(16);
+            }
+        } else {
+            if ((cc_type == 3 || cc_type == 2) && mDTVCCPacket->size() > 0) {
+                trackAdded |= parseDTVCCPacket(timeUs, mDTVCCPacket->data(), mDTVCCPacket->size());
+                mDTVCCPacket->setRange(0, 0);
+            }
+            br.skipBits(16);
         }
     }
 
-    return filteredCCBuf;
+    if (isSelected() && mTracks[mSelectedTrack].mTrackType == kTrackTypeCEA608
+            && line21CCBuf != NULL && line21CCBuf->size() > 0) {
+        mCCMap.add(timeUs, line21CCBuf);
+    }
+
+    return trackAdded;
+}
+
+// returns true if a new CC track is found
+bool NuPlayer::CCDecoder::parseDTVCCPacket(int64_t timeUs, const uint8_t *data, size_t size) {
+    // CEA-708B 5 DTVCC Packet Layer.
+    ABitReader br(data, size);
+    br.skipBits(2);
+
+    size_t packet_size = br.getBits(6);
+    if (packet_size == 0) packet_size = 64;
+    packet_size *= 2;
+
+    if (size != packet_size) {
+        return false;
+    }
+
+    bool trackAdded = false;
+
+    while (br.numBitsLeft() >= 16) {
+        // CEA-708B Figure 5 and 6.
+        uint8_t service_number = br.getBits(3);
+        size_t block_size = br.getBits(5);
+
+        if (service_number == 64) {
+            br.skipBits(2);
+            service_number = br.getBits(6);
+
+            if (service_number < 64) {
+                return trackAdded;
+            }
+        }
+
+        if (br.numBitsLeft() < block_size * 8) {
+            return trackAdded;
+        }
+
+        if (block_size > 0) {
+            size_t trackIndex = getTrackIndex(kTrackTypeCEA708, service_number, &trackAdded);
+            if (mSelectedTrack == (ssize_t)trackIndex) {
+                sp<ABuffer> ccPacket = new ABuffer(block_size);
+                memcpy(ccPacket->data(), br.data(), block_size);
+                mCCMap.add(timeUs, ccPacket);
+            }
+        }
+        br.skipBits(block_size * 8);
+    }
+
+    return trackAdded;
+}
+
+// return the track index for a given type and channel.
+// if the track does not exist, creates a new one.
+size_t NuPlayer::CCDecoder::getTrackIndex(
+        int32_t trackType, size_t channel, bool *trackAdded) {
+    CCTrack track(trackType, channel);
+    ssize_t index = mTrackIndices.indexOfKey(track);
+
+    if (index < 0) {
+        // A new track is added.
+        index = mTracks.size();
+        mTrackIndices.add(track, index);
+        mTracks.add(track);
+        *trackAdded = true;
+        return index;
+    }
+
+    return mTrackIndices.valueAt(index);
 }
 
 void NuPlayer::CCDecoder::decode(const sp<ABuffer> &accessUnit) {
-    if (extractFromSEI(accessUnit)) {
-        ALOGI("Found CEA-608 track");
+    if (extractFromMPEGUserData(accessUnit) || extractFromSEI(accessUnit)) {
         sp<AMessage> msg = mNotify->dup();
         msg->setInt32("what", kWhatTrackAdded);
         msg->post();
@@ -350,8 +496,7 @@ void NuPlayer::CCDecoder::decode(const sp<ABuffer> &accessUnit) {
 }
 
 void NuPlayer::CCDecoder::display(int64_t timeUs) {
-    if (!isTrackValid(mSelectedTrack)) {
-        ALOGE("Could not find current track(index=%d)", mSelectedTrack);
+    if (!isSelected()) {
         return;
     }
 
@@ -361,7 +506,26 @@ void NuPlayer::CCDecoder::display(int64_t timeUs) {
         return;
     }
 
-    sp<ABuffer> ccBuf = filterCCBuf(mCCMap.valueAt(index), mSelectedTrack);
+    sp<ABuffer> ccBuf;
+
+    if (index == 0) {
+        ccBuf = mCCMap.valueAt(index);
+    } else {
+        size_t size = 0;
+
+        for (ssize_t i = 0; i <= index; ++i) {
+            size += mCCMap.valueAt(i)->size();
+        }
+
+        ccBuf = new ABuffer(size);
+        ccBuf->setRange(0, 0);
+
+        for (ssize_t i = 0; i <= index; ++i) {
+            sp<ABuffer> buf = mCCMap.valueAt(i);
+            memcpy(ccBuf->data() + ccBuf->size(), buf->data(), buf->size());
+            ccBuf->setRange(0, ccBuf->size() + buf->size());
+        }
+    }
 
     if (ccBuf->size() > 0) {
 #if 0
@@ -384,6 +548,25 @@ void NuPlayer::CCDecoder::display(int64_t timeUs) {
 
 void NuPlayer::CCDecoder::flush() {
     mCCMap.clear();
+    mDTVCCPacket->setRange(0, 0);
+}
+
+int32_t NuPlayer::CCDecoder::CCTrack::compare(const NuPlayer::CCDecoder::CCTrack& rhs) const {
+    int32_t cmp = mTrackType - rhs.mTrackType;
+    if (cmp != 0) return cmp;
+    return mTrackChannel - rhs.mTrackChannel;
+}
+
+bool NuPlayer::CCDecoder::CCTrack::operator<(const NuPlayer::CCDecoder::CCTrack& rhs) const {
+    return compare(rhs) < 0;
+}
+
+bool NuPlayer::CCDecoder::CCTrack::operator==(const NuPlayer::CCDecoder::CCTrack& rhs) const {
+    return compare(rhs) == 0;
+}
+
+bool NuPlayer::CCDecoder::CCTrack::operator!=(const NuPlayer::CCDecoder::CCTrack& rhs) const {
+    return compare(rhs) != 0;
 }
 
 }  // namespace android
