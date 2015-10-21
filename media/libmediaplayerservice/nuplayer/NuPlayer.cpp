@@ -243,7 +243,7 @@ bool NuPlayer::IsHTTPLiveURL(const char *url) {
             return true;
         }
 
-        if (strstr(url,".m3u8")) {
+        if (strstr(url,"m3u8")) {
             return true;
         }
     }
