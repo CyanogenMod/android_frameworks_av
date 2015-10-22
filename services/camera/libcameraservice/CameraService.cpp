@@ -315,8 +315,10 @@ void CameraService::onDeviceStatusChanged(camera_device_status_t  cameraId,
             clientToDisconnect = removeClientLocked(id);
 
             // Notify the client of disconnection
-            clientToDisconnect->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED,
-                    CaptureResultExtras{});
+            if (clientToDisconnect != nullptr) {
+                clientToDisconnect->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED,
+                        CaptureResultExtras{});
+            }
         }
 
         ALOGI("%s: Client for camera ID %s evicted due to device status change from HAL",
