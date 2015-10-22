@@ -475,6 +475,7 @@ void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
             {
                 Mutex::Autolock _l(mDisconnectLock);
                 mDataSource.clear();
+                mDecryptHandle = NULL;
                 mDrmManagerClient = NULL;
                 mCachedSource.clear();
                 mHttpSource.clear();
