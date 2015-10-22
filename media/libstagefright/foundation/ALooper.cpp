@@ -151,6 +151,10 @@ status_t ALooper::stop() {
     }
 
     mQueueChangedCondition.signal();
+    {
+        Mutex::Autolock autoLock(mRepliesLock);
+        mRepliesCondition.broadcast();
+    }
 
     if (!runningLocally && !thread->isCurrentThread()) {
         // If not running locally and this thread _is_ the looper thread,
@@ -230,13 +234,31 @@ sp<AReplyToken> ALooper::createReplyToken() {
 
 // to be called by AMessage::postAndAwaitResponse only
 status_t ALooper::awaitResponse(const sp<AReplyToken> &replyToken, sp<AMessage> *response) {
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (mThread == NULL) {
+            return -ENOENT;
+        }
+    }
+
     // return status in case we want to handle an interrupted wait
     Mutex::Autolock autoLock(mRepliesLock);
     CHECK(replyToken != NULL);
-    while (!replyToken->retrieveReply(response)) {
+    bool gotReply;
+    bool shouldContinue = true;
+    while (!(gotReply = replyToken->retrieveReply(response)) && shouldContinue) {
         mRepliesCondition.wait(mRepliesLock);
+
+        {
+            Mutex::Autolock autoLock(mLock);
+            if (mThread == NULL) {
+                shouldContinue = false;
+                // continue and try to get potential reply one more time before break the loop
+            }
+        }
     }
-    return OK;
+
+    return gotReply ? OK : -ENOENT;
 }
 
 status_t ALooper::postReply(const sp<AReplyToken> &replyToken, const sp<AMessage> &reply) {
