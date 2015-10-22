@@ -142,19 +142,26 @@ LOCAL_SHARED_LIBRARIES := \
     libaudioutils
 
 #QTI Resampler
-ifeq ($(call is-vendor-board-platform,QCOM), true)
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)), true)
+ifeq ($(call is-vendor-board-platform,QCOM),true)
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_RESAMPLER)),true)
+ifdef TARGET_2ND_ARCH
 LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) += AudioResamplerQTI.cpp.arm
 LOCAL_C_INCLUDES_$(TARGET_2ND_ARCH) += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
 LOCAL_SHARED_LIBRARIES_$(TARGET_2ND_ARCH) += libqct_resampler
 LOCAL_CFLAGS_$(TARGET_2ND_ARCH) += -DQTI_RESAMPLER
+else
+LOCAL_SRC_FILES += AudioResamplerQTI.cpp.arm
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio/audio-src
+LOCAL_SHARED_LIBRARIES += libqct_resampler
+LOCAL_CFLAGS += -DQTI_RESAMPLER
+endif
 endif
 endif
 #QTI Resampler
 
 LOCAL_MODULE := libaudioresampler
 
-LOCAL_CFLAGS := -Werror -Wall
+LOCAL_CFLAGS += -Werror -Wall
 
 # uncomment to disable NEON on architectures that actually do support NEON, for benchmarking
 #LOCAL_CFLAGS += -DUSE_NEON=false
