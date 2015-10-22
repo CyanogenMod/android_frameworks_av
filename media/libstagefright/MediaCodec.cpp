@@ -600,7 +600,12 @@ status_t MediaCodec::reclaim(bool force) {
     msg->setInt32("force", force ? 1 : 0);
 
     sp<AMessage> response;
-    return PostAndAwaitResponse(msg, &response);
+    status_t ret = PostAndAwaitResponse(msg, &response);
+    if (ret == -ENOENT) {
+        ALOGD("MediaCodec looper is gone, skip reclaim");
+        ret = OK;
+    }
+    return ret;
 }
 
 status_t MediaCodec::release() {
