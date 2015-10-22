@@ -2231,7 +2231,9 @@ status_t MPEG4Writer::Track::threadEntry() {
     MediaBuffer *buffer;
     const char *trackName = mIsAudio ? "Audio" : "Video";
     while (!mDone && (err = mSource->read(&buffer)) == OK) {
-        if (buffer->range_length() == 0) {
+        if (buffer == NULL) {
+            continue;
+        } else if (buffer->range_length() == 0) {
             buffer->release();
             buffer = NULL;
             ++nZeroLengthFrames;
