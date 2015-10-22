@@ -801,11 +801,11 @@ extern "C" int Session_CreateEffect(preproc_session_t *session,
         session->samplingRate = kPreprocDefaultSr;
         session->inChannelCount = kPreProcDefaultCnl;
         session->outChannelCount = kPreProcDefaultCnl;
-        session->procFrame->_frequencyInHz = kPreprocDefaultSr;
-        session->procFrame->_audioChannel = kPreProcDefaultCnl;
+        session->procFrame->sample_rate_hz_ = kPreprocDefaultSr;
+        session->procFrame->num_channels_ = kPreProcDefaultCnl;
         session->revChannelCount = kPreProcDefaultCnl;
-        session->revFrame->_frequencyInHz = kPreprocDefaultSr;
-        session->revFrame->_audioChannel = kPreProcDefaultCnl;
+        session->revFrame->sample_rate_hz_ = kPreprocDefaultSr;
+        session->revFrame->num_channels_ = kPreProcDefaultCnl;
         session->enabledMsk = 0;
         session->processedMsk = 0;
         session->revEnabledMsk = 0;
@@ -937,12 +937,12 @@ int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
     }
     session->inChannelCount = inCnl;
     session->outChannelCount = outCnl;
-    session->procFrame->_audioChannel = inCnl;
-    session->procFrame->_frequencyInHz = session->apmSamplingRate;
+    session->procFrame->num_channels_ = inCnl;
+    session->procFrame->sample_rate_hz_ = session->apmSamplingRate;
 
     session->revChannelCount = inCnl;
-    session->revFrame->_audioChannel = inCnl;
-    session->revFrame->_frequencyInHz = session->apmSamplingRate;
+    session->revFrame->num_channels_ = inCnl;
+    session->revFrame->sample_rate_hz_ = session->apmSamplingRate;
 
     // force process buffer reallocation
     session->inBufSize = 0;
@@ -1043,8 +1043,8 @@ int Session_SetReverseConfig(preproc_session_t *session, effect_config_t *config
         return -EINVAL;
     }
     session->revChannelCount = inCnl;
-    session->revFrame->_audioChannel = inCnl;
-    session->revFrame->_frequencyInHz = session->apmSamplingRate;
+    session->revFrame->num_channels_ = inCnl;
+    session->revFrame->sample_rate_hz_ = session->apmSamplingRate;
     // force process buffer reallocation
     session->revBufSize = 0;
     session->framesRev = 0;
@@ -1242,13 +1242,13 @@ int PreProcessingFx_Process(effect_handle_t     self,
                                             0,
                                             session->inBuf,
                                             &frIn,
-                                            session->procFrame->_payloadData,
+                                            session->procFrame->data_,
                                             &frOut);
             } else {
                 speex_resampler_process_interleaved_int(session->inResampler,
                                                         session->inBuf,
                                                         &frIn,
-                                                        session->procFrame->_payloadData,
+                                                        session->procFrame->data_,
                                                         &frOut);
             }
             memcpy(session->inBuf,
@@ -1260,7 +1260,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
             if (inBuffer->frameCount < fr) {
                 fr = inBuffer->frameCount;
             }
-            memcpy(session->procFrame->_payloadData + session->framesIn * session->inChannelCount,
+            memcpy(session->procFrame->data_ + session->framesIn * session->inChannelCount,
                    inBuffer->s16,
                    fr * session->inChannelCount * sizeof(int16_t));
 
@@ -1280,7 +1280,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
             }
             session->framesIn = 0;
         }
-        session->procFrame->_payloadDataLengthInSamples =
+        session->procFrame->samples_per_channel_ =
                 session->apmFrameCount * session->inChannelCount;
 
         effect->session->apm->ProcessStream(session->procFrame);
@@ -1297,13 +1297,13 @@ int PreProcessingFx_Process(effect_handle_t     self,
             if (session->inChannelCount == 1) {
                 speex_resampler_process_int(session->outResampler,
                                     0,
-                                    session->procFrame->_payloadData,
+                                    session->procFrame->data_,
                                     &frIn,
                                     session->outBuf + session->framesOut * session->outChannelCount,
                                     &frOut);
             } else {
                 speex_resampler_process_interleaved_int(session->outResampler,
-                                    session->procFrame->_payloadData,
+                                    session->procFrame->data_,
                                     &frIn,
                                     session->outBuf + session->framesOut * session->outChannelCount,
                                     &frOut);
@@ -1311,7 +1311,7 @@ int PreProcessingFx_Process(effect_handle_t     self,
             session->framesOut += frOut;
         } else {
             memcpy(session->outBuf + session->framesOut * session->outChannelCount,
-                   session->procFrame->_payloadData,
+                   session->procFrame->data_,
                    session->frameCount * session->outChannelCount * sizeof(int16_t));
             session->framesOut += session->frameCount;
         }
@@ -1764,13 +1764,13 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
                                             0,
                                             session->revBuf,
                                             &frIn,
-                                            session->revFrame->_payloadData,
+                                            session->revFrame->data_,
                                             &frOut);
             } else {
                 speex_resampler_process_interleaved_int(session->revResampler,
                                                         session->revBuf,
                                                         &frIn,
-                                                        session->revFrame->_payloadData,
+                                                        session->revFrame->data_,
                                                         &frOut);
             }
             memcpy(session->revBuf,
@@ -1782,7 +1782,7 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
             if (inBuffer->frameCount < fr) {
                 fr = inBuffer->frameCount;
             }
-            memcpy(session->revFrame->_payloadData + session->framesRev * session->inChannelCount,
+            memcpy(session->revFrame->data_ + session->framesRev * session->inChannelCount,
                    inBuffer->s16,
                    fr * session->inChannelCount * sizeof(int16_t));
             session->framesRev += fr;
@@ -1792,7 +1792,7 @@ int PreProcessingFx_ProcessReverse(effect_handle_t     self,
             }
             session->framesRev = 0;
         }
-        session->revFrame->_payloadDataLengthInSamples =
+        session->revFrame->samples_per_channel_ =
                 session->apmFrameCount * session->inChannelCount;
         effect->session->apm->AnalyzeReverseStream(session->revFrame);
         return 0;
