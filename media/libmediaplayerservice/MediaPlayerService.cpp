@@ -1464,7 +1464,7 @@ int64_t MediaPlayerService::AudioOutput::getPlayedOutDurationUs(int64_t nowUs) c
 {
     Mutex::Autolock lock(mLock);
     if (mTrack == 0 || mSampleRateHz == 0) {
-        return NO_INIT;
+        return 0;
     }
 
     uint32_t numFramesPlayed;
