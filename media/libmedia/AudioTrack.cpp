@@ -999,14 +999,18 @@ status_t AudioTrack::getPosition(uint32_t *position)
             return NO_ERROR;
         }
 
-        if (AVMediaUtils::get()->AudioTrackGetPosition(this, position) == NO_ERROR) {
+        if (AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat) &&
+                AVMediaUtils::get()->AudioTrackGetPosition(this, position) == NO_ERROR) {
             return NO_ERROR;
         }
 
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t halFrames; // actually unused
-            (void) AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
-            // FIXME: on getRenderPosition() error, we return OK with frame position 0.
+            status_t status = AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
+            if (status != NO_ERROR) {
+                ALOGW("failed to getRenderPosition for offload session status %d", status);
+                return INVALID_OPERATION;
+            }
         }
         // FIXME: dspFrames may not be zero in (mState == STATE_STOPPED || mState == STATE_FLUSHED)
         // due to hardware latency. We leave this behavior for now.

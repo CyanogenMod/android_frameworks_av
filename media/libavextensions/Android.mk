@@ -22,6 +22,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 endif
 
 LOCAL_MODULE:= libavextensions
+LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 
@@ -49,6 +50,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 endif
 
 LOCAL_MODULE:= libavmediaextentions
+LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 
@@ -82,6 +84,7 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 endif
 
 LOCAL_MODULE:= libavmediaserviceextensions
+LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 

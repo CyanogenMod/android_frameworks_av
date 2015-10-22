@@ -212,7 +212,11 @@ status_t NuPlayer::HTTPLiveSource::selectTrack(size_t trackIndex, bool select, i
 }
 
 status_t NuPlayer::HTTPLiveSource::seekTo(int64_t seekTimeUs) {
-    return mLiveSession->seekTo(seekTimeUs);
+    if (mLiveSession->isSeekable()) {
+        return mLiveSession->seekTo(seekTimeUs);
+    } else {
+        return INVALID_OPERATION;
+    }
 }
 
 void NuPlayer::HTTPLiveSource::pollForRawData(
