@@ -1795,13 +1795,13 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             if (!isParsingMetaKeys) {
                 uint8_t buffer[4];
                 if (chunk_data_size < (off64_t)sizeof(buffer)) {
-                    *offset += chunk_size;
+                    *offset = stop_offset;
                     return ERROR_MALFORMED;
                 }
 
                 if (mDataSource->readAt(
                             data_offset, buffer, 4) < 4) {
-                    *offset += chunk_size;
+                    *offset = stop_offset;
                     return ERROR_IO;
                 }
 
@@ -1812,7 +1812,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     // apparently malformed chunks that don't have flags
                     // and completely different semantics than what's
                     // in the MPEG4 specs and skip it.
-                    *offset += chunk_size;
+                    *offset = stop_offset;
                     return OK;
                 }
                 *offset +=  sizeof(buffer);
