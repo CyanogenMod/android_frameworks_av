@@ -2318,7 +2318,7 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     } else {
         // Update the mapping between local consumed (mPosition) and server consumed (mServer)
 
-        if (AVMediaUtils::get()->AudioTrackGetTimestamp(this, timestamp) == NO_ERROR) {
+        if (AVMediaUtils::get()->AudioTrackGetTimestamp(this, &timestamp) == NO_ERROR) {
             return NO_ERROR;
         }
 

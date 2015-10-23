@@ -47,12 +47,12 @@ struct AVMediaUtils {
         return false;
     }
     virtual status_t AudioTrackGetPosition(AudioTrack* /*track*/,
-                                             uint32_t* /*position*/) {
+            uint32_t* /*position*/) {
         return NO_INIT;
     }
 
     virtual status_t AudioTrackGetTimestamp(AudioTrack* /*track*/,
-                                             AudioTimestamp /*timestamp*/) {
+            AudioTimestamp* /*timestamp*/) {
         return NO_INIT;
     }
 
