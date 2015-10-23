@@ -15,5 +15,7 @@ LOCAL_MODULE := libstagefright_soft_g711dec
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_SHARED_LIBRARY)
