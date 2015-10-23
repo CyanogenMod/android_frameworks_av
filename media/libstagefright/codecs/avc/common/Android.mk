@@ -17,5 +17,7 @@ LOCAL_C_INCLUDES := \
  	$(LOCAL_PATH)/include
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_SHARED_LIBRARY)
