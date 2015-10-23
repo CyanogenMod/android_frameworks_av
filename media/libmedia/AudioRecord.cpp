@@ -299,7 +299,7 @@ status_t AudioRecord::set(
 status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 {
     ALOGV("start, sync event %d trigger session %d", event, triggerSession);
-    SEEMPLOG_RECORD(89,"");
+    SEEMPLOG_RECORD(71,"");
 
     AutoMutex lock(mLock);
     if (mActive) {
@@ -347,7 +347,6 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
 
 void AudioRecord::stop()
 {
-    SEEMPLOG_RECORD(90,"");
     AutoMutex lock(mLock);
     if (!mActive) {
         return;
