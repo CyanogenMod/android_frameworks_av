@@ -154,7 +154,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             return UNKNOWN_ERROR;
         }
     } else if (mIsStreaming) {
-        if (!mDataSource->sniff(&mimeType, &confidence, &dummy)) {
+        sp<DataSource> dataSource;
+        {
+            Mutex::Autolock _l(mSourceLock);
+            dataSource = mDataSource;
+        }
+        if (!dataSource->sniff(&mimeType, &confidence, &dummy)) {
             return UNKNOWN_ERROR;
         }
         isWidevineStreaming = !strcasecmp(
