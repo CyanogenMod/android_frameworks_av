@@ -308,6 +308,10 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     mNewPosition = mProxy->getPosition() + mUpdatePeriod;
     int32_t flags = android_atomic_acquire_load(&mCblk->mFlags);
 
+    // we reactivate markers (mMarkerPosition != 0) as the position is reset to 0.
+    // This is legacy behavior.  This is not done in stop() to avoid a race condition
+    // where the last marker event is issued twice.
+    mMarkerReached = false;
     mActive = true;
 
     status_t status = NO_ERROR;
@@ -348,9 +352,10 @@ void AudioRecord::stop()
     mActive = false;
     mProxy->interrupt();
     mAudioRecord->stop();
-    // the record head position will reset to 0, so if a marker is set, we need
-    // to activate it again
-    mMarkerReached = false;
+
+    // Note: legacy handling - stop does not clear record marker and
+    // periodic update position; we update those on start().
+
     sp<AudioRecordThread> t = mAudioRecordThread;
     if (t != 0) {
         t->pause();
