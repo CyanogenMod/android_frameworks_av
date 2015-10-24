@@ -2401,11 +2401,7 @@ status_t MPEG4Writer::Track::threadEntry() {
                 cttsSampleCount = 0;      // No sample in ctts box is pending
             } else {
                 if (currCttsOffsetTimeTicks != lastCttsOffsetTimeTicks) {
-                    // cttsSampleCount is 0 after writing the initial ctts entry
-                    // Avoid writing entry with 0 sample count
-                    if (cttsSampleCount != 0) {
-                        addOneCttsTableEntry(cttsSampleCount, lastCttsOffsetTimeTicks);
-                    }
+                    addOneCttsTableEntry(cttsSampleCount, lastCttsOffsetTimeTicks);
                     lastCttsOffsetTimeTicks = currCttsOffsetTimeTicks;
                     cttsSampleCount = 1;  // One sample in ctts box is pending
                 } else {
