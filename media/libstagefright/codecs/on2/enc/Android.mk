@@ -11,6 +11,9 @@ LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
         frameworks/native/include/media/openmax \
 
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
+
 LOCAL_STATIC_LIBRARIES := \
         libvpx
 
