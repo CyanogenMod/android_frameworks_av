@@ -13,6 +13,8 @@ LOCAL_C_INCLUDES := $(TOP)/external/libhevc/decoder
 LOCAL_C_INCLUDES += $(TOP)/external/libhevc/common
 LOCAL_C_INCLUDES += $(TOP)/frameworks/av/media/libstagefright/include
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_SHARED_LIBRARIES  := libstagefright
 LOCAL_SHARED_LIBRARIES  += libstagefright_omx
