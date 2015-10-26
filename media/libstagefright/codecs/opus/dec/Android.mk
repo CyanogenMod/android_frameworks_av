@@ -13,6 +13,9 @@ LOCAL_SHARED_LIBRARIES := \
         libopus libstagefright libstagefright_omx \
         libstagefright_foundation libutils liblog
 
+LOCAL_CLANG := true
+LOCAL_SANITIZE := signed-integer-overflow
+
 LOCAL_MODULE := libstagefright_soft_opusdec
 LOCAL_MODULE_TAGS := optional
 
