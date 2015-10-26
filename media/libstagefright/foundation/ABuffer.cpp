@@ -67,10 +67,6 @@ ABuffer::~ABuffer() {
         }
     }
 
-    if (mFarewell != NULL) {
-        mFarewell->post();
-    }
-
     setMediaBufferBase(NULL);
 }
 
@@ -80,10 +76,6 @@ void ABuffer::setRange(size_t offset, size_t size) {
 
     mRangeOffset = offset;
     mRangeLength = size;
-}
-
-void ABuffer::setFarewellMessage(const sp<AMessage> msg) {
-    mFarewell = msg;
 }
 
 sp<AMessage> ABuffer::meta() {
