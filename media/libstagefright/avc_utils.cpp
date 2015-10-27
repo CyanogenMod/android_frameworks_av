@@ -25,6 +25,7 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MetaData.h>
 #include <utils/misc.h>
 
@@ -443,25 +444,34 @@ bool IsIDR(const sp<ABuffer> &buffer) {
 }
 
 bool IsAVCReferenceFrame(const sp<ABuffer> &accessUnit) {
-    const uint8_t *data = accessUnit->data();
+    MediaBuffer *mediaBuffer =
+        (MediaBuffer *)(accessUnit->getMediaBufferBase());
+    const uint8_t *data =
+        (mediaBuffer != NULL) ? (uint8_t *) mediaBuffer->data() : accessUnit->data();
     size_t size = accessUnit->size();
 
     const uint8_t *nalStart;
     size_t nalSize;
+    bool bIsReferenceFrame = true;
     while (getNextNALUnit(&data, &size, &nalStart, &nalSize, true) == OK) {
         CHECK_GT(nalSize, 0u);
 
         unsigned nalType = nalStart[0] & 0x1f;
 
         if (nalType == 5) {
-            return true;
+            bIsReferenceFrame = true;
+            break;
         } else if (nalType == 1) {
             unsigned nal_ref_idc = (nalStart[0] >> 5) & 3;
-            return nal_ref_idc != 0;
+            bIsReferenceFrame = (nal_ref_idc != 0);
+            break;
         }
     }
 
-    return true;
+    if (mediaBuffer != NULL) {
+        mediaBuffer->release();
+    }
+    return bIsReferenceFrame;
 }
 
 sp<MetaData> MakeAACCodecSpecificData(

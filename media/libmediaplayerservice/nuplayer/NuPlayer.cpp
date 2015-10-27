@@ -1605,7 +1605,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     (*decoder)->configure(format);
 
     // allocate buffers to decrypt widevine source buffers
-    if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {
+    if (!audio && ((mSourceFlags & Source::FLAG_SECURE) ||
+                   (mSourceFlags & Source::FLAG_USE_SET_BUFFERS))) {
         Vector<sp<ABuffer> > inputBufs;
         CHECK_EQ((*decoder)->getInputBuffers(&inputBufs), (status_t)OK);
 

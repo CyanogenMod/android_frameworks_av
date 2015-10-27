@@ -39,6 +39,7 @@ struct NuPlayer::Source : public AHandler {
         FLAG_DYNAMIC_DURATION   = 16,
         FLAG_SECURE             = 32,
         FLAG_PROTECTED          = 64,
+        FLAG_USE_SET_BUFFERS    = 128,
     };
 
     enum {
