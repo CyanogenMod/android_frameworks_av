@@ -580,28 +580,22 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }
                 }
                 waitTime = INT64_MAX;
-                // release mLock before releasing strong reference on the service as
-                // AudioPolicyService destructor calls AudioCommandThread::exit() which
-                // acquires mLock.
-                mLock.unlock();
-                svc.clear();
-                mLock.lock();
             } else {
                 waitTime = mAudioCommands[0]->mTime - curTime;
                 break;
             }
         }
-
-        // release delayed commands wake lock if the queue is empty
-        if (mAudioCommands.isEmpty()) {
+        // release mLock before releasing strong reference on the service as
+        // AudioPolicyService destructor calls AudioCommandThread::exit() which acquires mLock.
+        mLock.unlock();
+        svc.clear();
+        mLock.lock();
+        if (!exitPending() && (mAudioCommands.isEmpty() || waitTime != INT64_MAX)) {
+            // release delayed commands wake lock
             release_wake_lock(mName.string());
-        }
-
-        // At this stage we have either an empty command queue or the first command in the queue
-        // has a finite delay. So unless we are exiting it is safe to wait.
-        if (!exitPending()) {
             ALOGV("AudioCommandThread() going to sleep");
             mWaitWorkCV.waitRelative(mLock, waitTime);
+            ALOGV("AudioCommandThread() waking up");
         }
     }
     // release delayed commands wake lock before quitting
@@ -1012,8 +1006,6 @@ void AudioPolicyService::AudioCommandThread::exit()
         requestExit();
         mWaitWorkCV.signal();
     }
-    // Note that we can call it from the thread loop if all other references have been released
-    // but it will safely return WOULD_BLOCK in this case
     requestExitAndWait();
 }
 
