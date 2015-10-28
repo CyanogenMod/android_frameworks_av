@@ -118,6 +118,10 @@ private:
 
     sp<AReplyToken> mSeekReplyID;
 
+    int32_t mVideoTrackIndex;
+    bool mKeepDamagedAccessUnits;
+    uint32_t mNumKeepDamagedAccessUnits;
+
     sp<AnotherPacketSource> getSource(bool audio);
 
     void onConnected();
