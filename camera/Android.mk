@@ -21,7 +21,6 @@ LOCAL_PATH := $(CAMERA_CLIENT_LOCAL_PATH)
 LOCAL_SRC_FILES:= \
 	Camera.cpp \
 	CameraMetadata.cpp \
-	CameraParameters.cpp \
 	CaptureResult.cpp \
 	CameraParameters2.cpp \
 	ICamera.cpp \
@@ -53,6 +52,21 @@ LOCAL_C_INCLUDES += \
 	system/media/camera/include \
 	system/media/private/camera/include \
 
+ifneq ($(TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY),)
+LOCAL_WHOLE_STATIC_LIBRARIES += $(TARGET_SPECIFIC_CAMERA_PARAMETER_LIBRARY)
+else
+LOCAL_WHOLE_STATIC_LIBRARIES += libcamera_parameters
+endif
+
 LOCAL_MODULE:= libcamera_client
 
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+	CameraParameters.cpp
+
+LOCAL_MODULE := libcamera_parameters
+
+include $(BUILD_STATIC_LIBRARY)
