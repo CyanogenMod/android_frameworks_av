@@ -281,7 +281,7 @@ size_t MidiExtractor::countTracks()
     return mInitCheck == OK ? 1 : 0;
 }
 
-sp<MediaSource> MidiExtractor::getTrack(size_t index)
+sp<IMediaSource> MidiExtractor::getTrack(size_t index)
 {
     if (mInitCheck != OK || index > 0) {
         return NULL;

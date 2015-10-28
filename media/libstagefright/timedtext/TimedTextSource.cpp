@@ -33,7 +33,7 @@ namespace android {
 
 // static
 sp<TimedTextSource> TimedTextSource::CreateTimedTextSource(
-        const sp<MediaSource>& mediaSource) {
+        const sp<IMediaSource>& mediaSource) {
     const char *mime;
     CHECK(mediaSource->getFormat()->findCString(kKeyMIMEType, &mime));
     if (strcasecmp(mime, MEDIA_MIMETYPE_TEXT_3GPP) == 0) {

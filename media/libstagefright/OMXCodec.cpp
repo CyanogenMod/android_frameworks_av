@@ -70,7 +70,7 @@ const static int64_t kBufferFilledEventTimeOutNs = 3000000000LL;
 const static uint32_t kMaxColorFormatSupported = 1000;
 
 #define FACTORY_CREATE_ENCODER(name) \
-static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaData> &meta) { \
+static sp<IMediaSource> Make##name(const sp<IMediaSource> &source, const sp<MetaData> &meta) { \
     return new name(source, meta); \
 }
 
@@ -78,12 +78,12 @@ static sp<MediaSource> Make##name(const sp<MediaSource> &source, const sp<MetaDa
 
 FACTORY_CREATE_ENCODER(AACEncoder)
 
-static sp<MediaSource> InstantiateSoftwareEncoder(
-        const char *name, const sp<MediaSource> &source,
+static sp<IMediaSource> InstantiateSoftwareEncoder(
+        const char *name, const sp<IMediaSource> &source,
         const sp<MetaData> &meta) {
     struct FactoryInfo {
         const char *name;
-        sp<MediaSource> (*CreateFunc)(const sp<MediaSource> &, const sp<MetaData> &);
+        sp<IMediaSource> (*CreateFunc)(const sp<IMediaSource> &, const sp<MetaData> &);
     };
 
     static const FactoryInfo kFactoryInfo[] = {
@@ -289,10 +289,10 @@ bool OMXCodec::findCodecQuirks(const char *componentName, uint32_t *quirks) {
 }
 
 // static
-sp<MediaSource> OMXCodec::Create(
+sp<IMediaSource> OMXCodec::Create(
         const sp<IOMX> &omx,
         const sp<MetaData> &meta, bool createEncoder,
-        const sp<MediaSource> &source,
+        const sp<IMediaSource> &source,
         const char *matchComponentName,
         uint32_t flags,
         const sp<ANativeWindow> &nativeWindow) {
@@ -337,7 +337,7 @@ sp<MediaSource> OMXCodec::Create(
         }
 
         if (createEncoder) {
-            sp<MediaSource> softwareCodec =
+            sp<IMediaSource> softwareCodec =
                 InstantiateSoftwareEncoder(componentName, source, meta);
 
             if (softwareCodec != NULL) {
@@ -1426,7 +1426,7 @@ OMXCodec::OMXCodec(
         bool isEncoder,
         const char *mime,
         const char *componentName,
-        const sp<MediaSource> &source,
+        const sp<IMediaSource> &source,
         const sp<ANativeWindow> &nativeWindow)
     : mOMX(omx),
       mOMXLivesLocally(omx->livesLocally(node, getpid())),

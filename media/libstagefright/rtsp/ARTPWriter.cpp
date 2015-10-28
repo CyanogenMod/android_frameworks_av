@@ -104,7 +104,7 @@ ARTPWriter::~ARTPWriter() {
     mFd = -1;
 }
 
-status_t ARTPWriter::addSource(const sp<MediaSource> &source) {
+status_t ARTPWriter::addSource(const sp<IMediaSource> &source) {
     mSource = source;
     return OK;
 }

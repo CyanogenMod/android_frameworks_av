@@ -35,7 +35,7 @@ namespace android {
 
 class DRMSource : public MediaSource {
 public:
-    DRMSource(const sp<MediaSource> &mediaSource,
+    DRMSource(const sp<IMediaSource> &mediaSource,
             const sp<DecryptHandle> &decryptHandle,
             DrmManagerClient *managerClient,
             int32_t trackId, DrmBuffer *ipmpBox);
@@ -50,7 +50,7 @@ protected:
     virtual ~DRMSource();
 
 private:
-    sp<MediaSource> mOriginalMediaSource;
+    sp<IMediaSource> mOriginalMediaSource;
     sp<DecryptHandle> mDecryptHandle;
     DrmManagerClient* mDrmManagerClient;
     size_t mTrackId;
@@ -64,7 +64,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DRMSource::DRMSource(const sp<MediaSource> &mediaSource,
+DRMSource::DRMSource(const sp<IMediaSource> &mediaSource,
         const sp<DecryptHandle> &decryptHandle,
         DrmManagerClient *managerClient,
         int32_t trackId, DrmBuffer *ipmpBox)
@@ -247,8 +247,8 @@ size_t DRMExtractor::countTracks() {
     return mOriginalExtractor->countTracks();
 }
 
-sp<MediaSource> DRMExtractor::getTrack(size_t index) {
-    sp<MediaSource> originalMediaSource = mOriginalExtractor->getTrack(index);
+sp<IMediaSource> DRMExtractor::getTrack(size_t index) {
+    sp<IMediaSource> originalMediaSource = mOriginalExtractor->getTrack(index);
     originalMediaSource->getFormat()->setInt32(kKeyIsDRM, 1);
 
     int32_t trackID;
@@ -258,8 +258,9 @@ sp<MediaSource> DRMExtractor::getTrack(size_t index) {
     ipmpBox.data = mOriginalExtractor->getDrmTrackInfo(trackID, &(ipmpBox.length));
     CHECK(ipmpBox.length > 0);
 
-    return new DRMSource(originalMediaSource, mDecryptHandle, mDrmManagerClient,
-            trackID, &ipmpBox);
+    return interface_cast<IMediaSource>(
+            new DRMSource(originalMediaSource, mDecryptHandle, mDrmManagerClient,
+            trackID, &ipmpBox));
 }
 
 sp<MetaData> DRMExtractor::getTrackMetaData(size_t index, uint32_t flags) {

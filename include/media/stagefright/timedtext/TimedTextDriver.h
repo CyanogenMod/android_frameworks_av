@@ -17,6 +17,7 @@
 #ifndef TIMED_TEXT_DRIVER_H_
 #define TIMED_TEXT_DRIVER_H_
 
+#include <media/IMediaSource.h>
 #include <media/stagefright/foundation/ABase.h> // for DISALLOW_* macro
 #include <utils/Errors.h> // for status_t
 #include <utils/RefBase.h>
@@ -27,7 +28,6 @@ namespace android {
 struct ALooper;
 struct IMediaHTTPService;
 class MediaPlayerBase;
-class MediaSource;
 class Parcel;
 class TimedTextPlayer;
 class TimedTextSource;
@@ -49,7 +49,7 @@ public:
     status_t seekToAsync(int64_t timeUs);
 
     status_t addInBandTextSource(
-            size_t trackIndex, const sp<MediaSource>& source);
+            size_t trackIndex, const sp<IMediaSource>& source);
 
     status_t addOutOfBandTextSource(
             size_t trackIndex, const char *uri, const char *mimeType);

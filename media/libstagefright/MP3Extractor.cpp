@@ -400,7 +400,7 @@ size_t MP3Extractor::countTracks() {
     return mInitCheck != OK ? 0 : 1;
 }
 
-sp<MediaSource> MP3Extractor::getTrack(size_t index) {
+sp<IMediaSource> MP3Extractor::getTrack(size_t index) {
     if (mInitCheck != OK || index != 0) {
         return NULL;
     }

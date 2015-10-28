@@ -130,7 +130,7 @@ static void displayAVCProfileLevelIfPossible(const sp<MetaData>& meta) {
     }
 }
 
-static void dumpSource(const sp<MediaSource> &source, const String8 &filename) {
+static void dumpSource(const sp<IMediaSource> &source, const String8 &filename) {
     FILE *out = fopen(filename.string(), "wb");
 
     CHECK_EQ((status_t)OK, source->start());
@@ -163,13 +163,13 @@ static void dumpSource(const sp<MediaSource> &source, const String8 &filename) {
     out = NULL;
 }
 
-static void playSource(OMXClient *client, sp<MediaSource> &source) {
+static void playSource(OMXClient *client, sp<IMediaSource> &source) {
     sp<MetaData> meta = source->getFormat();
 
     const char *mime;
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 
-    sp<MediaSource> rawSource;
+    sp<IMediaSource> rawSource;
     if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_RAW, mime)) {
         rawSource = source;
     } else {
@@ -397,7 +397,7 @@ static void playSource(OMXClient *client, sp<MediaSource> &source) {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DetectSyncSource : public MediaSource {
-    DetectSyncSource(const sp<MediaSource> &source);
+    DetectSyncSource(const sp<IMediaSource> &source);
 
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
@@ -414,14 +414,14 @@ private:
         OTHER,
     };
 
-    sp<MediaSource> mSource;
+    sp<IMediaSource> mSource;
     StreamType mStreamType;
     bool mSawFirstIDRFrame;
 
     DISALLOW_EVIL_CONSTRUCTORS(DetectSyncSource);
 };
 
-DetectSyncSource::DetectSyncSource(const sp<MediaSource> &source)
+DetectSyncSource::DetectSyncSource(const sp<IMediaSource> &source)
     : mSource(source),
       mStreamType(OTHER),
       mSawFirstIDRFrame(false) {
@@ -503,7 +503,7 @@ status_t DetectSyncSource::read(
 ////////////////////////////////////////////////////////////////////////////////
 
 static void writeSourcesToMP4(
-        Vector<sp<MediaSource> > &sources, bool syncInfoPresent) {
+        Vector<sp<IMediaSource> > &sources, bool syncInfoPresent) {
 #if 0
     sp<MPEG4Writer> writer =
         new MPEG4Writer(gWriteMP4Filename.string());
@@ -521,7 +521,7 @@ static void writeSourcesToMP4(
     writer->setMaxFileDuration(60000000ll);
 
     for (size_t i = 0; i < sources.size(); ++i) {
-        sp<MediaSource> source = sources.editItemAt(i);
+        sp<IMediaSource> source = sources.editItemAt(i);
 
         CHECK_EQ(writer->addSource(
                     syncInfoPresent ? source : new DetectSyncSource(source)),
@@ -538,7 +538,7 @@ static void writeSourcesToMP4(
     writer->stop();
 }
 
-static void performSeekTest(const sp<MediaSource> &source) {
+static void performSeekTest(const sp<IMediaSource> &source) {
     CHECK_EQ((status_t)OK, source->start());
 
     int64_t durationUs;
@@ -985,8 +985,8 @@ int main(int argc, char **argv) {
             isJPEG = true;
         }
 
-        Vector<sp<MediaSource> > mediaSources;
-        sp<MediaSource> mediaSource;
+        Vector<sp<IMediaSource> > mediaSources;
+        sp<IMediaSource> mediaSource;
 
         if (isJPEG) {
             mediaSource = new JPEGSource(dataSource);
@@ -1005,7 +1005,7 @@ int main(int argc, char **argv) {
                 mediaSources.push(mediaSource);
             }
         } else {
-            sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
+            sp<IMediaExtractor> extractor = MediaExtractor::Create(dataSource);
 
             if (extractor == NULL) {
                 fprintf(stderr, "could not create extractor.\n");
@@ -1032,7 +1032,7 @@ int main(int argc, char **argv) {
                 bool haveAudio = false;
                 bool haveVideo = false;
                 for (size_t i = 0; i < numTracks; ++i) {
-                    sp<MediaSource> source = extractor->getTrack(i);
+                    sp<IMediaSource> source = extractor->getTrack(i);
 
                     const char *mime;
                     CHECK(source->getFormat()->findCString(
@@ -1106,7 +1106,7 @@ int main(int argc, char **argv) {
             OMXClient client;
             CHECK_EQ(client.connect(), (status_t)OK);
 
-            sp<MediaSource> decSource =
+            sp<IMediaSource> decSource =
                 OMXCodec::Create(
                         client.interface(),
                         mediaSource->getFormat(),

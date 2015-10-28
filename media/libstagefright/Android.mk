@@ -31,7 +31,6 @@ LOCAL_SRC_FILES:=                         \
         MPEG4Extractor.cpp                \
         MPEG4Writer.cpp                   \
         MediaAdapter.cpp                  \
-        MediaBuffer.cpp                   \
         MediaBufferGroup.cpp              \
         MediaClock.cpp                    \
         MediaCodec.cpp                    \
@@ -45,7 +44,6 @@ LOCAL_SRC_FILES:=                         \
         http/MediaHTTP.cpp                \
         MediaMuxer.cpp                    \
         MediaSource.cpp                   \
-        MetaData.cpp                      \
         NuCachedSource2.cpp               \
         NuMediaExtractor.cpp              \
         OMXClient.cpp                     \

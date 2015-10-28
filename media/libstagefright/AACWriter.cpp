@@ -67,7 +67,7 @@ status_t AACWriter::initCheck() const {
 }
 
 
-status_t AACWriter::addSource(const sp<MediaSource> &source) {
+status_t AACWriter::addSource(const sp<IMediaSource> &source) {
     if (mInitCheck != OK) {
         return mInitCheck;
     }

@@ -95,7 +95,7 @@ size_t WVMExtractor::countTracks() {
     return (mImpl != NULL) ? mImpl->countTracks() : 0;
 }
 
-sp<MediaSource> WVMExtractor::getTrack(size_t index) {
+sp<IMediaSource> WVMExtractor::getTrack(size_t index) {
     if (mImpl == NULL) {
         return NULL;
     }

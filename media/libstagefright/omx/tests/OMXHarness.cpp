@@ -244,7 +244,7 @@ private:
     NodeReaper &operator=(const NodeReaper &);
 };
 
-static sp<MediaExtractor> CreateExtractorFromURI(const char *uri) {
+static sp<IMediaExtractor> CreateExtractorFromURI(const char *uri) {
     sp<DataSource> source =
         DataSource::CreateFromURI(NULL /* httpService */, uri);
 
@@ -492,14 +492,14 @@ static const char *GetURLForMime(const char *mime) {
     return NULL;
 }
 
-static sp<MediaSource> CreateSourceForMime(const char *mime) {
+static sp<IMediaSource> CreateSourceForMime(const char *mime) {
     const char *url = GetURLForMime(mime);
 
     if (url == NULL) {
         return NULL;
     }
 
-    sp<MediaExtractor> extractor = CreateExtractorFromURI(url);
+    sp<IMediaExtractor> extractor = CreateExtractorFromURI(url);
 
     if (extractor == NULL) {
         return NULL;
@@ -559,7 +559,7 @@ status_t Harness::testSeek(
         return OK;
     }
 
-    sp<MediaSource> source = CreateSourceForMime(mime);
+    sp<IMediaSource> source = CreateSourceForMime(mime);
 
     if (source == NULL) {
         printf("  * Unable to open test content for type '%s', "
@@ -569,14 +569,14 @@ status_t Harness::testSeek(
         return OK;
     }
 
-    sp<MediaSource> seekSource = CreateSourceForMime(mime);
+    sp<IMediaSource> seekSource = CreateSourceForMime(mime);
     if (source == NULL || seekSource == NULL) {
         return UNKNOWN_ERROR;
     }
 
     CHECK_EQ(seekSource->start(), (status_t)OK);
 
-    sp<MediaSource> codec = OMXCodec::Create(
+    sp<IMediaSource> codec = OMXCodec::Create(
             mOMX, source->getFormat(), false /* createEncoder */,
             source, componentName);
 
