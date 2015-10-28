@@ -885,18 +885,7 @@ status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/
         return -ENODEV;
     }
 
-    // Check device policy for this camera
-    char value[PROPERTY_VALUE_MAX];
-    char key[PROPERTY_KEY_MAX];
     userid_t clientUserId = multiuser_get_user_id(clientUid);
-    snprintf(key, PROPERTY_KEY_MAX, "sys.secpolicy.camera.off_%d", clientUserId);
-    property_get(key, value, "0");
-    if (strcmp(value, "1") == 0) {
-        // Camera is disabled by DevicePolicyManager.
-        ALOGE("CameraService::connect X (PID %d) rejected (camera %s is disabled by device "
-                "policy)", callingPid, cameraId.string());
-        return -EACCES;
-    }
 
     // Only allow clients who are being used by the current foreground device user, unless calling
     // from our own process.
