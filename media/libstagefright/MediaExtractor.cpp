@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaExtractor"
 #include <utils/Log.h>
+#include <inttypes.h>
 #include <pwd.h>
 
 #include "include/AMRExtractor.h"
@@ -112,7 +113,7 @@ sp<IMemory> RemoteDataSource::getIMemory() {
     return mMemory;
 }
 ssize_t RemoteDataSource::readAt(off64_t offset, size_t size) {
-    ALOGV("readAt(%lld, %d)", offset, size);
+    ALOGV("readAt(%" PRId64 ", %zu)", offset, size);
     return mSource->readAt(offset, mMemory->pointer(), size);
 }
 status_t RemoteDataSource::getSize(off64_t* size) {
