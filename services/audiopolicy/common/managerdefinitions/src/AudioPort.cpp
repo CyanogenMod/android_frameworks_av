@@ -911,9 +911,11 @@ void AudioPortConfig::toAudioPortConfig(struct audio_port_config *dstConfig,
     } else {
         dstConfig->format = AUDIO_FORMAT_INVALID;
     }
-    if (dstConfig->config_mask & AUDIO_PORT_CONFIG_GAIN) {
+    sp<AudioPort> audioport = getAudioPort();
+    if ((dstConfig->config_mask & AUDIO_PORT_CONFIG_GAIN) && audioport != NULL) {
         dstConfig->gain = mGain;
-        if ((srcConfig != NULL) && (srcConfig->config_mask & AUDIO_PORT_CONFIG_GAIN)) {
+        if ((srcConfig != NULL) && (srcConfig->config_mask & AUDIO_PORT_CONFIG_GAIN)
+                && audioport->checkGain(&srcConfig->gain, srcConfig->gain.index) == OK) {
             dstConfig->gain = srcConfig->gain;
         }
     } else {
