@@ -463,6 +463,7 @@ audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stre
     if (mAudioPolicyManager == NULL) {
         return AUDIO_DEVICE_NONE;
     }
+    Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->getDevicesForStream(stream);
 }
 
