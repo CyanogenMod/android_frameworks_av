@@ -437,7 +437,7 @@ status_t WAVSource::read(
         maxBytesToRead = 3*(kMaxFrameSize/4);
     } else
         maxBytesToRead = kMaxFrameSize;
-    ALOGV("%s mBitsPerSample %d, kMaxFrameSize %d, ",
+    ALOGV("%s mBitsPerSample %d, kMaxFrameSize %ld, ",
           __func__, mBitsPerSample, kMaxFrameSize);
 
     size_t maxBytesAvailable =
@@ -504,7 +504,7 @@ status_t WAVSource::read(
             tmp->set_range(0, 4 * numBytes);
             int8_t *dst = (int8_t *)tmp->data();
             const uint8_t *src = (const uint8_t *)buffer->data();
-            ALOGV("numBytes = %d", numBytes);
+            ALOGV("numBytes = %ld", numBytes);
             while(numBytes-- > 0) {
                *dst++ = 0x0;
                *dst++ = src[0];
@@ -514,7 +514,7 @@ status_t WAVSource::read(
             }
             buffer->release();
             buffer = tmp;
-            ALOGV("length = %d", buffer->range_length());
+            ALOGV("length = %ld", buffer->range_length());
         }
     }
 
