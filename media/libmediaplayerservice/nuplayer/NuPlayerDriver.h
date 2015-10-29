@@ -122,8 +122,6 @@ private:
     bool mLooping;
     bool mAutoLoop;
 
-    int64_t mStartupSeekTimeUs;
-
     status_t prepare_l();
     void notifyListener_l(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
 

@@ -45,8 +45,7 @@ NuPlayerDriver::NuPlayerDriver(pid_t pid)
       mPlayerFlags(0),
       mAtEOS(false),
       mLooping(false),
-      mAutoLoop(false),
-      mStartupSeekTimeUs(-1) {
+      mAutoLoop(false) {
     ALOGV("NuPlayerDriver(%p)", this);
     mLooper->setName("NuPlayerDriver Looper");
 
@@ -261,25 +260,11 @@ status_t NuPlayerDriver::start() {
 
         case STATE_PAUSED:
         case STATE_STOPPED_AND_PREPARED:
-        {
-            if (mAtEOS && mStartupSeekTimeUs < 0) {
-                mStartupSeekTimeUs = 0;
-                mPositionUs = -1;
-            }
-
-            // fall through
-        }
-
         case STATE_PREPARED:
         {
-            mAtEOS = false;
             mPlayer->start();
 
-            if (mStartupSeekTimeUs >= 0) {
-                mPlayer->seekToAsync(mStartupSeekTimeUs);
-                mStartupSeekTimeUs = -1;
-            }
-            break;
+            // fall through
         }
 
         case STATE_RUNNING:
@@ -400,8 +385,6 @@ status_t NuPlayerDriver::seekTo(int msec) {
         case STATE_PREPARED:
         case STATE_STOPPED_AND_PREPARED:
         case STATE_PAUSED:
-            mStartupSeekTimeUs = seekTimeUs;
-            // fall through.
         case STATE_RUNNING:
         {
             mAtEOS = false;
@@ -502,7 +485,6 @@ status_t NuPlayerDriver::reset() {
 
     mDurationUs = -1;
     mPositionUs = -1;
-    mStartupSeekTimeUs = -1;
     mLooping = false;
 
     return OK;
