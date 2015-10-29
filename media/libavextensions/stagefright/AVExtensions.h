@@ -161,6 +161,9 @@ struct AVUtils {
 
     virtual bool useQCHWEncoder(const sp<AMessage> &, AString &) { return false; }
 
+    virtual bool canDeferRelease(const sp<MetaData> &/*meta*/) { return false; }
+    virtual void setDeferRelease(sp<MetaData> &/*meta*/) {}
+
     struct HEVCMuxer {
 
         virtual bool reassembleHEVCCSD(const AString &mime, sp<ABuffer> csd0, sp<MetaData> &meta);
