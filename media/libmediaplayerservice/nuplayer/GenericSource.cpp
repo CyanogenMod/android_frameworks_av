@@ -181,7 +181,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
     } else {
         extractor = MediaExtractor::Create(mDataSource,
                 mimeType.isEmpty() ? NULL : mimeType.string(),
-                mIsStreaming ? 0 : AVNuUtils::get()->getUseSetBuffersFlag());
+                mIsStreaming ? 0 : AVNuUtils::get()->getFlags());
     }
 
     if (extractor == NULL) {

@@ -104,7 +104,7 @@ void AVNuUtils::checkFormatChange(bool * /*formatChange*/,
         const sp<ABuffer> & /*accessUnit*/) {
 }
 
-uint32_t AVNuUtils::getUseSetBuffersFlag() {
+uint32_t AVNuUtils::getFlags() {
     return 0;
 }
 
