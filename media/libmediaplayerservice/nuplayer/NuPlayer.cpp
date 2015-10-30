@@ -188,6 +188,7 @@ NuPlayer::NuPlayer(pid_t pid)
       mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mVideoFpsHint(-1.f),
       mStarted(false),
+      mResetting(false),
       mSourceStarted(false),
       mPaused(false),
       mPausedByClient(false),
@@ -1139,6 +1140,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             ALOGV("kWhatReset");
 
+            mResetting = true;
+
             mDeferredActions.push_back(
                     new FlushDecoderAction(
                         FLUSH_CMD_SHUTDOWN /* audio */,
@@ -1221,7 +1224,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::onResume() {
-    if (!mPaused) {
+    if (!mPaused || mResetting) {
+        ALOGD_IF(mResetting, "resetting, onResume discarded");
         return;
     }
     mPaused = false;
@@ -1924,6 +1928,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mResetting = false;
     mSourceStarted = false;
 }
 
