@@ -57,6 +57,7 @@ status_t EffectDescriptorCollection::registerEffect(const effect_descriptor_t *d
                                                     int session,
                                                     int id)
 {
+    Mutex::Autolock _l(mLock);
     if (mTotalEffectsMemory + desc->memoryUsage > getMaxEffectsMemory()) {
         ALOGW("registerEffect() memory limit exceeded for Fx %s, Memory %d KB",
                 desc->name, desc->memoryUsage);
@@ -84,6 +85,7 @@ status_t EffectDescriptorCollection::registerEffect(const effect_descriptor_t *d
 
 status_t EffectDescriptorCollection::unregisterEffect(int id)
 {
+    Mutex::Autolock _l(mLock);
     ssize_t index = indexOfKey(id);
     if (index < 0) {
         ALOGW("unregisterEffect() unknown effect ID %d", id);
@@ -110,6 +112,7 @@ status_t EffectDescriptorCollection::unregisterEffect(int id)
 
 status_t EffectDescriptorCollection::setEffectEnabled(int id, bool enabled)
 {
+    Mutex::Autolock _l(mLock);
     ssize_t index = indexOfKey(id);
     if (index < 0) {
         ALOGW("unregisterEffect() unknown effect ID %d", id);
@@ -152,6 +155,7 @@ status_t EffectDescriptorCollection::setEffectEnabled(const sp<EffectDescriptor>
 
 bool EffectDescriptorCollection::isNonOffloadableEffectEnabled()
 {
+    Mutex::Autolock _l(mLock);
     for (size_t i = 0; i < size(); i++) {
         sp<EffectDescriptor> effectDesc = valueAt(i);
         if (effectDesc->mEnabled && (effectDesc->mStrategy == STRATEGY_MEDIA) &&
@@ -176,6 +180,7 @@ uint32_t EffectDescriptorCollection::getMaxEffectsMemory() const
 
 status_t EffectDescriptorCollection::dump(int fd)
 {
+    Mutex::Autolock _l(mLock);
     const size_t SIZE = 256;
     char buffer[SIZE];
 
