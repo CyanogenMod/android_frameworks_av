@@ -234,31 +234,19 @@ sp<AReplyToken> ALooper::createReplyToken() {
 
 // to be called by AMessage::postAndAwaitResponse only
 status_t ALooper::awaitResponse(const sp<AReplyToken> &replyToken, sp<AMessage> *response) {
-    {
-        Mutex::Autolock autoLock(mLock);
-        if (mThread == NULL) {
-            return -ENOENT;
-        }
-    }
-
     // return status in case we want to handle an interrupted wait
     Mutex::Autolock autoLock(mRepliesLock);
     CHECK(replyToken != NULL);
-    bool gotReply;
-    bool shouldContinue = true;
-    while (!(gotReply = replyToken->retrieveReply(response)) && shouldContinue) {
-        mRepliesCondition.wait(mRepliesLock);
-
+    while (!replyToken->retrieveReply(response)) {
         {
             Mutex::Autolock autoLock(mLock);
             if (mThread == NULL) {
-                shouldContinue = false;
-                // continue and try to get potential reply one more time before break the loop
+                return -ENOENT;
             }
         }
+        mRepliesCondition.wait(mRepliesLock);
     }
-
-    return gotReply ? OK : -ENOENT;
+    return OK;
 }
 
 status_t ALooper::postReply(const sp<AReplyToken> &replyToken, const sp<AMessage> &reply) {
