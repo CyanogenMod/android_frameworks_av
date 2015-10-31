@@ -140,6 +140,7 @@ private:
     void onPortFlush(OMX_U32 portIndex, bool sendFlushComplete);
 
     void checkTransitions();
+    void onTransitionError();
 
     DISALLOW_EVIL_CONSTRUCTORS(SimpleSoftOMXComponent);
 };
