@@ -553,6 +553,10 @@ private:
 
     mutable Mutex mLock;    // prevents concurrent access to AudioPolicy manager functions changing
                             // device connection state  or routing
+    mutable Mutex mEffectsLock; // serialize access to Effect state within APM.
+    // Note: lock acquisition order is always mLock > mEffectsLock:
+    // mLock protects AudioPolicyManager methods that can call into audio flinger
+    // and possibly back in to audio policy service and acquire mEffectsLock.
     sp<AudioCommandThread> mAudioCommandThread;     // audio commands thread
     sp<AudioCommandThread> mTonePlaybackThread;     // tone playback thread
     sp<AudioCommandThread> mOutputCommandThread;    // process stop and release output
