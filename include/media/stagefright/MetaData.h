@@ -150,7 +150,7 @@ enum {
 
     kKeyWMVVersion        = 'wmvv',  // int32_t
     kKeyRVVersion         = '#rvv',  // int32_t
-    kKeyBlockAlign        = 'blk',   // int32_t , should be different from kKeyWMABlockAlign
+    kKeyBlockAlign        = 'ablk',   // int32_t , should be different from kKeyWMABlockAlign
 
     // An indication that a video buffer has been rendered.
     kKeyRendered          = 'rend',  // bool (int32_t)
