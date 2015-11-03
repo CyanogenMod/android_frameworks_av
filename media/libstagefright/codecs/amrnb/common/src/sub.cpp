@@ -187,6 +187,9 @@ terms listed above has been obtained from the copyright holder.
 ; FUNCTION CODE
 ----------------------------------------------------------------------------*/
 
+#ifdef __clang__
+__attribute__((no_sanitize("integer")))
+#endif
 Word16 sub(Word16 var1, Word16 var2, Flag *pOverflow)
 {
 

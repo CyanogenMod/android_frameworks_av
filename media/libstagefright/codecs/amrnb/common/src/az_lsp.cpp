@@ -237,7 +237,9 @@ static Word16 Chebps (Word16 x,
 
 ------------------------------------------------------------------------------
 */
-
+#ifdef __clang__
+__attribute__((no_sanitize("integer")))
+#endif
 static Word16 Chebps(Word16 x,
                      Word16 f[], /* (n) */
                      Word16 n,
