@@ -634,7 +634,9 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
             for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
                 sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
-                CHECK(mem.get() != NULL);
+                if (mem == NULL || mem->pointer() == NULL) {
+                    return NO_MEMORY;
+                }
 
                 BufferInfo info;
                 info.mStatus = BufferInfo::OWNED_BY_US;
@@ -1005,7 +1007,9 @@ status_t ACodec::allocateOutputMetaDataBuffers() {
 
         sp<IMemory> mem = mDealer[kPortIndexOutput]->allocate(
                 sizeof(struct VideoDecoderOutputMetaData));
-        CHECK(mem.get() != NULL);
+        if (mem == NULL || mem->pointer() == NULL) {
+            return NO_MEMORY;
+        }
         info.mData = new ABuffer(mem->pointer(), mem->size());
 
         // we use useBuffer for metadata regardless of quirks

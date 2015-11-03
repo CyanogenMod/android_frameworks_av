@@ -85,13 +85,15 @@ public:
         data.writeInt32(size);
 
         status_t status = remote()->transact(COMMAND, data, &reply);
+        if (status == NO_ERROR) {
+            status = reply.readInt32();
+        }
         if (status != NO_ERROR) {
             if (pReplySize != NULL)
                 *pReplySize = 0;
             return status;
         }
 
-        status = reply.readInt32();
         size = reply.readInt32();
         if (size != 0 && pReplyData != NULL && pReplySize != NULL) {
             reply.read(pReplyData, size);
@@ -154,23 +156,34 @@ status_t BnEffect::onTransact(
             uint32_t cmdSize = data.readInt32();
             char *cmd = NULL;
             if (cmdSize) {
-                cmd = (char *)malloc(cmdSize);
+                cmd = (char *)calloc(cmdSize, 1);
+                if (cmd == NULL) {
+                    reply->writeInt32(NO_MEMORY);
+                    return NO_ERROR;
+                }
                 data.read(cmd, cmdSize);
             }
             uint32_t replySize = data.readInt32();
             uint32_t replySz = replySize;
             char *resp = NULL;
             if (replySize) {
-                resp = (char *)malloc(replySize);
+                resp = (char *)calloc(replySize, 1);
+                if (resp == NULL) {
+                    free(cmd);
+                    reply->writeInt32(NO_MEMORY);
+                    return NO_ERROR;
+                }
             }
             status_t status = command(cmdCode, cmdSize, cmd, &replySz, resp);
             reply->writeInt32(status);
-            if (replySz < replySize) {
-                replySize = replySz;
-            }
-            reply->writeInt32(replySize);
-            if (replySize) {
-                reply->write(resp, replySize);
+            if (status == NO_ERROR) {
+                if (replySz < replySize) {
+                    replySize = replySz;
+                }
+                reply->writeInt32(replySize);
+                if (replySize) {
+                    reply->write(resp, replySize);
+                }
             }
             if (cmd) {
                 free(cmd);
