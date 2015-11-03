@@ -861,11 +861,6 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
             return ret;
         }
 
-        sp<IBinder> remoteCallback = client->getRemote();
-        if (remoteCallback != nullptr) {
-            remoteCallback->linkToDeath(this);
-        }
-
         // Update shim paremeters for legacy clients
         if (effectiveApiLevel == API_1) {
             // Assume we have always received a Client subclass for API1
