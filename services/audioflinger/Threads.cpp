@@ -2320,18 +2320,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
                 multiplier = (double) maxNormalFrameCount / (double) mFrameCount;
             }
         } else {
-            // prefer an even multiplier, for compatibility with doubling of fast tracks due to HAL
-            // SRC (it would be unusual for the normal sink buffer size to not be a multiple of fast
-            // track, but we sometimes have to do this to satisfy the maximum frame count
-            // constraint)
-            // FIXME this rounding up should not be done if no HAL SRC
-            uint32_t truncMult = (uint32_t) multiplier;
-            if ((truncMult & 1)) {
-                if ((truncMult + 1) * mFrameCount <= maxNormalFrameCount) {
-                    ++truncMult;
-                }
-            }
-            multiplier = (double) truncMult;
+            multiplier = floor(multiplier);
         }
     }
     mNormalFrameCount = multiplier * mFrameCount;
