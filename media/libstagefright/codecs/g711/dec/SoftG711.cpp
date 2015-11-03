@@ -262,7 +262,8 @@ void SoftG711::onQueueFilled(OMX_U32 /* portIndex */) {
 // static
 void SoftG711::DecodeALaw(
         int16_t *out, const uint8_t *in, size_t inSize) {
-    while (inSize-- > 0) {
+    while (inSize > 0) {
+        inSize--;
         int32_t x = *in++;
 
         int32_t ix = x ^ 0x55;
@@ -288,7 +289,8 @@ void SoftG711::DecodeALaw(
 // static
 void SoftG711::DecodeMLaw(
         int16_t *out, const uint8_t *in, size_t inSize) {
-    while (inSize-- > 0) {
+    while (inSize > 0) {
+        inSize--;
         int32_t x = *in++;
 
         int32_t mantissa = ~x;
