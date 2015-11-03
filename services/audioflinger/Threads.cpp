@@ -2185,6 +2185,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             kUseFastMixer == FastMixer_Dynamic)) {
         size_t minNormalFrameCount = (kMinNormalSinkBufferSizeMs * mSampleRate) / 1000;
         size_t maxNormalFrameCount = (kMaxNormalSinkBufferSizeMs * mSampleRate) / 1000;
+
         // round up minimum and round down maximum to nearest 16 frames to satisfy AudioMixer
         minNormalFrameCount = (minNormalFrameCount + 15) & ~15;
         maxNormalFrameCount = maxNormalFrameCount & ~15;
@@ -2200,19 +2201,6 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             } else {
                 multiplier = (double) maxNormalFrameCount / (double) mFrameCount;
             }
-        } else {
-            // prefer an even multiplier, for compatibility with doubling of fast tracks due to HAL
-            // SRC (it would be unusual for the normal sink buffer size to not be a multiple of fast
-            // track, but we sometimes have to do this to satisfy the maximum frame count
-            // constraint)
-            // FIXME this rounding up should not be done if no HAL SRC
-            uint32_t truncMult = (uint32_t) multiplier;
-            if ((truncMult & 1)) {
-                if ((truncMult + 1) * mFrameCount <= maxNormalFrameCount) {
-                    ++truncMult;
-                }
-            }
-            multiplier = (double) truncMult;
         }
     }
     mNormalFrameCount = multiplier * mFrameCount;
