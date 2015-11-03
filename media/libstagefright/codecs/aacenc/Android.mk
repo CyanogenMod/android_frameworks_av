@@ -1,6 +1,5 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
-include frameworks/av/media/libstagefright/codecs/common/Config.mk
 
 AAC_LIBRARY = fraunhofer
 
@@ -35,24 +34,28 @@ LOCAL_SRC_FILES += \
 	src/transform.c \
 	src/memalign.c
 
-ifeq ($(VOTT), v5)
-LOCAL_SRC_FILES += \
-	src/asm/ARMV5E/AutoCorrelation_v5.s \
-	src/asm/ARMV5E/band_nrg_v5.s \
-	src/asm/ARMV5E/CalcWindowEnergy_v5.s \
-	src/asm/ARMV5E/PrePostMDCT_v5.s \
-	src/asm/ARMV5E/R4R8First_v5.s \
-	src/asm/ARMV5E/Radix4FFT_v5.s
-endif
+ifneq ($(ARCH_ARM_HAVE_NEON),true)
+    LOCAL_SRC_FILES_arm := \
+        src/asm/ARMV5E/AutoCorrelation_v5.s \
+        src/asm/ARMV5E/band_nrg_v5.s \
+        src/asm/ARMV5E/CalcWindowEnergy_v5.s \
+        src/asm/ARMV5E/PrePostMDCT_v5.s \
+        src/asm/ARMV5E/R4R8First_v5.s \
+        src/asm/ARMV5E/Radix4FFT_v5.s
 
-ifeq ($(VOTT), v7)
-LOCAL_SRC_FILES += \
-	src/asm/ARMV5E/AutoCorrelation_v5.s \
-	src/asm/ARMV5E/band_nrg_v5.s \
-	src/asm/ARMV5E/CalcWindowEnergy_v5.s \
-	src/asm/ARMV7/PrePostMDCT_v7.s \
-	src/asm/ARMV7/R4R8First_v7.s \
-	src/asm/ARMV7/Radix4FFT_v7.s
+    LOCAL_CFLAGS_arm := -DARMV5E -DARM_INASM -DARMV5_INASM
+    LOCAL_C_INCLUDES_arm := $(LOCAL_PATH)/src/asm/ARMV5E
+else
+    LOCAL_SRC_FILES_arm := \
+        src/asm/ARMV5E/AutoCorrelation_v5.s \
+        src/asm/ARMV5E/band_nrg_v5.s \
+        src/asm/ARMV5E/CalcWindowEnergy_v5.s \
+        src/asm/ARMV7/PrePostMDCT_v7.s \
+        src/asm/ARMV7/R4R8First_v7.s \
+        src/asm/ARMV7/Radix4FFT_v7.s
+    LOCAL_CFLAGS_arm := -DARMV5E -DARMV7Neon -DARM_INASM -DARMV5_INASM -DARMV6_INASM
+    LOCAL_C_INCLUDES_arm := $(LOCAL_PATH)/src/asm/ARMV5E
+    LOCAL_C_INCLUDES_arm += $(LOCAL_PATH)/src/asm/ARMV7
 endif
 
 LOCAL_MODULE := libstagefright_aacenc
@@ -70,17 +73,6 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/src \
 	$(LOCAL_PATH)/inc \
 	$(LOCAL_PATH)/basic_op
-
-ifeq ($(VOTT), v5)
-LOCAL_CFLAGS += -DARMV5E -DARM_INASM -DARMV5_INASM
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV5E
-endif
-
-ifeq ($(VOTT), v7)
-LOCAL_CFLAGS += -DARMV5E -DARMV7Neon -DARM_INASM -DARMV5_INASM -DARMV6_INASM
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV5E
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV7
-endif
 
 LOCAL_CFLAGS += -Werror
 
