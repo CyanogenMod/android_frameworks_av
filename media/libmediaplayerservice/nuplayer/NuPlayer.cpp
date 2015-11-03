@@ -1076,6 +1076,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t audio;
                 CHECK(msg->findInt32("audio", &audio));
 
+                if (audio) {
+                    mAudioEOS = false;
+                } else {
+                    mVideoEOS = false;
+                }
+
                 ALOGV("renderer %s flush completed.", audio ? "audio" : "video");
                 if (audio && (mFlushingAudio == NONE || mFlushingAudio == FLUSHED
                         || mFlushingAudio == SHUT_DOWN)) {
