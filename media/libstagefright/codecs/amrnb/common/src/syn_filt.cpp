@@ -245,7 +245,9 @@ void Syn_filt (
 
 ------------------------------------------------------------------------------
 */
-
+#ifdef __clang__
+__attribute__((no_sanitize("integer")))
+#endif
 void Syn_filt(
     Word16 a[],     /* (i)   : a[M+1] prediction coefficients   (M=10)  */
     Word16 x[],     /* (i)   : input signal                             */
