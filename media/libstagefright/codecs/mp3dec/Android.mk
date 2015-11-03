@@ -28,19 +28,22 @@ LOCAL_SRC_FILES := \
  	src/pvmp3_stereo_proc.cpp \
  	src/pvmp3_reorder.cpp \
 
-ifeq ($(TARGET_ARCH),arm)
-LOCAL_SRC_FILES += \
+LOCAL_SRC_FILES_arm += \
 	src/asm/pvmp3_polyphase_filter_window_gcc.s \
  	src/asm/pvmp3_mdct_18_gcc.s \
  	src/asm/pvmp3_dct_9_gcc.s \
 	src/asm/pvmp3_dct_16_gcc.s
-else
-LOCAL_SRC_FILES += \
+LOCAL_SRC_FILES_other_archs := \
  	src/pvmp3_polyphase_filter_window.cpp \
  	src/pvmp3_mdct_18.cpp \
  	src/pvmp3_dct_9.cpp \
  	src/pvmp3_dct_16.cpp
-endif
+
+LOCAL_SRC_FILES_arm64  := $(LOCAL_SRC_FILES_other_archs)
+LOCAL_SRC_FILES_mips   := $(LOCAL_SRC_FILES_other_archs)
+LOCAL_SRC_FILES_mips64 := $(LOCAL_SRC_FILES_other_archs)
+LOCAL_SRC_FILES_x86    := $(LOCAL_SRC_FILES_other_archs)
+LOCAL_SRC_FILES_x86_64 := $(LOCAL_SRC_FILES_other_archs)
 
 LOCAL_C_INCLUDES := \
         frameworks/av/media/libstagefright/include \
