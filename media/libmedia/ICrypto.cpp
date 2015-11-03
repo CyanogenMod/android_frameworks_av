@@ -308,7 +308,25 @@ status_t BnCrypto::onTransact(
             AString errorDetailMsg;
             ssize_t result;
 
-            if (offset + totalSize > sharedBuffer->size()) {
+            size_t sumSubsampleSizes = 0;
+            bool overflow = false;
+            for (int32_t i = 0; i < numSubSamples; ++i) {
+                CryptoPlugin::SubSample &ss = subSamples[i];
+                if (sumSubsampleSizes <= SIZE_MAX - ss.mNumBytesOfEncryptedData) {
+                    sumSubsampleSizes += ss.mNumBytesOfEncryptedData;
+                } else {
+                    overflow = true;
+                }
+                if (sumSubsampleSizes <= SIZE_MAX - ss.mNumBytesOfClearData) {
+                    sumSubsampleSizes += ss.mNumBytesOfClearData;
+                } else {
+                    overflow = true;
+                }
+            }
+
+            if (overflow || sumSubsampleSizes != totalSize) {
+                result = -EINVAL;
+            } else if (offset + totalSize > sharedBuffer->size()) {
                 result = -EINVAL;
             } else {
                 result = decrypt(

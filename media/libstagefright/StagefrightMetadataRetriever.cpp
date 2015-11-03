@@ -156,7 +156,10 @@ static VideoFrame *extractVideoFrame(
     sp<MetaData> format = source->getFormat();
 
     sp<AMessage> videoFormat;
-    convertMetaDataToMessage(trackMeta, &videoFormat);
+    if (convertMetaDataToMessage(trackMeta, &videoFormat) != OK) {
+        ALOGW("Failed to convert meta data to message");
+        return NULL;
+    }
 
     // TODO: Use Flexible color instead
     videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
