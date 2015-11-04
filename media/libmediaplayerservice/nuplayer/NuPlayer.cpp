@@ -243,7 +243,7 @@ bool NuPlayer::IsHTTPLiveURL(const char *url) {
             return true;
         }
 
-        if (strstr(url,".m3u8")) {
+        if (strstr(url,"m3u8")) {
             return true;
         }
     }
@@ -1169,6 +1169,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         FLUSH_CMD_SHUTDOWN /* video */));
 
             mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::closeAudioSink));
+
+            mDeferredActions.push_back(
                     new SimpleAction(&NuPlayer::performReset));
 
             processDeferredActions();
@@ -1602,7 +1605,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     (*decoder)->configure(format);
 
     // allocate buffers to decrypt widevine source buffers
-    if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {
+    if (!audio && ((mSourceFlags & Source::FLAG_SECURE) ||
+                   (mSourceFlags & Source::FLAG_USE_SET_BUFFERS))) {
         Vector<sp<ABuffer> > inputBufs;
         CHECK_EQ((*decoder)->getInputBuffers(&inputBufs), (status_t)OK);
 

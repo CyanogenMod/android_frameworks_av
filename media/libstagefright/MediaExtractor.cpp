@@ -56,7 +56,8 @@ uint32_t MediaExtractor::flags() const {
 
 // static
 sp<MediaExtractor> MediaExtractor::Create(
-        const sp<DataSource> &source, const char *mime) {
+        const sp<DataSource> &source, const char *mime,
+        const uint32_t flags) {
     sp<AMessage> meta;
 
     bool secondPass = false;
@@ -103,7 +104,7 @@ retry:
 
     sp<MediaExtractor> ret = NULL;
     AString extractorName;
-    if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta)) != NULL) {
+    if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta, flags)) != NULL) {
     } else if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
             && sPlugin.create) {
         ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
@@ -139,7 +140,7 @@ retry:
         ret = sPlugin.create(source, mime, meta);
     }
 
-    ret = AVFactory::get()->updateExtractor(ret, source, mime, meta);
+    ret = AVFactory::get()->updateExtractor(ret, source, mime, meta, flags);
     if (ret != NULL) {
        if (isDrm) {
            ret->setDrmFlag(true);

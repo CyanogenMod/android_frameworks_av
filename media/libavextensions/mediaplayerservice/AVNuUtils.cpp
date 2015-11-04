@@ -146,6 +146,14 @@ void AVNuUtils::addFlagsInMeta(const sp<ABuffer> & /*buffer*/,
         int32_t /*flags*/, bool /*isAudio*/) {
 }
 
+uint32_t AVNuUtils::getUseSetBuffersFlag() {
+    return 0;
+}
+
+bool AVNuUtils::canUseSetBuffers(const sp<MetaData> &/*Meta*/) {
+    return false;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVNuUtils::AVNuUtils() {}
 

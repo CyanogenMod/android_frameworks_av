@@ -41,7 +41,8 @@ public:
     }
 
     static sp<MediaExtractor> Create(
-            const sp<DataSource> &source, const char *mime = NULL);
+            const sp<DataSource> &source, const char *mime = NULL,
+            const uint32_t flags = 0);
 
     virtual size_t countTracks() = 0;
     virtual sp<MediaSource> getTrack(size_t index) = 0;
@@ -79,6 +80,7 @@ public:
     }
     virtual void setUID(uid_t uid) {
     }
+    virtual void setExtraFlags(uint32_t flag) {}
 
 protected:
     MediaExtractor() : mIsDrm(false) {}
