@@ -440,6 +440,15 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
             "Camera %d: %s: Unable to lock main lock, proceeding anyway",
             mId, __FUNCTION__);
 
+    bool dumpTemplates = false;
+    String16 templatesOption("-t");
+    int n = args.size();
+    for (int i = 0; i < n; i++) {
+        if (args[i] == templatesOption) {
+            dumpTemplates = true;
+        }
+    }
+
     String8 lines;
 
     const char *status =
@@ -489,6 +498,33 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
 
         CameraMetadata lastRequest = getLatestRequestLocked();
         lastRequest.dump(fd, /*verbosity*/2, /*indentation*/6);
+    }
+
+    if (dumpTemplates) {
+        const char *templateNames[] = {
+            "TEMPLATE_PREVIEW",
+            "TEMPLATE_STILL_CAPTURE",
+            "TEMPLATE_VIDEO_RECORD",
+            "TEMPLATE_VIDEO_SNAPSHOT",
+            "TEMPLATE_ZERO_SHUTTER_LAG",
+            "TEMPLATE_MANUAL"
+        };
+
+        for (int i = 1; i < CAMERA3_TEMPLATE_COUNT; i++) {
+            const camera_metadata_t *templateRequest;
+            templateRequest =
+                mHal3Device->ops->construct_default_request_settings(
+                    mHal3Device, i);
+            lines = String8::format("    HAL Request %s:\n", templateNames[i-1]);
+            if (templateRequest == NULL) {
+                lines.append("       Not supported\n");
+                write(fd, lines.string(), lines.size());
+            } else {
+                write(fd, lines.string(), lines.size());
+                dump_indented_camera_metadata(templateRequest,
+                        fd, /*verbosity*/2, /*indentation*/8);
+            }
+        }
     }
 
     if (mHal3Device != NULL) {
