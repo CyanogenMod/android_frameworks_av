@@ -24,21 +24,15 @@
 
 namespace android {
 
-status_t MediaExtractorService::hello()
-{
-    ALOGI("@@@ MediaExtractorService::hello");
-    return NO_ERROR;
-}
-
 sp<IMediaExtractor> MediaExtractorService::makeExtractor(
         const sp<IDataSource> &remoteSource, const char *mime) {
-    ALOGI("@@@ MediaExtractorService::makeExtractor for %s", mime);
+    ALOGV("@@@ MediaExtractorService::makeExtractor for %s", mime);
 
     sp<DataSource> localSource = DataSource::CreateFromIDataSource(remoteSource);
 
     sp<MediaExtractor> ret = MediaExtractor::CreateFromService(localSource, mime);
 
-    ALOGI("extractor service created %p (%s)",
+    ALOGV("extractor service created %p (%s)",
             ret.get(),
             ret == NULL ? "" : ret->name());
 
