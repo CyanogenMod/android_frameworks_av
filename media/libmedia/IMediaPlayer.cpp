@@ -456,7 +456,7 @@ status_t BnMediaPlayer::onTransact(
         } break;
         case GET_CURRENT_POSITION: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
-            int msec;
+            int msec = 0;
             status_t ret = getCurrentPosition(&msec);
             reply->writeInt32(msec);
             reply->writeInt32(ret);
@@ -464,7 +464,7 @@ status_t BnMediaPlayer::onTransact(
         } break;
         case GET_DURATION: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
-            int msec;
+            int msec = 0;
             status_t ret = getDuration(&msec);
             reply->writeInt32(msec);
             reply->writeInt32(ret);
@@ -543,6 +543,7 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
 
             struct sockaddr_in endpoint;
+            memset(&endpoint, 0, sizeof(endpoint));
             int amt = data.readInt32();
             if (amt == sizeof(endpoint)) {
                 data.read(&endpoint, sizeof(struct sockaddr_in));
@@ -557,6 +558,7 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
 
             struct sockaddr_in endpoint;
+            memset(&endpoint, 0, sizeof(endpoint));
             status_t res = getRetransmitEndpoint(&endpoint);
 
             reply->writeInt32(res);

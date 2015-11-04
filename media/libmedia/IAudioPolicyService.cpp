@@ -816,7 +816,7 @@ status_t BnAudioPolicyService::onTransact(
             if (hasOffloadInfo) {
                 data.read(&offloadInfo, sizeof(audio_offload_info_t));
             }
-            audio_io_handle_t output;
+            audio_io_handle_t output = 0;
             status_t status = getOutputForAttr(hasAttributes ? &attr : NULL,
                     &output, session, &stream,
                     samplingRate, format, channelMask,
@@ -931,7 +931,7 @@ status_t BnAudioPolicyService::onTransact(
             audio_stream_type_t stream =
                     static_cast <audio_stream_type_t>(data.readInt32());
             audio_devices_t device = static_cast <audio_devices_t>(data.readInt32());
-            int index;
+            int index = 0;
             status_t status = getStreamVolumeIndex(stream, &index, device);
             reply->writeInt32(index);
             reply->writeInt32(static_cast <uint32_t>(status));
@@ -1085,8 +1085,10 @@ status_t BnAudioPolicyService::onTransact(
 
         case GET_AUDIO_PORT: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            struct audio_port port;
-            data.read(&port, sizeof(struct audio_port));
+            struct audio_port port = {};
+            if (data.read(&port, sizeof(struct audio_port)) != NO_ERROR) {
+                ALOGE("b/23912202");
+            }
             status_t status = getAudioPort(&port);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1099,8 +1101,10 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             struct audio_patch patch;
             data.read(&patch, sizeof(struct audio_patch));
-            audio_patch_handle_t handle;
-            data.read(&handle, sizeof(audio_patch_handle_t));
+            audio_patch_handle_t handle = {};
+            if (data.read(&handle, sizeof(audio_patch_handle_t)) != NO_ERROR) {
+                ALOGE("b/23912202");
+            }
             status_t status = createAudioPatch(&patch, &handle);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1169,9 +1173,9 @@ status_t BnAudioPolicyService::onTransact(
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             sp<IAudioPolicyServiceClient> client = interface_cast<IAudioPolicyServiceClient>(
                     data.readStrongBinder());
-            audio_session_t session;
-            audio_io_handle_t ioHandle;
-            audio_devices_t device;
+            audio_session_t session = {};
+            audio_io_handle_t ioHandle = {};
+            audio_devices_t device = {};
             status_t status = acquireSoundTriggerSession(&session, &ioHandle, &device);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
