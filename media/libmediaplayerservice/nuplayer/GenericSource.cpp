@@ -1010,11 +1010,11 @@ sp<MetaData> NuPlayer::GenericSource::getFormatMeta(bool audio) {
     msg->setInt32("audio", audio);
 
     sp<AMessage> response;
-    void *format;
+    sp<RefBase> format;
     status_t err = msg->postAndAwaitResponse(&response);
     if (err == OK && response != NULL) {
-        CHECK(response->findPointer("format", &format));
-        return (MetaData *)format;
+        CHECK(response->findObject("format", &format));
+        return static_cast<MetaData*>(format.get());
     } else {
         return NULL;
     }
@@ -1026,7 +1026,7 @@ void NuPlayer::GenericSource::onGetFormatMeta(sp<AMessage> msg) const {
 
     sp<AMessage> response = new AMessage;
     sp<MetaData> format = doGetFormatMeta(audio);
-    response->setPointer("format", format.get());
+    response->setObject("format", format);
 
     sp<AReplyToken> replyID;
     CHECK(msg->senderAwaitsResponse(&replyID));
