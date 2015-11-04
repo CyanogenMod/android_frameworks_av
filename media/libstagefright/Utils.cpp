@@ -316,8 +316,8 @@ status_t convertMetaDataToMessage(
     } else if (meta->findData(kKeyHVCC, &type, &data, &size)) {
         const uint8_t *ptr = (const uint8_t *)data;
 
-        if (size < 23 || ptr[0] != 1) {  // configurationVersion == 1
-            ALOGE("b/23680780");
+        if (size < 23) {  // configurationVersion == 1
+            ALOGE("b/23680780 size=%d ptr0=%x", size, ptr[0]);
             return BAD_VALUE;
         }
         uint8_t profile __unused = ptr[1] & 31;
