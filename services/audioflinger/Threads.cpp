@@ -2548,7 +2548,7 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
     size_t size = mTracks.size();
     for (size_t i = 0; i < size; i++) {
         sp<Track> t = mTracks[i];
-        if (t->streamType() == streamType) {
+        if (t->streamType() == streamType && t->isExternalTrack()) {
             t->invalidate();
         }
     }

@@ -225,7 +225,8 @@ public:
 
     virtual status_t startAudioSource(const struct audio_port_config *source,
                                       const audio_attributes_t *attributes,
-                                      audio_io_handle_t *handle) = 0;
+                                      audio_io_handle_t *handle,
+                                      uid_t uid) = 0;
     virtual status_t stopAudioSource(audio_io_handle_t handle) = 0;
 };
 

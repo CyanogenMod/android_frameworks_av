@@ -211,6 +211,8 @@ public:
                                           unsigned int *generation);
         virtual status_t setAudioPortConfig(const struct audio_port_config *config);
 
+        virtual void releaseResourcesForUid(uid_t uid);
+
         virtual status_t acquireSoundTriggerSession(audio_session_t *session,
                                                audio_io_handle_t *ioHandle,
                                                audio_devices_t *device);
@@ -225,10 +227,9 @@ public:
 
         virtual status_t startAudioSource(const struct audio_port_config *source,
                                           const audio_attributes_t *attributes,
-                                          audio_io_handle_t *handle);
+                                          audio_io_handle_t *handle,
+                                          uid_t uid);
         virtual status_t stopAudioSource(audio_io_handle_t handle);
-
-        virtual void     releaseResourcesForUid(uid_t uid);
 
         // Audio policy configuration file parsing (audio_policy.conf)
         // TODO candidates to be moved to ConfigParsingUtils
@@ -498,6 +499,17 @@ protected:
 
         status_t hasPrimaryOutput() const { return mPrimaryOutput != 0; }
 
+        status_t connectAudioSource(const sp<AudioSourceDescriptor>& sourceDesc);
+        status_t disconnectAudioSource(const sp<AudioSourceDescriptor>& sourceDesc);
+
+        sp<AudioSourceDescriptor> getSourceForStrategyOnOutput(audio_io_handle_t output,
+                                                               routing_strategy strategy);
+
+        void cleanUpForDevice(const sp<DeviceDescriptor>& deviceDesc);
+
+        void clearAudioSources(uid_t uid);
+
+
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface
         sp<SwAudioOutputDescriptor> mPrimaryOutput;     // primary output descriptor
@@ -536,6 +548,9 @@ protected:
 
         sp<AudioPatch> mCallTxPatch;
         sp<AudioPatch> mCallRxPatch;
+
+        HwAudioOutputCollection mHwOutputs;
+        AudioSourceCollection mAudioSources;
 
         // for supporting "beacon" streams, i.e. streams that only play on speaker, and never
         // when something other than STREAM_TTS (a.k.a. "Transmitted Through Speaker") is playing
