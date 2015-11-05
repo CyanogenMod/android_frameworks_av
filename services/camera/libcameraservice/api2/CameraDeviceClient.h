@@ -114,6 +114,9 @@ public:
     // Tear down stream resources by freeing its unused buffers
     virtual status_t      tearDown(int streamId);
 
+    // Prepare stream by preallocating up to maxCount of its buffers
+    virtual status_t      prepare2(int maxCount, int streamId);
+
     /**
      * Interface used by CameraService
      */
@@ -189,6 +192,7 @@ private:
     Vector<int> mStreamingRequestList;
 
     int32_t mRequestIdCounter;
+
 };
 
 }; // namespace android

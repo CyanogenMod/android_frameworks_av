@@ -34,6 +34,11 @@ class StatusTracker;
  */
 class Camera3StreamInterface : public virtual RefBase {
   public:
+
+    enum {
+        ALLOCATE_PIPELINE_MAX = 0, // Allocate max buffers used by a given surface
+    };
+
     /**
      * Get the stream's ID
      */
@@ -98,7 +103,9 @@ class Camera3StreamInterface : public virtual RefBase {
 
     /**
      * Start stream preparation. May only be called in the CONFIGURED state,
-     * when no valid buffers have yet been returned to this stream.
+     * when no valid buffers have yet been returned to this stream. Prepares
+     * up to maxCount buffers, or the maximum number of buffers needed by the
+     * pipeline if maxCount is ALLOCATE_PIPELINE_MAX.
      *
      * If no prepartion is necessary, returns OK and does not transition to
      * PREPARING state. Otherwise, returns NOT_ENOUGH_DATA and transitions
@@ -112,7 +119,7 @@ class Camera3StreamInterface : public virtual RefBase {
      *    INVALID_OPERATION if called when not in CONFIGURED state, or a
      *        valid buffer has already been returned to this stream.
      */
-    virtual status_t startPrepare() = 0;
+    virtual status_t startPrepare(int maxCount) = 0;
 
     /**
      * Check if the stream is mid-preparing.

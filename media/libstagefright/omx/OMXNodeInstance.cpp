@@ -206,6 +206,7 @@ OMXNodeInstance::OMXNodeInstance(
     mDebugLevelBumpPendingBuffers[1] = 0;
     mMetadataType[0] = kMetadataBufferTypeInvalid;
     mMetadataType[1] = kMetadataBufferTypeInvalid;
+    mIsSecure = AString(name).endsWith(".secure");
 }
 
 OMXNodeInstance::~OMXNodeInstance() {

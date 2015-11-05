@@ -426,6 +426,17 @@ status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) const {
     return res;
 }
 
+bool Camera3OutputStream::isVideoStream() const {
+    uint32_t usage = 0;
+    status_t res = getEndpointUsage(&usage);
+    if (res != OK) {
+        ALOGE("%s: getting end point usage failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return false;
+    }
+
+    return (usage & GRALLOC_USAGE_HW_VIDEO_ENCODER) != 0;
+}
+
 }; // namespace camera3
 
 }; // namespace android

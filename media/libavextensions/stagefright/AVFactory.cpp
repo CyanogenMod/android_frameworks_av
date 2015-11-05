@@ -72,7 +72,7 @@ sp<NuCachedSource2> AVFactory::createCachedSource(
             const sp<DataSource> &source,
             const char *cacheConfig,
             bool disconnectAtHighwatermark) {
-    return new NuCachedSource2(source, cacheConfig, disconnectAtHighwatermark);
+    return NuCachedSource2::Create(source, cacheConfig, disconnectAtHighwatermark);
 }
 
 MediaHTTP* AVFactory::createMediaHTTP(

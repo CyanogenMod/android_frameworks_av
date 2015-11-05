@@ -96,6 +96,15 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& /* args */
     const size_t SIZE = 256;
     char buffer[SIZE];
 
+    if (checkCallingPermission(String16("android.permission.DUMP")) == false) {
+        result.format("Permission Denial: "
+                "can't dump ResourceManagerService from pid=%d, uid=%d\n",
+                IPCThreadState::self()->getCallingPid(),
+                IPCThreadState::self()->getCallingUid());
+        write(fd, result.string(), result.size());
+        return PERMISSION_DENIED;
+    }
+
     snprintf(buffer, SIZE, "ResourceManagerService: %p\n", this);
     result.append(buffer);
     result.append("  Policies:\n");

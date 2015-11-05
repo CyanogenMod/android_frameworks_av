@@ -1912,6 +1912,8 @@ void Camera2Client::notifyShutter(const CaptureResultExtras& resultExtras,
     ALOGV("%s: Shutter notification for request id %" PRId32 " at time %" PRId64,
             __FUNCTION__, resultExtras.requestId, timestamp);
     mCaptureSequencer->notifyShutter(resultExtras, timestamp);
+
+    Camera2ClientBase::notifyShutter(resultExtras, timestamp);
 }
 
 camera2::SharedParameters& Camera2Client::getParameters() {

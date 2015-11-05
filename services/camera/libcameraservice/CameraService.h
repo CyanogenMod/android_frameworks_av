@@ -24,7 +24,8 @@
 #include <binder/BinderService.h>
 #include <binder/IAppOpsCallback.h>
 #include <camera/ICameraService.h>
-#include "hardware/camera.h"
+#include <camera/ICameraServiceProxy.h>
+#include <hardware/camera.h>
 
 #include <camera/ICamera.h>
 #include <camera/ICameraClient.h>
@@ -78,6 +79,8 @@ public:
 
     // Process state (mirrors frameworks/base/core/java/android/app/ActivityManager.java)
     static const int PROCESS_STATE_NONEXISTENT = -1;
+    static const int PROCESS_STATE_TOP = 2;
+    static const int PROCESS_STATE_TOP_SLEEPING = 5;
 
     // 3 second busy timeout when other clients are connecting
     static const nsecs_t DEFAULT_CONNECT_TIMEOUT_NS = 3000000000;
@@ -167,6 +170,14 @@ public:
     void                loadSound();
     void                playSound(sound_kind kind);
     void                releaseSound();
+
+    /**
+     * Update the state of a given camera device (open/close/active/idle) with
+     * the camera proxy service in the system service
+     */
+    static void         updateProxyDeviceState(
+            ICameraServiceProxy::CameraState newState,
+            const String8& cameraId);
 
     /////////////////////////////////////////////////////////////////////
     // CameraDeviceFactory functionality
@@ -734,6 +745,7 @@ private:
 
     static String8 toString(std::set<userid_t> intSet);
 
+    static sp<ICameraServiceProxy> getCameraServiceProxy();
     static void pingCameraServiceProxy();
 
 };
@@ -863,11 +875,6 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
         if ((ret = client->initialize(mModule)) != OK) {
             ALOGE("%s: Could not initialize client from HAL module.", __FUNCTION__);
             return ret;
-        }
-
-        sp<IBinder> remoteCallback = client->getRemote();
-        if (remoteCallback != nullptr) {
-            remoteCallback->linkToDeath(this);
         }
 
         // Update shim paremeters for legacy clients

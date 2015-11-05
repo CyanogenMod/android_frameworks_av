@@ -64,6 +64,11 @@ class Camera3OutputStream :
      */
     status_t         setTransform(int transform);
 
+    /**
+     * Return if this output stream is for video encoding.
+     */
+    bool isVideoStream() const;
+
   protected:
     Camera3OutputStream(int id, camera3_stream_type_t type,
             uint32_t width, uint32_t height, int format,

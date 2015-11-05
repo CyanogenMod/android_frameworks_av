@@ -56,9 +56,21 @@ public:
             const struct audio_port_config *srcConfig = NULL) const;
     virtual sp<AudioPort> getAudioPort() const { return mProfile; }
     void toAudioPort(struct audio_port *port) const;
+    void setPreemptedSessions(const SortedVector<audio_session_t>& sessions);
+    SortedVector<audio_session_t> getPreemptedSessions() const;
+    bool hasPreemptedSession(audio_session_t session) const;
+    void clearPreemptedSessions();
 
 private:
     audio_port_handle_t           mId;
+    // Because a preemtible capture session can preempt another one, we end up in an endless loop
+    // situation were each session is allowed to restart after being preempted,
+    // thus preempting the other one which restarts and so on.
+    // To avoid this situation, we store which audio session was preempted when
+    // a particular input started and prevent preemption of this active input by this session.
+    // We also inherit sessions from the preempted input to avoid a 3 way preemption loop etc...
+    SortedVector<audio_session_t> mPreemptedSessions;
+
 };
 
 class AudioInputCollection :

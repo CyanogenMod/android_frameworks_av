@@ -171,10 +171,10 @@ const VolumeCurvePoint *Gains::sVolumeProfiles[AUDIO_STREAM_CNT]
     },
     { // AUDIO_STREAM_TTS
       // "Transmitted Through Speaker": always silent except on DEVICE_CATEGORY_SPEAKER
-        Gains::sSilentVolumeCurve, // DEVICE_CATEGORY_HEADSET
-        Gains::sLinearVolumeCurve, // DEVICE_CATEGORY_SPEAKER
-        Gains::sSilentVolumeCurve, // DEVICE_CATEGORY_EARPIECE
-        Gains::sSilentVolumeCurve  // DEVICE_CATEGORY_EXT_MEDIA
+        Gains::sSilentVolumeCurve,    // DEVICE_CATEGORY_HEADSET
+        Gains::sFullScaleVolumeCurve, // DEVICE_CATEGORY_SPEAKER
+        Gains::sSilentVolumeCurve,    // DEVICE_CATEGORY_EARPIECE
+        Gains::sSilentVolumeCurve     // DEVICE_CATEGORY_EXT_MEDIA
     },
     { // AUDIO_STREAM_ACCESSIBILITY
         Gains::sDefaultMediaVolumeCurve, // DEVICE_CATEGORY_HEADSET

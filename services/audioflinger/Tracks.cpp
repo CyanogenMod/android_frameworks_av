@@ -433,7 +433,10 @@ AudioFlinger::PlaybackThread::Track::Track(
     }
     // only allocate a fast track index if we were able to allocate a normal track name
     if (flags & IAudioFlinger::TRACK_FAST) {
-        mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
+        // FIXME: Not calling framesReadyIsCalledByMultipleThreads() exposes a potential
+        // race with setSyncEvent(). However, if we call it, we cannot properly start
+        // static fast tracks (SoundPool) immediately after stopping.
+        //mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
         ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
         int i = __builtin_ctz(thread->mFastTrackAvailMask);
         ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);

@@ -528,6 +528,15 @@ status_t AudioTrack::start()
         mTimestampStartupGlitchReported = false;
         mRetrogradeMotionReported = false;
 
+        // If previousState == STATE_STOPPED, we reactivate markers (mMarkerPosition != 0)
+        // as the position is reset to 0. This is legacy behavior. This is not done
+        // in stop() to avoid a race condition where the last marker event is issued twice.
+        // Note: the if is technically unnecessary because previousState == STATE_FLUSHED
+        // is only for streaming tracks, and mMarkerReached is already set to false.
+        if (previousState == STATE_STOPPED) {
+            mMarkerReached = false;
+        }
+
         // For offloaded tracks, we don't know if the hardware counters are really zero here,
         // since the flush is asynchronous and stop may not fully drain.
         // We save the time when the track is started to later verify whether
@@ -603,9 +612,9 @@ void AudioTrack::stop()
 
     mProxy->interrupt();
     mAudioTrack->stop();
-    // the playback head position will reset to 0, so if a marker is set, we need
-    // to activate it again
-    mMarkerReached = false;
+
+    // Note: legacy handling - stop does not clear playback marker
+    // and periodic update counter, but flush does for streaming tracks.
 
     if (mSharedBuffer != 0) {
         // clear buffer position and loop count.

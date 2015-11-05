@@ -125,6 +125,10 @@ struct OMXNodeInstance {
             const void *data,
             size_t size);
 
+    bool isSecure() const {
+        return mIsSecure;
+    }
+
     // handles messages and removes them from the list
     void onMessages(std::list<omx_message> &messages);
     void onMessage(const omx_message &msg);
@@ -142,6 +146,7 @@ private:
     OMX_HANDLETYPE mHandle;
     sp<IOMXObserver> mObserver;
     bool mDying;
+    bool mIsSecure;
 
     // Lock only covers mGraphicBufferSource.  We can't always use mLock
     // because of rare instances where we'd end up locking it recursively.

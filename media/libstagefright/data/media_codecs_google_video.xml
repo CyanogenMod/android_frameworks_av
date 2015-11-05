@@ -16,15 +16,6 @@
 
 <Included>
     <Decoders>
-        <MediaCodec name="OMX.google.mpeg2.decoder" type="video/mpeg2">
-            <!-- profiles and levels:  ProfileMain : LevelHL -->
-            <Limit name="size" min="16x16" max="1920x1088" />
-            <Limit name="alignment" value="2x2" />
-            <Limit name="block-size" value="16x16" />
-            <Limit name="blocks-per-second" range="1-244800" />
-            <Limit name="bitrate" range="1-20000000" />
-            <Feature name="adaptive-playback" />
-        </MediaCodec>
         <MediaCodec name="OMX.google.mpeg4.decoder">
             <Type name="video/mp4v-es" />
             <!--
