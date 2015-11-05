@@ -4187,9 +4187,9 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
                         err = FFMPEGSoftCodec::getVideoPortFormat(portIndex,
                                 (int)videoDef->eCompressionFormat, notify, mOMX, mNode);
-                    }
-                    if (err == OK) {
-                        break;
+                        if (err == OK) {
+                            break;
+                        }
                     }
 
                     if (mIsEncoder ^ (portIndex == kPortIndexOutput)) {
