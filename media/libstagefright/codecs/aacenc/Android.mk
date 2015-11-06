@@ -112,7 +112,7 @@ ifeq ($(AAC_LIBRARY), fraunhofer)
 
   LOCAL_CFLAGS += -Werror
   LOCAL_CLANG := true
-  LOCAL_SANITIZE := signed-integer-overflow
+  LOCAL_SANITIZE := signed-integer-overflow unsigned-integer-overflow
 
   LOCAL_STATIC_LIBRARIES := libFraunhoferAAC
 
@@ -138,7 +138,7 @@ else # visualon
 
   LOCAL_CFLAGS += -Werror
   LOCAL_CLANG := true
-  LOCAL_SANITIZE := signed-integer-overflow
+  LOCAL_SANITIZE := signed-integer-overflow unsigned-integer-overflow
 
   LOCAL_STATIC_LIBRARIES := \
           libstagefright_aacenc
