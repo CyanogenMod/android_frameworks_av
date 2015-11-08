@@ -947,18 +947,18 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
             ALOGV("releaseQueuedFrames - #Queued Frames : %d", mFramesReceived.size());
             releaseQueuedFrames();
         }
-        ALOGV("release One Video Frame for Pause : %lld us", timestampUs);
+        ALOGV("release One Video Frame for Pause : %" PRId64 "us", timestampUs);
         releaseOneRecordingFrame(data);
         mPauseEndTimeUs = timestampUs;
         return;
     }
     timestampUs -= mPauseAdjTimeUs;
-    ALOGV("dataCallbackTimestamp: AdjTimestamp %lld us", timestampUs);
+    ALOGV("dataCallbackTimestamp: AdjTimestamp %" PRId64 "us", timestampUs);
 
     if (mNumFramesReceived > 0) {
         if (timestampUs <= mLastFrameTimestampUs) {
-            ALOGW("Dropping frame with backward timestamp %lld (last %lld)",
-                    (long long)timestampUs, (long long)mLastFrameTimestampUs);
+            ALOGW("Dropping frame with backward timestamp %" PRId64 " (last %" PRId64 ")",
+                    timestampUs, mLastFrameTimestampUs);
             releaseOneRecordingFrame(data);
             return;
         }
