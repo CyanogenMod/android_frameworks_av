@@ -619,9 +619,11 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
 
 audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) const
 {
-    const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const DeviceVector &availableInputDevices = mApmObserver->getAvailableInputDevices();
+#ifndef LEGACY_ALSA_AUDIO
+    const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
+#endif
     audio_devices_t availableDeviceTypes = availableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
 
     uint32_t device = AUDIO_DEVICE_NONE;
