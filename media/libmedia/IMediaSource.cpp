@@ -18,6 +18,7 @@
 #define LOG_TAG "BpMediaSource"
 #include <utils/Log.h>
 
+#include <inttypes.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -34,8 +35,68 @@ enum {
     STOP,
     PAUSE,
     GETFORMAT,
-    READ
+    READ,
+    RELEASE_BUFFER
 };
+
+enum {
+    NULL_BUFFER,
+    SHARED_BUFFER,
+    INLINE_BUFFER
+};
+
+class RemoteMediaBufferReleaser : public BBinder {
+public:
+    RemoteMediaBufferReleaser(MediaBuffer *buf) {
+        mBuf = buf;
+    }
+    ~RemoteMediaBufferReleaser() {
+        if (mBuf) {
+            ALOGW("RemoteMediaBufferReleaser dtor called while still holding buffer");
+            mBuf->release();
+        }
+    }
+    virtual status_t    onTransact( uint32_t code,
+                                    const Parcel& data,
+                                    Parcel* reply,
+                                    uint32_t flags = 0) {
+        if (code == RELEASE_BUFFER) {
+            mBuf->release();
+            mBuf = NULL;
+            return OK;
+        } else {
+            return BBinder::onTransact(code, data, reply, flags);
+        }
+    }
+private:
+    MediaBuffer *mBuf;
+};
+
+
+class RemoteMediaBufferWrapper : public MediaBuffer {
+public:
+    RemoteMediaBufferWrapper(sp<IMemory> mem, sp<IBinder> source);
+protected:
+    virtual ~RemoteMediaBufferWrapper();
+private:
+    sp<IMemory> mMemory;
+    sp<IBinder> mRemoteSource;
+};
+
+RemoteMediaBufferWrapper::RemoteMediaBufferWrapper(sp<IMemory> mem, sp<IBinder> source)
+: MediaBuffer(mem->pointer(), mem->size()) {
+    mMemory = mem;
+    mRemoteSource = source;
+}
+
+RemoteMediaBufferWrapper::~RemoteMediaBufferWrapper() {
+    mMemory.clear();
+    // Explicitly ask the remote side to release the buffer. We could also just clear
+    // mRemoteSource, but that doesn't immediately release the reference on the remote side.
+    Parcel data, reply;
+    mRemoteSource->transact(RELEASE_BUFFER, data, &reply);
+    mRemoteSource.clear();
+}
 
 class BpMediaSource : public BpInterface<IMediaSource> {
 public:
@@ -94,13 +155,26 @@ public:
             return ret;
         }
         // wrap the returned data in a MediaBuffer
-        // XXX use a group, and use shared memory for transfer
         ret = reply.readInt32();
-        int32_t len = reply.readInt32();
-        if (len < 0) {
-            ALOGV("got status %d and len %d, returning NULL buffer", ret, len);
+        int32_t buftype = reply.readInt32();
+        if (buftype == SHARED_BUFFER) {
+            sp<IBinder> remote = reply.readStrongBinder();
+            sp<IBinder> binder = reply.readStrongBinder();
+            sp<IMemory> mem = interface_cast<IMemory>(binder);
+            if (mem == NULL) {
+                ALOGE("received NULL IMemory for shared buffer");
+            }
+            size_t offset = reply.readInt32();
+            size_t length = reply.readInt32();
+            MediaBuffer *buf = new RemoteMediaBufferWrapper(mem, remote);
+            buf->set_range(offset, length);
+            buf->meta_data()->updateFromParcel(reply);
+            *buffer = buf;
+        } else if (buftype == NULL_BUFFER) {
+            ALOGV("got status %d and NULL buffer", ret);
             *buffer = NULL;
         } else {
+            int32_t len = reply.readInt32();
             ALOGV("got status %d and len %d", ret, len);
             *buffer = new MediaBuffer(len);
             reply.read((*buffer)->data(), len);
@@ -183,17 +257,34 @@ status_t BnMediaSource::onTransact(
             } else {
                 ret = read(&buf, NULL);
             }
-            // return data inside binder for now
-            // XXX return data using shared memory
+
             reply->writeInt32(ret);
             if (buf != NULL) {
-                ALOGV("ret %d, buflen %zu", ret, buf->range_length());
-                reply->writeByteArray(buf->range_length(), (uint8_t*)buf->data() + buf->range_offset());
-                buf->meta_data()->writeToParcel(*reply);
-                buf->release();
+                size_t usedSize = buf->range_length();
+                // even if we're using shared memory, we might not want to use it, since for small
+                // sizes it's faster to copy data through the Binder transaction
+                if (buf->mMemory != NULL && usedSize >= 64 * 1024) {
+                    ALOGV("buffer is using shared memory: %zu", usedSize);
+                    reply->writeInt32(SHARED_BUFFER);
+                    RemoteMediaBufferReleaser *wrapper = new RemoteMediaBufferReleaser(buf);
+                    reply->writeStrongBinder(wrapper);
+                    reply->writeStrongBinder(IInterface::asBinder(buf->mMemory));
+                    reply->writeInt32(buf->range_offset());
+                    reply->writeInt32(usedSize);
+                    buf->meta_data()->writeToParcel(*reply);
+                } else {
+                    // buffer is not in shared memory, or is small: copy it
+                    if (buf->mMemory != NULL) {
+                        ALOGV("%zu shared mem available, but only %zu used", buf->mMemory->size(), buf->range_length());
+                    }
+                    reply->writeInt32(INLINE_BUFFER);
+                    reply->writeByteArray(buf->range_length(), (uint8_t*)buf->data() + buf->range_offset());
+                    buf->meta_data()->writeToParcel(*reply);
+                    buf->release();
+                }
             } else {
                 ALOGV("ret %d, buf %p", ret, buf);
-                reply->writeInt32(-1);
+                reply->writeInt32(NULL_BUFFER);
             }
             return NO_ERROR;
         }
