@@ -23,7 +23,7 @@
 
 namespace android {
 
-IOProfile::IOProfile(const String8& name, audio_port_role_t role)
+IOProfile::IOProfile(const String8 &name, audio_port_role_t role)
     : AudioPort(name, AUDIO_PORT_TYPE_MIX, role)
 {
 }
@@ -45,8 +45,10 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
                                     audio_channel_mask_t *updatedChannelMask,
                                     uint32_t flags) const
 {
-    const bool isPlaybackThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SOURCE;
-    const bool isRecordThread = mType == AUDIO_PORT_TYPE_MIX && mRole == AUDIO_PORT_ROLE_SINK;
+    const bool isPlaybackThread =
+            getType() == AUDIO_PORT_TYPE_MIX && getRole() == AUDIO_PORT_ROLE_SOURCE;
+    const bool isRecordThread =
+            getType() == AUDIO_PORT_TYPE_MIX && getRole() == AUDIO_PORT_ROLE_SINK;
     ALOG_ASSERT(isPlaybackThread != isRecordThread);
 
 
@@ -94,14 +96,14 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
         return false;
     }
 
-    if (isPlaybackThread && (mFlags & flags) != flags) {
+    if (isPlaybackThread && (getFlags() & flags) != flags) {
         return false;
     }
     // The only input flag that is allowed to be different is the fast flag.
     // An existing fast stream is compatible with a normal track request.
     // An existing normal stream is compatible with a fast track request,
     // but the fast request will be denied by AudioFlinger and converted to normal track.
-    if (isRecordThread && ((mFlags ^ flags) &
+    if (isRecordThread && ((getFlags() ^ flags) &
             ~AUDIO_INPUT_FLAG_FAST)) {
         return false;
     }
@@ -126,7 +128,7 @@ void IOProfile::dump(int fd)
 
     AudioPort::dump(fd, 4);
 
-    snprintf(buffer, SIZE, "    - flags: 0x%04x\n", mFlags);
+    snprintf(buffer, SIZE, "    - flags: 0x%04x\n", getFlags());
     result.append(buffer);
     snprintf(buffer, SIZE, "    - devices:\n");
     result.append(buffer);
@@ -158,7 +160,7 @@ void IOProfile::log()
     }
 
     ALOGV("    - devices: 0x%04x\n", mSupportedDevices.types());
-    ALOGV("    - flags: 0x%04x\n", mFlags);
+    ALOGV("    - flags: 0x%04x\n", getFlags());
 }
 
 }; // namespace android

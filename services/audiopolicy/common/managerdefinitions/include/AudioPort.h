@@ -27,13 +27,26 @@ namespace android {
 
 class HwModule;
 class AudioGain;
+typedef Vector<sp<AudioGain> > AudioGainCollection;
 
 class AudioPort : public virtual RefBase
 {
 public:
-    AudioPort(const String8& name, audio_port_type_t type,
-              audio_port_role_t role);
+    AudioPort(const String8& name, audio_port_type_t type,  audio_port_role_t role) :
+        mName(name), mType(type), mRole(role), mFlags(AUDIO_OUTPUT_FLAG_NONE) {}
+
     virtual ~AudioPort() {}
+
+    const String8 &getName() const { return mName; }
+
+    audio_port_type_t getType() const { return mType; }
+    audio_port_role_t getRole() const { return mRole; }
+
+    void setGains(const AudioGainCollection &gains) { mGains = gains; }
+    const AudioGainCollection &getGains() const { return mGains; }
+
+    void setFlags(uint32_t flags) { mFlags = flags; }
+    uint32_t getFlags() const { return mFlags; }
 
     virtual void attach(const sp<HwModule>& module);
     bool isAttached() { return mModule != 0; }
@@ -45,14 +58,15 @@ public:
     virtual void importAudioPort(const sp<AudioPort> port);
     void clearCapabilities();
 
-    void loadSamplingRates(char *name);
-    void loadFormats(char *name);
-    void loadOutChannels(char *name);
-    void loadInChannels(char *name);
-
-    audio_gain_mode_t loadGainMode(char *name);
-    void loadGain(cnode *root, int index);
-    virtual void loadGains(cnode *root);
+    void setSupportedFormats(const Vector <audio_format_t> &formats);
+    void setSupportedSamplingRates(const Vector <uint32_t> &sampleRates)
+    {
+        mSamplingRates = sampleRates;
+    }
+    void setSupportedChannelMasks(const Vector <audio_channel_mask_t> &channelMasks)
+    {
+        mChannelMasks = channelMasks;
+    }
 
     // searches for an exact match
     status_t checkExactSamplingRate(uint32_t samplingRate) const;
@@ -84,25 +98,29 @@ public:
     uint32_t getModuleVersion() const;
     const char *getModuleName() const;
 
+    bool useInputChannelMask() const
+    {
+        return ((mType == AUDIO_PORT_TYPE_DEVICE) && (mRole == AUDIO_PORT_ROLE_SOURCE)) ||
+                ((mType == AUDIO_PORT_TYPE_MIX) && (mRole == AUDIO_PORT_ROLE_SINK));
+    }
+
     void dump(int fd, int spaces) const;
     void log(const char* indent) const;
 
     String8           mName;
-    audio_port_type_t mType;
-    audio_port_role_t mRole;
-    bool              mUseInChannelMask;
     // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
     // indicates the supported parameters should be read from the output stream
     // after it is opened for the first time
     Vector <uint32_t> mSamplingRates; // supported sampling rates
     Vector <audio_channel_mask_t> mChannelMasks; // supported channel masks
     Vector <audio_format_t> mFormats; // supported audio formats
-    Vector < sp<AudioGain> > mGains; // gain controllers
+    AudioGainCollection mGains; // gain controllers
     sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
-    uint32_t mFlags; // attribute flags (e.g primary output,
-                     // direct output...).
 
 private:
+    audio_port_type_t mType;
+    audio_port_role_t mRole;
+    uint32_t mFlags; // attribute flags mask (e.g primary output, direct output...).
     static volatile int32_t mNextUniqueId;
 };
 

@@ -37,8 +37,8 @@
 #include <media/AudioPolicyHelper.h>
 #include <soundtrigger/SoundTrigger.h>
 #include "AudioPolicyManager.h"
-#include "audio_policy_conf.h"
 #include <ConfigParsingUtils.h>
+#include "TypeConverter.h"
 #include <policy.h>
 
 namespace android {
@@ -591,7 +591,7 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
         sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
         audio_devices_t newDevice = getNewInputDevice(activeInput);
         // Force new input selection if the new device can not be reached via current input
-        if (activeDesc->mProfile->mSupportedDevices.types() & (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
+        if (activeDesc->mProfile->getSupportedDevices().types() & (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
             setInputDevice(activeInput, newDevice);
         } else {
             closeInput(activeInput);
@@ -636,15 +636,15 @@ sp<IOProfile> AudioPolicyManager::getProfileForDirectOutput(
                 continue;
             }
             // reject profiles not corresponding to a device currently available
-            if ((mAvailableOutputDevices.types() & curProfile->mSupportedDevices.types()) == 0) {
+            if ((mAvailableOutputDevices.types() & curProfile->getSupportedDevicesType()) == 0) {
                 continue;
             }
             // if several profiles are compatible, give priority to one with offload capability
-            if (profile != 0 && ((curProfile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
+            if (profile != 0 && ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
                 continue;
             }
             profile = curProfile;
-            if ((profile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+            if ((profile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
                 break;
             }
         }
@@ -881,7 +881,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         // if the selected profile is offloaded and no offload info was specified,
         // create a default one
         audio_offload_info_t defaultOffloadInfo = AUDIO_INFO_INITIALIZER;
-        if ((profile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) && !offloadInfo) {
+        if ((profile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) && !offloadInfo) {
             flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
             defaultOffloadInfo.sample_rate = samplingRate;
             defaultOffloadInfo.channel_mask = channelMask;
@@ -1009,13 +1009,13 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
                 }
             }
 
-            int commonFlags = popcount(outputDesc->mProfile->mFlags & flags);
+            int commonFlags = popcount(outputDesc->mProfile->getFlags() & flags);
             if (commonFlags > maxCommonFlags) {
                 outputFlags = outputs[i];
                 maxCommonFlags = commonFlags;
                 ALOGV("selectOutput() commonFlags for output %d, %04x", outputs[i], commonFlags);
             }
-            if (outputDesc->mProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
+            if (outputDesc->mProfile->getFlags() & AUDIO_OUTPUT_FLAG_PRIMARY) {
                 outputPrimary = outputs[i];
             }
         }
@@ -2387,7 +2387,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 // - source and sink devices are on differnt HW modules OR
                 // - audio HAL version is < 3.0
                 if ((srcDeviceDesc->getModuleHandle() != sinkDeviceDesc->getModuleHandle()) ||
-                        (srcDeviceDesc->mModule->mHalVersion < AUDIO_DEVICE_API_VERSION_3_0)) {
+                        (srcDeviceDesc->mModule->getHalVersion() < AUDIO_DEVICE_API_VERSION_3_0)) {
                     // support only one sink device for now to simplify output selection logic
                     if (patch->num_sinks > 1) {
                         return INVALID_OPERATION;
@@ -2753,7 +2753,7 @@ status_t AudioPolicyManager::connectAudioSource(const sp<AudioSourceDescriptor>&
 
     if (srcDeviceDesc->getAudioPort()->mModule->getHandle() ==
             sinkDeviceDesc->getAudioPort()->mModule->getHandle() &&
-            srcDeviceDesc->getAudioPort()->mModule->mHalVersion >= AUDIO_DEVICE_API_VERSION_3_0 &&
+            srcDeviceDesc->getAudioPort()->mModule->getHalVersion() >= AUDIO_DEVICE_API_VERSION_3_0 &&
             srcDeviceDesc->getAudioPort()->mGains.size() > 0) {
         ALOGV("%s AUDIO_DEVICE_API_VERSION_3_0", __FUNCTION__);
         //   create patch between src device and output device
@@ -2910,16 +2910,14 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mUidCached = getuid();
     mpClientInterface = clientInterface;
 
-    mDefaultOutputDevice = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
-    if (ConfigParsingUtils::loadAudioPolicyConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE,
-                 mHwModules, mAvailableInputDevices, mAvailableOutputDevices,
-                 mDefaultOutputDevice, mSpeakerDrcEnabled) != NO_ERROR) {
-        if (ConfigParsingUtils::loadAudioPolicyConfig(AUDIO_POLICY_CONFIG_FILE,
-                                  mHwModules, mAvailableInputDevices, mAvailableOutputDevices,
-                                  mDefaultOutputDevice, mSpeakerDrcEnabled) != NO_ERROR) {
-            ALOGE("could not load audio policy configuration file, setting defaults");
-            defaultAudioPolicyConfig();
-        }
+    AudioPolicyConfig config(mHwModules, mAvailableOutputDevices, mAvailableInputDevices,
+                             mDefaultOutputDevice, mSpeakerDrcEnabled);
+
+    if ((ConfigParsingUtils::loadConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE, config) != NO_ERROR) &&
+        (ConfigParsingUtils::loadConfig(AUDIO_POLICY_CONFIG_FILE, config) != NO_ERROR)) {
+
+        ALOGE("could not load audio policy configuration file, setting defaults");
+        config.setDefault();
     }
     // mAvailableOutputDevices and mAvailableInputDevices now contain all attached devices
 
@@ -2930,9 +2928,9 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     audio_devices_t outputDeviceTypes = mAvailableOutputDevices.types();
     audio_devices_t inputDeviceTypes = mAvailableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
     for (size_t i = 0; i < mHwModules.size(); i++) {
-        mHwModules[i]->mHandle = mpClientInterface->loadHwModule(mHwModules[i]->mName);
+        mHwModules[i]->mHandle = mpClientInterface->loadHwModule(mHwModules[i]->getName());
         if (mHwModules[i]->mHandle == 0) {
-            ALOGW("could not open HW module %s", mHwModules[i]->mName);
+            ALOGW("could not open HW module %s", mHwModules[i]->getName());
             continue;
         }
         // open all output streams needed to access attached devices
@@ -2943,29 +2941,24 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         {
             const sp<IOProfile> outProfile = mHwModules[i]->mOutputProfiles[j];
 
-            if (outProfile->mSupportedDevices.isEmpty()) {
-                ALOGW("Output profile contains no device on module %s", mHwModules[i]->mName);
+            if (!outProfile->hasSupportedDevices()) {
+                ALOGW("Output profile contains no device on module %s", mHwModules[i]->getName());
                 continue;
             }
-            if ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_TTS) != 0) {
+            if ((outProfile->getFlags() & AUDIO_OUTPUT_FLAG_TTS) != 0) {
                 mTtsOutputAvailable = true;
             }
 
-            if ((outProfile->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
+            if ((outProfile->getFlags() & AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
                 continue;
             }
-            audio_devices_t profileType = outProfile->mSupportedDevices.types();
+            audio_devices_t profileType = outProfile->getSupportedDevicesType();
             if ((profileType & mDefaultOutputDevice->type()) != AUDIO_DEVICE_NONE) {
                 profileType = mDefaultOutputDevice->type();
             } else {
-                // chose first device present in mSupportedDevices also part of
+                // chose first device present in profile's SupportedDevices also part of
                 // outputDeviceTypes
-                for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
-                    profileType = outProfile->mSupportedDevices[k]->type();
-                    if ((profileType & outputDeviceTypes) != 0) {
-                        break;
-                    }
-                }
+                profileType = outProfile->getSupportedDeviceForType(outputDeviceTypes);
             }
             if ((profileType & outputDeviceTypes) == 0) {
                 continue;
@@ -2990,23 +2983,22 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             if (status != NO_ERROR) {
                 ALOGW("Cannot open output stream for device %08x on hw module %s",
                       outputDesc->mDevice,
-                      mHwModules[i]->mName);
+                      mHwModules[i]->getName());
             } else {
                 outputDesc->mSamplingRate = config.sample_rate;
                 outputDesc->mChannelMask = config.channel_mask;
                 outputDesc->mFormat = config.format;
 
-                for (size_t k = 0; k  < outProfile->mSupportedDevices.size(); k++) {
-                    audio_devices_t type = outProfile->mSupportedDevices[k]->type();
-                    ssize_t index =
-                            mAvailableOutputDevices.indexOf(outProfile->mSupportedDevices[k]);
+                const DeviceVector &supportedDevices = outProfile->getSupportedDevices();
+                for (size_t k = 0; k  < supportedDevices.size(); k++) {
+                    ssize_t index = mAvailableOutputDevices.indexOf(supportedDevices[k]);
                     // give a valid ID to an attached device once confirmed it is reachable
                     if (index >= 0 && !mAvailableOutputDevices[index]->isAttached()) {
                         mAvailableOutputDevices[index]->attach(mHwModules[i]);
                     }
                 }
                 if (mPrimaryOutput == 0 &&
-                        outProfile->mFlags & AUDIO_OUTPUT_FLAG_PRIMARY) {
+                        outProfile->getFlags() & AUDIO_OUTPUT_FLAG_PRIMARY) {
                     mPrimaryOutput = outputDesc;
                 }
                 addOutput(output, outputDesc);
@@ -3021,19 +3013,14 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         {
             const sp<IOProfile> inProfile = mHwModules[i]->mInputProfiles[j];
 
-            if (inProfile->mSupportedDevices.isEmpty()) {
-                ALOGW("Input profile contains no device on module %s", mHwModules[i]->mName);
+            if (!inProfile->hasSupportedDevices()) {
+                ALOGW("Input profile contains no device on module %s", mHwModules[i]->getName());
                 continue;
             }
-            // chose first device present in mSupportedDevices also part of
+            // chose first device present in profile's SupportedDevices also part of
             // inputDeviceTypes
-            audio_devices_t profileType = AUDIO_DEVICE_NONE;
-            for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
-                profileType = inProfile->mSupportedDevices[k]->type();
-                if (profileType & inputDeviceTypes) {
-                    break;
-                }
-            }
+            audio_devices_t profileType = inProfile->getSupportedDeviceForType(inputDeviceTypes);
+
             if ((profileType & inputDeviceTypes) == 0) {
                 continue;
             }
@@ -3064,10 +3051,9 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                            AUDIO_INPUT_FLAG_NONE);
 
             if (status == NO_ERROR) {
-                for (size_t k = 0; k  < inProfile->mSupportedDevices.size(); k++) {
-                    audio_devices_t type = inProfile->mSupportedDevices[k]->type();
-                    ssize_t index =
-                            mAvailableInputDevices.indexOf(inProfile->mSupportedDevices[k]);
+                const DeviceVector &supportedDevices = inProfile->getSupportedDevices();
+                for (size_t k = 0; k  < supportedDevices.size(); k++) {
+                    ssize_t index =  mAvailableInputDevices.indexOf(supportedDevices[k]);
                     // give a valid ID to an attached device once confirmed it is reachable
                     if (index >= 0) {
                         sp<DeviceDescriptor> devDesc = mAvailableInputDevices[index];
@@ -3081,14 +3067,14 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             } else {
                 ALOGW("Cannot open input stream for device %08x on hw module %s",
                       inputDesc->mDevice,
-                      mHwModules[i]->mName);
+                      mHwModules[i]->getName());
             }
         }
     }
     // make sure all attached devices have been allocated a unique ID
     for (size_t i = 0; i  < mAvailableOutputDevices.size();) {
         if (!mAvailableOutputDevices[i]->isAttached()) {
-            ALOGW("Input device %08x unreachable", mAvailableOutputDevices[i]->type());
+            ALOGW("Output device %08x unreachable", mAvailableOutputDevices[i]->type());
             mAvailableOutputDevices.remove(mAvailableOutputDevices[i]);
             continue;
         }
@@ -3109,7 +3095,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
         i++;
     }
     // make sure default device is reachable
-    if (mAvailableOutputDevices.indexOf(mDefaultOutputDevice) < 0) {
+    if (mDefaultOutputDevice == 0 || mAvailableOutputDevices.indexOf(mDefaultOutputDevice) < 0) {
         ALOGE("Default device %08x is unreachable", mDefaultOutputDevice->type());
     }
 
@@ -3349,7 +3335,7 @@ void AudioPolicyManager::findIoHandlesByAddress(sp<SwAudioOutputDescriptor> desc
         const String8 address /*in*/,
         SortedVector<audio_io_handle_t>& outputs /*out*/) {
     sp<DeviceDescriptor> devDesc =
-        desc->mProfile->mSupportedDevices.getDevice(device, address);
+        desc->mProfile->getSupportedDeviceByAddress(device, address);
     if (devDesc != 0) {
         ALOGV("findIoHandlesByAddress(): adding opened output %d on same address %s",
               desc->mIoHandle, address.string());
@@ -3394,9 +3380,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++)
             {
                 sp<IOProfile> profile = mHwModules[i]->mOutputProfiles[j];
-                if (profile->mSupportedDevices.types() & device) {
+                if (profile->supportDevice(device)) {
                     if (!device_distinguishes_on_address(device) ||
-                            address == profile->mSupportedDevices[0]->mAddress) {
+                            profile->supportDeviceAddress(address)) {
                         profiles.add(profile);
                         ALOGV("checkOutputsForDevice(): adding profile %zu from module %zu", j, i);
                     }
@@ -3474,7 +3460,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadSamplingRates(value + 1);
+                        profile->setSupportedSamplingRates(samplingRatesFromString(value + 1));
                     }
                 }
                 if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
@@ -3484,7 +3470,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadFormats(value + 1);
+                        profile->setSupportedFormats(formatsFromString(value + 1));
                     }
                 }
                 if (profile->mChannelMasks[0] == 0) {
@@ -3494,7 +3480,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadOutChannels(value + 1);
+                        profile->setSupportedChannelMasks(outputChannelMasksFromString(value + 1));
                     }
                 }
                 if (((profile->mSamplingRates[0] == 0) &&
@@ -3632,7 +3618,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             for (size_t j = 0; j < mHwModules[i]->mOutputProfiles.size(); j++)
             {
                 sp<IOProfile> profile = mHwModules[i]->mOutputProfiles[j];
-                if (profile->mSupportedDevices.types() & device) {
+                if (profile->supportDevice(device)) {
                     ALOGV("checkOutputsForDevice(): "
                             "clearing direct output profile %zu on module %zu", j, i);
                     if (profile->mSamplingRates[0] == 0) {
@@ -3671,7 +3657,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
         // first list already open inputs that can be routed to this device
         for (size_t input_index = 0; input_index < mInputs.size(); input_index++) {
             desc = mInputs.valueAt(input_index);
-            if (desc->mProfile->mSupportedDevices.types() & (device & ~AUDIO_DEVICE_BIT_IN)) {
+            if (desc->mProfile->supportDevice(device)) {
                 ALOGV("checkInputsForDevice(): adding opened input %d", mInputs.keyAt(input_index));
                inputs.add(mInputs.keyAt(input_index));
             }
@@ -3690,9 +3676,9 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
             {
                 sp<IOProfile> profile = mHwModules[module_idx]->mInputProfiles[profile_index];
 
-                if (profile->mSupportedDevices.types() & (device & ~AUDIO_DEVICE_BIT_IN)) {
+                if (profile->supportDevice(device)) {
                     if (!device_distinguishes_on_address(device) ||
-                            address == profile->mSupportedDevices[0]->mAddress) {
+                            profile->supportDeviceAddress(address)) {
                         profiles.add(profile);
                         ALOGV("checkInputsForDevice(): adding profile %zu from module %zu",
                               profile_index, module_idx);
@@ -3763,7 +3749,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadSamplingRates(value + 1);
+                        profile->setSupportedSamplingRates(samplingRatesFromString(value + 1));
                     }
                 }
                 if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
@@ -3772,7 +3758,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                     ALOGV("checkInputsForDevice() direct input sup formats %s", reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadFormats(value + 1);
+                        profile->setSupportedFormats(formatsFromString(value + 1));
                     }
                 }
                 if (profile->mChannelMasks[0] == 0) {
@@ -3782,7 +3768,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                               reply.string());
                     value = strpbrk((char *)reply.string(), "=");
                     if (value != NULL) {
-                        profile->loadInChannels(value + 1);
+                        profile->setSupportedChannelMasks(inputChannelMasksFromString(value + 1));
                     }
                 }
                 if (((profile->mSamplingRates[0] == 0) && (profile->mSamplingRates.size() < 2)) ||
@@ -3820,8 +3806,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
         // check if one opened input is not needed any more after disconnecting one device
         for (size_t input_index = 0; input_index < mInputs.size(); input_index++) {
             desc = mInputs.valueAt(input_index);
-            if (!(desc->mProfile->mSupportedDevices.types() & mAvailableInputDevices.types() &
-                    ~AUDIO_DEVICE_BIT_IN)) {
+            if (!(desc->mProfile->supportDevice(mAvailableInputDevices.types()))) {
                 ALOGV("checkInputsForDevice(): disconnecting adding input %d",
                       mInputs.keyAt(input_index));
                 inputs.add(mInputs.keyAt(input_index));
@@ -3836,7 +3821,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                  profile_index < mHwModules[module_index]->mInputProfiles.size();
                  profile_index++) {
                 sp<IOProfile> profile = mHwModules[module_index]->mInputProfiles[profile_index];
-                if (profile->mSupportedDevices.types() & (device & ~AUDIO_DEVICE_BIT_IN)) {
+                if (profile->supportDevice(device)) {
                     ALOGV("checkInputsForDevice(): clearing direct input profile %zu on module %zu",
                           profile_index, module_index);
                     if (profile->mSamplingRates[0] == 0) {
@@ -4951,39 +4936,6 @@ void AudioPolicyManager::handleIncallSonification(audio_stream_type_t stream,
             }
         }
     }
-}
-
-
-
-void AudioPolicyManager::defaultAudioPolicyConfig(void)
-{
-    sp<HwModule> module;
-    sp<IOProfile> profile;
-    sp<DeviceDescriptor> defaultInputDevice =
-                    new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
-    mAvailableOutputDevices.add(mDefaultOutputDevice);
-    mAvailableInputDevices.add(defaultInputDevice);
-
-    module = new HwModule("primary");
-
-    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SOURCE);
-    profile->attach(module);
-    profile->mSamplingRates.add(44100);
-    profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
-    profile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
-    profile->mSupportedDevices.add(mDefaultOutputDevice);
-    profile->mFlags = AUDIO_OUTPUT_FLAG_PRIMARY;
-    module->mOutputProfiles.add(profile);
-
-    profile = new IOProfile(String8("primary"), AUDIO_PORT_ROLE_SINK);
-    profile->attach(module);
-    profile->mSamplingRates.add(8000);
-    profile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
-    profile->mChannelMasks.add(AUDIO_CHANNEL_IN_MONO);
-    profile->mSupportedDevices.add(defaultInputDevice);
-    module->mInputProfiles.add(profile);
-
-    mHwModules.add(module);
 }
 
 audio_stream_type_t AudioPolicyManager::streamTypefromAttributesInt(const audio_attributes_t *attr)

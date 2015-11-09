@@ -192,7 +192,7 @@ audio_io_handle_t AudioInputCollection::getActiveInput(bool ignoreVirtualInputs)
 audio_devices_t AudioInputCollection::getSupportedDevices(audio_io_handle_t handle) const
 {
     sp<AudioInputDescriptor> inputDesc = valueFor(handle);
-    audio_devices_t devices = inputDesc->mProfile->mSupportedDevices.types();
+    audio_devices_t devices = inputDesc->mProfile->getSupportedDevicesType();
     return devices;
 }
 

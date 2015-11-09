@@ -228,7 +228,7 @@ SwAudioOutputDescriptor::SwAudioOutputDescriptor(const sp<IOProfile>& profile,
     mOutput1(0), mOutput2(0), mDirectOpenCount(0), mGlobalRefCount(0)
 {
     if (profile != NULL) {
-        mFlags = (audio_output_flags_t)profile->mFlags;
+        mFlags = (audio_output_flags_t)profile->getFlags();
     }
 }
 
@@ -283,7 +283,7 @@ audio_devices_t SwAudioOutputDescriptor::supportedDevices()
     if (isDuplicated()) {
         return (audio_devices_t)(mOutput1->supportedDevices() | mOutput2->supportedDevices());
     } else {
-        return mProfile->mSupportedDevices.types() ;
+        return mProfile->getSupportedDevicesType();
     }
 }
 
@@ -529,7 +529,7 @@ bool SwAudioOutputCollection::isAnyOutputActive(audio_stream_type_t streamToIgno
 audio_devices_t SwAudioOutputCollection::getSupportedDevices(audio_io_handle_t handle) const
 {
     sp<SwAudioOutputDescriptor> outputDesc = valueFor(handle);
-    audio_devices_t devices = outputDesc->mProfile->mSupportedDevices.types();
+    audio_devices_t devices = outputDesc->mProfile->getSupportedDevicesType();
     return devices;
 }
 

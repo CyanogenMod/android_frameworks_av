@@ -17,27 +17,21 @@
 #define LOG_TAG "APM::AudioPort"
 //#define LOG_NDEBUG 0
 #include <media/AudioResamplerPublic.h>
+#include "TypeConverter.h"
 #include "AudioPort.h"
 #include "HwModule.h"
 #include "AudioGain.h"
-#include "ConfigParsingUtils.h"
-#include "audio_policy_conf.h"
 #include <policy.h>
+
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
 
 namespace android {
 
 int32_t volatile AudioPort::mNextUniqueId = 1;
 
 // --- AudioPort class implementation
-
-AudioPort::AudioPort(const String8& name, audio_port_type_t type,
-                     audio_port_role_t role) :
-    mName(name), mType(type), mRole(role), mFlags(0)
-{
-    mUseInChannelMask = ((type == AUDIO_PORT_TYPE_DEVICE) && (role == AUDIO_PORT_ROLE_SOURCE)) ||
-                    ((type == AUDIO_PORT_TYPE_MIX) && (role == AUDIO_PORT_ROLE_SINK));
-}
-
 void AudioPort::attach(const sp<HwModule>& module)
 {
     mModule = module;
@@ -61,15 +55,15 @@ uint32_t AudioPort::getModuleVersion() const
     if (mModule == 0) {
         return 0;
     }
-    return mModule->mHalVersion;
+    return mModule->getHalVersion();
 }
 
 const char *AudioPort::getModuleName() const
 {
     if (mModule == 0) {
-        return "";
+        return "invalid module";
     }
-    return mModule->mName;
+    return mModule->getName();
 }
 
 void AudioPort::toAudioPort(struct audio_port *port) const
@@ -100,7 +94,7 @@ void AudioPort::toAudioPort(struct audio_port *port) const
     ALOGV("AudioPort::toAudioPort() num gains %zu", mGains.size());
 
     for (i = 0; i < mGains.size() && i < AUDIO_PORT_MAX_GAINS; i++) {
-        port->gains[i] = mGains[i]->mGain;
+        port->gains[i] = mGains[i]->getGain();
     }
     port->num_gains = i;
 }
@@ -159,187 +153,15 @@ void AudioPort::clearCapabilities() {
     mSamplingRates.clear();
 }
 
-void AudioPort::loadSamplingRates(char *name)
+void AudioPort::setSupportedFormats(const Vector <audio_format_t> &formats)
 {
-    char *str = strtok(name, "|");
-
-    // by convention, "0' in the first entry in mSamplingRates indicates the supported sampling
-    // rates should be read from the output stream after it is opened for the first time
-    if (str != NULL && strcmp(str, DYNAMIC_VALUE_TAG) == 0) {
-        mSamplingRates.add(0);
-        return;
-    }
-
-    while (str != NULL) {
-        uint32_t rate = atoi(str);
-        if (rate != 0) {
-            ALOGV("loadSamplingRates() adding rate %d", rate);
-            mSamplingRates.add(rate);
-        }
-        str = strtok(NULL, "|");
-    }
-}
-
-void AudioPort::loadFormats(char *name)
-{
-    char *str = strtok(name, "|");
-
-    // by convention, "0' in the first entry in mFormats indicates the supported formats
-    // should be read from the output stream after it is opened for the first time
-    if (str != NULL && strcmp(str, DYNAMIC_VALUE_TAG) == 0) {
-        mFormats.add(AUDIO_FORMAT_DEFAULT);
-        return;
-    }
-
-    while (str != NULL) {
-        audio_format_t format = (audio_format_t)ConfigParsingUtils::stringToEnum(sFormatNameToEnumTable,
-                                                             ARRAY_SIZE(sFormatNameToEnumTable),
-                                                             str);
-        if (format != AUDIO_FORMAT_DEFAULT) {
-            mFormats.add(format);
-        }
-        str = strtok(NULL, "|");
-    }
+    mFormats = formats;
     // we sort from worst to best, so that AUDIO_FORMAT_DEFAULT is always the first entry.
     // TODO: compareFormats could be a lambda to convert between pointer-to-format to format:
     // [](const audio_format_t *format1, const audio_format_t *format2) {
     //     return compareFormats(*format1, *format2);
     // }
     mFormats.sort(compareFormats);
-}
-
-void AudioPort::loadInChannels(char *name)
-{
-    const char *str = strtok(name, "|");
-
-    ALOGV("loadInChannels() %s", name);
-
-    if (str != NULL && strcmp(str, DYNAMIC_VALUE_TAG) == 0) {
-        mChannelMasks.add(0);
-        return;
-    }
-
-    while (str != NULL) {
-        audio_channel_mask_t channelMask =
-                (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sInChannelsNameToEnumTable,
-                                                   ARRAY_SIZE(sInChannelsNameToEnumTable),
-                                                   str);
-        if (channelMask == 0) { // if not found, check the channel index table
-            channelMask = (audio_channel_mask_t)
-                      ConfigParsingUtils::stringToEnum(sIndexChannelsNameToEnumTable,
-                              ARRAY_SIZE(sIndexChannelsNameToEnumTable),
-                              str);
-        }
-        if (channelMask != 0) {
-            ALOGV("loadInChannels() adding channelMask %#x", channelMask);
-            mChannelMasks.add(channelMask);
-        }
-        str = strtok(NULL, "|");
-    }
-}
-
-void AudioPort::loadOutChannels(char *name)
-{
-    const char *str = strtok(name, "|");
-
-    ALOGV("loadOutChannels() %s", name);
-
-    // by convention, "0' in the first entry in mChannelMasks indicates the supported channel
-    // masks should be read from the output stream after it is opened for the first time
-    if (str != NULL && strcmp(str, DYNAMIC_VALUE_TAG) == 0) {
-        mChannelMasks.add(0);
-        return;
-    }
-
-    while (str != NULL) {
-        audio_channel_mask_t channelMask =
-                (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sOutChannelsNameToEnumTable,
-                                                   ARRAY_SIZE(sOutChannelsNameToEnumTable),
-                                                   str);
-        if (channelMask == 0) { // if not found, check the channel index table
-            channelMask = (audio_channel_mask_t)
-                      ConfigParsingUtils::stringToEnum(sIndexChannelsNameToEnumTable,
-                              ARRAY_SIZE(sIndexChannelsNameToEnumTable),
-                              str);
-        }
-        if (channelMask != 0) {
-            mChannelMasks.add(channelMask);
-        }
-        str = strtok(NULL, "|");
-    }
-    return;
-}
-
-audio_gain_mode_t AudioPort::loadGainMode(char *name)
-{
-    const char *str = strtok(name, "|");
-
-    ALOGV("loadGainMode() %s", name);
-    audio_gain_mode_t mode = 0;
-    while (str != NULL) {
-        mode |= (audio_gain_mode_t)ConfigParsingUtils::stringToEnum(sGainModeNameToEnumTable,
-                                                ARRAY_SIZE(sGainModeNameToEnumTable),
-                                                str);
-        str = strtok(NULL, "|");
-    }
-    return mode;
-}
-
-void AudioPort::loadGain(cnode *root, int index)
-{
-    cnode *node = root->first_child;
-
-    sp<AudioGain> gain = new AudioGain(index, mUseInChannelMask);
-
-    while (node) {
-        if (strcmp(node->name, GAIN_MODE) == 0) {
-            gain->mGain.mode = loadGainMode((char *)node->value);
-        } else if (strcmp(node->name, GAIN_CHANNELS) == 0) {
-            if (mUseInChannelMask) {
-                gain->mGain.channel_mask =
-                        (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sInChannelsNameToEnumTable,
-                                                           ARRAY_SIZE(sInChannelsNameToEnumTable),
-                                                           (char *)node->value);
-            } else {
-                gain->mGain.channel_mask =
-                        (audio_channel_mask_t)ConfigParsingUtils::stringToEnum(sOutChannelsNameToEnumTable,
-                                                           ARRAY_SIZE(sOutChannelsNameToEnumTable),
-                                                           (char *)node->value);
-            }
-        } else if (strcmp(node->name, GAIN_MIN_VALUE) == 0) {
-            gain->mGain.min_value = atoi((char *)node->value);
-        } else if (strcmp(node->name, GAIN_MAX_VALUE) == 0) {
-            gain->mGain.max_value = atoi((char *)node->value);
-        } else if (strcmp(node->name, GAIN_DEFAULT_VALUE) == 0) {
-            gain->mGain.default_value = atoi((char *)node->value);
-        } else if (strcmp(node->name, GAIN_STEP_VALUE) == 0) {
-            gain->mGain.step_value = atoi((char *)node->value);
-        } else if (strcmp(node->name, GAIN_MIN_RAMP_MS) == 0) {
-            gain->mGain.min_ramp_ms = atoi((char *)node->value);
-        } else if (strcmp(node->name, GAIN_MAX_RAMP_MS) == 0) {
-            gain->mGain.max_ramp_ms = atoi((char *)node->value);
-        }
-        node = node->next;
-    }
-
-    ALOGV("loadGain() adding new gain mode %08x channel mask %08x min mB %d max mB %d",
-          gain->mGain.mode, gain->mGain.channel_mask, gain->mGain.min_value, gain->mGain.max_value);
-
-    if (gain->mGain.mode == 0) {
-        return;
-    }
-    mGains.add(gain);
-}
-
-void AudioPort::loadGains(cnode *root)
-{
-    cnode *node = root->first_child;
-    int index = 0;
-    while (node) {
-        ALOGV("loadGains() loading gain %s", node->name);
-        loadGain(node, index++);
-        node = node->next;
-    }
 }
 
 status_t AudioPort::checkExactSamplingRate(uint32_t samplingRate) const
@@ -626,7 +448,7 @@ audio_channel_mask_t AudioPort::pickChannelMask() const
         uint32_t channelCount = UINT_MAX;
         for (size_t i = 0; i < mChannelMasks.size(); i ++) {
             uint32_t cnlCount;
-            if (mUseInChannelMask) {
+            if (useInputChannelMask()) {
                 cnlCount = audio_channel_count_from_in_mask(mChannelMasks[i]);
             } else {
                 cnlCount = audio_channel_count_from_out_mask(mChannelMasks[i]);
@@ -649,7 +471,7 @@ audio_channel_mask_t AudioPort::pickChannelMask() const
     }
     for (size_t i = 0; i < mChannelMasks.size(); i ++) {
         uint32_t cnlCount;
-        if (mUseInChannelMask) {
+        if (useInputChannelMask()) {
             cnlCount = audio_channel_count_from_in_mask(mChannelMasks[i]);
         } else {
             cnlCount = audio_channel_count_from_out_mask(mChannelMasks[i]);
@@ -787,17 +609,15 @@ void AudioPort::dump(int fd, int spaces) const
         snprintf(buffer, SIZE, "%*s- formats: ", spaces, "");
         result.append(buffer);
         for (size_t i = 0; i < mFormats.size(); i++) {
-            const char *formatStr = ConfigParsingUtils::enumToString(sFormatNameToEnumTable,
-                                                 ARRAY_SIZE(sFormatNameToEnumTable),
-                                                 mFormats[i]);
-            const bool isEmptyStr = formatStr[0] == 0;
-            if (i == 0 && isEmptyStr) {
+            std::string formatLiteral;
+            bool success = FormatConverter::toString(mFormats[i], formatLiteral);
+            if (i == 0 && !success) {
                 snprintf(buffer, SIZE, "Dynamic");
             } else {
-                if (isEmptyStr) {
+                if (!success) {
                     snprintf(buffer, SIZE, "%#x", mFormats[i]);
                 } else {
-                    snprintf(buffer, SIZE, "%s", formatStr);
+                    snprintf(buffer, SIZE, "%s", formatLiteral.c_str());
                 }
             }
             result.append(buffer);
