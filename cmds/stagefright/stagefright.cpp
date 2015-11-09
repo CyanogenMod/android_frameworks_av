@@ -67,6 +67,7 @@ static bool gForceToUseHardwareCodec;
 static bool gPlaybackAudio;
 static bool gWriteMP4;
 static bool gDisplayHistogram;
+static bool showProgress = true;
 static String8 gWriteMP4Filename;
 
 static sp<ANativeWindow> gSurface;
@@ -338,7 +339,7 @@ static void playSource(OMXClient *client, sp<IMediaSource> &source) {
                     decodeTimesUs.push(delayDecodeUs);
                 }
 
-                if ((n++ % 16) == 0) {
+                if (showProgress && (n++ % 16) == 0) {
                     printf(".");
                     fflush(stdout);
                 }
@@ -364,8 +365,10 @@ static void playSource(OMXClient *client, sp<IMediaSource> &source) {
             }
         }
 
-        printf("$");
-        fflush(stdout);
+        if (showProgress) {
+            printf("$");
+            fflush(stdout);
+        }
 
         options.setSeekTo(0);
     }
@@ -612,6 +615,7 @@ static void usage(const char *me) {
     fprintf(stderr, "       -k seek test\n");
     fprintf(stderr, "       -x display a histogram of decoding times/fps "
                     "(video only)\n");
+    fprintf(stderr, "       -q don't show progress indicator\n");
     fprintf(stderr, "       -S allocate buffers from a surface\n");
     fprintf(stderr, "       -T allocate buffers from a surface texture\n");
     fprintf(stderr, "       -d(ump) output_filename (raw stream data to a file)\n");
@@ -687,11 +691,17 @@ int main(int argc, char **argv) {
     sp<ALooper> looper;
 
     int res;
-    while ((res = getopt(argc, argv, "han:lm:b:ptsrow:kxSTd:D:")) >= 0) {
+    while ((res = getopt(argc, argv, "haqn:lm:b:ptsrow:kxSTd:D:")) >= 0) {
         switch (res) {
             case 'a':
             {
                 audioOnly = true;
+                break;
+            }
+
+            case 'q':
+            {
+                showProgress = false;
                 break;
             }
 
