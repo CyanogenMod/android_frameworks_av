@@ -2197,6 +2197,7 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
     return mAudioTrack->setParameters(keyValuePairs);
 }
 
+__attribute__((no_sanitize("integer")))
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 {
     AutoMutex lock(mLock);
