@@ -211,6 +211,9 @@ void SoftwareRenderer::render(
                 buf->stride, buf->height,
                 0, 0, mCropWidth - 1, mCropHeight - 1);
     } else if (mColorFormat == OMX_COLOR_FormatYUV420Planar) {
+        if ((size_t)mWidth * mHeight * 3 / 2 > size) {
+            goto skip_copying;
+        }
         const uint8_t *src_y = (const uint8_t *)data;
         const uint8_t *src_u = (const uint8_t *)data + mWidth * mHeight;
         const uint8_t *src_v = src_u + (mWidth / 2 * mHeight / 2);
@@ -279,6 +282,9 @@ void SoftwareRenderer::render(
 #endif
     } else {
         CHECK_EQ(mColorFormat, OMX_TI_COLOR_FormatYUV420PackedSemiPlanar);
+        if ((size_t)mWidth * mHeight * 3 / 2 > size) {
+            goto skip_copying;
+        }
 
         const uint8_t *src_y =
             (const uint8_t *)data;
@@ -313,6 +319,7 @@ void SoftwareRenderer::render(
         }
     }
 
+skip_copying:
     CHECK_EQ(0, mapper.unlock(buf->handle));
 
     if ((err = mNativeWindow->queueBuffer(mNativeWindow.get(), buf,

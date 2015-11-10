@@ -186,7 +186,8 @@ status_t DRMSource::read(MediaBuffer **buffer, const ReadOptions *options) {
 
             srcOffset += mNALLengthSize;
 
-            if (srcOffset + nalLength > len) {
+            size_t end = srcOffset + nalLength;
+            if (end > len || end < srcOffset) {
                 if (decryptedDrmBuffer.data) {
                     delete [] decryptedDrmBuffer.data;
                     decryptedDrmBuffer.data = NULL;

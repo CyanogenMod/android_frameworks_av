@@ -26,6 +26,7 @@
 #include "mkvparser.hpp"
 
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -623,7 +624,12 @@ status_t MatroskaSource::read(
                     TRESPASS();
             }
 
-            if (srcOffset + mNALSizeLen + NALsize > srcSize) {
+            if (srcOffset + mNALSizeLen + NALsize <= srcOffset + mNALSizeLen) {
+                frame->release();
+                frame = NULL;
+
+                return ERROR_MALFORMED;
+            } else if (srcOffset + mNALSizeLen + NALsize > srcSize) {
                 break;
             }
 
@@ -893,25 +899,38 @@ status_t addVorbisCodecInfo(
     size_t offset = 1;
     size_t len1 = 0;
     while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+        if (len1 > (SIZE_MAX - 0xff)) {
+            return ERROR_MALFORMED; // would overflow
+        }
         len1 += 0xff;
         ++offset;
     }
     if (offset >= codecPrivateSize) {
         return ERROR_MALFORMED;
     }
+    if (len1 > (SIZE_MAX - codecPrivate[offset])) {
+        return ERROR_MALFORMED; // would overflow
+    }
     len1 += codecPrivate[offset++];
 
     size_t len2 = 0;
     while (offset < codecPrivateSize && codecPrivate[offset] == 0xff) {
+        if (len2 > (SIZE_MAX - 0xff)) {
+            return ERROR_MALFORMED; // would overflow
+        }
         len2 += 0xff;
         ++offset;
     }
     if (offset >= codecPrivateSize) {
         return ERROR_MALFORMED;
     }
+    if (len2 > (SIZE_MAX - codecPrivate[offset])) {
+        return ERROR_MALFORMED; // would overflow
+    }
     len2 += codecPrivate[offset++];
 
-    if (codecPrivateSize < offset + len1 + len2) {
+    if (len1 > SIZE_MAX - len2 || offset > SIZE_MAX - (len1 + len2) ||
+            codecPrivateSize < offset + len1 + len2) {
         return ERROR_MALFORMED;
     }
 
