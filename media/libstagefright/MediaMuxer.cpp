@@ -35,6 +35,7 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/Utils.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -42,7 +43,7 @@ MediaMuxer::MediaMuxer(int fd, OutputFormat format)
     : mFormat(format),
       mState(UNINITIALIZED) {
     if (format == OUTPUT_FORMAT_MPEG_4) {
-        mWriter = new MPEG4Writer(fd);
+        mWriter = AVFactory::get()->CreateMPEG4Writer(fd);
     } else if (format == OUTPUT_FORMAT_WEBM) {
         mWriter = new WebmWriter(fd);
     }

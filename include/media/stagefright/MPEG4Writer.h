@@ -77,13 +77,17 @@ private:
     int  mFd;
     status_t mInitCheck;
     bool mIsRealTimeRecording;
+protected:
     bool mUse4ByteNalLength;
+private:
     bool mUse32BitOffset;
     bool mIsFileSizeLimitExplicitlyRequested;
     bool mPaused;
     bool mStarted;  // Writer thread + track threads started successfully
     bool mWriterThreadStarted;  // Only writer thread started successfully
+protected:
     off64_t mOffset;
+private:
     off_t mMdatOffset;
     uint8_t *mMoovBoxBuffer;
     off64_t mMoovBoxBufferOffset;
@@ -194,8 +198,11 @@ private:
 
     // Acquire lock before calling these methods
     off64_t addSample_l(MediaBuffer *buffer);
-    off64_t addLengthPrefixedSample_l(MediaBuffer *buffer);
+protected:
+    static void StripStartcode(MediaBuffer *buffer);
+    virtual off64_t addLengthPrefixedSample_l(MediaBuffer *buffer);
 
+private:
     bool exceedsFileSizeLimit();
     bool use32BitFileOffset() const;
     bool exceedsFileDurationLimit();

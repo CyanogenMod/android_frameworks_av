@@ -1743,7 +1743,7 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
     if (mOutputFormat == OUTPUT_FORMAT_WEBM) {
         writer = new WebmWriter(mOutputFd);
     } else {
-        writer = mp4writer = new MPEG4Writer(mOutputFd);
+        writer = mp4writer = AVFactory::get()->CreateMPEG4Writer(mOutputFd);
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {

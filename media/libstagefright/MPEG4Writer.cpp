@@ -1148,7 +1148,7 @@ off64_t MPEG4Writer::addSample_l(MediaBuffer *buffer) {
     return old_offset;
 }
 
-static void StripStartcode(MediaBuffer *buffer) {
+void MPEG4Writer::StripStartcode(MediaBuffer *buffer) {
     if (buffer->range_length() < 4) {
         return;
     }

@@ -59,6 +59,7 @@ class ICameraRecordingProxy;
 class String16;
 class IGraphicBufferProducer;
 struct Size;
+class MPEG4Writer;
 
 /*
  * Factory to create objects of base-classes in libstagefright
@@ -107,6 +108,8 @@ struct AVFactory {
             const sp<IGraphicBufferProducer>& surface,
             int64_t timeBetweenFrameCaptureUs,
             bool storeMetaDataInVideoBuffers = true);
+
+    virtual MPEG4Writer *CreateMPEG4Writer(int fd);
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVFactory);
 };
