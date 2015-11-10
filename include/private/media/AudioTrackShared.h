@@ -26,6 +26,7 @@
 #include <utils/RefBase.h>
 #include <audio_utils/roundup.h>
 #include <media/AudioResamplerPublic.h>
+#include <media/Modulo.h>
 #include <media/SingleStateQueue.h>
 
 namespace android {
@@ -280,11 +281,11 @@ public:
     // Call to force an obtainBuffer() to return quickly with -EINTR
     void        interrupt();
 
-    size_t      getPosition() {
+    Modulo<uint32_t> getPosition() {
         return mEpoch + mCblk->mServer;
     }
 
-    void        setEpoch(size_t epoch) {
+    void             setEpoch(const Modulo<uint32_t> &epoch) {
         mEpoch = epoch;
     }
 
@@ -300,14 +301,14 @@ public:
     // in order for the client to be aligned at start of buffer
     virtual size_t  getMisalignment();
 
-    size_t      getEpoch() const {
+    Modulo<uint32_t> getEpoch() const {
         return mEpoch;
     }
 
     size_t      getFramesFilled();
 
 private:
-    size_t      mEpoch;
+    Modulo<uint32_t> mEpoch;
 };
 
 // ----------------------------------------------------------------------------

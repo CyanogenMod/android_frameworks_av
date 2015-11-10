@@ -22,6 +22,7 @@
 #include <media/AudioTimestamp.h>
 #include <media/IAudioTrack.h>
 #include <media/AudioResamplerPublic.h>
+#include <media/Modulo.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -798,7 +799,7 @@ protected:
                 { return (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0; }
 
             // increment mPosition by the delta of mServer, and return new value of mPosition
-            uint32_t updateAndGetPosition_l();
+            Modulo<uint32_t> updateAndGetPosition_l();
 
             // check sample rate and speed is compatible with AudioTrack
             bool     isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const;
@@ -885,19 +886,19 @@ protected:
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
     uint32_t                mObservedSequence;      // last observed value of mSequence
 
-    uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
+    Modulo<uint32_t>        mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;
-    uint32_t                mNewPosition;           // in frames
+    Modulo<uint32_t>        mNewPosition;           // in frames
     uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
 
-    uint32_t                mServer;                // in frames, last known mProxy->getPosition()
+    Modulo<uint32_t>        mServer;                // in frames, last known mProxy->getPosition()
                                                     // which is count of frames consumed by server,
                                                     // reset by new IAudioTrack,
                                                     // whether it is reset by stop() is TBD
-    uint32_t                mPosition;              // in frames, like mServer except continues
+    Modulo<uint32_t>        mPosition;              // in frames, like mServer except continues
                                                     // monotonically after new IAudioTrack,
                                                     // and could be easily widened to uint64_t
-    uint32_t                mReleased;              // in frames, count of frames released to server
+    Modulo<uint32_t>        mReleased;              // count of frames released to server
                                                     // but not necessarily consumed by server,
                                                     // reset by stop() but continues monotonically
                                                     // after new IAudioTrack to restore mPosition,
