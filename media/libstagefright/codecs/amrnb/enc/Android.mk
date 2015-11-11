@@ -71,7 +71,8 @@ LOCAL_CFLAGS := \
 
 LOCAL_CFLAGS += -Werror
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+#addressing b/25409744
+#LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE := libstagefright_amrnbenc
 
@@ -94,7 +95,8 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS += -Werror
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+#addressing b/25409744
+#LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrnbenc
@@ -126,7 +128,8 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_amrnb_common
 
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+#addressing b/25409744
+#LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_MODULE := libstagefright_amrnbenc_test
 LOCAL_MODULE_TAGS := tests
