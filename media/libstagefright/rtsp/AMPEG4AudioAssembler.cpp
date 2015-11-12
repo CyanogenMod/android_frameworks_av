@@ -379,7 +379,10 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
                 unsigned muxSlotLengthBytes = 0;
                 unsigned tmp;
                 do {
-                    CHECK_LT(offset, buffer->size());
+                    if (offset >= buffer->size()) {
+                        ALOGW("Malformed buffer received");
+                        return out;
+                    }
                     tmp = ptr[offset++];
                     muxSlotLengthBytes += tmp;
                 } while (tmp == 0xff);
