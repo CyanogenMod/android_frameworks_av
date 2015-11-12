@@ -419,6 +419,8 @@ void SoftVorbis::onPortFlushCompleted(OMX_U32 portIndex) {
 
         mNumFramesOutput = 0;
         vorbis_dsp_restart(mState);
+        mSawInputEos = false;
+        mSignalledOutputEos = false;
     }
 }
 
