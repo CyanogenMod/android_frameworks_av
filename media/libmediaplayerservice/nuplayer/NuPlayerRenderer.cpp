@@ -780,6 +780,7 @@ size_t NuPlayer::Renderer::fillAudioBuffer(void *buffer, size_t size) {
             mAudioFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
         // we don't know how much data we are queueing for offloaded tracks.
         mMediaClock->updateAnchor(nowMediaUs, nowUs, INT64_MAX);
+        mAnchorTimeMediaUs = nowMediaUs;
     }
 
     // for non-offloaded audio, we need to compute the frames written because
