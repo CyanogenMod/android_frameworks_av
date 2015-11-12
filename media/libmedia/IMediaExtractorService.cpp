@@ -65,7 +65,13 @@ status_t BnMediaExtractorService::onTransact(
 
         case MAKE_EXTRACTOR: {
             CHECK_INTERFACE(IMediaExtractorService, data, reply);
-            sp<IDataSource> source = interface_cast<IDataSource>(data.readStrongBinder());
+            sp<IBinder> b;
+            status_t ret = data.readStrongBinder(&b);
+            if (ret != NO_ERROR || b == NULL) {
+                ALOGE("Error reading source from parcel");
+                return ret;
+            }
+            sp<IDataSource> source = interface_cast<IDataSource>(b);
             const char *mime = data.readCString();
             sp<IMediaExtractor> ex = makeExtractor(source, mime);
             reply->writeStrongBinder(IInterface::asBinder(ex));
