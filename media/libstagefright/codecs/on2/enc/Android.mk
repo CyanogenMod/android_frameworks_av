@@ -12,7 +12,7 @@ LOCAL_C_INCLUDES := \
         frameworks/native/include/media/openmax \
 
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+LOCAL_SANITIZE := signed-integer-overflow unsigned-integer-overflow
 
 LOCAL_STATIC_LIBRARIES := \
         libvpx
