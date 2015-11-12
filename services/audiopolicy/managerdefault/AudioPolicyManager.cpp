@@ -648,7 +648,8 @@ sp<IOProfile> AudioPolicyManager::getProfileForDirectOutput(
     // only retain flags that will drive the direct output profile selection
     // if explicitly requested
     static const uint32_t kRelevantFlags =
-            (AUDIO_OUTPUT_FLAG_HW_AV_SYNC | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            (AUDIO_OUTPUT_FLAG_HW_AV_SYNC | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD |
+               AUDIO_OUTPUT_FLAG_VOIP_RX);
     flags =
         (audio_output_flags_t)((flags & kRelevantFlags) | AUDIO_OUTPUT_FLAG_DIRECT);
 
