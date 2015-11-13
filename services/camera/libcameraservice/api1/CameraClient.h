@@ -44,7 +44,7 @@ public:
     virtual status_t        startPreview();
     virtual void            stopPreview();
     virtual bool            previewEnabled();
-    virtual status_t        storeMetaDataInBuffers(bool enabled);
+    virtual status_t        setVideoBufferMode(int32_t videoBufferMode);
     virtual status_t        startRecording();
     virtual void            stopRecording();
     virtual bool            recordingEnabled();
@@ -55,6 +55,7 @@ public:
     virtual status_t        setParameters(const String8& params);
     virtual String8         getParameters() const;
     virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
+    virtual status_t        setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer);
 
     // Interface used by CameraService
     CameraClient(const sp<CameraService>& cameraService,

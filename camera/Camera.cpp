@@ -136,6 +136,15 @@ status_t Camera::setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProduc
     return c->setPreviewTarget(bufferProducer);
 }
 
+status_t Camera::setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer)
+{
+    ALOGV("setVideoTarget(%p)", bufferProducer.get());
+    sp <ICamera> c = mCamera;
+    if (c == 0) return NO_INIT;
+    ALOGD_IF(bufferProducer == 0, "app passed NULL video surface");
+    return c->setVideoTarget(bufferProducer);
+}
+
 // start preview mode
 status_t Camera::startPreview()
 {
@@ -145,13 +154,12 @@ status_t Camera::startPreview()
     return c->startPreview();
 }
 
-status_t Camera::storeMetaDataInBuffers(bool enabled)
+status_t Camera::setVideoBufferMode(int32_t videoBufferMode)
 {
-    ALOGV("storeMetaDataInBuffers: %s",
-            enabled? "true": "false");
+    ALOGV("setVideoBufferMode: %d", videoBufferMode);
     sp <ICamera> c = mCamera;
     if (c == 0) return NO_INIT;
-    return c->storeMetaDataInBuffers(enabled);
+    return c->setVideoBufferMode(videoBufferMode);
 }
 
 // start recording mode, must call setPreviewTarget first

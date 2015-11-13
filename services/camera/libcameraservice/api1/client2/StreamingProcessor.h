@@ -37,23 +37,21 @@ class Camera2Heap;
 /**
  * Management and processing for preview and recording streams
  */
-class StreamingProcessor:
-            public Thread, public BufferItemConsumer::FrameAvailableListener {
+class StreamingProcessor : public virtual VirtualLightRefBase {
   public:
     StreamingProcessor(sp<Camera2Client> client);
     ~StreamingProcessor();
 
     status_t setPreviewWindow(sp<Surface> window);
+    status_t setRecordingWindow(sp<Surface> window);
 
     bool haveValidPreviewWindow() const;
+    bool haveValidRecordingWindow() const;
 
     status_t updatePreviewRequest(const Parameters &params);
     status_t updatePreviewStream(const Parameters &params);
     status_t deletePreviewStream();
     int getPreviewStreamId() const;
-
-    status_t setRecordingBufferCount(size_t count);
-    status_t setRecordingFormat(int format, android_dataspace_t dataspace);
 
     status_t updateRecordingRequest(const Parameters &params);
     // If needsUpdate is set to true, a updateRecordingStream call with params will recreate
@@ -81,11 +79,6 @@ class StreamingProcessor:
     status_t getActiveRequestId() const;
     status_t incrementStreamingIds();
 
-    // Callback for new recording frames from HAL
-    virtual void onFrameAvailable(const BufferItem& item);
-    // Callback from stagefright which returns used recording frames
-    void releaseRecordingFrame(const sp<IMemory>& mem);
-
     status_t dump(int fd, const Vector<String16>& args);
 
   private:
@@ -110,47 +103,10 @@ class StreamingProcessor:
     CameraMetadata mPreviewRequest;
     sp<Surface> mPreviewWindow;
 
-    // Recording-related members
-    static const nsecs_t kWaitDuration = 50000000; // 50 ms
-
     int32_t mRecordingRequestId;
     int mRecordingStreamId;
-    int mRecordingFrameCount;
-    sp<BufferItemConsumer> mRecordingConsumer;
     sp<Surface>  mRecordingWindow;
     CameraMetadata mRecordingRequest;
-    sp<camera2::Camera2Heap> mRecordingHeap;
-
-    bool mRecordingFrameAvailable;
-    Condition mRecordingFrameAvailableSignal;
-
-    static const size_t kDefaultRecordingHeapCount = 8;
-    size_t mRecordingHeapCount;
-    Vector<BufferItem> mRecordingBuffers;
-    size_t mRecordingHeapHead, mRecordingHeapFree;
-
-    static const int kDefaultRecordingFormat =
-            HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
-    int mRecordingFormat;
-
-    static const android_dataspace kDefaultRecordingDataSpace =
-            HAL_DATASPACE_BT709;
-    android_dataspace mRecordingDataSpace;
-
-    static const int kDefaultRecordingGrallocUsage =
-            GRALLOC_USAGE_HW_VIDEO_ENCODER;
-    int mRecordingGrallocUsage;
-
-    virtual bool threadLoop();
-
-    status_t processRecordingFrame();
-
-    // Unilaterally free any buffers still outstanding to stagefright
-    void releaseAllRecordingFramesLocked();
-
-    // Determine if the specified stream is currently in use
-    static bool isStreamActive(const Vector<int32_t> &streams,
-            int32_t recordingStreamId);
 };
 
 

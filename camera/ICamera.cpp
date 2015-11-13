@@ -48,7 +48,8 @@ enum {
     STOP_RECORDING,
     RECORDING_ENABLED,
     RELEASE_RECORDING_FRAME,
-    STORE_META_DATA_IN_BUFFERS,
+    SET_VIDEO_BUFFER_MODE,
+    SET_VIDEO_BUFFER_TARGET,
 };
 
 class BpCamera: public BpInterface<ICamera>
@@ -151,13 +152,13 @@ public:
         remote()->transact(RELEASE_RECORDING_FRAME, data, &reply);
     }
 
-    status_t storeMetaDataInBuffers(bool enabled)
+    status_t setVideoBufferMode(int32_t videoBufferMode)
     {
-        ALOGV("storeMetaDataInBuffers: %s", enabled? "true": "false");
+        ALOGV("setVideoBufferMode: %d", videoBufferMode);
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
-        data.writeInt32(enabled);
-        remote()->transact(STORE_META_DATA_IN_BUFFERS, data, &reply);
+        data.writeInt32(videoBufferMode);
+        remote()->transact(SET_VIDEO_BUFFER_MODE, data, &reply);
         return reply.readInt32();
     }
 
@@ -268,6 +269,17 @@ public:
         remote()->transact(UNLOCK, data, &reply);
         return reply.readInt32();
     }
+
+    status_t setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer)
+    {
+        ALOGV("setVideoTarget");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
+        sp<IBinder> b(IInterface::asBinder(bufferProducer));
+        data.writeStrongBinder(b);
+        remote()->transact(SET_VIDEO_BUFFER_TARGET, data, &reply);
+        return reply.readInt32();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(Camera, "android.hardware.ICamera");
@@ -339,11 +351,11 @@ status_t BnCamera::onTransact(
             releaseRecordingFrame(mem);
             return NO_ERROR;
         } break;
-        case STORE_META_DATA_IN_BUFFERS: {
-            ALOGV("STORE_META_DATA_IN_BUFFERS");
+        case SET_VIDEO_BUFFER_MODE: {
+            ALOGV("SET_VIDEO_BUFFER_MODE");
             CHECK_INTERFACE(ICamera, data, reply);
-            bool enabled = data.readInt32();
-            reply->writeInt32(storeMetaDataInBuffers(enabled));
+            int32_t mode = data.readInt32();
+            reply->writeInt32(setVideoBufferMode(mode));
             return NO_ERROR;
         } break;
         case PREVIEW_ENABLED: {
@@ -413,6 +425,14 @@ status_t BnCamera::onTransact(
         case UNLOCK: {
             CHECK_INTERFACE(ICamera, data, reply);
             reply->writeInt32(unlock());
+            return NO_ERROR;
+        } break;
+        case SET_VIDEO_BUFFER_TARGET: {
+            ALOGV("SET_VIDEO_BUFFER_TARGET");
+            CHECK_INTERFACE(ICamera, data, reply);
+            sp<IGraphicBufferProducer> st =
+                interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            reply->writeInt32(setVideoTarget(st));
             return NO_ERROR;
         } break;
         default:

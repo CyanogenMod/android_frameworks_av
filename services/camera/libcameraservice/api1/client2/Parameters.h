@@ -131,7 +131,8 @@ struct Parameters {
 
     int zoom;
 
-    int videoWidth, videoHeight;
+    int videoWidth, videoHeight, videoFormat;
+    android_dataspace videoDataSpace;
 
     bool recordingHint;
     bool videoStabilization;
@@ -141,7 +142,8 @@ struct Parameters {
 
     // These parameters are also part of the camera API-visible state, but not
     // directly listed in Camera.Parameters
-    bool storeMetadataInBuffers;
+    // One of ICamera::VIDEO_BUFFER_MODE_*
+    int32_t videoBufferMode;
     bool playShutterSound;
     bool enableFaceDetect;
 

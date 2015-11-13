@@ -30,6 +30,7 @@
 #include "Parameters.h"
 #include "system/camera.h"
 #include "hardware/camera_common.h"
+#include <camera/ICamera.h>
 #include <media/MediaProfiles.h>
 #include <media/mediarecorder.h>
 
@@ -870,8 +871,9 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     }
 
     // Set up initial state for non-Camera.Parameters state variables
-
-    storeMetadataInBuffers = true;
+    videoFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    videoDataSpace = HAL_DATASPACE_BT709;
+    videoBufferMode = ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV;
     playShutterSound = true;
     enableFaceDetect = false;
 
