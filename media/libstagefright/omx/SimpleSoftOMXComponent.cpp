@@ -417,16 +417,43 @@ void SimpleSoftOMXComponent::onSendCommand(
     }
 }
 
+void SimpleSoftOMXComponent::onTransitionError() {
+    mState = OMX_StateInvalid;
+    mTargetState = OMX_StateInvalid;
+    notify(OMX_EventError, OMX_CommandStateSet, OMX_StateInvalid, 0);
+}
+
 void SimpleSoftOMXComponent::onChangeState(OMX_STATETYPE state) {
+    bool skipTransitions = false;
+
     // We shouldn't be in a state transition already.
-    CHECK_EQ((int)mState, (int)mTargetState);
+    if (mState != mTargetState) {
+        // Workaround to prevent assertion
+        // XXX CHECK_EQ((int)mState, (int)mTargetState);
+        ALOGW("mState %d != mTargetState %d", mState, mTargetState);
+        skipTransitions = true;
+        onTransitionError();
+    }
 
     switch (mState) {
         case OMX_StateLoaded:
-            CHECK_EQ((int)state, (int)OMX_StateIdle);
+            if (state != OMX_StateIdle) {
+                // Workaround to prevent assertion
+                // XXX CHECK_EQ((int)state, (int)OMX_StateIdle);
+                ALOGW("In OMX_StateLoaded, state %d != OMX_StateIdle", state);
+                skipTransitions = true;
+                onTransitionError();
+            }
             break;
         case OMX_StateIdle:
-            CHECK(state == OMX_StateLoaded || state == OMX_StateExecuting);
+            if (!(state == OMX_StateLoaded || state == OMX_StateExecuting)) {
+                // Workaround to prevent assertion
+                // XXX CHECK(state == OMX_StateLoaded || state == OMX_StateExecuting);
+                ALOGW("In OMX_StateIdle, state %d != OMX_StateLoaded||OMX_StateExecuting",
+                      state);
+                skipTransitions = true;
+                onTransitionError();
+            }
             break;
         case OMX_StateExecuting:
         {
@@ -440,9 +467,18 @@ void SimpleSoftOMXComponent::onChangeState(OMX_STATETYPE state) {
             notify(OMX_EventCmdComplete, OMX_CommandStateSet, state, NULL);
             break;
         }
-
+        case OMX_StateInvalid: {
+            ALOGW("In OMX_StateInvalid, ignore state transition to %d", state);
+            skipTransitions = true;
+            onTransitionError();
+            break;
+        }
         default:
             TRESPASS();
+    }
+
+    if (skipTransitions) {
+        return;
     }
 
     mTargetState = state;

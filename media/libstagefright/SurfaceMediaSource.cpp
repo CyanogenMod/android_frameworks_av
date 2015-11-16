@@ -35,6 +35,9 @@
 #include <utils/String8.h>
 
 #include <private/gui/ComposerService.h>
+#if QTI_BSP
+#include <gralloc_priv.h>
+#endif
 
 namespace android {
 
@@ -59,8 +62,12 @@ SurfaceMediaSource::SurfaceMediaSource(uint32_t bufferWidth, uint32_t bufferHeig
 
     BufferQueue::createBufferQueue(&mProducer, &mConsumer);
     mConsumer->setDefaultBufferSize(bufferWidth, bufferHeight);
-    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER |
-            GRALLOC_USAGE_HW_TEXTURE);
+    mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_VIDEO_ENCODER
+            | GRALLOC_USAGE_HW_TEXTURE
+#if QTI_BSP
+            | GRALLOC_USAGE_PRIVATE_WFD
+#endif
+            );
 
     sp<ISurfaceComposer> composer(ComposerService::getComposerService());
 

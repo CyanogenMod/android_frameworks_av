@@ -137,6 +137,7 @@ protected:
     int64_t mOffset;
     int64_t mLength;
 
+    Mutex mSourceLock;
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
     sp<DataSource> mHttpSource;
@@ -154,7 +155,6 @@ protected:
     int32_t mPrevBufferPercentage;
 
     mutable Mutex mReadBufferLock;
-    mutable Mutex mDisconnectLock;
 
     sp<ALooper> mLooper;
 
