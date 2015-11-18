@@ -2756,16 +2756,20 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mpClientInterface = clientInterface;
 
     mDefaultOutputDevice = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
+#ifndef IGNORE_VENDOR_AUDIO_EFFECTS_CONF
     if (ConfigParsingUtils::loadAudioPolicyConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE,
                  mHwModules, mAvailableInputDevices, mAvailableOutputDevices,
                  mDefaultOutputDevice, mSpeakerDrcEnabled) != NO_ERROR) {
+#endif
         if (ConfigParsingUtils::loadAudioPolicyConfig(AUDIO_POLICY_CONFIG_FILE,
                                   mHwModules, mAvailableInputDevices, mAvailableOutputDevices,
                                   mDefaultOutputDevice, mSpeakerDrcEnabled) != NO_ERROR) {
             ALOGE("could not load audio policy configuration file, setting defaults");
             defaultAudioPolicyConfig();
         }
+#ifndef IGNORE_VENDOR_AUDIO_EFFECTS_CONF
     }
+#endif
     // mAvailableOutputDevices and mAvailableInputDevices now contain all attached devices
 
     // must be done after reading the policy (since conditionned by Speaker Drc Enabling)
