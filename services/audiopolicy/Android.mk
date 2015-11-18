@@ -2,6 +2,10 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
+ifeq ($(TARGET_IGNORE_VENDOR_AUDIO_EFFECTS_CONF),true)
+  LOCAL_CFLAGS += -DIGNORE_VENDOR_AUDIO_EFFECTS_CONF
+endif
+
 LOCAL_SRC_FILES:= \
     service/AudioPolicyService.cpp \
     service/AudioPolicyEffects.cpp
