@@ -34,6 +34,10 @@ ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM),msm8974)
+LOCAL_CFLAGS += -DTARGET_8974
+endif
+
 LOCAL_CLANG := true
 
 LOCAL_MODULE:= libstagefright_nuplayer

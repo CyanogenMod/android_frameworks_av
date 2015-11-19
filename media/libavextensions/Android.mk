@@ -83,6 +83,10 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
 endif
 
+ifeq ($(TARGET_BOARD_PLATFORM),msm8974)
+       LOCAL_CFLAGS += -DTARGET_8974
+endif
+
 LOCAL_MODULE:= libavmediaserviceextensions
 LOCAL_CLANG := false
 

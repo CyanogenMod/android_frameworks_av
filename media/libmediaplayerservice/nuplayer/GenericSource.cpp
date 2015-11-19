@@ -179,9 +179,14 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
         extractor = mWVMExtractor;
     } else {
+#ifndef TARGET_8974
+        int32_t flags = AVNuUtils::get()->getFlags();
+#else
+        int32_t flags = 0;
+#endif
         extractor = MediaExtractor::Create(mDataSource,
                 mimeType.isEmpty() ? NULL : mimeType.string(),
-                mIsStreaming ? 0 : AVNuUtils::get()->getFlags());
+                mIsStreaming ? 0 : flags);
     }
 
     if (extractor == NULL) {
@@ -211,10 +216,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
     }
 
+#ifndef TARGET_8974
     if (AVNuUtils::get()->canUseSetBuffers(mFileMeta)) {
         mUseSetBuffers = true;
         ALOGI("setBuffers mode enabled");
     }
+#endif
 
     int32_t totalBitrate = 0;
 
