@@ -51,8 +51,9 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
 {
     int16_t vl = mVolume[0];
     int16_t vr = mVolume[1];
-    int16_t *pBuf;
+    int32_t *pBuf;
 
+    int64_t tempL, tempR;
     size_t inFrameRequest;
     size_t inFrameCount = getNumInSample(outFrameCount);
     size_t index = 0;
@@ -74,7 +75,7 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
         if(mResamplerOutBuf) {
             delete [] mResamplerOutBuf;
         }
-        mTmpBuf = new int16_t[inFrameRequest + 16];
+        mTmpBuf = new int32_t[inFrameRequest + 16];
         mResamplerOutBuf = new int32_t[out_count];
     }
 
@@ -95,7 +96,7 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
                 goto resample_exit;
             }
 
-            mTmpBuf[index++] = clamp16_from_float(*((float *)mBuffer.raw + frameIndex++));
+            mTmpBuf[index++] = clampq4_27_from_float(*((float *)mBuffer.raw + frameIndex++));
 
             if (frameIndex >= mBuffer.frameCount) {
                 provider->releaseBuffer(&mBuffer);
@@ -121,8 +122,8 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
                 goto resample_exit;
             }
 
-            mTmpBuf[index] = clamp16_from_float(*((float *)mBuffer.raw + frameIndex++));
-            pBuf[index++] = clamp16_from_float(*((float *)mBuffer.raw + frameIndex++));
+            mTmpBuf[index] = clampq4_27_from_float(*((float *)mBuffer.raw + frameIndex++));
+            pBuf[index++] = clampq4_27_from_float(*((float *)mBuffer.raw + frameIndex++));
             if (frameIndex >= mBuffer.frameCount * 2) {
                 provider->releaseBuffer(&mBuffer);
             }
@@ -133,8 +134,12 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
 
 resample_exit:
     for (int i = 0; i < out_count; i += 2) {
-        fout[i] += float_from_q4_27(mResamplerOutBuf[i] * vl);
-        fout[i+1] += float_from_q4_27(mResamplerOutBuf[i+1] * vr);
+        // Multiplying q4.27 data with u4.12 gain could result in 39 fractional bit data(27+12)
+        // To get back the 27 fractional bit format output data, do right shift by 12
+        tempL = (int64_t)mResamplerOutBuf[i] * vl;
+        tempR = (int64_t)mResamplerOutBuf[i+1] * vr;
+        fout[i] += float_from_q4_27((int32_t)(tempL>>12));
+        fout[i+1] += float_from_q4_27((int32_t)(tempR>>12));
     }
 
     mFrameIndex = frameIndex;
@@ -151,7 +156,7 @@ void AudioResamplerQTI::setSampleRate(int32_t inSampleRate)
 
 void AudioResamplerQTI::init()
 {
-    QCT_Resampler::Init(mState, mChannelCount, mInSampleRate, mSampleRate);
+    QCT_Resampler::Init(mState, mChannelCount, mInSampleRate, mSampleRate, 1/*32bit in*/);
 }
 
 size_t AudioResamplerQTI::getNumInSample(size_t outFrameCount)

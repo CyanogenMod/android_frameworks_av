@@ -781,7 +781,8 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
 #ifdef QTI_RESAMPLER
                 if ((trackSampleRate <= QTI_RESAMPLER_MAX_SAMPLERATE) &&
                        (trackSampleRate > devSampleRate * 2) &&
-                       ((devSampleRate == 48000)||(devSampleRate == 44100))) {
+                       ((devSampleRate == 48000)||(devSampleRate == 44100)) &&
+                       (resamplerChannelCount <= 2)) {
                     quality = AudioResampler::QTI_QUALITY;
                 }
 #endif
