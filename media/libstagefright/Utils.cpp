@@ -1044,5 +1044,18 @@ void readFromAMessage(
     *sync = settings;
 }
 
+audio_format_t getPCMFormat(const sp<AMessage> &format) {
+    int32_t bits = 16;
+    if (format->findInt32("bits-per-sample", &bits)) {
+        if (bits == 8)
+            return AUDIO_FORMAT_PCM_8_BIT;
+        if (bits == 24)
+            return AUDIO_FORMAT_PCM_32_BIT;
+        if (bits == 32)
+            return AUDIO_FORMAT_PCM_FLOAT;
+    }
+    return AUDIO_FORMAT_PCM_16_BIT;
+}
+
 }  // namespace android
 

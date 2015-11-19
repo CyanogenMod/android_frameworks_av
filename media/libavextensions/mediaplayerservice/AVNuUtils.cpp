@@ -101,20 +101,7 @@ void AVNuUtils::setKeyPCMFormat(const sp<MetaData> &meta, audio_format_t audioFo
         meta->setInt32('pfmt', audioFormat);
 }
 
-audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &format) {
-    int32_t pcmFormat = 0;
-    if (format->findInt32("pcm-format", &pcmFormat))
-        return (audio_format_t)pcmFormat;
-
-    int32_t bits = 16;
-    if (format->findInt32("bits-per-sample", &bits)) {
-        if (bits == 8)
-            return AUDIO_FORMAT_PCM_8_BIT;
-        if (bits == 24)
-            return AUDIO_FORMAT_PCM_32_BIT;
-        if (bits == 32)
-            return AUDIO_FORMAT_PCM_FLOAT;
-    }
+audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &/*format*/) {
     return AUDIO_FORMAT_PCM_16_BIT;
 }
 
