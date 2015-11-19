@@ -90,8 +90,7 @@ public:
     {
         mDefaultOutputDevices = new DeviceDescriptor(AUDIO_DEVICE_OUT_SPEAKER);
         sp<HwModule> module;
-        sp<DeviceDescriptor> defaultInputDevice =
-                        new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
+        sp<DeviceDescriptor> defaultInputDevice = new DeviceDescriptor(AUDIO_DEVICE_IN_BUILTIN_MIC);
         mAvailableOutputDevices.add(mDefaultOutputDevices);
         mAvailableInputDevices.add(defaultInputDevice);
 
