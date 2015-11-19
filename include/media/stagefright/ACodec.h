@@ -363,8 +363,7 @@ protected:
             bool encoder, int32_t numChannels, int32_t sampleRate, int32_t compressionLevel);
 
     status_t setupRawAudioFormat(
-            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels,
-            int32_t bitsPerSample = 16);
+            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels);
 
     status_t setPriority(int32_t priority);
     status_t setOperatingRate(float rateFloat, bool isVideo);
@@ -459,6 +458,10 @@ protected:
     }
 
     sp<IOMXObserver> createObserver();
+
+    status_t setupRawAudioFormatInternal(
+            OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels,
+            int32_t bitsPerSample);
 
     DISALLOW_EVIL_CONSTRUCTORS(ACodec);
 };
