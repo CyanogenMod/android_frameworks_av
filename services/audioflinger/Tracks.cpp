@@ -707,10 +707,11 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
                 mState = state;
             }
         }
-        // track was already in the active list, not a problem
-        if (status == ALREADY_EXISTS) {
-            status = NO_ERROR;
-        } else {
+        // If track was already in the active list, not a problem unless
+        // track is fast and sharedBuffer is used and frameReady has already become 0.
+        // In such case we need to call obtainbuffer() to refresh the framesReady value.
+        if ((status != ALREADY_EXISTS) ||
+            (isFastTrack() && (mSharedBuffer != 0) && (framesReady() == 0))) {
             // Acknowledge any pending flush(), so that subsequent new data isn't discarded.
             // It is usually unsafe to access the server proxy from a binder thread.
             // But in this case we know the mixer thread (whether normal mixer or fast mixer)
@@ -720,6 +721,9 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             buffer.mFrameCount = 1;
             (void) mAudioTrackServerProxy->obtainBuffer(&buffer, true /*ackFlush*/);
         }
+
+        if (status == ALREADY_EXISTS)
+            status = NO_ERROR;
     } else {
         status = BAD_VALUE;
     }
