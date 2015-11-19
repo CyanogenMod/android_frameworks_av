@@ -281,6 +281,10 @@ status_t DeviceDescriptor::dump(int fd, int spaces, int index, bool verbose) con
         snprintf(buffer, SIZE, "%*s- id: %2d\n", spaces, "", mId);
         result.append(buffer);
     }
+    if (!mTagName.isEmpty()) {
+        snprintf(buffer, SIZE, "%*s- tag name: %s\n", spaces, "", mTagName.string());
+        result.append(buffer);
+    }
     std::string deviceLiteral;
     if (DeviceConverter::toString(mDeviceType, deviceLiteral)) {
         snprintf(buffer, SIZE, "%*s- type: %-48s\n", spaces, "", deviceLiteral.c_str());

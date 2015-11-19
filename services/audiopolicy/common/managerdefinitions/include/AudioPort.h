@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "AudioCollections.h"
 #include "AudioProfile.h"
 #include <utils/String8.h>
 #include <utils/Vector.h>
@@ -28,6 +29,7 @@ namespace android {
 
 class HwModule;
 class AudioGain;
+class AudioRoute;
 typedef Vector<sp<AudioGain> > AudioGainCollection;
 
 class AudioPort : public virtual RefBase
@@ -43,6 +45,8 @@ public:
 
     audio_port_type_t getType() const { return mType; }
     audio_port_role_t getRole() const { return mRole; }
+
+    virtual const String8 getTagName() const = 0;
 
     void setGains(const AudioGainCollection &gains) { mGains = gains; }
     const AudioGainCollection &getGains() const { return mGains; }
@@ -114,6 +118,9 @@ public:
                 (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD));
     }
 
+    void addRoute(const sp<AudioRoute> &route) { mRoutes.add(route); }
+    const AudioRouteVector &getRoutes() const { return mRoutes; }
+
     void dump(int fd, int spaces, bool verbose = true) const;
     void log(const char* indent) const;
 
@@ -124,11 +131,12 @@ private:
     void pickChannelMask(audio_channel_mask_t &channelMask, const ChannelsVector &channelMasks) const;
     void pickSamplingRate(uint32_t &rate,const SampleRateVector &samplingRates) const;
 
-    String8           mName;
+    String8  mName;
     audio_port_type_t mType;
     audio_port_role_t mRole;
     uint32_t mFlags; // attribute flags mask (e.g primary output, direct output...).
     AudioProfileVector mProfiles; // AudioProfiles supported by this port (format, Rates, Channels)
+    AudioRouteVector mRoutes; // Routes involving this port
     static volatile int32_t mNextUniqueId;
 };
 

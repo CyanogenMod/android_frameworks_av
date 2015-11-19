@@ -61,6 +61,7 @@ status_t HwModule::addOutputProfile(const sp<IOProfile> &profile)
 {
     profile->attach(this);
     mOutputProfiles.add(profile);
+    mPorts.add(profile);
     return NO_ERROR;
 }
 
@@ -68,6 +69,7 @@ status_t HwModule::addInputProfile(const sp<IOProfile> &profile)
 {
     profile->attach(this);
     mInputProfiles.add(profile);
+    mPorts.add(profile);
     return NO_ERROR;
 }
 
@@ -132,6 +134,88 @@ status_t HwModule::removeInputProfile(String8 name)
     return NO_ERROR;
 }
 
+void HwModule::setDeclaredDevices(const DeviceVector &devices)
+{
+    mDeclaredDevices = devices;
+    for (size_t i = 0; i < devices.size(); i++) {
+        mPorts.add(devices[i]);
+    }
+}
+
+sp<DeviceDescriptor> HwModule::getRouteSinkDevice(const sp<AudioRoute> &route) const
+{
+    sp<DeviceDescriptor> sinkDevice = 0;
+    if (route->getSink()->getType() == AUDIO_PORT_TYPE_DEVICE) {
+        sinkDevice = mDeclaredDevices.getDeviceFromTagName(route->getSink()->getTagName());
+    }
+    return sinkDevice;
+}
+
+DeviceVector HwModule::getRouteSourceDevices(const sp<AudioRoute> &route) const
+{
+    DeviceVector sourceDevices;
+    Vector <sp<AudioPort> > sources = route->getSources();
+    for (size_t i = 0; i < sources.size(); i++) {
+        if (sources[i]->getType() == AUDIO_PORT_TYPE_DEVICE) {
+            sourceDevices.add(mDeclaredDevices.getDeviceFromTagName(sources[i]->getTagName()));
+        }
+    }
+    return sourceDevices;
+}
+
+void HwModule::setRoutes(const AudioRouteVector &routes)
+{
+    mRoutes = routes;
+    // Now updating the streams (aka IOProfile until now) supported devices
+    refreshSupportedDevices();
+}
+
+void HwModule::refreshSupportedDevices()
+{
+    // Now updating the streams (aka IOProfile until now) supported devices
+    for (size_t i = 0; i < mInputProfiles.size(); i++) {
+        sp<IOProfile> stream = mInputProfiles[i];
+        DeviceVector sourceDevices;
+        const AudioRouteVector &routes = stream->getRoutes();
+        for (size_t j = 0; j < routes.size(); j++) {
+            sp<AudioPort> sink = routes[j]->getSink();
+            if (sink == 0 || stream != sink) {
+                ALOGE("%s: Invalid route attached to input stream", __FUNCTION__);
+                continue;
+            }
+            DeviceVector sourceDevicesForRoute = getRouteSourceDevices(routes[j]);
+            if (sourceDevicesForRoute.isEmpty()) {
+                ALOGE("%s: invalid source devices for %s", __FUNCTION__, stream->getName().string());
+                continue;
+            }
+            sourceDevices.add(sourceDevicesForRoute);
+        }
+        if (sourceDevices.isEmpty()) {
+            ALOGE("%s: invalid source devices for %s", __FUNCTION__, stream->getName().string());
+            continue;
+        }
+        stream->setSupportedDevices(sourceDevices);
+    }
+    for (size_t i = 0; i < mOutputProfiles.size(); i++) {
+        sp<IOProfile> stream = mOutputProfiles[i];
+        DeviceVector sinkDevices;
+        const AudioRouteVector &routes = stream->getRoutes();
+        for (size_t j = 0; j < routes.size(); j++) {
+            sp<AudioPort> source = routes[j]->getSources().findByTagName(stream->getTagName());
+            if (source == 0 || stream != source) {
+                ALOGE("%s: Invalid route attached to output stream", __FUNCTION__);
+                continue;
+            }
+            sp<DeviceDescriptor> sinkDevice = getRouteSinkDevice(routes[j]);
+            if (sinkDevice == 0) {
+                ALOGE("%s: invalid sink device for %s", __FUNCTION__, stream->getName().string());
+                continue;
+            }
+            sinkDevices.add(sinkDevice);
+        }
+        stream->setSupportedDevices(sinkDevices);
+    }
+}
 
 void HwModule::dump(int fd)
 {
@@ -163,6 +247,10 @@ void HwModule::dump(int fd)
         }
     }
     mDeclaredDevices.dump(fd, String8("Declared"),  2, true);
+    if (!mRoutes.empty()) {
+        write(fd, "  - Audio Route:\n", strlen("  - Audio Route:\n"));
+        mRoutes.dump(fd);
+    }
 }
 
 sp <HwModule> HwModuleCollection::getModuleFromName(const char *name) const

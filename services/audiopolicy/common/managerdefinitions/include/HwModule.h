@@ -17,6 +17,7 @@
 #pragma once
 
 #include "DeviceDescriptor.h"
+#include "AudioRoute.h"
 #include <hardware/audio.h>
 #include <utils/RefBase.h>
 #include <utils/String8.h>
@@ -46,7 +47,7 @@ public:
 
 
     const DeviceVector &getDeclaredDevices() const { return mDeclaredDevices; }
-    void setDeclaredDevices(const DeviceVector &devices) { mDeclaredDevices = devices; }
+    void setDeclaredDevices(const DeviceVector &devices);
 
     const InputProfileCollection &getInputProfiles() const { return mInputProfiles; }
 
@@ -56,6 +57,10 @@ public:
 
     void setHalVersion(uint32_t halVersion) { mHalVersion = halVersion; }
     uint32_t getHalVersion() const { return mHalVersion; }
+
+    sp<DeviceDescriptor> getRouteSinkDevice(const sp<AudioRoute> &route) const;
+    DeviceVector getRouteSourceDevices(const sp<AudioRoute> &route) const;
+    void setRoutes(const AudioRouteVector &routes);
 
     status_t addOutputProfile(const sp<IOProfile> &profile);
     status_t addInputProfile(const sp<IOProfile> &profile);
@@ -70,6 +75,11 @@ public:
 
     audio_module_handle_t getHandle() const { return mHandle; }
 
+    sp<AudioPort> findPortByTagName(const String8 &tagName) const
+    {
+        return mPorts.findByTagName(tagName);
+    }
+
     // TODO remove from here (split serialization)
     void dump(int fd);
 
@@ -79,8 +89,12 @@ public:
     InputProfileCollection mInputProfiles;  // input profiles exposed by this module
 
 private:
+    void refreshSupportedDevices();
+
     uint32_t mHalVersion; // audio HAL API version
     DeviceVector mDeclaredDevices; // devices declared in audio_policy configuration file.
+    AudioRouteVector mRoutes;
+    AudioPortVector mPorts;
 };
 
 class HwModuleCollection : public Vector<sp<HwModule> >

@@ -33,8 +33,11 @@ class HwModule;
 class IOProfile : public AudioPort
 {
 public:
-    IOProfile(const String8 &name, audio_port_role_t role);
-    virtual ~IOProfile();
+    IOProfile(const String8 &name, audio_port_role_t role)
+        : AudioPort(name, AUDIO_PORT_TYPE_MIX, role) {}
+
+    // For a Profile aka MixPort, tag name and name are equivalent.
+    virtual const String8 getTagName() const { return getName(); }
 
     // This method is used for both output and input.
     // If parameter updatedSamplingRate is non-NULL, it is assigned the actual sample rate.
@@ -101,8 +104,7 @@ public:
     const DeviceVector &getSupportedDevices() const { return mSupportedDevices; }
 
 private:
-    DeviceVector  mSupportedDevices; // supported devices
-                                     // (devices this output can be routed to)
+    DeviceVector mSupportedDevices; // supported devices: this input/output can be routed from/to
 };
 
 class InputProfile : public IOProfile
