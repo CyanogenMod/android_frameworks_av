@@ -107,7 +107,7 @@ audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &format) {
         return (audio_format_t)pcmFormat;
 
     int32_t bits = 16;
-    if (format->findInt32("bit-width", &bits)) {
+    if (format->findInt32("bits-per-sample", &bits)) {
         if (bits == 8)
             return AUDIO_FORMAT_PCM_8_BIT;
         if (bits == 24)

@@ -53,7 +53,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyAACAOT               , "aac-profile"            , INT32},
    {kKeyArbitraryMode        , "use-arbitrary-mode"     , INT32},
    {kKeyBitRate              , "bitrate"                , INT32},
-   {kKeyBitsPerSample        , "bit-width"              , INT32},
+   {kKeyBitsPerSample        , "bits-per-sample"        , INT32},
    {kKeyBlockAlign           , "block-align"            , INT32},
    {kKeyChannelCount         , "channel-count"          , INT32},
    {kKeyCodecId              , "codec-id"               , INT32},
@@ -404,7 +404,7 @@ status_t FFMPEGSoftCodec::getAudioPortFormat(OMX_U32 portIndex, int coding,
             notify->setString("mime", MEDIA_MIMETYPE_AUDIO_APE);
             notify->setInt32("channel-count", params.nChannels);
             notify->setInt32("sample-rate", params.nSamplingRate);
-            notify->setInt32("bit-width", params.nBitsPerSample);
+            notify->setInt32("bits-per-sample", params.nBitsPerSample);
             break;
         }
         case OMX_AUDIO_CodingFLAC:
@@ -422,7 +422,7 @@ status_t FFMPEGSoftCodec::getAudioPortFormat(OMX_U32 portIndex, int coding,
             notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
             notify->setInt32("channel-count", params.nChannels);
             notify->setInt32("sample-rate", params.nSampleRate);
-            notify->setInt32("bit-width", params.nCompressionLevel); // piggyback
+            notify->setInt32("bits-per-sample", params.nCompressionLevel); // piggyback
             break;
         }
 
@@ -821,7 +821,7 @@ status_t FFMPEGSoftCodec::setWMAFormat(
 
     // mm-parser may want a different bit depth
     if (msg->findInt32(getMsgKey(kKeyWMABitspersample), &bitsPerSample)) {
-        msg->setInt32("bit-width", bitsPerSample);
+        msg->setInt32("bits-per-sample", bitsPerSample);
     }
 
     ALOGV("Channels: %d, SampleRate: %d, BitRate: %d, blockAlign: %d",
