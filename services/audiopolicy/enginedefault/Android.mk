@@ -34,9 +34,15 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_MODULE := libaudiopolicyenginedefault
 LOCAL_MODULE_TAGS := optional
+
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
-    libaudiopolicycomponents
+    libaudiopolicycomponents \
+
+ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+LOCAL_STATIC_LIBRARIES += libxml2
+endif #ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+
 
 LOCAL_SHARED_LIBRARIES += \
     libcutils \

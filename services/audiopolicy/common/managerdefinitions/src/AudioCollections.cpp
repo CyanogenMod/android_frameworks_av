@@ -37,15 +37,18 @@ sp<AudioPort> AudioPortVector::findByTagName(const String8 &tagName) const
     return port;
 }
 
-status_t AudioRouteVector::dump(int fd) const
+status_t AudioRouteVector::dump(int fd, int spaces) const
 {
+    if (isEmpty()) {
+        return NO_ERROR;
+    }
     const size_t SIZE = 256;
     char buffer[SIZE];
 
-    snprintf(buffer, SIZE, "\nAudio Route dump (%zu):\n", size());
+    snprintf(buffer, SIZE, "\n%*sAudio Routes (%zu):\n", spaces, "", size());
     write(fd, buffer, strlen(buffer));
     for (size_t i = 0; i < size(); i++) {
-        snprintf(buffer, SIZE, "- Route %zu:\n", i + 1);
+        snprintf(buffer, SIZE, "%*s- Route %zu:\n", spaces, "", i + 1);
         write(fd, buffer, strlen(buffer));
         itemAt(i)->dump(fd, 4);
     }

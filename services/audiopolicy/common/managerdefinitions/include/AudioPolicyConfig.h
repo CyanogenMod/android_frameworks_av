@@ -17,6 +17,7 @@
 #pragma once
 
 #include <AudioGain.h>
+#include <VolumeCurve.h>
 #include <AudioPort.h>
 #include <AudioPatch.h>
 #include <DeviceDescriptor.h>
@@ -50,6 +51,15 @@ public:
     void setHwModules(const HwModuleCollection &hwModules)
     {
         mHwModules = hwModules;
+    }
+
+    void addAvailableDevice(const sp<DeviceDescriptor> &availableDevice)
+    {
+        if (audio_is_output_device(availableDevice->type())) {
+            mAvailableOutputDevices.add(availableDevice);
+        } else if (audio_is_input_device(availableDevice->type())) {
+            mAvailableInputDevices.add(availableDevice);
+        }
     }
 
     void addAvailableInputDevices(const DeviceVector &availableInputDevices)

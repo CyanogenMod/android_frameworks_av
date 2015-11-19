@@ -29,18 +29,6 @@
 namespace android {
 
 // --- audio_policy.conf file parsing
-//static
-uint32_t ConfigParsingUtils::parseOutputFlagNames(const char *name)
-{
-    uint32_t flag = OutputFlagConverter::maskFromString(name);
-    //force direct flag if offload flag is set: offloading implies a direct output stream
-    // and all common behaviors are driven by checking only the direct flag
-    // this should normally be set appropriately in the policy configuration file
-    if ((flag & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
-        flag |= AUDIO_OUTPUT_FLAG_DIRECT;
-    }
-    return flag;
-}
 
 //static
 void ConfigParsingUtils::loadAudioPortGain(cnode *root, AudioPort &audioPort, int index)
@@ -193,7 +181,7 @@ status_t ConfigParsingUtils::loadHwModuleProfile(cnode *root, sp<HwModule> &modu
             if (role == AUDIO_PORT_ROLE_SINK) {
                 profile->setFlags(InputFlagConverter::maskFromString(node->value));
             } else {
-                profile->setFlags(ConfigParsingUtils::parseOutputFlagNames(node->value));
+                profile->setFlags(OutputFlagConverter::maskFromString(node->value));
             }
         } else if (strcmp(node->name, GAINS_TAG) == 0) {
             loadAudioPortGains(node, *profile);

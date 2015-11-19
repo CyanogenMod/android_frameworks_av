@@ -41,7 +41,11 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicypfwwrapper \
-    libaudiopolicycomponents
+    libaudiopolicycomponents \
+
+ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+LOCAL_STATIC_LIBRARIES += libxml2
+endif
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \

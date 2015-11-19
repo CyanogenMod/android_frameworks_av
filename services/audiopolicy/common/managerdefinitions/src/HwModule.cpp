@@ -247,10 +247,7 @@ void HwModule::dump(int fd)
         }
     }
     mDeclaredDevices.dump(fd, String8("Declared"),  2, true);
-    if (!mRoutes.empty()) {
-        write(fd, "  - Audio Route:\n", strlen("  - Audio Route:\n"));
-        mRoutes.dump(fd);
-    }
+    mRoutes.dump(fd, 2);
 }
 
 sp <HwModule> HwModuleCollection::getModuleFromName(const char *name) const
