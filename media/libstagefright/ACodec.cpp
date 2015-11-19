@@ -4323,7 +4323,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                 case OMX_AUDIO_CodingFLAC:
                 {
-                    if (portIndex == kPortIndexInput) {
                     OMX_AUDIO_PARAM_FLACTYPE params;
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
@@ -4338,7 +4337,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSampleRate);
                     break;
-                    }
                 }
 
                 case OMX_AUDIO_CodingMP3:
