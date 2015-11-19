@@ -68,7 +68,7 @@ int AVUtils::getAudioSampleBits(const sp<MetaData> &) {
 
 int AVUtils::getAudioSampleBits(const sp<AMessage> &format) {
     int32_t bits = 16;
-    format->findInt32("bit-width", &bits);
+    format->findInt32("bits-per-sample", &bits);
     return bits;
 }
 
