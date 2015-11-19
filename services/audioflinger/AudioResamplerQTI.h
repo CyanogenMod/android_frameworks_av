@@ -35,7 +35,7 @@ public:
     size_t getNumInSample(size_t outFrameCount);
 
     int16_t *mState;
-    int16_t *mTmpBuf;
+    int32_t *mTmpBuf;
     int32_t *mResamplerOutBuf;
     size_t mFrameIndex;
     size_t stateSize;
