@@ -1707,7 +1707,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     }
 
     int32_t bitWidth = 16;
-    format->findInt32("bit-width", &bitWidth);
+    format->findInt32("bits-per-sample", &bitWidth);
 
     int32_t sampleRate;
     CHECK(format->findInt32("sample-rate", &sampleRate));
