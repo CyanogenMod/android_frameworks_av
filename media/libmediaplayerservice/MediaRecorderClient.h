@@ -49,7 +49,6 @@ public:
     virtual     status_t   prepare();
     virtual     status_t   getMaxAmplitude(int* max);
     virtual     status_t   start();
-    virtual     status_t   pause();
     virtual     status_t   stop();
     virtual     status_t   reset();
     virtual     status_t   init();
@@ -59,6 +58,7 @@ public:
     virtual     status_t   setInputSurface(const sp<IGraphicBufferConsumer>& surface);
     virtual     sp<IGraphicBufferProducer> querySurfaceMediaSource();
 
+    virtual     status_t   pause();
 private:
     friend class           MediaPlayerService;  // for accessing private constructor
 

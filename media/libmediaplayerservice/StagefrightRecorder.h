@@ -60,7 +60,6 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t setParameters(const String8& params);
     virtual status_t setListener(const sp<IMediaRecorderClient>& listener);
     virtual status_t setClientName(const String16& clientName);
-    virtual status_t setSourcePause(bool pause);
     virtual status_t prepare();
     virtual status_t start();
     virtual status_t pause();
@@ -72,6 +71,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     // Querying a SurfaceMediaSourcer
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
+    virtual status_t setSourcePause(bool pause);
 protected:
     sp<ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
