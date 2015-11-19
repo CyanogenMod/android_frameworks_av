@@ -99,9 +99,8 @@ public:
         sp<OutputProfile> outProfile;
         outProfile = new OutputProfile(String8("primary"));
         outProfile->attach(module);
-        outProfile->mSamplingRates.add(44100);
-        outProfile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
-        outProfile->mChannelMasks.add(AUDIO_CHANNEL_OUT_STEREO);
+        outProfile->addAudioProfile(
+                new AudioProfile(AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO, 44100));
         outProfile->addSupportedDevice(mDefaultOutputDevices);
         outProfile->setFlags(AUDIO_OUTPUT_FLAG_PRIMARY);
         module->mOutputProfiles.add(outProfile);
@@ -109,9 +108,8 @@ public:
         sp<InputProfile> inProfile;
         inProfile = new InputProfile(String8("primary"));
         inProfile->attach(module);
-        inProfile->mSamplingRates.add(8000);
-        inProfile->mFormats.add(AUDIO_FORMAT_PCM_16_BIT);
-        inProfile->mChannelMasks.add(AUDIO_CHANNEL_IN_MONO);
+        inProfile->addAudioProfile(
+                new AudioProfile(AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_IN_MONO, 8000));
         inProfile->addSupportedDevice(defaultInputDevice);
         module->mInputProfiles.add(inProfile);
 

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "AudioProfile.h"
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <utils/RefBase.h>
@@ -57,42 +58,44 @@ public:
     virtual void toAudioPort(struct audio_port *port) const;
 
     virtual void importAudioPort(const sp<AudioPort> port);
-    void clearCapabilities();
+    void clearCapabilities() { mProfiles.clearProfiles(); }
 
-    void setSupportedFormats(const Vector <audio_format_t> &formats);
-    void setSupportedSamplingRates(const Vector <uint32_t> &sampleRates)
-    {
-        mSamplingRates = sampleRates;
-    }
-    void setSupportedChannelMasks(const Vector <audio_channel_mask_t> &channelMasks)
-    {
-        mChannelMasks = channelMasks;
-    }
+    void addAudioProfile(const sp<AudioProfile> &profile) { mProfiles.add(profile); }
+
+    void setAudioProfiles(const AudioProfileVector &profiles) { mProfiles = profiles; }
+    AudioProfileVector &getAudioProfiles() { return mProfiles; }
+
+    bool hasValidAudioProfile() const { return mProfiles.hasValidProfile(); }
+
+    bool hasDynamicAudioProfile() const { return mProfiles.hasDynamicProfile(); }
 
     // searches for an exact match
-    status_t checkExactSamplingRate(uint32_t samplingRate) const;
-    // searches for a compatible match, and returns the best match via updatedSamplingRate
-    status_t checkCompatibleSamplingRate(uint32_t samplingRate,
-            uint32_t *updatedSamplingRate) const;
-    // searches for an exact match
-    status_t checkExactChannelMask(audio_channel_mask_t channelMask) const;
-    // searches for a compatible match, currently implemented for input channel masks only
-    status_t checkCompatibleChannelMask(audio_channel_mask_t channelMask,
-            audio_channel_mask_t *updatedChannelMask) const;
+    status_t checkExactAudioProfile(uint32_t samplingRate,
+                                    audio_channel_mask_t channelMask,
+                                    audio_format_t format) const
+    {
+        return mProfiles.checkExactProfile(samplingRate, channelMask, format);
+    }
 
-    status_t checkExactFormat(audio_format_t format) const;
-    // searches for a compatible match, currently implemented for input formats only
-    status_t checkCompatibleFormat(audio_format_t format, audio_format_t *updatedFormat) const;
+    // searches for a compatible match, currently implemented for input
+    // parameters are input|output, returned value is the best match.
+    status_t checkCompatibleAudioProfile(uint32_t &samplingRate,
+                                         audio_channel_mask_t &channelMask,
+                                         audio_format_t &format) const
+    {
+        return mProfiles.checkCompatibleProfile(samplingRate, channelMask, format, mType, mRole);
+    }
+
+    void clearAudioProfiles() { return mProfiles.clearProfiles(); }
+
     status_t checkGain(const struct audio_gain_config *gainConfig, int index) const;
 
-    uint32_t pickSamplingRate() const;
-    audio_channel_mask_t pickChannelMask() const;
-    audio_format_t pickFormat() const;
+    void pickAudioProfile(uint32_t &samplingRate,
+                          audio_channel_mask_t &channelMask,
+                          audio_format_t &format) const;
 
     static const audio_format_t sPcmFormatCompareTable[];
-    static int compareFormats(const audio_format_t *format1, const audio_format_t *format2) {
-        return compareFormats(*format1, *format2);
-    }
+
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 
     audio_module_handle_t getModuleHandle() const;
@@ -105,23 +108,27 @@ public:
                 ((mType == AUDIO_PORT_TYPE_MIX) && (mRole == AUDIO_PORT_ROLE_SINK));
     }
 
-    void dump(int fd, int spaces) const;
+    inline bool isDirectOutput() const
+    {
+        return (mType == AUDIO_PORT_TYPE_MIX) && (mRole == AUDIO_PORT_ROLE_SOURCE) &&
+                (mFlags & (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD));
+    }
+
+    void dump(int fd, int spaces, bool verbose = true) const;
     void log(const char* indent) const;
 
-    // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
-    // indicates the supported parameters should be read from the output stream
-    // after it is opened for the first time
-    Vector <uint32_t> mSamplingRates; // supported sampling rates
-    Vector <audio_channel_mask_t> mChannelMasks; // supported channel masks
-    Vector <audio_format_t> mFormats; // supported audio formats
     AudioGainCollection mGains; // gain controllers
     sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
 
 private:
+    void pickChannelMask(audio_channel_mask_t &channelMask, const ChannelsVector &channelMasks) const;
+    void pickSamplingRate(uint32_t &rate,const SampleRateVector &samplingRates) const;
+
     String8           mName;
     audio_port_type_t mType;
     audio_port_role_t mRole;
     uint32_t mFlags; // attribute flags mask (e.g primary output, direct output...).
+    AudioProfileVector mProfiles; // AudioProfiles supported by this port (format, Rates, Channels)
     static volatile int32_t mNextUniqueId;
 };
 
@@ -132,9 +139,9 @@ public:
     virtual ~AudioPortConfig() {}
 
     status_t applyAudioPortConfig(const struct audio_port_config *config,
-            struct audio_port_config *backupConfig = NULL);
+                                  struct audio_port_config *backupConfig = NULL);
     virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
-            const struct audio_port_config *srcConfig = NULL) const = 0;
+                                   const struct audio_port_config *srcConfig = NULL) const = 0;
     virtual sp<AudioPort> getAudioPort() const = 0;
     uint32_t mSamplingRate;
     audio_format_t mFormat;

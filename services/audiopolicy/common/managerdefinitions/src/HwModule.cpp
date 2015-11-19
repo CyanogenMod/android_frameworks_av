@@ -43,13 +43,12 @@ HwModule::~HwModule()
 }
 
 status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
-                                                  audio_devices_t device, String8 address)
+                                    audio_devices_t device, String8 address)
 {
     sp<IOProfile> profile = new OutputProfile(name);
 
-    profile->mSamplingRates.add(config->sample_rate);
-    profile->mChannelMasks.add(config->channel_mask);
-    profile->mFormats.add(config->format);
+    profile->addAudioProfile(new AudioProfile(config->format, config->channel_mask,
+                                              config->sample_rate));
 
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
@@ -105,13 +104,11 @@ status_t HwModule::removeOutputProfile(String8 name)
 }
 
 status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
-                                                  audio_devices_t device, String8 address)
+                                   audio_devices_t device, String8 address)
 {
     sp<IOProfile> profile = new InputProfile(name);
-
-    profile->mSamplingRates.add(config->sample_rate);
-    profile->mChannelMasks.add(config->channel_mask);
-    profile->mFormats.add(config->format);
+    profile->addAudioProfile(new AudioProfile(config->format, config->channel_mask,
+                                              config->sample_rate));
 
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
@@ -165,12 +162,7 @@ void HwModule::dump(int fd)
             mInputProfiles[i]->dump(fd);
         }
     }
-    if (mDeclaredDevices.size()) {
-        write(fd, "  - devices:\n", strlen("  - devices:\n"));
-        for (size_t i = 0; i < mDeclaredDevices.size(); i++) {
-            mDeclaredDevices[i]->dump(fd, 4, i);
-        }
-    }
+    mDeclaredDevices.dump(fd, String8("Declared"),  2, true);
 }
 
 sp <HwModule> HwModuleCollection::getModuleFromName(const char *name) const

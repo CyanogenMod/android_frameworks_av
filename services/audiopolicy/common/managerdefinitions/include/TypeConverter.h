@@ -27,14 +27,10 @@
 
 namespace android {
 
-#define DYNAMIC_VALUE_TAG "dynamic" // special value for "channel_masks", "sampling_rates" and
-                                    // "formats" in outputs descriptors indicating that supported
-                                    // values should be queried after opening the output.
-
 struct SampleRateTraits
 {
     typedef uint32_t Type;
-    typedef Vector<Type> Collection;
+    typedef SortedVector<Type> Collection;
 };
 struct DeviceTraits
 {
@@ -59,7 +55,7 @@ struct FormatTraits
 struct ChannelTraits
 {
     typedef audio_channel_mask_t Type;
-    typedef Vector<Type> Collection;
+    typedef SortedVector<Type> Collection;
 };
 struct OutputChannelTraits : public ChannelTraits {};
 struct InputChannelTraits : public ChannelTraits {};
@@ -139,50 +135,27 @@ static SampleRateTraits::Collection samplingRatesFromString(const std::string &s
                                                             const char *del = "|")
 {
     SampleRateTraits::Collection samplingRateCollection;
-    // by convention, "0' in the first entry in mSamplingRates indicates the supported sampling
-    // rates should be read from the output stream after it is opened for the first time
-    if (samplingRates == DYNAMIC_VALUE_TAG) {
-        samplingRateCollection.add(gDynamicRate);
-    } else {
-        collectionFromString<SampleRateTraits>(samplingRates, samplingRateCollection, del);
-    }
+    collectionFromString<SampleRateTraits>(samplingRates, samplingRateCollection, del);
     return samplingRateCollection;
 }
 
 static FormatTraits::Collection formatsFromString(const std::string &formats, const char *del = "|")
 {
     FormatTraits::Collection formatCollection;
-    // by convention, "0' in the first entry in mFormats indicates the supported formats
-    // should be read from the output stream after it is opened for the first time
-    if (formats == DYNAMIC_VALUE_TAG) {
-        formatCollection.add(gDynamicFormat);
-    } else {
-        FormatConverter::collectionFromString(formats, formatCollection, del);
-    }
+    FormatConverter::collectionFromString(formats, formatCollection, del);
     return formatCollection;
 }
 
 static audio_format_t formatFromString(const std::string &literalFormat)
 {
     audio_format_t format;
-    // by convention, "0' in the first entry in literalFormat indicates the supported formats
-    // should be read from the output stream after it is opened for the first time
-    if (literalFormat == DYNAMIC_VALUE_TAG) {
-        return gDynamicFormat;
-    } else {
-        FormatConverter::fromString(literalFormat, format);
-    }
+    FormatConverter::fromString(literalFormat, format);
     return format;
 }
 
 static audio_channel_mask_t channelMaskFromString(const std::string &literalChannels)
 {
     audio_channel_mask_t channels;
-    // by convention, "0' in the first entry in literalChannels indicates the supported channels
-    // should be read from the output stream after it is opened for the first time
-    if (literalChannels == DYNAMIC_VALUE_TAG) {
-        return gDynamicChannelMask;
-    }
     if (!OutputChannelConverter::fromString(literalChannels, channels) ||
             !InputChannelConverter::fromString(literalChannels, channels)) {
         return AUDIO_CHANNEL_INVALID;
@@ -194,13 +167,9 @@ static ChannelTraits::Collection channelMasksFromString(const std::string &chann
                                                         const char *del = "|")
 {
     ChannelTraits::Collection channelMaskCollection;
-    if (channels == DYNAMIC_VALUE_TAG) {
-        channelMaskCollection.add(gDynamicChannelMask);
-    } else {
-        OutputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
-        InputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
-        ChannelIndexConverter::collectionFromString(channels, channelMaskCollection, del);
-    }
+    OutputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
+    InputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
+    ChannelIndexConverter::collectionFromString(channels, channelMaskCollection, del);
     return channelMaskCollection;
 }
 
@@ -208,12 +177,8 @@ static InputChannelTraits::Collection inputChannelMasksFromString(const std::str
                                                                   const char *del = "|")
 {
     InputChannelTraits::Collection inputChannelMaskCollection;
-    if (inChannels == DYNAMIC_VALUE_TAG) {
-        inputChannelMaskCollection.add(gDynamicChannelMask);
-    } else {
-        InputChannelConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
-        ChannelIndexConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
-    }
+    InputChannelConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
+    ChannelIndexConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
     return inputChannelMaskCollection;
 }
 
@@ -221,14 +186,8 @@ static OutputChannelTraits::Collection outputChannelMasksFromString(const std::s
                                                                     const char *del = "|")
 {
     OutputChannelTraits::Collection outputChannelMaskCollection;
-    // by convention, "0' in the first entry in mChannelMasks indicates the supported channel
-    // masks should be read from the output stream after it is opened for the first time
-    if (outChannels == DYNAMIC_VALUE_TAG) {
-        outputChannelMaskCollection.add(gDynamicChannelMask);
-    } else {
-        OutputChannelConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
-        ChannelIndexConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
-    }
+    OutputChannelConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
+    ChannelIndexConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
     return outputChannelMaskCollection;
 }
 

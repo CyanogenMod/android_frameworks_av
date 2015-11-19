@@ -32,9 +32,7 @@ AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
       mProfile(profile), mId(0)
 {
     if (profile != NULL) {
-        mSamplingRate = profile->pickSamplingRate();
-        mFormat = profile->pickFormat();
-        mChannelMask = profile->pickChannelMask();
+        profile->pickAudioProfile(mSamplingRate, mChannelMask, mFormat);
         if (profile->mGains.size() > 0) {
             profile->mGains[0]->getDefaultConfig(&mGain);
         }

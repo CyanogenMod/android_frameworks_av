@@ -45,8 +45,7 @@ private:
     static void loadAudioPortGains(cnode *root, AudioPort &audioPort);
     static void loadDeviceDescriptorGains(cnode *root, sp<DeviceDescriptor> &deviceDesc);
     static status_t loadHwModuleDevice(cnode *root, DeviceVector &devices);
-    static status_t loadHwModuleInput(cnode *root, sp<HwModule> &module);
-    static status_t loadHwModuleOutput(cnode *root, sp<HwModule> &module);
+    static status_t loadHwModuleProfile(cnode *root, sp<HwModule> &module, audio_port_role_t role);
     static void loadDevicesFromTag(const char *tag, DeviceVector &devices,
                             const DeviceVector &declaredDevices);
     static void loadHwModules(cnode *root, HwModuleCollection &hwModules,

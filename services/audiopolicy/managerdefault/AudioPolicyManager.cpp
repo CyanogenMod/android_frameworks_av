@@ -2091,8 +2091,8 @@ status_t AudioPolicyManager::dump(int fd)
 
     write(fd, result.string(), result.size());
 
-    mAvailableOutputDevices.dump(fd, String8("output"));
-    mAvailableInputDevices.dump(fd, String8("input"));
+    mAvailableOutputDevices.dump(fd, String8("Available output"));
+    mAvailableInputDevices.dump(fd, String8("Available input"));
     mHwModules.dump(fd);
     mOutputs.dump(fd);
     mInputs.dump(fd);
@@ -3502,55 +3502,14 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                     mpClientInterface->setParameters(output, String8(param));
                     free(param);
                 }
-
-                // Here is where we step through and resolve any "dynamic" fields
-                String8 reply;
-                char *value;
-                if (profile->mSamplingRates[0] == 0) {
-                    reply = mpClientInterface->getParameters(output,
-                                            String8(AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES));
-                    ALOGV("checkOutputsForDevice() supported sampling rates %s",
-                              reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedSamplingRates(samplingRatesFromString(value + 1));
-                    }
-                }
-                if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
-                    reply = mpClientInterface->getParameters(output,
-                                                   String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
-                    ALOGV("checkOutputsForDevice() supported formats %s",
-                              reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedFormats(formatsFromString(value + 1));
-                    }
-                }
-                if (profile->mChannelMasks[0] == 0) {
-                    reply = mpClientInterface->getParameters(output,
-                                                  String8(AUDIO_PARAMETER_STREAM_SUP_CHANNELS));
-                    ALOGV("checkOutputsForDevice() supported channel masks %s",
-                              reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedChannelMasks(outputChannelMasksFromString(value + 1));
-                    }
-                }
-                if (((profile->mSamplingRates[0] == 0) &&
-                         (profile->mSamplingRates.size() < 2)) ||
-                     ((profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) &&
-                         (profile->mFormats.size() < 2)) ||
-                     ((profile->mChannelMasks[0] == 0) &&
-                         (profile->mChannelMasks.size() < 2))) {
+                updateAudioProfiles(output, profile->getAudioProfiles());
+                if (!profile->hasValidAudioProfile()) {
                     ALOGW("checkOutputsForDevice() missing param");
                     mpClientInterface->closeOutput(output);
                     output = AUDIO_IO_HANDLE_NONE;
-                } else if (profile->mSamplingRates[0] == 0 || profile->mFormats[0] == 0 ||
-                            profile->mChannelMasks[0] == 0) {
+                } else if (profile->hasDynamicAudioProfile()) {
                     mpClientInterface->closeOutput(output);
-                    config.sample_rate = profile->pickSamplingRate();
-                    config.channel_mask = profile->pickChannelMask();
-                    config.format = profile->pickFormat();
+                    profile->pickAudioProfile(config.sample_rate, config.channel_mask, config.format);
                     config.offload_info.sample_rate = config.sample_rate;
                     config.offload_info.channel_mask = config.channel_mask;
                     config.offload_info.format = config.format;
@@ -3674,18 +3633,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                 if (profile->supportDevice(device)) {
                     ALOGV("checkOutputsForDevice(): "
                             "clearing direct output profile %zu on module %zu", j, i);
-                    if (profile->mSamplingRates[0] == 0) {
-                        profile->mSamplingRates.clear();
-                        profile->mSamplingRates.add(0);
-                    }
-                    if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
-                        profile->mFormats.clear();
-                        profile->mFormats.add(AUDIO_FORMAT_DEFAULT);
-                    }
-                    if (profile->mChannelMasks[0] == 0) {
-                        profile->mChannelMasks.clear();
-                        profile->mChannelMasks.add(0);
-                    }
+                    profile->clearAudioProfiles();
                 }
             }
         }
@@ -3791,42 +3739,8 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                     mpClientInterface->setParameters(input, String8(param));
                     free(param);
                 }
-
-                // Here is where we step through and resolve any "dynamic" fields
-                String8 reply;
-                char *value;
-                if (profile->mSamplingRates[0] == 0) {
-                    reply = mpClientInterface->getParameters(input,
-                                            String8(AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES));
-                    ALOGV("checkInputsForDevice() direct input sup sampling rates %s",
-                              reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedSamplingRates(samplingRatesFromString(value + 1));
-                    }
-                }
-                if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
-                    reply = mpClientInterface->getParameters(input,
-                                                   String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
-                    ALOGV("checkInputsForDevice() direct input sup formats %s", reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedFormats(formatsFromString(value + 1));
-                    }
-                }
-                if (profile->mChannelMasks[0] == 0) {
-                    reply = mpClientInterface->getParameters(input,
-                                                  String8(AUDIO_PARAMETER_STREAM_SUP_CHANNELS));
-                    ALOGV("checkInputsForDevice() direct input sup channel masks %s",
-                              reply.string());
-                    value = strpbrk((char *)reply.string(), "=");
-                    if (value != NULL) {
-                        profile->setSupportedChannelMasks(inputChannelMasksFromString(value + 1));
-                    }
-                }
-                if (((profile->mSamplingRates[0] == 0) && (profile->mSamplingRates.size() < 2)) ||
-                     ((profile->mFormats[0] == 0) && (profile->mFormats.size() < 2)) ||
-                     ((profile->mChannelMasks[0] == 0) && (profile->mChannelMasks.size() < 2))) {
+                updateAudioProfiles(input, profile->getAudioProfiles());
+                if (!profile->hasValidAudioProfile()) {
                     ALOGW("checkInputsForDevice() direct input missing param");
                     mpClientInterface->closeInput(input);
                     input = AUDIO_IO_HANDLE_NONE;
@@ -3877,18 +3791,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                 if (profile->supportDevice(device)) {
                     ALOGV("checkInputsForDevice(): clearing direct input profile %zu on module %zu",
                           profile_index, module_index);
-                    if (profile->mSamplingRates[0] == 0) {
-                        profile->mSamplingRates.clear();
-                        profile->mSamplingRates.add(0);
-                    }
-                    if (profile->mFormats[0] == AUDIO_FORMAT_DEFAULT) {
-                        profile->mFormats.clear();
-                        profile->mFormats.add(AUDIO_FORMAT_DEFAULT);
-                    }
-                    if (profile->mChannelMasks[0] == 0) {
-                        profile->mChannelMasks.clear();
-                        profile->mChannelMasks.add(0);
-                    }
+                    profile->clearAudioProfiles();
                 }
             }
         }
@@ -5148,5 +5051,51 @@ void AudioPolicyManager::cleanUpForDevice(const sp<DeviceDescriptor>& deviceDesc
     }
 }
 
+void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
+                                             AudioProfileVector &profiles)
+{
+    String8 reply;
+    char *value;
+    // Format MUST be checked first to update the list of AudioProfile
+    if (profiles.hasDynamicFormat()) {
+        reply = mpClientInterface->getParameters(ioHandle,
+                                                 String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
+        ALOGV("%s: supported formats %s", __FUNCTION__, reply.string());
+        value = strpbrk((char *)reply.string(), "=");
+        if (value == NULL) {
+            ALOGE("%s: failed to retrieve format, bailing out", __FUNCTION__);
+            return;
+        }
+        profiles.setFormats(formatsFromString(value + 1));
+    }
+    const FormatVector &supportedFormats = profiles.getSupportedFormats();
+
+    for(size_t formatIndex = 0; formatIndex < supportedFormats.size(); formatIndex++) {
+        audio_format_t format = supportedFormats[formatIndex];
+        AudioParameter requestedParameters;
+        requestedParameters.addInt(String8(AUDIO_PARAMETER_STREAM_FORMAT), format);
+
+        if (profiles.hasDynamicRateFor(format)) {
+            reply = mpClientInterface->getParameters(ioHandle,
+                                                     requestedParameters.toString() + ";" +
+                                                     AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES);
+            ALOGV("%s: supported sampling rates %s", __FUNCTION__, reply.string());
+            value = strpbrk((char *)reply.string(), "=");
+            if (value != NULL) {
+                profiles.setSampleRatesFor(samplingRatesFromString(value + 1), format);
+            }
+        }
+        if (profiles.hasDynamicChannelsFor(format)) {
+            reply = mpClientInterface->getParameters(ioHandle,
+                                                     requestedParameters.toString() + ";" +
+                                                     AUDIO_PARAMETER_STREAM_SUP_CHANNELS);
+            ALOGV("%s: supported channel masks %s", __FUNCTION__, reply.string());
+            value = strpbrk((char *)reply.string(), "=");
+            if (value != NULL) {
+                profiles.setChannelsFor(channelMasksFromString(value + 1), format);
+            }
+        }
+    }
+}
 
 }; // namespace android

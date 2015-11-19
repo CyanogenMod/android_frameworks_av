@@ -50,7 +50,7 @@ public:
     virtual void importAudioPort(const sp<AudioPort> port);
 
     audio_port_handle_t getId() const;
-    status_t dump(int fd, int spaces, int index) const;
+    status_t dump(int fd, int spaces, int index, bool verbose = true) const;
     void log() const;
 
     String8 mAddress;
@@ -85,7 +85,7 @@ public:
 
     audio_policy_dev_state_t getDeviceConnectionState(const sp<DeviceDescriptor> &devDesc) const;
 
-    status_t dump(int fd, const String8 &direction) const;
+    status_t dump(int fd, const String8 &tag, int spaces = 0, bool verbose = true) const;
 
 private:
     void refreshTypes();

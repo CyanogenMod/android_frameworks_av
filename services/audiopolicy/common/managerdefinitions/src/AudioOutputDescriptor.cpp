@@ -47,9 +47,7 @@ AudioOutputDescriptor::AudioOutputDescriptor(const sp<AudioPort>& port,
         mStrategyMutedByDevice[i] = false;
     }
     if (port != NULL) {
-        mSamplingRate = port->pickSamplingRate();
-        mFormat = port->pickFormat();
-        mChannelMask = port->pickChannelMask();
+        port->pickAudioProfile(mSamplingRate, mChannelMask, mFormat);
         if (port->mGains.size() > 0) {
             port->mGains[0]->getDefaultConfig(&mGain);
         }

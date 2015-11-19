@@ -207,15 +207,18 @@ sp<DeviceDescriptor> DeviceVector::getDeviceFromTagName(const String8 &tagName) 
     return device;
 }
 
-status_t DeviceVector::dump(int fd, const String8 &direction) const
+status_t DeviceVector::dump(int fd, const String8 &tag, int spaces, bool verbose) const
 {
+    if (isEmpty()) {
+        return NO_ERROR;
+    }
     const size_t SIZE = 256;
     char buffer[SIZE];
 
-    snprintf(buffer, SIZE, "\n Available %s devices:\n", direction.string());
+    snprintf(buffer, SIZE, "%*s %s devices:\n", spaces, "", tag.string());
     write(fd, buffer, strlen(buffer));
     for (size_t i = 0; i < size(); i++) {
-        itemAt(i)->dump(fd, 2, i);
+        itemAt(i)->dump(fd, spaces + 4, i, verbose);
     }
     return NO_ERROR;
 }
@@ -263,12 +266,10 @@ void DeviceDescriptor::toAudioPort(struct audio_port *port) const
 
 void DeviceDescriptor::importAudioPort(const sp<AudioPort> port) {
     AudioPort::importAudioPort(port);
-    mSamplingRate = port->pickSamplingRate();
-    mFormat = port->pickFormat();
-    mChannelMask = port->pickChannelMask();
+    port->pickAudioProfile(mSamplingRate, mChannelMask, mFormat);
 }
 
-status_t DeviceDescriptor::dump(int fd, int spaces, int index) const
+status_t DeviceDescriptor::dump(int fd, int spaces, int index, bool verbose) const
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -290,7 +291,7 @@ status_t DeviceDescriptor::dump(int fd, int spaces, int index) const
         result.append(buffer);
     }
     write(fd, result.string(), result.size());
-    AudioPort::dump(fd, spaces);
+    AudioPort::dump(fd, spaces, verbose);
 
     return NO_ERROR;
 }

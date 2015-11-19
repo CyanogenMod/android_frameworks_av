@@ -18,9 +18,7 @@
 
 #include <system/audio.h>
 
-static const uint32_t gDynamicRate = 0;
 static const audio_format_t gDynamicFormat = AUDIO_FORMAT_DEFAULT;
-static const audio_channel_mask_t gDynamicChannelMask = AUDIO_CHANNEL_NONE;
 
 // For mixed output and inputs, the policy will use max mixer sampling rates.
 // Do not limit sampling rate otherwise

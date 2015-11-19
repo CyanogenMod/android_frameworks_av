@@ -9,6 +9,7 @@ LOCAL_SRC_FILES:= \
     src/HwModule.cpp \
     src/IOProfile.cpp \
     src/AudioPort.cpp \
+    src/AudioProfile.cpp \
     src/AudioPolicyMix.cpp \
     src/AudioPatch.cpp \
     src/AudioInputDescriptor.cpp \
