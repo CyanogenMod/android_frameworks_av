@@ -5859,11 +5859,11 @@ bool ACodec::LoadedState::onConfigureComponent(
             mCodec->mComponentName = componentName;
 
             err = mCodec->configureCodec(mime.c_str(), msg);
+        }
 
-            if (err != OK) {
-                mCodec->signalError((OMX_ERRORTYPE)err, makeNoSideEffectStatus(err));
-                return false;
-            }
+        if (err != OK) {
+            mCodec->signalError((OMX_ERRORTYPE)err, makeNoSideEffectStatus(err));
+            return false;
         }
     }
 
