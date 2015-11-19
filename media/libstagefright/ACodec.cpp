@@ -4321,26 +4321,6 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     break;
                 }
 
-                case OMX_AUDIO_CodingFLAC:
-                {
-                    if (portIndex == kPortIndexInput) {
-                    OMX_AUDIO_PARAM_FLACTYPE params;
-                    InitOMXParams(&params);
-                    params.nPortIndex = portIndex;
-
-                    err = mOMX->getParameter(
-                            mNode, OMX_IndexParamAudioFlac, &params, sizeof(params));
-                    if (err != OK) {
-                        return err;
-                    }
-
-                    notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
-                    notify->setInt32("channel-count", params.nChannels);
-                    notify->setInt32("sample-rate", params.nSampleRate);
-                    break;
-                    }
-                }
-
                 case OMX_AUDIO_CodingMP3:
                 {
                     OMX_AUDIO_PARAM_MP3TYPE params;
@@ -4476,6 +4456,27 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
                     break;
+                }
+
+                case OMX_AUDIO_CodingFLAC:
+                {
+                    if (portIndex == kPortIndexInput) {
+                        OMX_AUDIO_PARAM_FLACTYPE params;
+                        InitOMXParams(&params);
+                        params.nPortIndex = portIndex;
+
+                        err = mOMX->getParameter(
+                                mNode, OMX_IndexParamAudioFlac, &params, sizeof(params));
+                        if (err != OK) {
+                            return err;
+                        }
+
+                        notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
+                        notify->setInt32("channel-count", params.nChannels);
+                        notify->setInt32("sample-rate", params.nSampleRate);
+                        break;
+                    }
+                    /* Assume output port is FFMPEG and fall through */
                 }
 
                 default:
