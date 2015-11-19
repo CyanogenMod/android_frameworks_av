@@ -4323,7 +4323,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                 case OMX_AUDIO_CodingFLAC:
                 {
-                    if (portIndex == kPortIndexInput) {
+                    if (!strncmp(mComponentName.c_str(), "OMX.ffmpeg.", 11)) {
+                        err = FFMPEGSoftCodec::getAudioPortFormat(portIndex,
+                                (int)audioDef->eEncoding, notify, mOMX, mNode);
+                        if (err != OK) {
+                            return err;
+                        }
+                    } else {
                     OMX_AUDIO_PARAM_FLACTYPE params;
                     InitOMXParams(&params);
                     params.nPortIndex = portIndex;
@@ -4337,8 +4343,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSampleRate);
-                    break;
                     }
+                    break;
                 }
 
                 case OMX_AUDIO_CodingMP3:
