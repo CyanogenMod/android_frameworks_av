@@ -25,6 +25,10 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/MediaDefs.h>
 
+#ifndef INT32_MAX
+#define INT32_MAX   2147483647
+#endif
+
 namespace android {
 
 
@@ -300,6 +304,10 @@ status_t SoftVPXEncoder::initEncoder() {
 
     if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar || mInputDataIsMeta) {
         if (mConversionBuffer == NULL) {
+            if (((uint64_t)mWidth * mHeight) > ((uint64_t)INT32_MAX / 3)) {
+                ALOGE("b/25812794, Buffer size is too big.");
+                return UNKNOWN_ERROR;
+            }
             mConversionBuffer = (uint8_t *)malloc(mWidth * mHeight * 3 / 2);
             if (mConversionBuffer == NULL) {
                 ALOGE("Allocating conversion buffer failed.");
