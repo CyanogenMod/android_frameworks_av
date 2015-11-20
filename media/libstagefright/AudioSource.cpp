@@ -304,10 +304,6 @@ void AudioSource::signalBufferReturned(MediaBuffer *buffer) {
 
 status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
     int64_t timeUs = systemTime() / 1000ll;
-    // Estimate the real sampling time of the 1st sample in this buffer
-    // from AudioRecord's latency. (Apply this adjustment first so that
-    // the start time logic is not affected.)
-    timeUs -= mRecord->latency() * 1000LL;
 
     ALOGV("dataCallbackTimestamp: %" PRId64 " us", timeUs);
     Mutex::Autolock autoLock(mLock);
