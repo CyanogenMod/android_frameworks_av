@@ -28,6 +28,7 @@
  */
 #include <dlfcn.h>
 #include <common/AVExtensionsCommon.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -52,9 +53,12 @@ T *ExtensionsLoader<T>::createInstance(const char *createFunctionName) {
         // create extended object if extensions-lib is available and
         // AV_ENHANCEMENTS is enabled
 #if ENABLE_AV_ENHANCEMENTS
-        createFunction_t createFunc = loadCreateFunction(createFunctionName);
-        if (createFunc) {
-            return reinterpret_cast<T *>((*createFunc)());
+        bool enabled = property_get_bool("media.avenhancements.enabled", false);
+        if (enabled) {
+            createFunction_t createFunc = loadCreateFunction(createFunctionName);
+            if (createFunc) {
+                return reinterpret_cast<T *>((*createFunc)());
+            }
         }
 #endif
         // Else, create the default object
