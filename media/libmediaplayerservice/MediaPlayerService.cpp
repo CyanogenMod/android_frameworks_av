@@ -286,9 +286,7 @@ MediaPlayerService::MediaPlayerService()
     // reset battery stats
     // if the mediaserver has crashed, battery stats could be left
     // in bad state, reset the state upon service start.
-    BatteryNotifier& notifier(BatteryNotifier::getInstance());
-    notifier.noteResetVideo();
-    notifier.noteResetAudio();
+    BatteryNotifier::getInstance().noteResetVideo();
 
     MediaPlayerFactory::registerBuiltinFactories();
 }

@@ -2810,25 +2810,15 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
 }
 
 void MediaCodec::updateBatteryStat() {
+    if (!mIsVideo) {
+        return;
+    }
+
     if (mState == CONFIGURED && !mBatteryStatNotified) {
-        BatteryNotifier& notifier(BatteryNotifier::getInstance());
-
-        if (mIsVideo) {
-            notifier.noteStartVideo();
-        } else {
-            notifier.noteStartAudio();
-        }
-
+        BatteryNotifier::getInstance().noteStartVideo();
         mBatteryStatNotified = true;
     } else if (mState == UNINITIALIZED && mBatteryStatNotified) {
-        BatteryNotifier& notifier(BatteryNotifier::getInstance());
-
-        if (mIsVideo) {
-            notifier.noteStopVideo();
-        } else {
-            notifier.noteStopAudio();
-        }
-
+        BatteryNotifier::getInstance().noteStopVideo();
         mBatteryStatNotified = false;
     }
 }

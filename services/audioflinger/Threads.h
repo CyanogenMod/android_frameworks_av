@@ -457,6 +457,7 @@ protected:
                 static const size_t     kLogSize = 4 * 1024;
                 sp<NBLog::Writer>       mNBLogWriter;
                 bool                    mSystemReady;
+                bool                    mNotifiedBatteryStart;
 };
 
 // --- PlaybackThread ---

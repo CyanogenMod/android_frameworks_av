@@ -47,6 +47,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog \
     libbinder \
     libmedia \
+    libmediautils \
     libnbaio \
     libhardware \
     libhardware_legacy \

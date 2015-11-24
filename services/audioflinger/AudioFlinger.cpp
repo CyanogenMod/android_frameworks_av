@@ -63,6 +63,7 @@
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
 #include <media/AudioParameter.h>
+#include <mediautils/BatteryNotifier.h>
 #include <private/android_filesystem_config.h>
 
 // ----------------------------------------------------------------------------
@@ -190,6 +191,11 @@ AudioFlinger::AudioFlinger()
         mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters",
                 MemoryHeapBase::READ_ONLY);
     }
+
+    // reset battery stats.
+    // if the audio service has crashed, battery stats could be left
+    // in bad state, reset the state upon service start.
+    BatteryNotifier::getInstance().noteResetAudio();
 
 #ifdef TEE_SINK
     (void) property_get("ro.debuggable", value, "0");

@@ -48,6 +48,7 @@
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
 #include <media/nbaio/SourceAudioBufferProvider.h>
+#include <mediautils/BatteryNotifier.h>
 
 #include <powermanager/PowerManager.h>
 
@@ -546,7 +547,8 @@ AudioFlinger::ThreadBase::ThreadBase(const sp<AudioFlinger>& audioFlinger, audio
         mAudioSource(AUDIO_SOURCE_DEFAULT), mId(id),
         // mName will be set by concrete (non-virtual) subclass
         mDeathRecipient(new PMDeathRecipient(this)),
-        mSystemReady(systemReady)
+        mSystemReady(systemReady),
+        mNotifiedBatteryStart(false)
 {
     memset(&mPatch, 0, sizeof(struct audio_patch));
 }
@@ -927,6 +929,11 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         }
         ALOGV("acquireWakeLock_l() %s status %d", mThreadName, status);
     }
+
+    if (!mNotifiedBatteryStart) {
+        BatteryNotifier::getInstance().noteStartAudio();
+        mNotifiedBatteryStart = true;
+    }
 }
 
 void AudioFlinger::ThreadBase::releaseWakeLock()
@@ -944,6 +951,11 @@ void AudioFlinger::ThreadBase::releaseWakeLock_l()
                     true /* FIXME force oneway contrary to .aidl */);
         }
         mWakeLockToken.clear();
+    }
+
+    if (mNotifiedBatteryStart) {
+        BatteryNotifier::getInstance().noteStopAudio();
+        mNotifiedBatteryStart = false;
     }
 }
 
