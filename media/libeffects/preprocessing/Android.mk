@@ -11,9 +11,9 @@ LOCAL_SRC_FILES:= \
     PreProcessing.cpp
 
 LOCAL_C_INCLUDES += \
-    external/webrtc/src \
-    external/webrtc/src/modules/interface \
-    external/webrtc/src/modules/audio_processing/include \
+    external/webrtc \
+    external/webrtc/webrtc/modules/interface \
+    external/webrtc/webrtc/modules/audio_processing/include \
     $(call include-path-for, audio-effects)
 
 LOCAL_C_INCLUDES += $(call include-path-for, speex)
@@ -25,6 +25,10 @@ LOCAL_SHARED_LIBRARIES := \
     liblog
 
 LOCAL_SHARED_LIBRARIES += libdl
+
+LOCAL_CFLAGS += \
+    -DWEBRTC_POSIX
+
 LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
