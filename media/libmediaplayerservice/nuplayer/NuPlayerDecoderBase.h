@@ -36,6 +36,9 @@ struct NuPlayer::DecoderBase : public AHandler {
     void init();
     void setParameters(const sp<AMessage> &params);
 
+    // Synchronous call to ensure decoder will not request or send out data.
+    void pause();
+
     void setRenderer(const sp<Renderer> &renderer);
     virtual status_t setVideoSurface(const sp<Surface> &) { return INVALID_OPERATION; }
 
@@ -78,6 +81,7 @@ protected:
 
     sp<AMessage> mNotify;
     int32_t mBufferGeneration;
+    bool mPaused;
     sp<AMessage> mStats;
 
 private:
@@ -85,6 +89,7 @@ private:
         kWhatConfigure           = 'conf',
         kWhatSetParameters       = 'setP',
         kWhatSetRenderer         = 'setR',
+        kWhatPause               = 'paus',
         kWhatGetInputBuffers     = 'gInB',
         kWhatRequestInputBuffers = 'reqB',
         kWhatFlush               = 'flus',
