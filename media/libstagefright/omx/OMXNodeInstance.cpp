@@ -655,6 +655,11 @@ status_t OMXNodeInstance::configureVideoTunnelMode(
 status_t OMXNodeInstance::useBuffer(
         OMX_U32 portIndex, const sp<IMemory> &params,
         OMX::buffer_id *buffer, OMX_U32 allottedSize) {
+    if (params == NULL || buffer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     if (allottedSize > params->size()) {
         return BAD_VALUE;
@@ -699,6 +704,10 @@ status_t OMXNodeInstance::useBuffer(
 status_t OMXNodeInstance::useGraphicBuffer2_l(
         OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
         OMX::buffer_id *buffer) {
+    if (graphicBuffer == NULL || buffer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
 
     // port definition
     OMX_PARAM_PORTDEFINITIONTYPE def;
@@ -751,6 +760,10 @@ status_t OMXNodeInstance::useGraphicBuffer2_l(
 status_t OMXNodeInstance::useGraphicBuffer(
         OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
         OMX::buffer_id *buffer) {
+    if (graphicBuffer == NULL || buffer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
     Mutex::Autolock autoLock(mLock);
 
     // See if the newer version of the extension is present.
@@ -811,6 +824,12 @@ status_t OMXNodeInstance::useGraphicBuffer(
 status_t OMXNodeInstance::updateGraphicBufferInMeta_l(
         OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
         OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header) {
+    // No need to check |graphicBuffer| since NULL is valid for it as below.
+    if (header == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     if (portIndex != kPortIndexInput && portIndex != kPortIndexOutput) {
         return BAD_VALUE;
     }
@@ -911,6 +930,11 @@ status_t OMXNodeInstance::createGraphicBufferSource(
 
 status_t OMXNodeInstance::createInputSurface(
         OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
+    if (bufferProducer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autolock(mLock);
     status_t err = createGraphicBufferSource(portIndex, NULL /* bufferConsumer */, type);
 
@@ -926,6 +950,10 @@ status_t OMXNodeInstance::createInputSurface(
 status_t OMXNodeInstance::createPersistentInputSurface(
         sp<IGraphicBufferProducer> *bufferProducer,
         sp<IGraphicBufferConsumer> *bufferConsumer) {
+    if (bufferProducer == NULL || bufferConsumer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
     String8 name("GraphicBufferSource");
 
     sp<IGraphicBufferProducer> producer;
@@ -971,6 +999,11 @@ status_t OMXNodeInstance::signalEndOfInputStream() {
 status_t OMXNodeInstance::allocateBuffer(
         OMX_U32 portIndex, size_t size, OMX::buffer_id *buffer,
         void **buffer_data) {
+    if (buffer == NULL || buffer_data == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
 
     BufferMeta *buffer_meta = new BufferMeta(size);
@@ -1009,6 +1042,11 @@ status_t OMXNodeInstance::allocateBuffer(
 status_t OMXNodeInstance::allocateBufferWithBackup(
         OMX_U32 portIndex, const sp<IMemory> &params,
         OMX::buffer_id *buffer, OMX_U32 allottedSize) {
+    if (params == NULL || buffer == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     if (allottedSize > params->size()) {
         return BAD_VALUE;
@@ -1056,6 +1094,10 @@ status_t OMXNodeInstance::freeBuffer(
     removeActiveBuffer(portIndex, buffer);
 
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    if (header == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
     BufferMeta *buffer_meta = static_cast<BufferMeta *>(header->pAppPrivate);
 
     OMX_ERRORTYPE err = OMX_FreeBuffer(mHandle, portIndex, header);
@@ -1072,6 +1114,10 @@ status_t OMXNodeInstance::fillBuffer(OMX::buffer_id buffer, int fenceFd) {
     Mutex::Autolock autoLock(mLock);
 
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    if (header == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
     header->nFilledLen = 0;
     header->nOffset = 0;
     header->nFlags = 0;
@@ -1105,6 +1151,10 @@ status_t OMXNodeInstance::emptyBuffer(
     Mutex::Autolock autoLock(mLock);
 
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    if (header == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
     BufferMeta *buffer_meta =
         static_cast<BufferMeta *>(header->pAppPrivate);
     sp<ABuffer> backup = buffer_meta->getBuffer(header, true /* backup */, false /* limit */);
@@ -1256,6 +1306,11 @@ status_t OMXNodeInstance::emptyBuffer_l(
 status_t OMXNodeInstance::emptyGraphicBuffer(
         OMX_BUFFERHEADERTYPE *header, const sp<GraphicBuffer> &graphicBuffer,
         OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
+    if (header == NULL) {
+        ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     OMX::buffer_id buffer = findBufferID(header);
     status_t err = updateGraphicBufferInMeta_l(kPortIndexInput, graphicBuffer, buffer, header);
@@ -1385,6 +1440,10 @@ bool OMXNodeInstance::handleMessage(omx_message &msg) {
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
             findBufferHeader(msg.u.extended_buffer_data.buffer);
+        if (buffer == NULL) {
+            ALOGE("b/25884056");
+            return BAD_VALUE;
+        }
 
         {
             Mutex::Autolock _l(mDebugLock);
@@ -1523,6 +1582,10 @@ OMX_ERRORTYPE OMXNodeInstance::OnEvent(
         OMX_IN OMX_U32 nData1,
         OMX_IN OMX_U32 nData2,
         OMX_IN OMX_PTR pEventData) {
+    if (pAppData == NULL) {
+        ALOGE("b/25884056");
+        return OMX_ErrorBadParameter;
+    }
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
     if (instance->mDying) {
         return OMX_ErrorNone;
@@ -1536,6 +1599,10 @@ OMX_ERRORTYPE OMXNodeInstance::OnEmptyBufferDone(
         OMX_IN OMX_HANDLETYPE /* hComponent */,
         OMX_IN OMX_PTR pAppData,
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
+    if (pAppData == NULL) {
+        ALOGE("b/25884056");
+        return OMX_ErrorBadParameter;
+    }
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
     if (instance->mDying) {
         return OMX_ErrorNone;
@@ -1550,6 +1617,10 @@ OMX_ERRORTYPE OMXNodeInstance::OnFillBufferDone(
         OMX_IN OMX_HANDLETYPE /* hComponent */,
         OMX_IN OMX_PTR pAppData,
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
+    if (pAppData == NULL) {
+        ALOGE("b/25884056");
+        return OMX_ErrorBadParameter;
+    }
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
     if (instance->mDying) {
         return OMX_ErrorNone;
