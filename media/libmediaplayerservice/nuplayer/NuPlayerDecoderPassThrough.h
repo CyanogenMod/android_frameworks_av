@@ -52,7 +52,6 @@ private:
     sp<Source> mSource;
     sp<Renderer> mRenderer;
     int64_t mSkipRenderingUntilMediaTimeUs;
-    bool mPaused;
 
     bool    mReachedEOS;
 
