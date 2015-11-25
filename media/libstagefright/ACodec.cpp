@@ -925,7 +925,7 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
 #endif
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
-    return setNativeWindowSizeFormatAndUsage(
+    err = setNativeWindowSizeFormatAndUsage(
             nativeWindow,
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
@@ -936,6 +936,24 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
 #endif
             mRotationDegrees,
             usage);
+    if (err == OK) {
+        OMX_CONFIG_RECTTYPE rect;
+        InitOMXParams(&rect);
+        rect.nPortIndex = kPortIndexOutput;
+        err = mOMX->getConfig(
+                mNode, OMX_IndexConfigCommonOutputCrop, &rect, sizeof(rect));
+        if (err == OK) {
+            ALOGV("rect size = %d, %d, %d, %d", rect.nLeft, rect.nTop, rect.nWidth, rect.nHeight);
+            android_native_rect_t crop;
+            crop.left = rect.nLeft;
+            crop.top = rect.nTop;
+            crop.right = rect.nLeft + rect.nWidth - 1;
+            crop.bottom = rect.nTop + rect.nHeight - 1;
+            ALOGV("crop update (%d, %d), (%d, %d)", crop.left, crop.top, crop.right, crop.bottom);
+            err = native_window_set_crop(nativeWindow, &crop);
+        }
+    }
+    return err;
 }
 
 status_t ACodec::configureOutputBuffersFromNativeWindow(
