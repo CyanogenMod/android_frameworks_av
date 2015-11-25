@@ -32,7 +32,6 @@
 #include "api1/client2/CaptureSequencer.h"
 #include "api1/client2/CallbackProcessor.h"
 #include "api1/client2/ZslProcessor.h"
-#include "api1/client2/ZslProcessor3.h"
 
 #define ALOG1(...) ALOGD_IF(gLogLevel >= 1, __VA_ARGS__);
 #define ALOG2(...) ALOGD_IF(gLogLevel >= 2, __VA_ARGS__);
@@ -111,30 +110,11 @@ status_t Camera2Client::initialize(CameraModule *module)
             mCameraId);
     mJpegProcessor->run(threadName.string());
 
-    switch (mDeviceVersion) {
-        case CAMERA_DEVICE_API_VERSION_2_0: {
-            sp<ZslProcessor> zslProc =
-                    new ZslProcessor(this, mCaptureSequencer);
-            mZslProcessor = zslProc;
-            mZslProcessorThread = zslProc;
-            break;
-        }
-        case CAMERA_DEVICE_API_VERSION_3_0:
-        case CAMERA_DEVICE_API_VERSION_3_1:
-        case CAMERA_DEVICE_API_VERSION_3_2:
-        case CAMERA_DEVICE_API_VERSION_3_3: {
-            sp<ZslProcessor3> zslProc =
-                    new ZslProcessor3(this, mCaptureSequencer);
-            mZslProcessor = zslProc;
-            mZslProcessorThread = zslProc;
-            break;
-        }
-        default:
-            break;
-    }
+    mZslProcessor = new ZslProcessor(this, mCaptureSequencer);
+
     threadName = String8::format("C2-%d-ZslProc",
             mCameraId);
-    mZslProcessorThread->run(threadName.string());
+    mZslProcessor->run(threadName.string());
 
     mCallbackProcessor = new CallbackProcessor(this);
     threadName = String8::format("C2-%d-CallbkProc",
@@ -414,7 +394,7 @@ void Camera2Client::disconnect() {
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
     mJpegProcessor->requestExit();
-    mZslProcessorThread->requestExit();
+    mZslProcessor->requestExit();
     mCallbackProcessor->requestExit();
 
     ALOGV("Camera %d: Waiting for threads", mCameraId);
@@ -428,7 +408,7 @@ void Camera2Client::disconnect() {
         mFrameProcessor->join();
         mCaptureSequencer->join();
         mJpegProcessor->join();
-        mZslProcessorThread->join();
+        mZslProcessor->join();
         mCallbackProcessor->join();
 
         mBinderSerializationLock.lock();
@@ -441,9 +421,6 @@ void Camera2Client::disconnect() {
     mJpegProcessor->deleteStream();
     mCallbackProcessor->deleteStream();
     mZslProcessor->deleteStream();
-
-    // Remove all ZSL stream state before disconnect; needed to work around b/15408128.
-    mZslProcessor->disconnect();
 
     ALOGV("Camera %d: Disconnecting device", mCameraId);
 
@@ -761,8 +738,8 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
 
     // We could wait to create the JPEG output stream until first actual use
     // (first takePicture call). However, this would substantially increase the
-    // first capture latency on HAL3 devices, and potentially on some HAL2
-    // devices. So create it unconditionally at preview start. As a drawback,
+    // first capture latency on HAL3 devices.
+    // So create it unconditionally at preview start. As a drawback,
     // this increases gralloc memory consumption for applications that don't
     // ever take a picture. Do not enter this mode when jpeg stream will slow
     // down preview.
@@ -1069,35 +1046,33 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
         }
     }
 
-    // On current HALs, clean up ZSL before transitioning into recording
-    if (mDeviceVersion != CAMERA_DEVICE_API_VERSION_2_0) {
-        if (mZslProcessor->getStreamId() != NO_STREAM) {
-            ALOGV("%s: Camera %d: Clearing out zsl stream before "
-                    "creating recording stream", __FUNCTION__, mCameraId);
-            res = mStreamingProcessor->stopStream();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Can't stop streaming to delete callback stream",
-                        __FUNCTION__, mCameraId);
-                return res;
-            }
-            res = mDevice->waitUntilDrained();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
-                        __FUNCTION__, mCameraId, strerror(-res), res);
-            }
-            res = mZslProcessor->clearZslQueue();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Can't clear zsl queue",
-                        __FUNCTION__, mCameraId);
-                return res;
-            }
-            res = mZslProcessor->deleteStream();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to delete zsl stream before "
-                        "record: %s (%d)", __FUNCTION__, mCameraId,
-                        strerror(-res), res);
-                return res;
-            }
+    // Clean up ZSL before transitioning into recording
+    if (mZslProcessor->getStreamId() != NO_STREAM) {
+        ALOGV("%s: Camera %d: Clearing out zsl stream before "
+                "creating recording stream", __FUNCTION__, mCameraId);
+        res = mStreamingProcessor->stopStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't stop streaming to delete callback stream",
+                    __FUNCTION__, mCameraId);
+            return res;
+        }
+        res = mDevice->waitUntilDrained();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                    __FUNCTION__, mCameraId, strerror(-res), res);
+        }
+        res = mZslProcessor->clearZslQueue();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Can't clear zsl queue",
+                    __FUNCTION__, mCameraId);
+            return res;
+        }
+        res = mZslProcessor->deleteStream();
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to delete zsl stream before "
+                    "record: %s (%d)", __FUNCTION__, mCameraId,
+                    strerror(-res), res);
+            return res;
         }
     }
 
@@ -1105,56 +1080,43 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
     // and we can't fail record start without stagefright asserting.
     params.previewCallbackFlags = 0;
 
-    if (mDeviceVersion != CAMERA_DEVICE_API_VERSION_2_0) {
-        // For newer devices, may need to reconfigure video snapshot JPEG sizes
-        // during recording startup, so need a more complex sequence here to
-        // ensure an early stream reconfiguration doesn't happen
-        bool recordingStreamNeedsUpdate;
-        res = mStreamingProcessor->recordingStreamNeedsUpdate(params, &recordingStreamNeedsUpdate);
+    // May need to reconfigure video snapshot JPEG sizes
+    // during recording startup, so need a more complex sequence here to
+    // ensure an early stream reconfiguration doesn't happen
+    bool recordingStreamNeedsUpdate;
+    res = mStreamingProcessor->recordingStreamNeedsUpdate(params, &recordingStreamNeedsUpdate);
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't query recording stream",
+                __FUNCTION__, mCameraId);
+        return res;
+    }
+
+    if (recordingStreamNeedsUpdate) {
+        // Need to stop stream here so updateProcessorStream won't trigger configureStream
+        // Right now camera device cannot handle configureStream failure gracefully
+        // when device is streaming
+        res = mStreamingProcessor->stopStream();
         if (res != OK) {
-            ALOGE("%s: Camera %d: Can't query recording stream",
-                    __FUNCTION__, mCameraId);
+            ALOGE("%s: Camera %d: Can't stop streaming to update record "
+                    "stream", __FUNCTION__, mCameraId);
             return res;
         }
-
-        if (recordingStreamNeedsUpdate) {
-            // Need to stop stream here so updateProcessorStream won't trigger configureStream
-            // Right now camera device cannot handle configureStream failure gracefully
-            // when device is streaming
-            res = mStreamingProcessor->stopStream();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Can't stop streaming to update record "
-                        "stream", __FUNCTION__, mCameraId);
-                return res;
-            }
-            res = mDevice->waitUntilDrained();
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Waiting to stop streaming failed: "
-                        "%s (%d)", __FUNCTION__, mCameraId,
-                        strerror(-res), res);
-            }
-
-            res = updateProcessorStream<
-                    StreamingProcessor,
-                    &StreamingProcessor::updateRecordingStream>(
-                        mStreamingProcessor,
-                        params);
-            if (res != OK) {
-                ALOGE("%s: Camera %d: Unable to update recording stream: "
-                        "%s (%d)", __FUNCTION__, mCameraId,
-                        strerror(-res), res);
-                return res;
-            }
-        }
-    } else {
-        // Maintain call sequencing for HALv2 devices.
-        res = updateProcessorStream<
-                StreamingProcessor,
-                &StreamingProcessor::updateRecordingStream>(mStreamingProcessor,
-                    params);
+        res = mDevice->waitUntilDrained();
         if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to update recording stream: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
+            ALOGE("%s: Camera %d: Waiting to stop streaming failed: "
+                    "%s (%d)", __FUNCTION__, mCameraId,
+                    strerror(-res), res);
+        }
+
+        res = updateProcessorStream<
+            StreamingProcessor,
+            &StreamingProcessor::updateRecordingStream>(
+                                                        mStreamingProcessor,
+                                                        params);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Unable to update recording stream: "
+                    "%s (%d)", __FUNCTION__, mCameraId,
+                    strerror(-res), res);
             return res;
         }
     }

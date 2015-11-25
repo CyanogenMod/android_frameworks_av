@@ -108,7 +108,7 @@ status_t JpegProcessor::updateStream(const Parameters &params) {
             return NO_MEMORY;
         }
     }
-    ALOGV("%s: Camera %d: JPEG capture heap now %d bytes; requested %d bytes",
+    ALOGV("%s: Camera %d: JPEG capture heap now %zu bytes; requested %zd bytes",
             __FUNCTION__, mId, mCaptureHeap->getSize(), maxJpegSize);
 
     if (mCaptureStreamId != NO_STREAM) {

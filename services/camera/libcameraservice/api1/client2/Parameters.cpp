@@ -913,8 +913,6 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
 
     ALOGI("%s: zslMode: %d slowJpegMode %d", __FUNCTION__, zslMode, slowJpegMode);
 
-    lightFx = LIGHTFX_NONE;
-
     state = STOPPED;
 
     paramsFlattened = params.flatten();
@@ -1864,10 +1862,6 @@ status_t Parameters::set(const String8& paramString) {
         ALOGE("%s: Video stabilization not supported", __FUNCTION__);
     }
 
-    // LIGHTFX
-    validatedParams.lightFx = lightFxStringToEnum(
-        newParams.get(CameraParameters::KEY_LIGHTFX));
-
     /** Update internal parameters */
 
     *this = validatedParams;
@@ -1959,7 +1953,7 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
     if (res != OK) return res;
 
     // android.hardware.Camera requires that when face detect is enabled, the
-    // camera is in a face-priority mode. HAL2 splits this into separate parts
+    // camera is in a face-priority mode. HAL3.x splits this into separate parts
     // (face detection statistics and face priority scene mode). Map from other
     // to the other.
     bool sceneModeActive =
@@ -2499,18 +2493,6 @@ const char *Parameters::focusModeEnumToString(focusMode_t focusMode) {
                     __FUNCTION__, focusMode);
             return "unknown";
     }
-}
-
-Parameters::Parameters::lightFxMode_t Parameters::lightFxStringToEnum(
-        const char *lightFxMode) {
-    return
-        !lightFxMode ?
-            Parameters::LIGHTFX_NONE :
-        !strcmp(lightFxMode, CameraParameters::LIGHTFX_LOWLIGHT) ?
-            Parameters::LIGHTFX_LOWLIGHT :
-        !strcmp(lightFxMode, CameraParameters::LIGHTFX_HDR) ?
-            Parameters::LIGHTFX_HDR :
-        Parameters::LIGHTFX_NONE;
 }
 
 status_t Parameters::parseAreas(const char *areasCStr,

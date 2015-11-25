@@ -55,7 +55,6 @@
 #include "api1/Camera2Client.h"
 #include "api2/CameraDeviceClient.h"
 #include "utils/CameraTraces.h"
-#include "CameraDeviceFactory.h"
 
 namespace android {
 
@@ -246,8 +245,6 @@ void CameraService::onFirstRef()
         mModule->setCallbacks(this);
     }
 
-    CameraDeviceFactory::registerService(this);
-
     CameraService::pingCameraServiceProxy();
 }
 
@@ -364,7 +361,8 @@ void CameraService::onTorchStatusChangedLocked(const String8& cameraId,
 
     res = setTorchStatusLocked(cameraId, newStatus);
     if (res) {
-        ALOGE("%s: Failed to set the torch status", __FUNCTION__, (uint32_t)newStatus);
+        ALOGE("%s: Failed to set the torch status to %d: %s (%d)", __FUNCTION__,
+                (uint32_t)newStatus, strerror(-res), res);
         return;
     }
 
@@ -481,7 +479,6 @@ status_t CameraService::generateShimMetadata(int cameraId, /*out*/CameraMetadata
     Vector<Size> sizes;
     Vector<Size> jpegSizes;
     Vector<int32_t> formats;
-    const char* supportedPreviewFormats;
     {
         shimParams.getSupportedPreviewSizes(/*out*/sizes);
         shimParams.getSupportedPreviewFormats(/*out*/formats);
@@ -559,7 +556,7 @@ status_t CameraService::getCameraCharacteristics(int cameraId,
     int facing;
     status_t ret = OK;
     if (mModule->getModuleApiVersion() < CAMERA_MODULE_API_VERSION_2_0 ||
-            getDeviceVersion(cameraId, &facing) <= CAMERA_DEVICE_API_VERSION_2_1 ) {
+            getDeviceVersion(cameraId, &facing) < CAMERA_DEVICE_API_VERSION_3_0) {
         /**
          * Backwards compatibility mode for old HALs:
          * - Convert CameraInfo into static CameraMetadata properties.
@@ -725,8 +722,6 @@ status_t CameraService::makeClient(const sp<CameraService>& cameraService,
                 return -EOPNOTSUPP;
             }
             break;
-          case CAMERA_DEVICE_API_VERSION_2_0:
-          case CAMERA_DEVICE_API_VERSION_2_1:
           case CAMERA_DEVICE_API_VERSION_3_0:
           case CAMERA_DEVICE_API_VERSION_3_1:
           case CAMERA_DEVICE_API_VERSION_3_2:
@@ -1306,7 +1301,6 @@ status_t CameraService::setTorchMode(const String16& cameraId, bool enabled,
         // update the link to client's death
         Mutex::Autolock al(mTorchClientMapMutex);
         ssize_t index = mTorchClientMap.indexOfKey(id);
-        BatteryNotifier& notifier(BatteryNotifier::getInstance());
         if (enabled) {
             if (index == NAME_NOT_FOUND) {
                 mTorchClientMap.add(id, clientBinder);
@@ -1463,8 +1457,6 @@ status_t CameraService::supportsCameraApi(int cameraId, int apiVersion) {
 
     switch(deviceVersion) {
       case CAMERA_DEVICE_API_VERSION_1_0:
-      case CAMERA_DEVICE_API_VERSION_2_0:
-      case CAMERA_DEVICE_API_VERSION_2_1:
       case CAMERA_DEVICE_API_VERSION_3_0:
       case CAMERA_DEVICE_API_VERSION_3_1:
         if (apiVersion == API_VERSION_2) {
@@ -1555,8 +1547,28 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
 
 /**
  * Check camera capabilities, such as support for basic color operation
+ * Also check that the device HAL version is still in support
  */
 int CameraService::checkCameraCapabilities(int id, camera_info info, int *latestStrangeCameraId) {
+
+    // Verify the device version is in the supported range
+    switch (info.device_version) {
+        case CAMERA_DEVICE_API_VERSION_1_0:
+        case CAMERA_DEVICE_API_VERSION_3_0:
+        case CAMERA_DEVICE_API_VERSION_3_1:
+        case CAMERA_DEVICE_API_VERSION_3_2:
+        case CAMERA_DEVICE_API_VERSION_3_3:
+            // in support
+            break;
+        case CAMERA_DEVICE_API_VERSION_2_0:
+        case CAMERA_DEVICE_API_VERSION_2_1:
+            // no longer supported
+        default:
+            ALOGE("%s: Device %d has HAL version %x, which is not supported",
+                    __FUNCTION__, id, info.device_version);
+            logServiceError("Unsupported device HAL version", NO_INIT);
+            return NO_INIT;
+    }
 
     // Assume all devices pre-v3.3 are backward-compatible
     bool isBackwardCompatible = true;
@@ -1591,10 +1603,10 @@ int CameraService::checkCameraCapabilities(int id, camera_info info, int *latest
             ALOGE("%s: Normal camera ID %d higher than strange camera ID %d. "
                     "This is not allowed due backward-compatibility requirements",
                     __FUNCTION__, id, *latestStrangeCameraId);
-            logServiceError("Invalid order of camera devices", ENODEV);
+            logServiceError("Invalid order of camera devices", NO_INIT);
             mNumberOfCameras = 0;
             mNumberOfNormalCameras = 0;
-            return INVALID_OPERATION;
+            return NO_INIT;
         }
     }
     return OK;
@@ -1752,7 +1764,7 @@ void CameraService::logClientDied(int clientPid, const char* reason) {
 
 void CameraService::logServiceError(const char* msg, int errorCode) {
     String8 curTime = getFormattedCurrentTime();
-    logEvent(String8::format("SERVICE ERROR: %s : %d (%s)", msg, errorCode, strerror(errorCode)));
+    logEvent(String8::format("SERVICE ERROR: %s : %d (%s)", msg, errorCode, strerror(-errorCode)));
 }
 
 status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
@@ -2073,6 +2085,8 @@ sp<CameraService::Client> CameraService::Client::getClientFromCookie(void* user)
 
 void CameraService::Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
         const CaptureResultExtras& resultExtras) {
+    (void) errorCode;
+    (void) resultExtras;
     if (mRemoteCallback != NULL) {
         mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, CAMERA_ERROR_RELEASED, 0);
     } else {
@@ -2340,7 +2354,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                 result.appendFormat("  Resource Cost: %d\n", state.second->getCost());
                 result.appendFormat("  Conflicting Devices:");
                 for (auto& id : conflicting) {
-                    result.appendFormat(" %s", cameraId.string());
+                    result.appendFormat(" %s", id.string());
                 }
                 if (conflicting.size() == 0) {
                     result.appendFormat(" NONE");
@@ -2348,7 +2362,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                 result.appendFormat("\n");
 
                 result.appendFormat("  Device version: %#x\n", deviceVersion);
-                if (deviceVersion >= CAMERA_DEVICE_API_VERSION_2_0) {
+                if (deviceVersion >= CAMERA_DEVICE_API_VERSION_3_0) {
                     result.appendFormat("  Device static metadata:\n");
                     write(fd, result.string(), result.size());
                     dump_indented_camera_metadata(info.static_camera_characteristics,

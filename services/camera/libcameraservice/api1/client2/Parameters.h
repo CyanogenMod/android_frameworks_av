@@ -136,12 +136,6 @@ struct Parameters {
     bool recordingHint;
     bool videoStabilization;
 
-    enum lightFxMode_t {
-        LIGHTFX_NONE = 0,
-        LIGHTFX_LOWLIGHT,
-        LIGHTFX_HDR
-    } lightFx;
-
     CameraParameters2 params;
     String8 paramsFlattened;
 
@@ -307,7 +301,6 @@ struct Parameters {
     static const char* flashModeEnumToString(flashMode_t flashMode);
     static focusMode_t focusModeStringToEnum(const char *focusMode);
     static const char* focusModeEnumToString(focusMode_t focusMode);
-    static lightFxMode_t lightFxStringToEnum(const char *lightFxMode);
 
     static status_t parseAreas(const char *areasCStr,
             Vector<Area> *areas);
@@ -330,7 +323,7 @@ struct Parameters {
     static const int kFpsToApiScale = 1000;
 
     // Transform from (-1000,-1000)-(1000,1000) normalized coords from camera
-    // API to HAL2 (0,0)-(activePixelArray.width/height) coordinates
+    // API to HAL3 (0,0)-(activePixelArray.width/height) coordinates
     int normalizedXToArray(int x) const;
     int normalizedYToArray(int y) const;
 
@@ -350,7 +343,7 @@ struct Parameters {
 private:
 
     // Convert from viewfinder crop-region relative array coordinates
-    // to HAL2 sensor array coordinates
+    // to HAL3 sensor array coordinates
     int cropXToArray(int x) const;
     int cropYToArray(int y) const;
 

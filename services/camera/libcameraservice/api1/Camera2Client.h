@@ -24,7 +24,7 @@
 #include "api1/client2/FrameProcessor.h"
 //#include "api1/client2/StreamingProcessor.h"
 //#include "api1/client2/JpegProcessor.h"
-//#include "api1/client2/ZslProcessorInterface.h"
+//#include "api1/client2/ZslProcessor.h"
 //#include "api1/client2/CaptureSequencer.h"
 //#include "api1/client2/CallbackProcessor.h"
 
@@ -34,7 +34,7 @@ namespace camera2 {
 
 class StreamingProcessor;
 class JpegProcessor;
-class ZslProcessorInterface;
+class ZslProcessor;
 class CaptureSequencer;
 class CallbackProcessor;
 
@@ -43,7 +43,7 @@ class CallbackProcessor;
 class IMemory;
 /**
  * Interface between android.hardware.Camera API and Camera HAL device for versions
- * CAMERA_DEVICE_API_VERSION_2_0 and 3_0.
+ * CAMERA_DEVICE_API_VERSION_3_0 and above.
  */
 class Camera2Client :
         public Camera2ClientBase<CameraService::Client>
@@ -204,12 +204,7 @@ private:
 
     sp<camera2::CaptureSequencer> mCaptureSequencer;
     sp<camera2::JpegProcessor> mJpegProcessor;
-    sp<camera2::ZslProcessorInterface> mZslProcessor;
-    sp<Thread> mZslProcessorThread;
-
-    /** Notification-related members */
-
-    bool mAfInMotion;
+    sp<camera2::ZslProcessor> mZslProcessor;
 
     /** Utility members */
     bool mLegacyMode;

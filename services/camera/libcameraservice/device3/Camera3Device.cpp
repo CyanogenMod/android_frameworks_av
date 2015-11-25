@@ -3302,7 +3302,7 @@ void Camera3Device::RequestThread::waitForNextRequestBatch() {
     }
 
     if (mNextRequests.size() < batchSize) {
-        ALOGE("RequestThread: only get %d out of %d requests. Skipping requests.",
+        ALOGE("RequestThread: only get %zu out of %zu requests. Skipping requests.",
                 mNextRequests.size(), batchSize);
         cleanUpFailedRequests(/*sendRequestError*/true);
     }
@@ -3622,7 +3622,7 @@ status_t Camera3Device::RequestThread::removeTriggers(
 
 status_t Camera3Device::RequestThread::addDummyTriggerIds(
         const sp<CaptureRequest> &request) {
-    // Trigger ID 0 has special meaning in the HAL2 spec, so avoid it here
+    // Trigger ID 0 had special meaning in the HAL2 spec, so avoid it here
     static const int32_t dummyTriggerId = 1;
     status_t res;
 
@@ -3716,8 +3716,6 @@ status_t Camera3Device::PreparerThread::prepare(int maxCount, sp<Camera3StreamIn
 }
 
 status_t Camera3Device::PreparerThread::clear() {
-    status_t res;
-
     Mutex::Autolock l(mLock);
 
     for (const auto& stream : mPendingStreams) {
