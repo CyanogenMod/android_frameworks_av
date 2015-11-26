@@ -1042,6 +1042,9 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
                 mMediaClock->updateAnchor(mediaTimeUs, nowUs, mediaTimeUs);
                 mAnchorTimeMediaUs = mediaTimeUs;
                 realTimeUs = nowUs;
+            } else if (!mVideoSampleReceived) {
+                // Always render the first video frame.
+                realTimeUs = nowUs;
             } else {
                 realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
             }
@@ -1102,7 +1105,7 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         return;
     }
 
-    int64_t nowUs = -1;
+    int64_t nowUs = ALooper::GetNowUs();
     int64_t realTimeUs;
     if (mFlags & FLAG_REAL_TIME) {
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &realTimeUs));
@@ -1110,16 +1113,12 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         int64_t mediaTimeUs;
         CHECK(entry->mBuffer->meta()->findInt64("timeUs", &mediaTimeUs));
 
-        nowUs = ALooper::GetNowUs();
         realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
     }
 
     bool tooLate = false;
 
     if (!mPaused) {
-        if (nowUs == -1) {
-            nowUs = ALooper::GetNowUs();
-        }
         setVideoLateByUs(nowUs - realTimeUs);
         tooLate = (mVideoLateByUs > 40000);
 
@@ -1141,6 +1140,12 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
             Mutex::Autolock autoLock(mLock);
             clearAnchorTime_l();
         }
+    }
+
+    // Always render the first video frame while keeping stats on A/V sync.
+    if (!mVideoSampleReceived) {
+        realTimeUs = nowUs;
+        tooLate = false;
     }
 
     entry->mNotifyConsumed->setInt64("timestampNs", realTimeUs * 1000ll);
