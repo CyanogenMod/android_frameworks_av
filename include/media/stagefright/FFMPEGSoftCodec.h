@@ -62,7 +62,8 @@ struct FFMPEGSoftCodec {
     static status_t setVideoFormat(
             const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle,IOMX::node_id nodeID,
-            bool isEncoder, OMX_VIDEO_CODINGTYPE *compressionFormat);
+            bool isEncoder, OMX_VIDEO_CODINGTYPE *compressionFormat,
+            const char* componentName);
 
     static status_t getAudioPortFormat(
             OMX_U32 portIndex, int coding,

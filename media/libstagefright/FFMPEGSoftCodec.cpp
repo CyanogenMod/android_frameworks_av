@@ -37,6 +37,10 @@
 
 #include <OMX_FFMPEG_Extn.h>
 
+#ifdef QCOM_HARDWARE
+#include <OMX_QCOMExtns.h>
+#endif
+
 namespace android {
 
 enum MetaKeyType{
@@ -217,7 +221,8 @@ void FFMPEGSoftCodec::overrideComponentName(
 status_t FFMPEGSoftCodec::setVideoFormat(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, bool isEncoder,
-        OMX_VIDEO_CODINGTYPE *compressionFormat) {
+        OMX_VIDEO_CODINGTYPE *compressionFormat,
+        const char* componentName) {
     status_t err = OK;
 
     if (isEncoder) {
@@ -225,12 +230,13 @@ status_t FFMPEGSoftCodec::setVideoFormat(
         err = BAD_VALUE;
     
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
-        err = setWMVFormat(msg, OMXhandle, nodeID);
-        if (err != OK) {
-            ALOGE("setWMVFormat() failed (err = %d)", err);
-        } else {
-            *compressionFormat = OMX_VIDEO_CodingWMV;
+        if (strncmp(componentName, "OMX.ffmpeg.", 11) == 0) {
+            err = setWMVFormat(msg, OMXhandle, nodeID);
+            if (err != OK) {
+                ALOGE("setWMVFormat() failed (err = %d)", err);
+            }
         }
+        *compressionFormat = OMX_VIDEO_CodingWMV;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_RV, mime)) {
         err = setRVFormat(msg, OMXhandle, nodeID);
         if (err != OK) {
@@ -258,6 +264,79 @@ status_t FFMPEGSoftCodec::setVideoFormat(
         err = BAD_TYPE;
     }
 
+#ifdef QCOM_HARDWARE
+    // We need to do a few extra steps if FFMPEGExtractor is in control
+    // and we want to talk to the hardware codecs. This logic is taken
+    // from the CAF L release. It was unfortunately moved to a proprietary
+    // blob and an architecture which is hellish for OEMs who wish to
+    // customize the platform.
+    if (err != BAD_TYPE && (strncmp(componentName, "OMX.qcom.", 9) == 0)) {
+        status_t xerr = OK;
+
+        int32_t mode = 0;
+        OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
+        portFmt.nPortIndex = kPortIndexInput;
+
+        if (msg->findInt32("use-arbitrary-mode", &mode) && mode) {
+            ALOGI("Decoder will be in arbitrary mode");
+            portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_Arbitrary;
+        } else {
+            ALOGI("Decoder will be in frame by frame mode");
+            portFmt.nFramePackingFormat = OMX_QCOM_FramePacking_OnlyOneCompleteFrame;
+        }
+        xerr = OMXhandle->setParameter(
+                nodeID, (OMX_INDEXTYPE)OMX_QcomIndexPortDefn,
+                (void *)&portFmt, sizeof(portFmt));
+        if (xerr != OK) {
+            ALOGW("Failed to set frame packing format on component");
+        }
+
+        // Enable timestamp reordering for mpeg4 and vc1 codec types, the AVI file
+        // type, and hevc content in the ts container
+        bool tsReorder = false;
+        const char* roleVC1 = "OMX.qcom.video.decoder.vc1";
+        const char* roleMPEG4 = "OMX.qcom.video.decoder.mpeg4";
+        if (!strncmp(componentName, roleVC1, strlen(roleVC1)) ||
+                !strncmp(componentName, roleMPEG4, strlen(roleMPEG4))) {
+            // The codec requires timestamp reordering
+            tsReorder = true;
+        }
+
+        if (tsReorder) {
+            ALOGI("Enabling timestamp reordering");
+            QOMX_INDEXTIMESTAMPREORDER reorder;
+            InitOMXParams(&reorder);
+            reorder.nPortIndex = kPortIndexOutput;
+            reorder.bEnable = OMX_TRUE;
+            xerr = OMXhandle->setParameter(nodeID,
+                           (OMX_INDEXTYPE)OMX_QcomIndexParamEnableTimeStampReorder,
+                           (void *)&reorder, sizeof(reorder));
+
+            if (xerr != OK) {
+                ALOGW("Failed to enable timestamp reordering");
+            }
+        }
+
+        // MediaCodec clients can request decoder extradata by setting
+        // "enable-extradata-<type>" in MediaFormat.
+        // Following <type>s are supported:
+        //    "user" => user-extradata
+        int extraDataRequested = 0;
+        if (msg->findInt32("enable-extradata-user", &extraDataRequested) &&
+                extraDataRequested == 1) {
+            ALOGI("[%s] User-extradata requested", componentName);
+            QOMX_ENABLETYPE enableType;
+            enableType.bEnable = OMX_TRUE;
+
+            xerr = OMXhandle->setParameter(
+                    nodeID, (OMX_INDEXTYPE)OMX_QcomIndexEnableExtnUserData,
+                    (OMX_PTR)&enableType, sizeof(enableType));
+            if (xerr != OK) {
+                ALOGW("[%s] Failed to enable user-extradata", componentName);
+            }
+        }
+    }
+#endif
     return err;
 }
 
@@ -582,7 +661,7 @@ status_t FFMPEGSoftCodec::setSupportedRole(
         { MEDIA_MIMETYPE_VIDEO_DIVX311,
           "video_decoder.divx", NULL },
         { MEDIA_MIMETYPE_VIDEO_WMV,
-          "video_decoder.wmv",  NULL },
+          "video_decoder.vc1",  NULL }, // so we can still talk to hardware codec
         { MEDIA_MIMETYPE_VIDEO_VC1,
           "video_decoder.vc1", NULL },
         { MEDIA_MIMETYPE_VIDEO_RV,
