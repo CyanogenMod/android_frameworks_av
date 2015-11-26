@@ -2990,8 +2990,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         //     the app won't fill fast enough to handle the sudden draw).
 
                         const int32_t deltaMs = delta / 1000000;
-                        const int32_t throttleMs = mHalfBufferMs - deltaMs;
-                        if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
+                        const int32_t halfBufferMs = mHalfBufferMs / (mEffectBufferValid ? 4 : 1);
+                        const int32_t throttleMs = halfBufferMs - deltaMs;
+                        if ((signed)halfBufferMs >= throttleMs && throttleMs > 0) {
                             usleep(throttleMs * 1000);
                             // notify of throttle start on verbose log
                             ALOGV_IF(mThreadThrottleEndMs == mThreadThrottleTimeMs,
