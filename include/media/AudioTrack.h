@@ -943,6 +943,7 @@ protected:
     //  a value of AUDIO_PORT_HANDLE_NONE indicated default (AudioPolicyManager) routing.
     audio_port_handle_t     mSelectedDeviceId;
     bool                    mPlaybackRateSet;
+    bool                    mTrackOffloaded;
 
 private:
     class DeathNotifier : public IBinder::DeathRecipient {

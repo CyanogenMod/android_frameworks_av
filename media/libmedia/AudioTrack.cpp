@@ -858,10 +858,9 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
 
-    // fallback out of Direct PCM if setPlaybackRate is called on PCM track
-    if (property_get_bool("audio.offload.track.enable", false) &&
-        (mFormat == AUDIO_FORMAT_PCM_16_BIT) && (mOffloadInfo == NULL) &&
-        (mFlags == AUDIO_OUTPUT_FLAG_NONE)) {
+    // fallback out of Direct PCM if setPlaybackRate is called on a track offloaded
+    // session. Do this by setting mPlaybackRateSet to true
+    if (mTrackOffloaded) {
         mPlaybackRateSet = true;
         android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
     }
@@ -1174,6 +1173,7 @@ status_t AudioTrack::createTrack_l()
               mSessionId, streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
+    mTrackOffloaded = AVMediaUtils::get()->AudioTrackIsTrackOffloaded(output);
     {
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
@@ -2273,8 +2273,8 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     }
 
     status_t status = UNKNOWN_ERROR;
-    //do not call Timestamp if its PCM offloaded
-    if (!AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat)) {
+    //call Timestamp only if its NOT PCM offloaded and NOT Track Offloaded
+    if (!AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat) && !mTrackOffloaded) {
         // The presented frame count must always lag behind the consumed frame count.
         // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
 
@@ -2286,7 +2286,8 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
     }
 
-    if (isOffloadedOrDirect_l() && !AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat)) {
+    if (isOffloadedOrDirect_l() && !AVMediaUtils::get()->AudioTrackIsPcmOffloaded(mFormat)
+        && !mTrackOffloaded) {
         if (isOffloaded_l() && (mState == STATE_PAUSED || mState == STATE_PAUSED_STOPPING)) {
             // use cached paused position in case another offloaded track is running.
             timestamp.mPosition = mPausedPosition;
