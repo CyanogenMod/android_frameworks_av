@@ -811,6 +811,7 @@ protected:
     audio_io_handle_t       mOutput;                // returned by AudioSystem::getOutput()
 
     sp<AudioTrackThread>    mAudioTrackThread;
+    bool                    mThreadCanCallJava;
 
     float                   mVolume[2];
     float                   mSendLevel;

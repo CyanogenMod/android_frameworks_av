@@ -288,6 +288,8 @@ status_t AudioTrack::set(
           streamType, sampleRate, format, channelMask, frameCount, flags, notificationFrames,
           sessionId, transferType, uid, pid);
 
+    mThreadCanCallJava = threadCanCallJava;
+
     switch (transferType) {
     case TRANSFER_DEFAULT:
         if (sharedBuffer != 0) {
@@ -355,6 +357,9 @@ status_t AudioTrack::set(
         mStreamType = AUDIO_STREAM_DEFAULT;
         if ((mAttributes.flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
             flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
+        }
+        if ((mAttributes.flags & AUDIO_FLAG_LOW_LATENCY) != 0) {
+            flags = (audio_output_flags_t) (flags | AUDIO_OUTPUT_FLAG_FAST);
         }
     }
 
@@ -1170,20 +1175,26 @@ status_t AudioTrack::createTrack_l()
     }
     // Client decides whether the track is TIMED (see below), but can only express a preference
     // for FAST.  Server will perform additional tests.
-    if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) && !((
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
+        bool useCaseAllowed =
             // either of these use cases:
             // use case 1: shared buffer
             (mSharedBuffer != 0) ||
             // use case 2: callback transfer mode
             (mTransfer == TRANSFER_CALLBACK) ||
             // use case 3: obtain/release mode
-            (mTransfer == TRANSFER_OBTAIN)) &&
-            // matching sample rate
-            (mSampleRate == mAfSampleRate))) {
-        ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, output %u Hz",
+            (mTransfer == TRANSFER_OBTAIN) ||
+            // use case 4: synchronous write
+            ((mTransfer == TRANSFER_SYNC) && mThreadCanCallJava);
+        // sample rates must also match
+        bool fastAllowed = useCaseAllowed && (mSampleRate == mAfSampleRate);
+        if (!fastAllowed) {
+            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d,"
+                "track %u Hz, output %u Hz",
                 mTransfer, mSampleRate, mAfSampleRate);
-        // once denied, do not request again if IAudioTrack is re-created
-        mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
+            // once denied, do not request again if IAudioTrack is re-created
+            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
+        }
     }
 
     // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
@@ -1254,7 +1265,7 @@ status_t AudioTrack::createTrack_l()
     pid_t tid = -1;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         trackFlags |= IAudioFlinger::TRACK_FAST;
-        if (mAudioTrackThread != 0) {
+        if (mAudioTrackThread != 0 && !mThreadCanCallJava) {
             tid = mAudioTrackThread->getTid();
         }
     }
@@ -1328,7 +1339,9 @@ status_t AudioTrack::createTrack_l()
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         if (trackFlags & IAudioFlinger::TRACK_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %zu", frameCount);
-            mAwaitBoost = true;
+            if (!mThreadCanCallJava) {
+                mAwaitBoost = true;
+            }
         } else {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             // once denied, do not request again if IAudioTrack is re-created
