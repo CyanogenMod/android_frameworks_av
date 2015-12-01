@@ -4231,7 +4231,7 @@ void AudioPolicyManager::checkOutputForAllStrategies()
 void AudioPolicyManager::checkA2dpSuspend()
 {
     audio_io_handle_t a2dpOutput = mOutputs.getA2dpOutput();
-    if (a2dpOutput == 0) {
+    if (a2dpOutput == 0 || mOutputs.isA2dpOnPrimary()) {
         mA2dpSuspended = false;
         return;
     }
