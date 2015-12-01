@@ -1118,7 +1118,46 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 ALOGV("Tear down audio with reason %d.", reason);
-                performTearDown(msg);
+
+                if (ifDecodedPCMOffload()) {
+                    tearDownPCMOffload(msg);
+                    break;
+                }
+
+                mAudioDecoder.clear();
+                ++mAudioDecoderGeneration;
+                bool needsToCreateAudioDecoder = true;
+                if (mFlushingAudio == FLUSHING_DECODER) {
+                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+                    mFlushingAudio = FLUSHED;
+                    finishFlushIfPossible();
+                } else if (mFlushingAudio == FLUSHING_DECODER_SHUTDOWN
+                        || mFlushingAudio == SHUTTING_DOWN_DECODER) {
+                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+                    mFlushingAudio = SHUT_DOWN;
+                    finishFlushIfPossible();
+                    needsToCreateAudioDecoder = false;
+                }
+                if (mRenderer == NULL) {
+                    break;
+                }
+                closeAudioSink();
+                mRenderer->flush(
+                        true /* audio */, false /* notifyComplete */);
+                if (mVideoDecoder != NULL) {
+                    mRenderer->flush(
+                            false /* audio */, false /* notifyComplete */);
+                }
+
+                int64_t positionUs;
+                if (!msg->findInt64("positionUs", &positionUs)) {
+                    positionUs = mPreviousSeekTimeUs;
+                }
+                performSeek(positionUs);
+
+                if (reason == Renderer::kDueToError && needsToCreateAudioDecoder) {
+                    instantiateDecoder(true /* audio */, &mAudioDecoder);
+                }
             }
             break;
         }
@@ -2409,12 +2448,7 @@ void NuPlayer::Source::onMessageReceived(const sp<AMessage> & /* msg */) {
     TRESPASS();
 }
 
-//
-// There is a flush from within the decoder's onFlush handling.
-// Without it, it is still possible that a buffer can be queueued
-// after NuPlayer issues a flush on the renderer's audio queue.
-//
-void NuPlayer::performTearDown(const sp<AMessage> &msg) {
+void NuPlayer::tearDownPCMOffload(const sp<AMessage> &msg) {
     int32_t reason;
     CHECK(msg->findInt32("reason", &reason));
 
@@ -2438,14 +2472,13 @@ void NuPlayer::performTearDown(const sp<AMessage> &msg) {
             mDeferredActions.push_back(new SeekAction(positionUs));
             break;
         default:
-            ALOGW("performTearDown while flushing audio in %d", mFlushingAudio);
+            ALOGW("tearDownPCMOffload while flushing audio in %d", mFlushingAudio);
             break;
         }
     }
 
     if (mRenderer != NULL) {
         closeAudioSink();
-        // see comment at beginning of function
         mRenderer->flush(
             true /* audio */, false /* notifyComplete */);
         if (mVideoDecoder != NULL) {
