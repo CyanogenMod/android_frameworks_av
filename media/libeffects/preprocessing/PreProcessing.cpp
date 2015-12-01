@@ -777,14 +777,17 @@ extern "C" int Session_CreateEffect(preproc_session_t *session,
     ALOGV("Session_CreateEffect procId %d, createdMsk %08x", procId, session->createdMsk);
 
     if (session->createdMsk == 0) {
-        session->apm = webrtc::AudioProcessing::Create(session->io);
+        session->apm = webrtc::AudioProcessing::Create();
         if (session->apm == NULL) {
             ALOGW("Session_CreateEffect could not get apm engine");
             goto error;
         }
-        session->apm->set_sample_rate_hz(kPreprocDefaultSr);
-        session->apm->set_num_channels(kPreProcDefaultCnl, kPreProcDefaultCnl);
-        session->apm->set_num_reverse_channels(kPreProcDefaultCnl);
+        const webrtc::ProcessingConfig processing_config = {
+            {{kPreprocDefaultSr, kPreProcDefaultCnl},
+             {kPreprocDefaultSr, kPreProcDefaultCnl},
+             {kPreprocDefaultSr, kPreProcDefaultCnl},
+             {kPreprocDefaultSr, kPreProcDefaultCnl}}};
+        session->apm->Initialize(processing_config);
         session->procFrame = new webrtc::AudioFrame();
         if (session->procFrame == NULL) {
             ALOGW("Session_CreateEffect could not allocate audio frame");
@@ -834,7 +837,7 @@ error:
         session->revFrame = NULL;
         delete session->procFrame;
         session->procFrame = NULL;
-        webrtc::AudioProcessing::Destroy(session->apm);
+        delete session->apm;
         session->apm = NULL;
     }
     return status;
@@ -846,7 +849,7 @@ int Session_ReleaseEffect(preproc_session_t *session,
     ALOGW_IF(Effect_Release(fx) != 0, " Effect_Release() failed for proc ID %d", fx->procId);
     session->createdMsk &= ~(1<<fx->procId);
     if (session->createdMsk == 0) {
-        webrtc::AudioProcessing::Destroy(session->apm);
+        delete session->apm;
         session->apm = NULL;
         delete session->procFrame;
         session->procFrame = NULL;
@@ -914,15 +917,13 @@ int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
     } else if (config->inputCfg.samplingRate >= 8000) {
         session->apmSamplingRate = 8000;
     }
-    status = session->apm->set_sample_rate_hz(session->apmSamplingRate);
-    if (status < 0) {
-        return -EINVAL;
-    }
-    status = session->apm->set_num_channels(inCnl, outCnl);
-    if (status < 0) {
-        return -EINVAL;
-    }
-    status = session->apm->set_num_reverse_channels(inCnl);
+
+    const webrtc::ProcessingConfig processing_config = {
+      {{static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)},
+       {static_cast<int>(session->apmSamplingRate), static_cast<int>(outCnl)},
+       {static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)},
+       {static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)}}};
+    status = session->apm->Initialize(processing_config);
     if (status < 0) {
         return -EINVAL;
     }
@@ -1038,7 +1039,16 @@ int Session_SetReverseConfig(preproc_session_t *session, effect_config_t *config
         return -EINVAL;
     }
     uint32_t inCnl = audio_channel_count_from_out_mask(config->inputCfg.channels);
-    int status = session->apm->set_num_reverse_channels(inCnl);
+    const webrtc::ProcessingConfig processing_config = {
+       {{static_cast<int>(session->apmSamplingRate),
+         static_cast<int>(session->inChannelCount)},
+        {static_cast<int>(session->apmSamplingRate),
+         static_cast<int>(session->outChannelCount)},
+        {static_cast<int>(session->apmSamplingRate),
+         static_cast<int>(inCnl)},
+        {static_cast<int>(session->apmSamplingRate),
+         static_cast<int>(inCnl)}}};
+    int status = session->apm->Initialize(processing_config);
     if (status < 0) {
         return -EINVAL;
     }
