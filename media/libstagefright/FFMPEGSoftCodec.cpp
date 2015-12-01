@@ -1020,7 +1020,7 @@ status_t FFMPEGSoftCodec::setFLACFormat(
 
     CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
     CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
-    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
+    msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample);
 
     ALOGV("Channels: %d, SampleRate: %d BitsPerSample: %d",
             numChannels, sampleRate, bitsPerSample);
