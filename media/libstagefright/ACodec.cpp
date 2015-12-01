@@ -725,7 +725,7 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         if (storingMetadataInDecodedBuffers()
                 && !mLegacyAdaptiveExperiment
                 && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
-            ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
+            ALOGV("skipping buffer %p", info.mGraphicBuffer.get() ? info.mGraphicBuffer->getNativeBuffer() : 0x0);
             continue;
         }
         ALOGV("attaching buffer %p", info.mGraphicBuffer->getNativeBuffer());
