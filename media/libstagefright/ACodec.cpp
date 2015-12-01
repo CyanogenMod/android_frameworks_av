@@ -5807,7 +5807,7 @@ bool ACodec::LoadedState::onConfigureComponent(
                 0,     // flags
                 &matchingCodecs);
 
-            status_t err = mCodec->mOMX->freeNode(mCodec->mNode);
+            err = mCodec->mOMX->freeNode(mCodec->mNode);
 
             if (err != OK) {
                 ALOGE("Failed to freeNode");
