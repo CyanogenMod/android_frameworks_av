@@ -17,7 +17,8 @@ LOCAL_SRC_FILES:= \
     src/ConfigParsingUtils.cpp \
     src/SoundTriggerSession.cpp \
     src/SessionRoute.cpp \
-    src/AudioSourceDescriptor.cpp
+    src/AudioSourceDescriptor.cpp \
+    src/TypeConverter.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -27,7 +28,8 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
-    $(TOPDIR)frameworks/av/services/audiopolicy
+    $(TOPDIR)frameworks/av/services/audiopolicy \
+    $(TOPDIR)frameworks/av/services/audiopolicy/utilities \
 
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include

@@ -33,7 +33,7 @@ class HwModule;
 class IOProfile : public AudioPort
 {
 public:
-    IOProfile(const String8& name, audio_port_role_t role);
+    IOProfile(const String8 &name, audio_port_role_t role);
     virtual ~IOProfile();
 
     // This method is used for both output and input.
@@ -53,8 +53,68 @@ public:
     void dump(int fd);
     void log();
 
+    bool hasSupportedDevices() const { return !mSupportedDevices.isEmpty(); }
+
+    bool supportDevice(audio_devices_t device) const
+    {
+        if (audio_is_output_devices(device)) {
+            return mSupportedDevices.types() & device;
+        }
+        return mSupportedDevices.types() & (device & ~AUDIO_DEVICE_BIT_IN);
+    }
+
+    bool supportDeviceAddress(const String8 &address) const
+    {
+        return mSupportedDevices[0]->mAddress == address;
+    }
+
+    // chose first device present in mSupportedDevices also part of deviceType
+    audio_devices_t getSupportedDeviceForType(audio_devices_t deviceType) const
+    {
+        for (size_t k = 0; k  < mSupportedDevices.size(); k++) {
+            audio_devices_t profileType = mSupportedDevices[k]->type();
+            if (profileType & deviceType) {
+                return profileType;
+            }
+        }
+        return AUDIO_DEVICE_NONE;
+    }
+
+    audio_devices_t getSupportedDevicesType() const { return mSupportedDevices.types(); }
+
+    void clearSupportedDevices() { mSupportedDevices.clear(); }
+    void addSupportedDevice(const sp<DeviceDescriptor> &device)
+    {
+        mSupportedDevices.add(device);
+    }
+
+    void setSupportedDevices(const DeviceVector &devices)
+    {
+        mSupportedDevices = devices;
+    }
+
+    sp<DeviceDescriptor> getSupportedDeviceByAddress(audio_devices_t type, String8 address) const
+    {
+        return mSupportedDevices.getDevice(type, address);
+    }
+
+    const DeviceVector &getSupportedDevices() const { return mSupportedDevices; }
+
+private:
     DeviceVector  mSupportedDevices; // supported devices
                                      // (devices this output can be routed to)
+};
+
+class InputProfile : public IOProfile
+{
+public:
+    InputProfile(const String8 &name) : IOProfile(name, AUDIO_PORT_ROLE_SINK) {}
+};
+
+class OutputProfile : public IOProfile
+{
+public:
+    OutputProfile(const String8 &name) : IOProfile(name, AUDIO_PORT_ROLE_SOURCE) {}
 };
 
 }; // namespace android

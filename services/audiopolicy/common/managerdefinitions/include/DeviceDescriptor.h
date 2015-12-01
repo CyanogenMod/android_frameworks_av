@@ -33,6 +33,8 @@ public:
 
     virtual ~DeviceDescriptor() {}
 
+    audio_devices_t type() const { return mDeviceType; }
+
     bool equals(const sp<DeviceDescriptor>& other) const;
 
     // AudioPortConfig
@@ -42,12 +44,10 @@ public:
 
     // AudioPort
     virtual void attach(const sp<HwModule>& module);
-    virtual void loadGains(cnode *root);
     virtual void toAudioPort(struct audio_port *port) const;
     virtual void importAudioPort(const sp<AudioPort> port);
 
     audio_port_handle_t getId() const;
-    audio_devices_t type() const { return mDeviceType; }
     status_t dump(int fd, int spaces, int index) const;
     void log() const;
 
@@ -61,19 +61,17 @@ private:
 friend class DeviceVector;
 };
 
-class DeviceVector : public SortedVector< sp<DeviceDescriptor> >
+class DeviceVector : public SortedVector<sp<DeviceDescriptor> >
 {
 public:
     DeviceVector() : SortedVector(), mDeviceTypes(AUDIO_DEVICE_NONE) {}
 
     ssize_t add(const sp<DeviceDescriptor>& item);
+    void add(const DeviceVector &devices);
     ssize_t remove(const sp<DeviceDescriptor>& item);
     ssize_t indexOf(const sp<DeviceDescriptor>& item) const;
 
     audio_devices_t types() const { return mDeviceTypes; }
-
-    void loadDevicesFromType(audio_devices_t types);
-    void loadDevicesFromTag(char *tag, const DeviceVector& declaredDevices);
 
     sp<DeviceDescriptor> getDevice(audio_devices_t type, String8 address) const;
     DeviceVector getDevicesFromType(audio_devices_t types) const;

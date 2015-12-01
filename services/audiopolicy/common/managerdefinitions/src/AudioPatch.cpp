@@ -19,7 +19,7 @@
 
 #include "AudioPatch.h"
 #include "AudioGain.h"
-#include "ConfigParsingUtils.h"
+#include "TypeConverter.h"
 #include <cutils/log.h>
 #include <utils/String8.h>
 
@@ -53,10 +53,11 @@ status_t AudioPatch::dump(int fd, int spaces, int index) const
     result.append(buffer);
     for (size_t i = 0; i < mPatch.num_sources; i++) {
         if (mPatch.sources[i].type == AUDIO_PORT_TYPE_DEVICE) {
+            std::string device;
+            DeviceConverter::toString(mPatch.sources[i].ext.device.type, device);
             snprintf(buffer, SIZE, "%*s- Device ID %d %s\n", spaces + 2, "",
-                     mPatch.sources[i].id, ConfigParsingUtils::enumToString(sDeviceTypeToEnumTable,
-                                                        ARRAY_SIZE(sDeviceTypeToEnumTable),
-                                                        mPatch.sources[i].ext.device.type));
+                     mPatch.sources[i].id,
+                     device.c_str());
         } else {
             snprintf(buffer, SIZE, "%*s- Mix ID %d I/O handle %d\n", spaces + 2, "",
                      mPatch.sources[i].id, mPatch.sources[i].ext.mix.handle);
@@ -67,10 +68,11 @@ status_t AudioPatch::dump(int fd, int spaces, int index) const
     result.append(buffer);
     for (size_t i = 0; i < mPatch.num_sinks; i++) {
         if (mPatch.sinks[i].type == AUDIO_PORT_TYPE_DEVICE) {
+            std::string device;
+            DeviceConverter::toString(mPatch.sinks[i].ext.device.type, device);
             snprintf(buffer, SIZE, "%*s- Device ID %d %s\n", spaces + 2, "",
-                     mPatch.sinks[i].id, ConfigParsingUtils::enumToString(sDeviceTypeToEnumTable,
-                                                        ARRAY_SIZE(sDeviceTypeToEnumTable),
-                                                        mPatch.sinks[i].ext.device.type));
+                     mPatch.sinks[i].id,
+                     device.c_str());
         } else {
             snprintf(buffer, SIZE, "%*s- Mix ID %d I/O handle %d\n", spaces + 2, "",
                      mPatch.sinks[i].id, mPatch.sinks[i].ext.mix.handle);

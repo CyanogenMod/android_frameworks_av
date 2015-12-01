@@ -20,171 +20,32 @@
 #include "HwModule.h"
 #include "IOProfile.h"
 #include "AudioGain.h"
-#include "ConfigParsingUtils.h"
-#include "audio_policy_conf.h"
 #include <hardware/audio.h>
 #include <policy.h>
 
 namespace android {
 
-HwModule::HwModule(const char *name)
-    : mName(strndup(name, AUDIO_HARDWARE_MODULE_ID_MAX_LEN)),
-      mHalVersion(AUDIO_DEVICE_API_VERSION_MIN), mHandle(0)
+HwModule::HwModule(const char *name, uint32_t halVersion)
+    : mName(String8(name)),
+      mHandle(0),
+      mHalVersion(halVersion)
 {
 }
 
 HwModule::~HwModule()
 {
     for (size_t i = 0; i < mOutputProfiles.size(); i++) {
-        mOutputProfiles[i]->mSupportedDevices.clear();
+        mOutputProfiles[i]->clearSupportedDevices();
     }
     for (size_t i = 0; i < mInputProfiles.size(); i++) {
-        mInputProfiles[i]->mSupportedDevices.clear();
+        mInputProfiles[i]->clearSupportedDevices();
     }
-    free((void *)mName);
-}
-
-status_t HwModule::loadInput(cnode *root)
-{
-    cnode *node = root->first_child;
-
-    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SINK);
-
-    while (node) {
-        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
-            profile->loadSamplingRates((char *)node->value);
-        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
-            profile->loadFormats((char *)node->value);
-        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
-            profile->loadInChannels((char *)node->value);
-        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromTag((char *)node->value,
-                                                           mDeclaredDevices);
-        } else if (strcmp(node->name, FLAGS_TAG) == 0) {
-            profile->mFlags = ConfigParsingUtils::parseInputFlagNames((char *)node->value);
-        } else if (strcmp(node->name, GAINS_TAG) == 0) {
-            profile->loadGains(node);
-        }
-        node = node->next;
-    }
-    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
-            "loadInput() invalid supported devices");
-    ALOGW_IF(profile->mChannelMasks.size() == 0,
-            "loadInput() invalid supported channel masks");
-    ALOGW_IF(profile->mSamplingRates.size() == 0,
-            "loadInput() invalid supported sampling rates");
-    ALOGW_IF(profile->mFormats.size() == 0,
-            "loadInput() invalid supported formats");
-    if (!profile->mSupportedDevices.isEmpty() &&
-            (profile->mChannelMasks.size() != 0) &&
-            (profile->mSamplingRates.size() != 0) &&
-            (profile->mFormats.size() != 0)) {
-
-        ALOGV("loadInput() adding input Supported Devices %04x",
-              profile->mSupportedDevices.types());
-
-        profile->attach(this);
-        mInputProfiles.add(profile);
-        return NO_ERROR;
-    } else {
-        return BAD_VALUE;
-    }
-}
-
-status_t HwModule::loadOutput(cnode *root)
-{
-    cnode *node = root->first_child;
-
-    sp<IOProfile> profile = new IOProfile(String8(root->name), AUDIO_PORT_ROLE_SOURCE);
-
-    while (node) {
-        if (strcmp(node->name, SAMPLING_RATES_TAG) == 0) {
-            profile->loadSamplingRates((char *)node->value);
-        } else if (strcmp(node->name, FORMATS_TAG) == 0) {
-            profile->loadFormats((char *)node->value);
-        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
-            profile->loadOutChannels((char *)node->value);
-        } else if (strcmp(node->name, DEVICES_TAG) == 0) {
-            profile->mSupportedDevices.loadDevicesFromTag((char *)node->value,
-                                                           mDeclaredDevices);
-        } else if (strcmp(node->name, FLAGS_TAG) == 0) {
-            profile->mFlags = ConfigParsingUtils::parseOutputFlagNames((char *)node->value);
-        } else if (strcmp(node->name, GAINS_TAG) == 0) {
-            profile->loadGains(node);
-        }
-        node = node->next;
-    }
-    ALOGW_IF(profile->mSupportedDevices.isEmpty(),
-            "loadOutput() invalid supported devices");
-    ALOGW_IF(profile->mChannelMasks.size() == 0,
-            "loadOutput() invalid supported channel masks");
-    ALOGW_IF(profile->mSamplingRates.size() == 0,
-            "loadOutput() invalid supported sampling rates");
-    ALOGW_IF(profile->mFormats.size() == 0,
-            "loadOutput() invalid supported formats");
-    if (!profile->mSupportedDevices.isEmpty() &&
-            (profile->mChannelMasks.size() != 0) &&
-            (profile->mSamplingRates.size() != 0) &&
-            (profile->mFormats.size() != 0)) {
-
-        ALOGV("loadOutput() adding output Supported Devices %04x, mFlags %04x",
-              profile->mSupportedDevices.types(), profile->mFlags);
-        profile->attach(this);
-        mOutputProfiles.add(profile);
-        return NO_ERROR;
-    } else {
-        return BAD_VALUE;
-    }
-}
-
-status_t HwModule::loadDevice(cnode *root)
-{
-    cnode *node = root->first_child;
-
-    audio_devices_t type = AUDIO_DEVICE_NONE;
-    while (node) {
-        if (strcmp(node->name, APM_DEVICE_TYPE) == 0) {
-            type = ConfigParsingUtils::parseDeviceNames((char *)node->value);
-            break;
-        }
-        node = node->next;
-    }
-    if (type == AUDIO_DEVICE_NONE ||
-            (!audio_is_input_device(type) && !audio_is_output_device(type))) {
-        ALOGW("loadDevice() bad type %08x", type);
-        return BAD_VALUE;
-    }
-    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(type);
-    deviceDesc->mTag = String8(root->name);
-
-    node = root->first_child;
-    while (node) {
-        if (strcmp(node->name, APM_DEVICE_ADDRESS) == 0) {
-            deviceDesc->mAddress = String8((char *)node->value);
-        } else if (strcmp(node->name, CHANNELS_TAG) == 0) {
-            if (audio_is_input_device(type)) {
-                deviceDesc->loadInChannels((char *)node->value);
-            } else {
-                deviceDesc->loadOutChannels((char *)node->value);
-            }
-        } else if (strcmp(node->name, GAINS_TAG) == 0) {
-            deviceDesc->loadGains(node);
-        }
-        node = node->next;
-    }
-
-    ALOGV("loadDevice() adding device tag %s type %08x address %s",
-          deviceDesc->mTag.string(), type, deviceDesc->mAddress.string());
-
-    mDeclaredDevices.add(deviceDesc);
-
-    return NO_ERROR;
 }
 
 status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
                                                   audio_devices_t device, String8 address)
 {
-    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SOURCE);
+    sp<IOProfile> profile = new OutputProfile(name);
 
     profile->mSamplingRates.add(config->sample_rate);
     profile->mChannelMasks.add(config->channel_mask);
@@ -192,18 +53,49 @@ status_t HwModule::addOutputProfile(String8 name, const audio_config_t *config,
 
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
-    profile->mSupportedDevices.add(devDesc);
+    profile->addSupportedDevice(devDesc);
 
+    return addOutputProfile(profile);
+}
+
+status_t HwModule::addOutputProfile(const sp<IOProfile> &profile)
+{
     profile->attach(this);
     mOutputProfiles.add(profile);
-
     return NO_ERROR;
+}
+
+status_t HwModule::addInputProfile(const sp<IOProfile> &profile)
+{
+    profile->attach(this);
+    mInputProfiles.add(profile);
+    return NO_ERROR;
+}
+
+status_t HwModule::addProfile(const sp<IOProfile> &profile)
+{
+    switch (profile->getRole()) {
+    case AUDIO_PORT_ROLE_SOURCE:
+        return addOutputProfile(profile);
+    case AUDIO_PORT_ROLE_SINK:
+        return addInputProfile(profile);
+    case AUDIO_PORT_ROLE_NONE:
+        return BAD_VALUE;
+    }
+    return BAD_VALUE;
+}
+
+void HwModule::setProfiles(const IOProfileCollection &profiles)
+{
+    for (size_t i = 0; i < profiles.size(); i++) {
+        addProfile(profiles[i]);
+    }
 }
 
 status_t HwModule::removeOutputProfile(String8 name)
 {
     for (size_t i = 0; i < mOutputProfiles.size(); i++) {
-        if (mOutputProfiles[i]->mName == name) {
+        if (mOutputProfiles[i]->getName() == name) {
             mOutputProfiles.removeAt(i);
             break;
         }
@@ -215,7 +107,7 @@ status_t HwModule::removeOutputProfile(String8 name)
 status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
                                                   audio_devices_t device, String8 address)
 {
-    sp<IOProfile> profile = new IOProfile(name, AUDIO_PORT_ROLE_SINK);
+    sp<IOProfile> profile = new InputProfile(name);
 
     profile->mSamplingRates.add(config->sample_rate);
     profile->mChannelMasks.add(config->channel_mask);
@@ -223,20 +115,17 @@ status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
 
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
     devDesc->mAddress = address;
-    profile->mSupportedDevices.add(devDesc);
+    profile->addSupportedDevice(devDesc);
 
     ALOGV("addInputProfile() name %s rate %d mask 0x08", name.string(), config->sample_rate, config->channel_mask);
 
-    profile->attach(this);
-    mInputProfiles.add(profile);
-
-    return NO_ERROR;
+    return addInputProfile(profile);
 }
 
 status_t HwModule::removeInputProfile(String8 name)
 {
     for (size_t i = 0; i < mInputProfiles.size(); i++) {
-        if (mInputProfiles[i]->mName == name) {
+        if (mInputProfiles[i]->getName() == name) {
             mInputProfiles.removeAt(i);
             break;
         }
@@ -252,7 +141,7 @@ void HwModule::dump(int fd)
     char buffer[SIZE];
     String8 result;
 
-    snprintf(buffer, SIZE, "  - name: %s\n", mName);
+    snprintf(buffer, SIZE, "  - name: %s\n", getName());
     result.append(buffer);
     snprintf(buffer, SIZE, "  - handle: %d\n", mHandle);
     result.append(buffer);
@@ -289,7 +178,7 @@ sp <HwModule> HwModuleCollection::getModuleFromName(const char *name) const
 
     for (size_t i = 0; i < size(); i++)
     {
-        if (strcmp(itemAt(i)->mName, name) == 0) {
+        if (strcmp(itemAt(i)->getName(), name) == 0) {
             return itemAt(i);
         }
     }
@@ -302,20 +191,19 @@ sp <HwModule> HwModuleCollection::getModuleForDevice(audio_devices_t device) con
     sp <HwModule> module;
 
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->mHandle == 0) {
+        if (itemAt(i)->getHandle() == 0) {
             continue;
         }
         if (audio_is_output_device(device)) {
             for (size_t j = 0; j < itemAt(i)->mOutputProfiles.size(); j++)
             {
-                if (itemAt(i)->mOutputProfiles[j]->mSupportedDevices.types() & device) {
+                if (itemAt(i)->mOutputProfiles[j]->supportDevice(device)) {
                     return itemAt(i);
                 }
             }
         } else {
             for (size_t j = 0; j < itemAt(i)->mInputProfiles.size(); j++) {
-                if (itemAt(i)->mInputProfiles[j]->mSupportedDevices.types() &
-                        device & ~AUDIO_DEVICE_BIT_IN) {
+                if (itemAt(i)->mInputProfiles[j]->supportDevice(device)) {
                     return itemAt(i);
                 }
             }
@@ -340,11 +228,11 @@ sp<DeviceDescriptor>  HwModuleCollection::getDeviceDescriptor(const audio_device
             continue;
         }
         DeviceVector deviceList =
-                hwModule->mDeclaredDevices.getDevicesFromTypeAddr(device, address);
+                hwModule->getDeclaredDevices().getDevicesFromTypeAddr(device, address);
         if (!deviceList.isEmpty()) {
             return deviceList.itemAt(0);
         }
-        deviceList = hwModule->mDeclaredDevices.getDevicesFromType(device);
+        deviceList = hwModule->getDeclaredDevices().getDevicesFromType(device);
         if (!deviceList.isEmpty()) {
             return deviceList.itemAt(0);
         }
