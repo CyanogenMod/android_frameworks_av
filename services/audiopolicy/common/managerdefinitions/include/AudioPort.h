@@ -37,6 +37,7 @@ public:
 
     virtual ~AudioPort() {}
 
+    void setName(const String8 &name) { mName = name; }
     const String8 &getName() const { return mName; }
 
     audio_port_type_t getType() const { return mType; }
@@ -107,7 +108,6 @@ public:
     void dump(int fd, int spaces) const;
     void log(const char* indent) const;
 
-    String8           mName;
     // by convention, "0' in the first entry in mSamplingRates, mChannelMasks or mFormats
     // indicates the supported parameters should be read from the output stream
     // after it is opened for the first time
@@ -118,6 +118,7 @@ public:
     sp<HwModule> mModule;                 // audio HW module exposing this I/O stream
 
 private:
+    String8           mName;
     audio_port_type_t mType;
     audio_port_role_t mRole;
     uint32_t mFlags; // attribute flags mask (e.g primary output, direct output...).

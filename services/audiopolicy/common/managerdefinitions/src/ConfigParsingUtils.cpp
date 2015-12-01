@@ -127,8 +127,7 @@ status_t ConfigParsingUtils::loadHwModuleDevice(cnode *root, DeviceVector &devic
         ALOGW("loadDevice() bad type %08x", type);
         return BAD_VALUE;
     }
-    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(type);
-    deviceDesc->mTag = String8(root->name);
+    sp<DeviceDescriptor> deviceDesc = new DeviceDescriptor(type, String8(root->name));
 
     node = root->first_child;
     while (node) {
@@ -146,8 +145,8 @@ status_t ConfigParsingUtils::loadHwModuleDevice(cnode *root, DeviceVector &devic
         node = node->next;
     }
 
-    ALOGV("loadDevice() adding device tag %s type %08x address %s",
-          deviceDesc->mTag.string(), type, deviceDesc->mAddress.string());
+    ALOGV("loadDevice() adding device tag (literal type) %s type %08x address %s",
+          deviceDesc->getTagName().string(), type, deviceDesc->mAddress.string());
 
     devices.add(deviceDesc);
     return NO_ERROR;
@@ -323,14 +322,10 @@ void ConfigParsingUtils::loadDevicesFromTag(const char *tag, DeviceVector &devic
             audio_devices_t type;
             if (DeviceConverter::fromString(devTag, type)) {
                 sp<DeviceDescriptor> dev = new DeviceDescriptor(type);
-                if (type == AUDIO_DEVICE_IN_REMOTE_SUBMIX ||
-                        type == AUDIO_DEVICE_OUT_REMOTE_SUBMIX ) {
-                    dev->mAddress = String8("0");
-                }
                 devices.add(dev);
             } else {
                 sp<DeviceDescriptor> deviceDesc =
-                        declaredDevices.getDeviceFromTag(String8(devTag));
+                        declaredDevices.getDeviceFromTagName(String8(devTag));
                 if (deviceDesc != 0) {
                     devices.add(deviceDesc);
                 }

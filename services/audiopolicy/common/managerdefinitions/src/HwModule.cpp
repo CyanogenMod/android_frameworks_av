@@ -238,9 +238,8 @@ sp<DeviceDescriptor>  HwModuleCollection::getDeviceDescriptor(const audio_device
         }
     }
 
-    sp<DeviceDescriptor> devDesc =
-            new DeviceDescriptor(device);
-    devDesc->mName = device_name;
+    sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
+    devDesc->setName(String8(device_name));
     devDesc->mAddress = address;
     return devDesc;
 }

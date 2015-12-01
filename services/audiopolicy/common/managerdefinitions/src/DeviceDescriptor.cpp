@@ -24,13 +24,15 @@
 
 namespace android {
 
-DeviceDescriptor::DeviceDescriptor(audio_devices_t type) :
+DeviceDescriptor::DeviceDescriptor(audio_devices_t type, const String8 &tagName) :
     AudioPort(String8(""), AUDIO_PORT_TYPE_DEVICE,
               audio_is_output_device(type) ? AUDIO_PORT_ROLE_SINK :
                                              AUDIO_PORT_ROLE_SOURCE),
-    mTag(""), mAddress(""), mDeviceType(type), mId(0)
+    mAddress(""), mTagName(tagName), mDeviceType(type), mId(0)
 {
-
+    if (type == AUDIO_DEVICE_IN_REMOTE_SUBMIX || type == AUDIO_DEVICE_OUT_REMOTE_SUBMIX ) {
+        mAddress = String8("0");
+    }
 }
 
 audio_port_handle_t DeviceDescriptor::getId() const
@@ -193,18 +195,17 @@ DeviceVector DeviceVector::getDevicesFromTypeAddr(
     return devices;
 }
 
-sp<DeviceDescriptor> DeviceVector::getDeviceFromTag(const String8& tag) const
+sp<DeviceDescriptor> DeviceVector::getDeviceFromTagName(const String8 &tagName) const
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
-        if (itemAt(i)->mTag == tag) {
+        if (itemAt(i)->getTagName() == tagName) {
             device = itemAt(i);
             break;
         }
     }
     return device;
 }
-
 
 status_t DeviceVector::dump(int fd, const String8 &direction) const
 {
