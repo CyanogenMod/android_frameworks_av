@@ -1,4 +1,4 @@
 service drm /system/bin/drmserver
     class main
     user drm
-    group drm system inet drmrpc
+    group drm system inet drmrpc readproc
