@@ -1118,12 +1118,6 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 ALOGV("Tear down audio with reason %d.", reason);
-
-                if (ifDecodedPCMOffload()) {
-                    tearDownPCMOffload(msg);
-                    break;
-                }
-
                 mAudioDecoder.clear();
                 ++mAudioDecoderGeneration;
                 bool needsToCreateAudioDecoder = true;
@@ -2446,47 +2440,6 @@ void NuPlayer::Source::notifyInstantiateSecureDecoders(const sp<AMessage> &reply
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> & /* msg */) {
     TRESPASS();
-}
-
-void NuPlayer::tearDownPCMOffload(const sp<AMessage> &msg) {
-    int32_t reason;
-    CHECK(msg->findInt32("reason", &reason));
-
-    if (mAudioDecoder != NULL) {
-        switch (mFlushingAudio) {
-        case NONE:
-        case FLUSHING_DECODER:
-            mDeferredActions.push_back(
-                new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
-                                       FLUSH_CMD_NONE /* video */));
-
-            if (reason == Renderer::kDueToError) {
-                mDeferredActions.push_back(
-                    new InstantiateDecoderAction(true /* audio */, &mAudioDecoder));
-            }
-
-            int64_t positionUs;
-            if (!msg->findInt64("positionUs", &positionUs)) {
-                positionUs = mPreviousSeekTimeUs;
-            }
-            mDeferredActions.push_back(new SeekAction(positionUs));
-            break;
-        default:
-            ALOGW("tearDownPCMOffload while flushing audio in %d", mFlushingAudio);
-            break;
-        }
-    }
-
-    if (mRenderer != NULL) {
-        closeAudioSink();
-        mRenderer->flush(
-            true /* audio */, false /* notifyComplete */);
-        if (mVideoDecoder != NULL) {
-            mRenderer->flush(
-                false /* audio */, false /* notifyComplete */);
-        }
-    }
-    processDeferredActions();
 }
 
 bool NuPlayer::ifDecodedPCMOffload() {
