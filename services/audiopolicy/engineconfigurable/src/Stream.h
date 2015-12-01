@@ -33,7 +33,7 @@ template <>
 class Element<audio_stream_type_t>
 {
 private:
-    typedef std::map<Volume::device_category, VolumeCurvePoints> VolumeProfiles;
+    typedef std::map<device_category, VolumeCurvePoints> VolumeProfiles;
     typedef VolumeProfiles::iterator VolumeProfileIterator;
     typedef VolumeProfiles::const_iterator VolumeProfileConstIterator;
 
@@ -79,9 +79,9 @@ public:
     template <typename Property>
     status_t set(Property property);
 
-    status_t setVolumeProfile(Volume::device_category category, const VolumeCurvePoints &points);
+    status_t setVolumeProfile(device_category category, const VolumeCurvePoints &points);
 
-    float volIndexToDb(Volume::device_category deviceCategory, int indexInUi);
+    float volIndexToDb(device_category deviceCategory, int indexInUi);
 
     status_t initVolume(int indexMin, int indexMax);
 

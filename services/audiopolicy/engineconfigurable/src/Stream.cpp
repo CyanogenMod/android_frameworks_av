@@ -62,7 +62,7 @@ routing_strategy Element<audio_stream_type_t>::get<routing_strategy>() const
     return mApplicableStrategy;
 }
 
-status_t Element<audio_stream_type_t>::setVolumeProfile(Volume::device_category category,
+status_t Element<audio_stream_type_t>::setVolumeProfile(device_category category,
                                                         const VolumeCurvePoints &points)
 {
     ALOGD("%s: adding volume profile for %s for device category %d, points nb =%d", __FUNCTION__,
@@ -91,8 +91,7 @@ status_t Element<audio_stream_type_t>::initVolume(int indexMin, int indexMax)
     return NO_ERROR;
 }
 
-float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceCategory,
-                                                   int indexInUi)
+float Element<audio_stream_type_t>::volIndexToDb(device_category deviceCategory, int indexInUi)
 {
     VolumeProfileConstIterator it = mVolumeProfiles.find(deviceCategory);
     if (it == mVolumeProfiles.end()) {

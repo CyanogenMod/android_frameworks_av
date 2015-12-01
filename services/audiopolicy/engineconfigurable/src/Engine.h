@@ -97,9 +97,9 @@ private:
 
         virtual void initializeVolumeCurves(bool /*isSpeakerDrcEnabled*/) {}
 
-        virtual float volIndexToDb(Volume::device_category deviceCategory,
-                                     audio_stream_type_t stream,
-                                     int indexInUi)
+        virtual float volIndexToDb(device_category deviceCategory,
+                                   audio_stream_type_t stream,
+                                   int indexInUi)
         {
             return mPolicyEngine->volIndexToDb(deviceCategory, stream, indexInUi);
         }
@@ -142,7 +142,7 @@ private:
                                                                                            stream);
         }
         virtual bool setVolumeProfileForStream(const audio_stream_type_t &stream,
-                                               Volume::device_category deviceCategory,
+                                               device_category deviceCategory,
                                                const VolumeCurvePoints &points)
         {
             return mPolicyEngine->setVolumeProfileForStream(stream, deviceCategory, points);
@@ -172,7 +172,7 @@ private:
     void setObserver(AudioPolicyManagerObserver *observer);
 
     bool setVolumeProfileForStream(const audio_stream_type_t &stream,
-                                   Volume::device_category deviceCategory,
+                                   device_category deviceCategory,
                                    const VolumeCurvePoints &points);
 
     status_t initCheck();
@@ -183,9 +183,7 @@ private:
     status_t setDeviceConnectionState(audio_devices_t devices, audio_policy_dev_state_t state,
                                       const char *deviceAddress);
 
-    float volIndexToDb(Volume::device_category category,
-                       audio_stream_type_t stream,
-                       int indexInUi);
+    float volIndexToDb(device_category category, audio_stream_type_t stream, int indexInUi);
     status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
 
     StrategyCollection mStrategyCollection; /**< Strategies indexed by their enum id. */

@@ -116,7 +116,7 @@ status_t Engine::initCheck()
 }
 
 bool Engine::setVolumeProfileForStream(const audio_stream_type_t &streamType,
-                                       Volume::device_category deviceCategory,
+                                       device_category deviceCategory,
                                        const VolumeCurvePoints &points)
 {
     Stream *stream = getFromCollection<audio_stream_type_t>(streamType);
@@ -199,9 +199,9 @@ bool Engine::setPropertyForKey(const Property &property, const Key &key)
     return element->template set<Property>(property) == NO_ERROR;
 }
 
-float Engine::volIndexToDb(Volume::device_category category,
-                             audio_stream_type_t streamType,
-                             int indexInUi)
+float Engine::volIndexToDb(device_category category,
+                           audio_stream_type_t streamType,
+                           int indexInUi)
 {
     Stream *stream = getFromCollection<audio_stream_type_t>(streamType);
     if (stream == NULL) {

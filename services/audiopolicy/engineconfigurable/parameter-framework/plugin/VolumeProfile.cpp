@@ -36,10 +36,10 @@ VolumeProfile::VolumeProfile(const string &mappingValue,
       mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface())
 {
     uint32_t categoryKey = context.getItemAsInteger(MappingKeyCategory);
-    if (categoryKey >= Volume::DEVICE_CATEGORY_CNT) {
-        mCategory = Volume::DEVICE_CATEGORY_SPEAKER;
+    if (categoryKey >= DEVICE_CATEGORY_CNT) {
+        mCategory = DEVICE_CATEGORY_SPEAKER;
     } else {
-        mCategory = static_cast<Volume::device_category>(categoryKey);
+        mCategory = static_cast<device_category>(categoryKey);
     }
     mId = static_cast<audio_stream_type_t>(context.getItemAsInteger(MappingKeyIdentifier));
 
