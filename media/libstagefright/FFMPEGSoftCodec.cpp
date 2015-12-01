@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#ifdef __LP64__
+#define OMX_ANDROID_COMPILE_AS_32BIT_ON_64BIT_PLATFORMS
+#endif
+
 //#define LOG_NDEBUG 0
 #define LOG_TAG "FFMPEGSoftCodec"
 #include <utils/Log.h>
@@ -330,7 +334,7 @@ status_t FFMPEGSoftCodec::setVideoFormat(
 
             xerr = OMXhandle->setParameter(
                     nodeID, (OMX_INDEXTYPE)OMX_QcomIndexEnableExtnUserData,
-                    (OMX_PTR)&enableType, sizeof(enableType));
+                    &enableType, sizeof(enableType));
             if (xerr != OK) {
                 ALOGW("[%s] Failed to enable user-extradata", componentName);
             }
