@@ -3843,7 +3843,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     // because we're about to decrement the last sp<> on those tracks.
                     block = FastMixerStateQueue::BLOCK_UNTIL_ACKED;
                 } else {
-                    LOG_ALWAYS_FATAL("fast track %d should have been active", j);
+                    LOG_ALWAYS_FATAL("fast track %d should have been active; "
+                            "mState=%d, mTrackMask=%#x, recentUnderruns=%u, isShared=%d",
+                            j, track->mState, state->mTrackMask, recentUnderruns,
+                            track->sharedBuffer() != 0);
                 }
                 tracksToRemove->add(track);
                 // Avoids a misleading display in dumpsys
