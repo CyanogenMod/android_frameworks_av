@@ -33,7 +33,7 @@ namespace android {
 
 AudioOutputDescriptor::AudioOutputDescriptor(const sp<AudioPort>& port,
                                              AudioPolicyClientInterface *clientInterface)
-    : mPort(port), mDevice(AUDIO_DEVICE_NONE),
+    : mPort(port), mDevice(AUDIO_DEVICE_NONE), mIoHandle(0),
       mPatchHandle(0), mClientInterface(clientInterface), mId(0)
 {
     // clear usage count for all stream types
@@ -223,7 +223,7 @@ void AudioOutputDescriptor::log(const char* indent)
 SwAudioOutputDescriptor::SwAudioOutputDescriptor(
         const sp<IOProfile>& profile, AudioPolicyClientInterface *clientInterface)
     : AudioOutputDescriptor(profile, clientInterface),
-    mProfile(profile), mIoHandle(0), mLatency(0),
+    mProfile(profile), mLatency(0),
     mFlags((audio_output_flags_t)0), mPolicyMix(NULL),
     mOutput1(0), mOutput2(0), mDirectOpenCount(0), mGlobalRefCount(0)
 {
@@ -428,7 +428,11 @@ audio_io_handle_t SwAudioOutputCollection::getA2dpOutput() const
             return this->keyAt(i);
         }
     }
+#ifdef LEGACY_ALSA_AUDIO
+    return 1;
+#else
     return 0;
+#endif
 }
 
 sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getPrimaryOutput() const

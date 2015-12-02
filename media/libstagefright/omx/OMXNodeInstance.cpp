@@ -193,7 +193,6 @@ OMXNodeInstance::OMXNodeInstance(
       mNodeID(0),
       mHandle(NULL),
       mObserver(observer),
-      mDying(false),
       mBufferIDCount(0)
 {
     mName = ADebug::GetDebugName(name);
@@ -206,6 +205,8 @@ OMXNodeInstance::OMXNodeInstance(
     mDebugLevelBumpPendingBuffers[1] = 0;
     mMetadataType[0] = kMetadataBufferTypeInvalid;
     mMetadataType[1] = kMetadataBufferTypeInvalid;
+    mIsSecure = AString(name).endsWith(".secure");
+    atomic_store(&mDying, false);
 }
 
 OMXNodeInstance::~OMXNodeInstance() {
@@ -276,7 +277,7 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
     // The code below may trigger some more events to be dispatched
     // by the OMX component - we want to ignore them as our client
     // does not expect them.
-    mDying = true;
+    atomic_store(&mDying, true);
 
     OMX_STATETYPE state;
     CHECK_EQ(OMX_GetState(mHandle, &state), OMX_ErrorNone);
@@ -1460,6 +1461,9 @@ void OMXNodeInstance::onObserverDied(OMXMaster *master) {
     ALOGE("!!! Observer died. Quickly, do something, ... anything...");
 
     // Try to force shutdown of the node and hope for the best.
+    // But allow the component to observe mDying = true first
+    atomic_store(&mDying, true);
+    sleep(2);
     freeNode(master);
 }
 
@@ -1527,7 +1531,7 @@ OMX_ERRORTYPE OMXNodeInstance::OnEvent(
         OMX_IN OMX_U32 nData2,
         OMX_IN OMX_PTR pEventData) {
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
-    if (instance->mDying) {
+    if (atomic_load(&instance->mDying)) {
         return OMX_ErrorNone;
     }
     return instance->owner()->OnEvent(
@@ -1540,7 +1544,7 @@ OMX_ERRORTYPE OMXNodeInstance::OnEmptyBufferDone(
         OMX_IN OMX_PTR pAppData,
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
-    if (instance->mDying) {
+    if (atomic_load(&instance->mDying)) {
         return OMX_ErrorNone;
     }
     int fenceFd = instance->retrieveFenceFromMeta_l(pBuffer, kPortIndexOutput);
@@ -1554,7 +1558,7 @@ OMX_ERRORTYPE OMXNodeInstance::OnFillBufferDone(
         OMX_IN OMX_PTR pAppData,
         OMX_IN OMX_BUFFERHEADERTYPE* pBuffer) {
     OMXNodeInstance *instance = static_cast<OMXNodeInstance *>(pAppData);
-    if (instance->mDying) {
+    if (atomic_load(&instance->mDying)) {
         return OMX_ErrorNone;
     }
     int fenceFd = instance->retrieveFenceFromMeta_l(pBuffer, kPortIndexOutput);
@@ -1593,7 +1597,8 @@ void OMXNodeInstance::removeActiveBuffer(
 void OMXNodeInstance::freeActiveBuffers() {
     // Make sure to count down here, as freeBuffer will in turn remove
     // the active buffer from the vector...
-    for (size_t i = mActiveBuffers.size(); i--;) {
+    for (size_t i = mActiveBuffers.size(); i;) {
+        i--;
         freeBuffer(mActiveBuffers[i].mPortIndex, mActiveBuffers[i].mID);
     }
 }

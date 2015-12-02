@@ -53,7 +53,7 @@ LOCAL_SRC_FILES:=               \
     device3/StatusTracker.cpp \
     gui/RingBufferConsumer.cpp \
     utils/CameraTraces.cpp \
-    utils/AutoConditionLock.cpp \
+    utils/AutoConditionLock.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \
@@ -78,6 +78,14 @@ LOCAL_C_INCLUDES += \
 
 
 LOCAL_CFLAGS += -Wall -Wextra
+
+ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
+    LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
+endif
+
+ifneq ($(BOARD_NUMBER_OF_CAMERAS),)
+    LOCAL_CFLAGS += -DMAX_CAMERAS=$(BOARD_NUMBER_OF_CAMERAS)
+endif
 
 LOCAL_MODULE:= libcameraservice
 

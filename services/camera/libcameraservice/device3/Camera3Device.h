@@ -62,6 +62,7 @@ class Camera3Device :
             public CameraDeviceBase,
             private camera3_callback_ops {
   public:
+
     Camera3Device(int id);
 
     virtual ~Camera3Device();
@@ -143,6 +144,8 @@ class Camera3Device :
 
     virtual status_t tearDown(int streamId);
 
+    virtual status_t prepare(int maxCount, int streamId);
+
     virtual uint32_t getDeviceVersion();
 
     virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
@@ -158,6 +161,8 @@ class Camera3Device :
     static const nsecs_t       kActiveTimeout     = 500000000;  // 500 ms
     static const size_t        kInFlightWarnLimit = 20;
     static const size_t        kInFlightWarnLimitHighSpeed = 256; // batch size 32 * pipe depth 8
+    // SCHED_FIFO priority for request submission thread in HFR mode
+    static const int           kConstrainedHighSpeedThreadPriority = 1;
 
     struct                     RequestTrigger;
     // minimal jpeg buffer size: 256KB + blob header
@@ -261,6 +266,11 @@ class Camera3Device :
         // Used to cancel AE precapture trigger for devices doesn't support
         // CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
         AeTriggerCancelOverride_t           mAeTriggerCancelOverride;
+        // The number of requests that should be submitted to HAL at a time.
+        // For example, if batch size is 8, this request and the following 7
+        // requests will be submitted to HAL at a time. The batch size for
+        // the following 7 requests will be ignored by the request thread.
+        int                                 mBatchSize;
     };
     typedef List<sp<CaptureRequest> > RequestList;
 
@@ -438,6 +448,11 @@ class Camera3Device :
                        int64_t *lastFrameNumber = NULL);
 
         /**
+         * Flush all pending requests in HAL.
+         */
+        status_t flush();
+
+        /**
          * Queue a trigger to be dispatched with the next outgoing
          * process_capture_request. The settings for that request only
          * will be temporarily rewritten to add the trigger tag/value.
@@ -498,16 +513,30 @@ class Camera3Device :
 
         static const nsecs_t kRequestTimeout = 50e6; // 50 ms
 
-        // Waits for a request, or returns NULL if times out.
-        sp<CaptureRequest> waitForNextRequest();
+        // Used to prepare a batch of requests.
+        struct NextRequest {
+            sp<CaptureRequest>              captureRequest;
+            camera3_capture_request_t       halRequest;
+            Vector<camera3_stream_buffer_t> outputBuffers;
+            bool                            submitted;
+        };
 
-        // Return buffers, etc, for a request that couldn't be fully
-        // constructed. The buffers will be returned in the ERROR state
-        // to mark them as not having valid data.
-        // All arguments will be modified.
-        void cleanUpFailedRequest(camera3_capture_request_t &request,
-                sp<CaptureRequest> &nextRequest,
-                Vector<camera3_stream_buffer_t> &outputBuffers);
+        // Wait for the next batch of requests and put them in mNextRequests. mNextRequests will
+        // be empty if it times out.
+        void waitForNextRequestBatch();
+
+        // Waits for a request, or returns NULL if times out. Must be called with mRequestLock hold.
+        sp<CaptureRequest> waitForNextRequestLocked();
+
+        // Prepare HAL requests and output buffers in mNextRequests. Return TIMED_OUT if getting any
+        // output buffer timed out. If an error is returned, the caller should clean up the pending
+        // request batch.
+        status_t prepareHalRequests();
+
+        // Return buffers, etc, for requests in mNextRequests that couldn't be fully constructed and
+        // send request errors if sendRequestError is true. The buffers will be returned in the
+        // ERROR state to mark them as not having valid data. mNextRequests will be cleared.
+        void cleanUpFailedRequests(bool sendRequestError);
 
         // Pause handling
         bool               waitIfPaused();
@@ -536,10 +565,13 @@ class Camera3Device :
         Condition          mRequestSignal;
         RequestList        mRequestQueue;
         RequestList        mRepeatingRequests;
-        // The next request being prepped for submission to the HAL, no longer
+        // The next batch of requests being prepped for submission to the HAL, no longer
         // on the request queue. Read-only even with mRequestLock held, outside
         // of threadLoop
-        sp<const CaptureRequest> mNextRequest;
+        Vector<NextRequest> mNextRequests;
+
+        // To protect flush() and sending a request batch to HAL.
+        Mutex              mFlushLock;
 
         bool               mReconfigured;
 
@@ -698,10 +730,11 @@ class Camera3Device :
         void setNotificationListener(NotificationListener *listener);
 
         /**
-         * Queue up a stream to be prepared. Streams are processed by
-         * a background thread in FIFO order
+         * Queue up a stream to be prepared. Streams are processed by a background thread in FIFO
+         * order.  Pre-allocate up to maxCount buffers for the stream, or the maximum number needed
+         * for the pipeline if maxCount is ALLOCATE_PIPELINE_MAX.
          */
-        status_t prepare(sp<camera3::Camera3StreamInterface>& stream);
+        status_t prepare(int maxCount, sp<camera3::Camera3StreamInterface>& stream);
 
         /**
          * Cancel all current and pending stream preparation
@@ -738,7 +771,10 @@ class Camera3Device :
     uint32_t               mNextResultFrameNumber;
     // the minimal frame number of the next reprocess result
     uint32_t               mNextReprocessResultFrameNumber;
+    // the minimal frame number of the next non-reprocess shutter
     uint32_t               mNextShutterFrameNumber;
+    // the minimal frame number of the next reprocess shutter
+    uint32_t               mNextReprocessShutterFrameNumber;
     List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
     NotificationListener  *mListener;

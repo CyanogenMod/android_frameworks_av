@@ -333,6 +333,9 @@ status_t MediaPlayer::start()
                 ALOGV("playback completed immediately following start()");
             }
         }
+    } else if ( (mPlayer != 0) && (mCurrentState & MEDIA_PLAYER_SUSPENDED) ) {
+        ALOGV("start while suspended, so ignore this start");
+        ret = NO_ERROR;
     } else {
         ALOGE("start called in state %d", mCurrentState);
         ret = INVALID_OPERATION;
@@ -392,6 +395,10 @@ bool MediaPlayer::isPlaying()
             ALOGE("internal/external state mismatch corrected");
             mCurrentState = MEDIA_PLAYER_PAUSED;
         } else if ((mCurrentState & MEDIA_PLAYER_PAUSED) && temp) {
+            ALOGE("internal/external state mismatch corrected");
+            mCurrentState = MEDIA_PLAYER_STARTED;
+        }
+        if ((mCurrentState & MEDIA_PLAYER_PLAYBACK_COMPLETE) && temp) {
             ALOGE("internal/external state mismatch corrected");
             mCurrentState = MEDIA_PLAYER_STARTED;
         }
@@ -484,7 +491,8 @@ status_t MediaPlayer::getDuration_l(int *msec)
 {
     ALOGV("getDuration_l");
     bool isValidState = (mCurrentState & (MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_STARTED |
-            MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_STOPPED | MEDIA_PLAYER_PLAYBACK_COMPLETE));
+            MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_STOPPED | MEDIA_PLAYER_PLAYBACK_COMPLETE |
+            MEDIA_PLAYER_SUSPENDED));
     if (mPlayer != 0 && isValidState) {
         int durationMs;
         status_t ret = mPlayer->getDuration(&durationMs);
@@ -514,7 +522,7 @@ status_t MediaPlayer::seekTo_l(int msec)
 {
     ALOGV("seekTo %d", msec);
     if ((mPlayer != 0) && ( mCurrentState & ( MEDIA_PLAYER_STARTED | MEDIA_PLAYER_PREPARED |
-            MEDIA_PLAYER_PAUSED |  MEDIA_PLAYER_PLAYBACK_COMPLETE) ) ) {
+            MEDIA_PLAYER_PAUSED |  MEDIA_PLAYER_PLAYBACK_COMPLETE | MEDIA_PLAYER_SUSPENDED) ) ) {
         if ( msec < 0 ) {
             ALOGW("Attempt to seek to invalid position: %d", msec);
             msec = 0;
@@ -935,4 +943,54 @@ status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
     return mPlayer->setNextPlayer(next == NULL ? NULL : next->mPlayer);
 }
 
-} // namespace android
+status_t MediaPlayer::suspend() {
+    ALOGV("MediaPlayer::suspend()");
+    Mutex::Autolock _l(mLock);
+    if (mPlayer == NULL) {
+        ALOGE("mPlayer = NULL");
+        return NO_INIT;
+    }
+
+    bool isValidState = (mCurrentState & (MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_STARTED | MEDIA_PLAYER_PAUSED | MEDIA_PLAYER_STOPPED | MEDIA_PLAYER_PLAYBACK_COMPLETE | MEDIA_PLAYER_SUSPENDED));
+
+    if (!isValidState) {
+        ALOGE("suspend while in a invalid state = %d", mCurrentState);
+        return UNKNOWN_ERROR;
+    }
+
+    status_t ret = mPlayer->suspend();
+
+    if (OK != ret) {
+        ALOGE("MediaPlayer::suspend() return with error ret = %d", ret);
+        return ret;
+    }
+    mCurrentState = MEDIA_PLAYER_SUSPENDED;
+    return OK;
+}
+
+status_t MediaPlayer::resume() {
+    ALOGV("MediaPlayer::resume()");
+    Mutex::Autolock _l(mLock);
+    if (mPlayer == NULL) {
+        ALOGE("mPlayer == NULL");
+        return NO_INIT;
+    }
+
+    bool isValidState = (mCurrentState == MEDIA_PLAYER_SUSPENDED);
+
+    if (!isValidState) {
+        ALOGE("resume while in a invalid state = %d", mCurrentState);
+        return UNKNOWN_ERROR;
+    }
+
+    status_t ret = mPlayer->resume();
+
+    if (OK != ret) {
+        ALOGE("MediaPlayer::resume() return with error ret = %d", ret);
+        return ret;
+    }
+    mCurrentState = MEDIA_PLAYER_PREPARED;
+    return OK;
+}
+
+}; // namespace android

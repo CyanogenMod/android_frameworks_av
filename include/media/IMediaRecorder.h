@@ -58,6 +58,8 @@ public:
     virtual status_t release() = 0;
     virtual status_t setInputSurface(const sp<IGraphicBufferConsumer>& surface) = 0;
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() = 0;
+
+    virtual status_t pause() = 0;
 };
 
 // ----------------------------------------------------------------------------

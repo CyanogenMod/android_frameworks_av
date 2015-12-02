@@ -188,7 +188,9 @@ class Camera3Stream :
 
     /**
      * Start stream preparation. May only be called in the CONFIGURED state,
-     * when no valid buffers have yet been returned to this stream.
+     * when no valid buffers have yet been returned to this stream. Prepares
+     * up to maxCount buffers, or the maximum number of buffers needed by the
+     * pipeline if maxCount is ALLOCATE_PIPELINE_MAX.
      *
      * If no prepartion is necessary, returns OK and does not transition to
      * PREPARING state. Otherwise, returns NOT_ENOUGH_DATA and transitions
@@ -204,7 +206,7 @@ class Camera3Stream :
      *    INVALID_OPERATION if called when not in CONFIGURED state, or a
      *        valid buffer has already been returned to this stream.
      */
-    status_t         startPrepare();
+    status_t         startPrepare(int maxCount);
 
     /**
      * Check if the stream is mid-preparing.
@@ -443,6 +445,9 @@ class Camera3Stream :
 
     Vector<camera3_stream_buffer_t> mPreparedBuffers;
     size_t mPreparedBufferIdx;
+
+    // Number of buffers allocated on last prepare call.
+    int mLastMaxCount;
 
 }; // class Camera3Stream
 

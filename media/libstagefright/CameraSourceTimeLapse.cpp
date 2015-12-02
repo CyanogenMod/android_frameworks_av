@@ -78,6 +78,7 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
                 storeMetaDataInVideoBuffers),
       mTimeBetweenTimeLapseVideoFramesUs(1E6/videoFrameRate),
       mLastTimeLapseFrameRealTimestampUs(0),
+      mLastTimeLapseFrameTimeStampUs(0),
       mSkipCurrentFrame(false) {
 
     mTimeBetweenFrameCaptureUs = timeBetweenFrameCaptureUs;
@@ -252,6 +253,7 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
         ALOGV("dataCallbackTimestamp timelapse: initial frame");
 
         mLastTimeLapseFrameRealTimestampUs = *timestampUs;
+        mLastTimeLapseFrameTimeStampUs = *timestampUs;
         return false;
     }
 
@@ -263,8 +265,10 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
         if (mForceRead) {
             ALOGV("dataCallbackTimestamp timelapse: forced read");
             mForceRead = false;
+            mLastTimeLapseFrameRealTimestampUs = *timestampUs;
             *timestampUs =
-                mLastFrameTimestampUs + mTimeBetweenTimeLapseVideoFramesUs;
+                mLastTimeLapseFrameTimeStampUs + mTimeBetweenTimeLapseVideoFramesUs;
+            mLastTimeLapseFrameTimeStampUs = *timestampUs;
 
             // Really make sure that this video recording frame will not be dropped.
             if (*timestampUs < mStartTimeUs) {
@@ -294,7 +298,8 @@ bool CameraSourceTimeLapse::skipFrameAndModifyTimeStamp(int64_t *timestampUs) {
         ALOGV("dataCallbackTimestamp timelapse: got timelapse frame");
 
         mLastTimeLapseFrameRealTimestampUs = *timestampUs;
-        *timestampUs = mLastFrameTimestampUs + mTimeBetweenTimeLapseVideoFramesUs;
+        *timestampUs = mLastTimeLapseFrameTimeStampUs + mTimeBetweenTimeLapseVideoFramesUs;
+        mLastTimeLapseFrameTimeStampUs = *timestampUs;
         // Update start-time once the captured-time reaches the expected start-time.
         // Not doing so will result in CameraSource always dropping frames since
         // updated-timestamp will never intersect start-timestamp

@@ -109,6 +109,7 @@ public:
     struct SetSurfaceAction;
     struct ResumeDecoderAction;
     struct FlushDecoderAction;
+    struct InstantiateDecoderAction;
     struct PostMessageAction;
     struct SimpleAction;
 
@@ -201,6 +202,7 @@ protected:
     AVSyncSettings mSyncSettings;
     float mVideoFpsHint;
     bool mStarted;
+    bool mResetting;
     bool mSourceStarted;
 
     // Actual pause state, either as requested by client or due to buffering.
@@ -260,7 +262,7 @@ protected:
 
     void processDeferredActions();
 
-    void performSeek(int64_t seekTimeUs);
+    virtual void performSeek(int64_t seekTimeUs);
     void performDecoderFlush(FlushCommand audio, FlushCommand video);
     void performReset();
     void performScanSources();
@@ -278,6 +280,8 @@ protected:
     void sendTimedTextData(const sp<ABuffer> &buffer);
 
     void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;
+
+    void performTearDown(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };

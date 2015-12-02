@@ -548,6 +548,7 @@ protected:
         uint32_t mBeaconMuteRefCount;   // ref count for stream that would mute beacon
         uint32_t mBeaconPlayingRefCount;// ref count for the playing beacon streams
         bool mBeaconMuted;              // has STREAM_TTS been muted
+        bool mTtsOutputAvailable;       // true if a dedicated output for TTS stream is available
 
         AudioPolicyMixCollection mPolicyMixes; // list of registered mixes
 

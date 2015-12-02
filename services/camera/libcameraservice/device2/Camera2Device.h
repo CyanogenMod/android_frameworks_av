@@ -88,6 +88,7 @@ class Camera2Device: public CameraDeviceBase {
     // Prepare and tearDown are no-ops
     virtual status_t prepare(int streamId);
     virtual status_t tearDown(int streamId);
+    virtual status_t prepare(int maxCount, int streamId);
 
     virtual uint32_t getDeviceVersion();
     virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;

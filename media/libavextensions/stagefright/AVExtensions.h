@@ -34,6 +34,7 @@
 #include <system/audio.h>
 #include <camera/ICamera.h>
 #include <media/mediarecorder.h>
+#include <media/IOMX.h>
 
 namespace android {
 
@@ -46,13 +47,13 @@ struct ACodec;
 struct ALooper;
 struct IMediaHTTPConnection;
 struct MediaCodec;
-struct MediaSource;
 struct MediaHTTP;
 struct NuCachedSource2;
 class CameraParameters;
 class MediaBuffer;
 struct AudioSource;
 class CameraSource;
+class CameraSourceTimeLapse;
 class ICamera;
 class ICameraRecordingProxy;
 class String16;
@@ -66,10 +67,10 @@ struct AVFactory {
     virtual sp<ACodec> createACodec();
     virtual MediaExtractor* createExtendedExtractor(
             const sp<DataSource> &source, const char *mime,
-            const sp<AMessage> &meta);
+            const sp<AMessage> &meta, const uint32_t flags);
     virtual sp<MediaExtractor> updateExtractor(
             sp<MediaExtractor> ext, const sp<DataSource> &source,
-            const char *mime, const sp<AMessage> &meta);
+            const char *mime, const sp<AMessage> &meta, const uint32_t flags);
     virtual sp<NuCachedSource2> createCachedSource(
             const sp<DataSource> &source,
             const char *cacheConfig = NULL,
@@ -84,7 +85,7 @@ struct AVFactory {
             uint32_t channels,
             uint32_t outSampleRate = 0);
 
-    virtual CameraSource *CreateFromCamera(
+    virtual CameraSource *CreateCameraSourceFromCamera(
             const sp<ICamera> &camera,
             const sp<ICameraRecordingProxy> &proxy,
             int32_t cameraId,
@@ -93,6 +94,18 @@ struct AVFactory {
             Size videoSize,
             int32_t frameRate,
             const sp<IGraphicBufferProducer>& surface,
+            bool storeMetaDataInVideoBuffers = true);
+
+    virtual CameraSourceTimeLapse *CreateCameraSourceTimeLapseFromCamera(
+            const sp<ICamera> &camera,
+            const sp<ICameraRecordingProxy> &proxy,
+            int32_t cameraId,
+            const String16& clientName,
+            uid_t clientUid,
+            Size videoSize,
+            int32_t videoFrameRate,
+            const sp<IGraphicBufferProducer>& surface,
+            int64_t timeBetweenFrameCaptureUs,
             bool storeMetaDataInVideoBuffers = true);
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVFactory);
@@ -147,6 +160,9 @@ struct AVUtils {
 
     virtual bool useQCHWEncoder(const sp<AMessage> &, AString &) { return false; }
 
+    virtual bool canDeferRelease(const sp<MetaData> &/*meta*/) { return false; }
+    virtual void setDeferRelease(sp<MetaData> &/*meta*/) {}
+
     struct HEVCMuxer {
 
         virtual bool reassembleHEVCCSD(const AString &mime, sp<ABuffer> csd0, sp<MetaData> &meta);
@@ -182,6 +198,10 @@ struct AVUtils {
     virtual bool isAudioMuxFormatSupported(const char *mime);
     virtual void cacheCaptureBuffers(sp<ICamera> camera, video_encoder encoder);
     virtual const char *getCustomCodecsLocation();
+
+    virtual void setIntraPeriod(
+                int nPFrames, int nBFrames, const sp<IOMX> OMXhandle,
+                IOMX::node_id nodeID);
 
 private:
     HEVCMuxer mHEVCMuxer;

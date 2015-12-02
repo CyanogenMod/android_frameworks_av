@@ -294,6 +294,12 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t tearDown(int streamId) = 0;
 
     /**
+     * Prepare stream by preallocating up to maxCount buffers for it asynchronously.
+     * Calls notifyPrepared() once allocation is complete.
+     */
+    virtual status_t prepare(int maxCount, int streamId) = 0;
+
+    /**
      * Get the HAL device version.
      */
     virtual uint32_t getDeviceVersion() = 0;

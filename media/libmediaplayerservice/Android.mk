@@ -64,6 +64,10 @@ LOCAL_MODULE:= libmediaplayerservice
 
 #LOCAL_32_BIT_ONLY := true
 
+ifeq ($(TARGET_BOARD_PLATFORM),msm8974)
+    LOCAL_CFLAGS += -DTARGET_8974
+endif
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(call all-makefiles-under,$(LOCAL_PATH))

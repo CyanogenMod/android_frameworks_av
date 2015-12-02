@@ -43,6 +43,7 @@
 #include <media/stagefright/MediaHTTP.h>
 #include <media/stagefright/AudioSource.h>
 #include <media/stagefright/CameraSource.h>
+#include <media/stagefright/CameraSourceTimeLapse.h>
 #include <camera/CameraParameters.h>
 
 #include "common/ExtensionsLoader.hpp"
@@ -56,13 +57,14 @@ sp<ACodec> AVFactory::createACodec() {
 }
 
 MediaExtractor* AVFactory::createExtendedExtractor(
-         const sp<DataSource> &, const char *, const sp<AMessage> &) {
+         const sp<DataSource> &, const char *, const sp<AMessage> &,
+         const uint32_t) {
     return NULL;
 }
 
 sp<MediaExtractor> AVFactory::updateExtractor(
             sp<MediaExtractor> ext, const sp<DataSource> &,
-            const char *, const sp<AMessage> &) {
+            const char *, const sp<AMessage> &, const uint32_t) {
     return ext;
 }
 
@@ -70,7 +72,7 @@ sp<NuCachedSource2> AVFactory::createCachedSource(
             const sp<DataSource> &source,
             const char *cacheConfig,
             bool disconnectAtHighwatermark) {
-    return new NuCachedSource2(source, cacheConfig, disconnectAtHighwatermark);
+    return NuCachedSource2::Create(source, cacheConfig, disconnectAtHighwatermark);
 }
 
 MediaHTTP* AVFactory::createMediaHTTP(
@@ -88,7 +90,7 @@ AudioSource* AVFactory::createAudioSource(
                             channels, outSampleRate);
 }
 
-CameraSource* AVFactory::CreateFromCamera(
+CameraSource* AVFactory::CreateCameraSourceFromCamera(
             const sp<ICamera> &camera,
             const sp<ICameraRecordingProxy> &proxy,
             int32_t cameraId,
@@ -103,6 +105,21 @@ CameraSource* AVFactory::CreateFromCamera(
             storeMetaDataInVideoBuffers);
 }
 
+CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
+        const sp<ICamera> &camera,
+        const sp<ICameraRecordingProxy> &proxy,
+        int32_t cameraId,
+        const String16& clientName,
+        uid_t clientUid,
+        Size videoSize,
+        int32_t videoFrameRate,
+        const sp<IGraphicBufferProducer>& surface,
+        int64_t timeBetweenFrameCaptureUs,
+        bool storeMetaDataInVideoBuffers) {
+    return CameraSourceTimeLapse::CreateFromCamera(camera, proxy, cameraId,
+            clientName, clientUid, videoSize, videoFrameRate, surface,
+            timeBetweenFrameCaptureUs, storeMetaDataInVideoBuffers);
+}
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVFactory::AVFactory() {
 }

@@ -35,6 +35,7 @@
 #include <media/stagefright/MediaErrors.h>
 
 #include <stagefright/AVExtensions.h>
+#include <stagefright/FFMPEGSoftCodec.h>
 #include <gui/Surface.h>
 
 #include "avc_utils.h"
@@ -257,9 +258,16 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), mSurface.get());
 
     mCodec = AVUtils::get()->createCustomComponentByName(mCodecLooper, mime.c_str(), false /* encoder */, format);
+    FFMPEGSoftCodec::overrideComponentName(0, format, &mComponentName, &mime, false);
+
     if (mCodec == NULL) {
-        mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+        if (!mComponentName.startsWith(mime.c_str())) {
+            mCodec = MediaCodec::CreateByComponentName(mCodecLooper, mComponentName.c_str());
+        } else {
+            mCodec = MediaCodec::CreateByType(mCodecLooper, mime.c_str(), false /* encoder */);
+        }
     }
+
     int32_t secure = 0;
     if (format->findInt32("secure", &secure) && secure != 0) {
         if (mCodec != NULL) {
@@ -364,7 +372,14 @@ void NuPlayer::Decoder::onResume(bool notifyComplete) {
     if (notifyComplete) {
         mResumePending = true;
     }
-    mCodec->start();
+
+    if (mCodec != NULL) {
+        mCodec->start();
+    } else {
+        ALOGW("Decoder %s onResume without a valid codec object",
+              mComponentName.c_str());
+        handleError(NO_INIT);
+    }
 }
 
 void NuPlayer::Decoder::doFlush(bool notifyComplete) {
@@ -565,6 +580,11 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
     sp<ABuffer> buffer;
     mCodec->getOutputBuffer(index, &buffer);
 
+    if (buffer == NULL) {
+        handleError(UNKNOWN_ERROR);
+        return false;
+    }
+
     if (index >= mOutputBuffers.size()) {
         for (size_t i = mOutputBuffers.size(); i <= index; ++i) {
             mOutputBuffers.add();
@@ -577,6 +597,9 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
     buffer->meta()->clear();
     buffer->meta()->setInt64("timeUs", timeUs);
     setPcmFormat(buffer->meta());
+#ifdef TARGET_8974
+    AVNuUtils::get()->addFlagsInMeta(buffer, flags, mIsAudio);
+#endif
 
     bool eos = flags & MediaCodec::BUFFER_FLAG_EOS;
     // we do not expect CODECCONFIG or SYNCFRAME for decoder
@@ -584,6 +607,14 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
     sp<AMessage> reply = new AMessage(kWhatRenderBuffer, this);
     reply->setSize("buffer-ix", index);
     reply->setInt32("generation", mBufferGeneration);
+
+    if ((flags & MediaCodec::BUFFER_FLAG_DATACORRUPT) &&
+            AVNuUtils::get()->dropCorruptFrame()) {
+        ALOGV("[%s] dropping corrupt buffer at time %lld as requested.",
+                     mComponentName.c_str(), (long long)timeUs);
+        reply->post();
+        return true;
+    }
 
     if (eos) {
         ALOGI("[%s] saw output EOS", mIsAudio ? "audio" : "video");

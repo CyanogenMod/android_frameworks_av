@@ -47,17 +47,21 @@ struct AVMediaUtils {
         return false;
     }
     virtual status_t AudioTrackGetPosition(AudioTrack* /*track*/,
-                                             uint32_t* /*position*/) {
+            uint32_t* /*position*/) {
         return NO_INIT;
     }
 
     virtual status_t AudioTrackGetTimestamp(AudioTrack* /*track*/,
-                                             AudioTimestamp /*timestamp*/) {
+            AudioTimestamp* /*timestamp*/) {
         return NO_INIT;
     }
 
     virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount) {
         return frameCount;
+    }
+
+    virtual bool AudioTrackIsTrackOffloaded(audio_io_handle_t /*output*/) {
+        return false;
     }
 
     virtual sp<MediaRecorder> createMediaRecorder(const String16& opPackageName);

@@ -937,7 +937,7 @@ status_t BnAudioFlinger::onTransact(
             pid_t tid = (pid_t) data.readInt32();
             int sessionId = data.readInt32();
             int clientUid = data.readInt32();
-            status_t status;
+            status_t status = NO_ERROR;
             sp<IAudioTrack> track;
             if ((haveSharedBuffer && (buffer == 0)) ||
                     ((buffer != 0) && (buffer->pointer() == NULL))) {
@@ -972,7 +972,7 @@ status_t BnAudioFlinger::onTransact(
             size_t notificationFrames = data.readInt64();
             sp<IMemory> cblk;
             sp<IMemory> buffers;
-            status_t status;
+            status_t status = NO_ERROR;
             sp<IAudioRecord> record = openRecord(input,
                     sampleRate, format, channelMask, opPackageName, &frameCount, &flags, tid,
                     clientUid, &sessionId, &notificationFrames, cblk, buffers, &status);
@@ -1104,13 +1104,15 @@ status_t BnAudioFlinger::onTransact(
         case OPEN_OUTPUT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_module_handle_t module = (audio_module_handle_t)data.readInt32();
-            audio_config_t config;
-            data.read(&config, sizeof(audio_config_t));
+            audio_config_t config = {};
+            if (data.read(&config, sizeof(audio_config_t)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             audio_devices_t devices = (audio_devices_t)data.readInt32();
             String8 address(data.readString8());
             audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
-            uint32_t latencyMs;
-            audio_io_handle_t output;
+            uint32_t latencyMs = 0;
+            audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
             status_t status = openOutput(module, &output, &config,
                                          &devices, address, &latencyMs, flags);
             ALOGV("OPEN_OUTPUT output, %d", output);
@@ -1149,8 +1151,10 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_module_handle_t module = (audio_module_handle_t)data.readInt32();
             audio_io_handle_t input = (audio_io_handle_t)data.readInt32();
-            audio_config_t config;
-            data.read(&config, sizeof(audio_config_t));
+            audio_config_t config = {};
+            if (data.read(&config, sizeof(audio_config_t)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             audio_devices_t device = (audio_devices_t)data.readInt32();
             String8 address(data.readString8());
             audio_source_t source = (audio_source_t)data.readInt32();
@@ -1186,8 +1190,8 @@ status_t BnAudioFlinger::onTransact(
         case GET_RENDER_POSITION: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
-            uint32_t halFrames;
-            uint32_t dspFrames;
+            uint32_t halFrames = 0;
+            uint32_t dspFrames = 0;
             status_t status = getRenderPosition(&halFrames, &dspFrames, output);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1223,7 +1227,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case QUERY_NUM_EFFECTS: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            uint32_t numEffects;
+            uint32_t numEffects = 0;
             status_t status = queryNumberEffects(&numEffects);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1233,7 +1237,7 @@ status_t BnAudioFlinger::onTransact(
         }
         case QUERY_EFFECT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            effect_descriptor_t desc;
+            effect_descriptor_t desc = {};
             status_t status = queryEffect(data.readInt32(), &desc);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1245,7 +1249,7 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             effect_uuid_t uuid;
             data.read(&uuid, sizeof(effect_uuid_t));
-            effect_descriptor_t desc;
+            effect_descriptor_t desc = {};
             status_t status = getEffectDescriptor(&uuid, &desc);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1255,16 +1259,18 @@ status_t BnAudioFlinger::onTransact(
         }
         case CREATE_EFFECT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            effect_descriptor_t desc;
-            data.read(&desc, sizeof(effect_descriptor_t));
+            effect_descriptor_t desc = {};
+            if (data.read(&desc, sizeof(effect_descriptor_t)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             sp<IEffectClient> client = interface_cast<IEffectClient>(data.readStrongBinder());
             int32_t priority = data.readInt32();
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
             int sessionId = data.readInt32();
             const String16 opPackageName = data.readString16();
-            status_t status;
-            int id;
-            int enabled;
+            status_t status = NO_ERROR;
+            int id = 0;
+            int enabled = 0;
 
             sp<IEffect> effect = createEffect(&desc, client, priority, output, sessionId,
                     opPackageName, &status, &id, &enabled);
@@ -1333,8 +1339,10 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case GET_AUDIO_PORT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            struct audio_port port;
-            data.read(&port, sizeof(struct audio_port));
+            struct audio_port port = {};
+            if (data.read(&port, sizeof(struct audio_port)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             status_t status = getAudioPort(&port);
             reply->writeInt32(status);
             if (status == NO_ERROR) {
@@ -1346,8 +1354,10 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             struct audio_patch patch;
             data.read(&patch, sizeof(struct audio_patch));
-            audio_patch_handle_t handle;
-            data.read(&handle, sizeof(audio_patch_handle_t));
+            audio_patch_handle_t handle = {};
+            if (data.read(&handle, sizeof(audio_patch_handle_t)) != NO_ERROR) {
+                ALOGE("b/23905951");
+            }
             status_t status = createAudioPatch(&patch, &handle);
             reply->writeInt32(status);
             if (status == NO_ERROR) {

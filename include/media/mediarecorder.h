@@ -1,4 +1,7 @@
 /*
+ ** Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ ** Not a Contribution.
+ **
  ** Copyright (C) 2008 The Android Open Source Project
  **
  ** Licensed under the Apache License, Version 2.0 (the "License");
@@ -131,6 +134,9 @@ enum media_recorder_states {
 
     // Recording is in progress.
     MEDIA_RECORDER_RECORDING             = 1 << 4,
+
+    // Recording is paused.
+    MEDIA_RECORDER_PAUSED                = 1 << 5,
 };
 
 // The "msg" code passed to the listener in notify.
@@ -271,6 +277,9 @@ protected:
     bool                        mIsOutputFileSet;
     Mutex                       mLock;
     Mutex                       mNotifyLock;
+
+public:
+    virtual status_t    pause();
 };
 
 };  // namespace android

@@ -355,7 +355,11 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
         //   - cannot route from voice call RX OR
         //   - audio HAL version is < 3.0 and TX device is on the primary HW module
         if (getPhoneState() == AUDIO_MODE_IN_CALL) {
+#ifdef LEGACY_ALSA_AUDIO
+            audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_CALL);
+#else
             audio_devices_t txDevice = getDeviceForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+#endif
             sp<AudioOutputDescriptor> primaryOutput = outputs.getPrimaryOutput();
             audio_devices_t availPrimaryInputDevices =
                  availableInputDevices.getDevicesFromHwModule(primaryOutput->getModuleHandle());
@@ -615,9 +619,11 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
 
 audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) const
 {
-    const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const DeviceVector &availableInputDevices = mApmObserver->getAvailableInputDevices();
+#ifndef LEGACY_ALSA_AUDIO
+    const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
     const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
+#endif
     audio_devices_t availableDeviceTypes = availableInputDevices.types() & ~AUDIO_DEVICE_BIT_IN;
 
     uint32_t device = AUDIO_DEVICE_NONE;
@@ -647,6 +653,9 @@ audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) cons
     break;
 
     case AUDIO_SOURCE_VOICE_COMMUNICATION:
+#ifdef LEGACY_ALSA_AUDIO
+        device = AUDIO_DEVICE_IN_COMMUNICATION;
+#else
         // Allow only use of devices on primary input if in call and HAL does not support routing
         // to voice call path.
         if ((getPhoneState() == AUDIO_MODE_IN_CALL) &&
@@ -684,6 +693,7 @@ audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) cons
             }
             break;
         }
+#endif
         break;
 
     case AUDIO_SOURCE_VOICE_RECOGNITION:

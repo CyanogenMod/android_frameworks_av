@@ -92,6 +92,10 @@ status_t Camera3DummyStream::getEndpointUsage(uint32_t *usage) const {
     return OK;
 }
 
+bool Camera3DummyStream::isVideoStream() const {
+    return false;
+}
+
 }; // namespace camera3
 
 }; // namespace android

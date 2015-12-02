@@ -60,7 +60,7 @@
 #include "FastMixer.h"
 #include "FastCapture.h"
 #include "ServiceUtilities.h"
-#include "SchedulingPolicyService.h"
+#include "mediautils/SchedulingPolicyService.h"
 
 #ifdef ADD_BATTERY_DATA
 #include <media/IMediaPlayerService.h>
@@ -2990,8 +2990,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         //     the app won't fill fast enough to handle the sudden draw).
 
                         const int32_t deltaMs = delta / 1000000;
-                        const int32_t throttleMs = mHalfBufferMs - deltaMs;
-                        if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
+                        const int32_t halfBufferMs = mHalfBufferMs / (mEffectBufferValid ? 4 : 1);
+                        const int32_t throttleMs = halfBufferMs - deltaMs;
+                        if ((signed)halfBufferMs >= throttleMs && throttleMs > 0) {
                             usleep(throttleMs * 1000);
                             // notify of throttle start on verbose log
                             ALOGV_IF(mThreadThrottleEndMs == mThreadThrottleTimeMs,
@@ -3319,11 +3320,15 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     }
     if (initFastMixer) {
         audio_format_t fastMixerFormat;
+#ifdef LEGACY_ALSA_AUDIO
+        fastMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
+#else
         if (mMixerBufferEnabled && mEffectBufferEnabled) {
             fastMixerFormat = AUDIO_FORMAT_PCM_FLOAT;
         } else {
             fastMixerFormat = AUDIO_FORMAT_PCM_16_BIT;
         }
+#endif
         if (mFormat != fastMixerFormat) {
             // change our Sink format to accept our intermediate precision
             mFormat = fastMixerFormat;
@@ -3498,6 +3503,12 @@ ssize_t AudioFlinger::MixerThread::threadLoop_write()
         if (state->mCommand != FastMixerState::MIX_WRITE &&
                 (kUseFastMixer != FastMixer_Dynamic || state->mTrackMask > 1)) {
             if (state->mCommand == FastMixerState::COLD_IDLE) {
+
+                // FIXME workaround for first HAL write being CPU bound on some devices
+                ATRACE_BEGIN("write");
+                mOutput->write((char *)mSinkBuffer, 0);
+                ATRACE_END();
+
                 int32_t old = android_atomic_inc(&mFastMixerFutex);
                 if (old == -1) {
                     (void) syscall(__NR_futex, &mFastMixerFutex, FUTEX_WAKE_PRIVATE, 1);

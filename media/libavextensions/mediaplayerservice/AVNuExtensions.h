@@ -80,9 +80,18 @@ struct AVNuUtils {
     virtual void setDecodedPCMFormat(const sp<AMessage> &);
     virtual status_t convertToSinkFormatIfNeeded(const sp<ABuffer> &, sp<ABuffer> &,
             audio_format_t sinkFormat, bool isOffload);
-
+#ifndef TARGET_8974
+    virtual uint32_t getFlags();
+    virtual bool canUseSetBuffers(const sp<MetaData> &Meta);
+#endif
     virtual void printFileName(int fd);
     virtual void checkFormatChange(bool *formatChange, const sp<ABuffer> &accessUnit);
+#ifdef TARGET_8974
+    virtual void addFlagsInMeta(const sp<ABuffer> &buffer, int32_t flags, bool isAudio);
+    virtual uint32_t getFlags();
+    virtual bool canUseSetBuffers(const sp<MetaData> &Meta);
+#endif
+    virtual bool dropCorruptFrame();
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);

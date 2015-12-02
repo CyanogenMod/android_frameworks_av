@@ -126,6 +126,7 @@ protected:
     bool mAudioIsVorbis;
     bool mIsWidevine;
     bool mIsSecure;
+    bool mUseSetBuffers;
     bool mIsStreaming;
     bool mUIDValid;
     uid_t mUID;
@@ -136,6 +137,7 @@ protected:
     int64_t mOffset;
     int64_t mLength;
 
+    Mutex mSourceLock;
     sp<DataSource> mDataSource;
     sp<NuCachedSource2> mCachedSource;
     sp<DataSource> mHttpSource;

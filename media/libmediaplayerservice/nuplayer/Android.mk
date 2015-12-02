@@ -24,13 +24,18 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libstagefright/timedtext           \
 	$(TOP)/frameworks/av/media/libmediaplayerservice              \
 	$(TOP)/frameworks/native/include/media/openmax                \
-        $(TOP)/frameworks/av/media/libavextensions                    \
+	$(TOP)/frameworks/av/media/libavextensions                    \
+	$(TOP)/frameworks/av/include/media                            \
 
 LOCAL_CFLAGS += -Werror -Wall
 
 # enable experiments only in userdebug and eng builds
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
 LOCAL_CFLAGS += -DENABLE_STAGEFRIGHT_EXPERIMENTS
+endif
+
+ifeq ($(TARGET_BOARD_PLATFORM),msm8974)
+LOCAL_CFLAGS += -DTARGET_8974
 endif
 
 LOCAL_CLANG := true

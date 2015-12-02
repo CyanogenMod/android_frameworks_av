@@ -97,6 +97,7 @@ public:
     // and the capture format is according to flags  (see callback_flags).
     status_t setCaptureCallBack(capture_cbk_t cbk, void* user, uint32_t flags, uint32_t rate,
                                 bool force = false);
+    void cancelCaptureCallBack();
 
     // set the capture size capture size must be a power of two in the range
     // [VISUALIZER_CAPTURE_SIZE_MAX. VISUALIZER_CAPTURE_SIZE_MIN]

@@ -33,6 +33,8 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 
+#include <media/stagefright/MediaDefs.h>
+
 #include <nuplayer/NuPlayer.h>
 #include <nuplayer/NuPlayerDecoderBase.h>
 #include <nuplayer/NuPlayerDecoderPassThrough.h>
@@ -52,12 +54,29 @@ bool AVNuUtils::pcmOffloadException(const sp<MetaData> &) {
     return true;
 }
 
-bool AVNuUtils::isRAWFormat(const sp<MetaData> &) {
-    return false;
+bool AVNuUtils::isRAWFormat(const sp<MetaData> &meta) {
+    const char *mime = {0};
+    if (meta == NULL) {
+        return false;
+    }
+    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
 }
 
-bool AVNuUtils::isRAWFormat(const sp<AMessage> &) {
-    return false;
+bool AVNuUtils::isRAWFormat(const sp<AMessage> &format) {
+    AString mime;
+    if (format == NULL) {
+        return false;
+    }
+    CHECK(format->findString("mime", &mime));
+    if (!strncasecmp(mime.c_str(), MEDIA_MIMETYPE_AUDIO_RAW, 9))
+        return true;
+    else
+        return false;
+
 }
 
 bool AVNuUtils::isVorbisFormat(const sp<MetaData> &) {
@@ -69,20 +88,26 @@ int AVNuUtils::updateAudioBitWidth(audio_format_t /*audioFormat*/,
     return 16;
 }
 
-audio_format_t AVNuUtils::getKeyPCMFormat(const sp<MetaData> &) {
-    return AUDIO_FORMAT_INVALID;
-}
+audio_format_t AVNuUtils::getKeyPCMFormat(const sp<MetaData> &meta) {
+    int32_t pcmFormat = 0;
+    if (meta->findInt32('pfmt', &pcmFormat))
+        return (audio_format_t)pcmFormat;
 
-void AVNuUtils::setKeyPCMFormat(const sp<MetaData> &, audio_format_t /*audioFormat*/) {
-
-}
-
-audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &) {
     return AUDIO_FORMAT_PCM_16_BIT;
 }
 
-void AVNuUtils::setPCMFormat(const sp<AMessage> &, audio_format_t /*audioFormat*/) {
+void AVNuUtils::setKeyPCMFormat(const sp<MetaData> &meta, audio_format_t audioFormat) {
+    if (audio_is_linear_pcm(audioFormat))
+        meta->setInt32('pfmt', audioFormat);
+}
 
+audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &/*format*/) {
+    return AUDIO_FORMAT_PCM_16_BIT;
+}
+
+void AVNuUtils::setPCMFormat(const sp<AMessage> &format, audio_format_t audioFormat) {
+    if (audio_is_linear_pcm(audioFormat))
+        format->setInt32("pcm-format", audioFormat);
 }
 
 void AVNuUtils::setSourcePCMFormat(const sp<MetaData> &) {
@@ -103,6 +128,22 @@ void AVNuUtils::printFileName(int) {}
 void AVNuUtils::checkFormatChange(bool * /*formatChange*/,
         const sp<ABuffer> & /*accessUnit*/) {
 }
+
+#ifdef TARGET_8974
+void AVNuUtils::addFlagsInMeta(const sp<ABuffer> & /*buffer*/,
+        int32_t /*flags*/, bool /*isAudio*/) {
+}
+#endif
+
+uint32_t AVNuUtils::getFlags() {
+    return 0;
+}
+
+bool AVNuUtils::canUseSetBuffers(const sp<MetaData> &/*Meta*/) {
+    return false;
+}
+
+bool AVNuUtils::dropCorruptFrame() { return false; }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVNuUtils::AVNuUtils() {}

@@ -31,6 +31,7 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
 #include <utils/String8.h>
+#include <media/stagefright/foundation/ABitReader.h>
 
 #include <inttypes.h>
 
@@ -136,6 +137,7 @@ private:
     enum Type {
         AVC,
         AAC,
+        HEVC,
         OTHER
     };
 
@@ -233,6 +235,17 @@ MatroskaSource::MatroskaSource(
         CHECK_GE(avccSize, 5u);
 
         mNALSizeLen = 1 + (avcc[4] & 3);
+        ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+        mType = HEVC;
+
+        uint32_t type;
+        const uint8_t *data;
+        size_t size;
+        CHECK(meta->findData(kKeyHVCC, &type, (const void **)&data, &size));
+
+        CHECK(size >= 7);
+        mNALSizeLen = 1 + (data[14 + 7] & 3);
         ALOGV("mNALSizeLen = %zu", mNALSizeLen);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
         mType = AAC;
@@ -521,8 +534,9 @@ status_t MatroskaSource::readBlock() {
     const mkvparser::Block *block = mBlockIter.block();
 
     int64_t timeUs = mBlockIter.blockTimeUs();
+    int frameCount = block->GetFrameCount();
 
-    for (int i = 0; i < block->GetFrameCount(); ++i) {
+    for (int i = 0; i < frameCount; ++i) {
         const mkvparser::Block::Frame &frame = block->GetFrame(i);
 
         MediaBuffer *mbuf = new MediaBuffer(frame.len);
@@ -534,6 +548,7 @@ status_t MatroskaSource::readBlock() {
             mPendingFrames.clear();
 
             mBlockIter.advance();
+            mbuf->release();
             return ERROR_IO;
         }
 
@@ -541,6 +556,27 @@ status_t MatroskaSource::readBlock() {
     }
 
     mBlockIter.advance();
+
+    if (!mBlockIter.eos() && frameCount > 1) {
+        // For files with lacing enabled, we need to amend they kKeyTime of
+        // each frame so that their kKeyTime are advanced accordingly (instead
+        // of being set to the same value). To do this, we need to find out
+        // the duration of the block using the start time of the next block.
+        int64_t duration = mBlockIter.blockTimeUs() - timeUs;
+        int64_t durationPerFrame = duration / frameCount;
+        int64_t durationRemainder = duration % frameCount;
+
+        // We split duration to each of the frame, distributing the remainder (if any)
+        // to the later frames. The later frames are processed first due to the
+        // use of the iterator for the doubly linked list
+        List<MediaBuffer *>::iterator it = mPendingFrames.end();
+        for (int i = frameCount - 1; i >= 0; --i) {
+            --it;
+            int64_t frameRemainder = durationRemainder >= frameCount - i ? 1 : 0;
+            int64_t frameTimeUs = timeUs + durationPerFrame * i + frameRemainder;
+            (*it)->meta_data()->setInt64(kKeyTime, frameTimeUs);
+        }
+    }
 
     return OK;
 }
@@ -581,7 +617,7 @@ status_t MatroskaSource::read(
     MediaBuffer *frame = *mPendingFrames.begin();
     mPendingFrames.erase(mPendingFrames.begin());
 
-    if (mType != AVC) {
+    if (mType != AVC && mType != HEVC) {
         if (targetSampleTimeUs >= 0ll) {
             frame->meta_data()->setInt64(
                     kKeyTargetTime, targetSampleTimeUs);
@@ -633,9 +669,11 @@ status_t MatroskaSource::read(
             if (pass == 1) {
                 memcpy(&dstPtr[dstOffset], "\x00\x00\x00\x01", 4);
 
-                memcpy(&dstPtr[dstOffset + 4],
-                       &srcPtr[srcOffset + mNALSizeLen],
-                       NALsize);
+                if (frame != buffer) {
+                    memcpy(&dstPtr[dstOffset + 4],
+                           &srcPtr[srcOffset + mNALSizeLen],
+                           NALsize);
+                }
             }
 
             dstOffset += 4;  // 0x00 00 00 01
@@ -657,7 +695,13 @@ status_t MatroskaSource::read(
         if (pass == 0) {
             dstSize = dstOffset;
 
-            buffer = new MediaBuffer(dstSize);
+            if (dstSize == srcSize && mNALSizeLen == 4) {
+                // In this special case we can re-use the input buffer by substituting
+                // each 4-byte nal size with a 4-byte start code
+                buffer = frame;
+            } else {
+                buffer = new MediaBuffer(dstSize);
+            }
 
             int64_t timeUs;
             CHECK(frame->meta_data()->findInt64(kKeyTime, &timeUs));
@@ -671,8 +715,10 @@ status_t MatroskaSource::read(
         }
     }
 
-    frame->release();
-    frame = NULL;
+    if (frame != buffer) {
+        frame->release();
+        frame = NULL;
+    }
 
     if (targetSampleTimeUs >= 0ll) {
         buffer->meta_data()->setInt64(
@@ -819,6 +865,17 @@ static void addESDSFromCodecPrivate(
         const sp<MetaData> &meta,
         bool isAudio, const void *priv, size_t privSize) {
 
+    if(isAudio) {
+        ABitReader br((const uint8_t *)priv, privSize);
+        uint32_t objectType = br.getBits(5);
+
+        if (objectType == 31) {  // AAC-ELD => additional 6 bits
+            objectType = 32 + br.getBits(6);
+        }
+
+        meta->setInt32(kKeyAACAOT, objectType);
+    }
+
     int privSizeBytesRequired = bytesForSize(privSize);
     int esdsSize2 = 14 + privSizeBytesRequired + privSize;
     int esdsSize2BytesRequired = bytesForSize(esdsSize2);
@@ -845,6 +902,8 @@ static void addESDSFromCodecPrivate(
     memcpy(esds + idx, priv, privSize);
 
     meta->setData(kKeyESDS, 0, esds, esdsSize);
+
+    updateVideoTrackInfoFromESDS_MPEG4Video(meta);
 
     delete[] esds;
     esds = NULL;
@@ -979,6 +1038,10 @@ void MatroskaExtractor::addTracks() {
                                 codecID);
                         continue;
                     }
+                } else if (!strcmp("V_MPEGH/ISO/HEVC", codecID)) {
+                    meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_HEVC);
+                    meta->setData(kKeyHVCC, kTypeHVCC, codecPrivate, codecPrivateSize);
+
                 } else if (!strcmp("V_VP8", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP8);
                 } else if (!strcmp("V_VP9", codecID)) {
@@ -1000,7 +1063,9 @@ void MatroskaExtractor::addTracks() {
 
                 if (!strcmp("A_AAC", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_AAC);
-                    CHECK(codecPrivateSize >= 2);
+                    if (codecPrivateSize < 2) {
+                        return;
+                    }
 
                     addESDSFromCodecPrivate(
                             meta, true, codecPrivate, codecPrivateSize);

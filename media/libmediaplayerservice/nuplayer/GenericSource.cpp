@@ -37,6 +37,7 @@
 #include "../../libstagefright/include/NuCachedSource2.h"
 #include "../../libstagefright/include/WVMExtractor.h"
 #include "../../libstagefright/include/HTTPBase.h"
+#include "mediaplayerservice/AVNuExtensions.h"
 
 namespace android {
 
@@ -60,6 +61,7 @@ NuPlayer::GenericSource::GenericSource(
       mAudioIsVorbis(false),
       mIsWidevine(false),
       mIsSecure(false),
+      mUseSetBuffers(false),
       mIsStreaming(false),
       mUIDValid(uidValid),
       mUID(uid),
@@ -126,6 +128,7 @@ status_t NuPlayer::GenericSource::setDataSource(
 
 status_t NuPlayer::GenericSource::setDataSource(const sp<DataSource>& source) {
     resetDataSource();
+    Mutex::Autolock _l(mSourceLock);
     mDataSource = source;
     return OK;
 }
@@ -153,7 +156,12 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             return UNKNOWN_ERROR;
         }
     } else if (mIsStreaming) {
-        if (!mDataSource->sniff(&mimeType, &confidence, &dummy)) {
+        sp<DataSource> dataSource;
+        {
+            Mutex::Autolock _l(mSourceLock);
+            dataSource = mDataSource;
+        }
+        if (!dataSource->sniff(&mimeType, &confidence, &dummy)) {
             return UNKNOWN_ERROR;
         }
         isWidevineStreaming = !strcasecmp(
@@ -171,8 +179,14 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
         }
         extractor = mWVMExtractor;
     } else {
+#ifndef TARGET_8974
+        int32_t flags = AVNuUtils::get()->getFlags();
+#else
+        int32_t flags = 0;
+#endif
         extractor = MediaExtractor::Create(mDataSource,
-                mimeType.isEmpty() ? NULL : mimeType.string());
+                mimeType.isEmpty() ? NULL : mimeType.string(),
+                mIsStreaming ? 0 : flags);
     }
 
     if (extractor == NULL) {
@@ -201,6 +215,13 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             }
         }
     }
+
+#ifndef TARGET_8974
+    if (AVNuUtils::get()->canUseSetBuffers(mFileMeta)) {
+        mUseSetBuffers = true;
+        ALOGI("setBuffers mode enabled");
+    }
+#endif
 
     int32_t totalBitrate = 0;
 
@@ -318,7 +339,7 @@ int64_t NuPlayer::GenericSource::getLastReadPosition() {
 
 status_t NuPlayer::GenericSource::setBuffers(
         bool audio, Vector<MediaBuffer *> &buffers) {
-    if (mIsSecure && !audio) {
+    if ((mIsSecure || mUseSetBuffers) && !audio) {
         return mVideoTrack.mSource->setBuffers(buffers);
     }
     return INVALID_OPERATION;
@@ -372,14 +393,20 @@ void NuPlayer::GenericSource::onPrepareAsync() {
                 }
             }
 
-            mDataSource = DataSource::CreateFromURI(
+            sp<DataSource> dataSource;
+            dataSource = DataSource::CreateFromURI(
                    mHTTPService, uri, &mUriHeaders, &contentType,
                    static_cast<HTTPBase *>(mHttpSource.get()),
                    true /*use extended cache*/);
+            Mutex::Autolock _l(mSourceLock);
+            mDataSource = dataSource;
         } else {
             mIsWidevine = false;
 
-            mDataSource = new FileSource(mFd, mOffset, mLength);
+            sp<DataSource> dataSource;
+            dataSource = new FileSource(mFd, mOffset, mLength);
+            Mutex::Autolock _l(mSourceLock);
+            mDataSource = dataSource;
             mFd = -1;
         }
 
@@ -428,7 +455,8 @@ void NuPlayer::GenericSource::onPrepareAsync() {
             | FLAG_CAN_PAUSE
             | FLAG_CAN_SEEK_BACKWARD
             | FLAG_CAN_SEEK_FORWARD
-            | FLAG_CAN_SEEK);
+            | FLAG_CAN_SEEK
+            | (mUseSetBuffers ? FLAG_USE_SET_BUFFERS : 0));
 
     if (mIsSecure) {
         // secure decoders must be instantiated before starting widevine source
@@ -468,6 +496,7 @@ void NuPlayer::GenericSource::finishPrepareAsync() {
 
 void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
     if (err != OK) {
+        Mutex::Autolock _l(mSourceLock);
         mDataSource.clear();
         mCachedSource.clear();
         mHttpSource.clear();
@@ -523,13 +552,21 @@ void NuPlayer::GenericSource::resume() {
 }
 
 void NuPlayer::GenericSource::disconnect() {
-    if (mDataSource != NULL) {
+
+    sp<DataSource> dataSource;
+    sp<DataSource> httpSource;
+    {
+        Mutex::Autolock _l(mSourceLock);
+        dataSource = mDataSource;
+        httpSource = mHttpSource;
+    }
+    if (dataSource != NULL) {
         // disconnect data source
-        if (mDataSource->flags() & DataSource::kIsCachingDataSource) {
-            static_cast<NuCachedSource2 *>(mDataSource.get())->disconnect();
+        if (dataSource->flags() & DataSource::kIsCachingDataSource) {
+            static_cast<NuCachedSource2 *>(dataSource.get())->disconnect();
         }
-    } else if (mHttpSource != NULL) {
-        static_cast<HTTPBase *>(mHttpSource.get())->disconnect();
+    } else if (httpSource != NULL) {
+        static_cast<HTTPBase *>(httpSource.get())->disconnect();
     }
 }
 
@@ -1008,7 +1045,8 @@ status_t NuPlayer::GenericSource::dequeueAccessUnit(
 
     // start pulling in more buffers if we only have one (or no) buffer left
     // so that decoder has less chance of being starved
-    if (track->mPackets->getAvailableBufferCount(&finalResult) < 2) {
+    if ((track->mPackets->getAvailableBufferCount(&finalResult) < 2)
+        && !mUseSetBuffers) {
         postReadBuffer(audio? MEDIA_TRACK_TYPE_AUDIO : MEDIA_TRACK_TYPE_VIDEO);
     }
 
@@ -1352,7 +1390,7 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
     }
 
     sp<ABuffer> ab;
-    if (mIsSecure && !audio) {
+    if ((mIsSecure || mUseSetBuffers) && !audio) {
         // data is already provided in the buffer
         ab = new ABuffer(NULL, mb->range_length());
         mb->add_ref();
@@ -1503,7 +1541,7 @@ void NuPlayer::GenericSource::readBuffer(
         track->mPackets->clear();
     }
 
-    if (mIsWidevine) {
+    if (mIsWidevine || mUseSetBuffers) {
         options.setNonBlocking();
     }
 

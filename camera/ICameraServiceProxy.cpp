@@ -29,11 +29,21 @@ public:
     BpCameraServiceProxy(const sp<IBinder>& impl) : BpInterface<ICameraServiceProxy>(impl) {}
 
     virtual void pingForUserUpdate() {
-        Parcel data, reply;
+        Parcel data;
         data.writeInterfaceToken(ICameraServiceProxy::getInterfaceDescriptor());
-        remote()->transact(BnCameraServiceProxy::PING_FOR_USER_UPDATE, data, &reply,
+        remote()->transact(BnCameraServiceProxy::PING_FOR_USER_UPDATE, data, nullptr,
                 IBinder::FLAG_ONEWAY);
     }
+
+    virtual void notifyCameraState(String16 cameraId, CameraState newCameraState) {
+        Parcel data;
+        data.writeInterfaceToken(ICameraServiceProxy::getInterfaceDescriptor());
+        data.writeString16(cameraId);
+        data.writeInt32(newCameraState);
+        remote()->transact(BnCameraServiceProxy::NOTIFY_CAMERA_STATE, data, nullptr,
+                IBinder::FLAG_ONEWAY);
+    }
+
 };
 
 
@@ -47,9 +57,16 @@ status_t BnCameraServiceProxy::onTransact(uint32_t code, const Parcel& data, Par
             pingForUserUpdate();
             return NO_ERROR;
         } break;
+        case NOTIFY_CAMERA_STATE: {
+            CHECK_INTERFACE(ICameraServiceProxy, data, reply);
+            String16 cameraId = data.readString16();
+            CameraState newCameraState =
+                static_cast<CameraState>(data.readInt32());
+            notifyCameraState(cameraId, newCameraState);
+            return NO_ERROR;
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
 }
 }; // namespace android
-

@@ -71,8 +71,11 @@ private:
     Mutex                  mLock;
     MediaRecorderBase      *mRecorder;
     sp<MediaPlayerService> mMediaPlayerService;
-};
 
+public:
+    virtual     status_t   pause();
+
+};
 }; // namespace android
 
 #endif // ANDROID_MEDIARECORDERCLIENT_H

@@ -44,6 +44,8 @@
 
 namespace android {
 
+MediaExtractor::Plugin MediaExtractor::sPlugin;
+
 sp<MetaData> MediaExtractor::getMetaData() {
     return new MetaData;
 }
@@ -54,12 +56,19 @@ uint32_t MediaExtractor::flags() const {
 
 // static
 sp<MediaExtractor> MediaExtractor::Create(
-        const sp<DataSource> &source, const char *mime) {
+        const sp<DataSource> &source, const char *mime,
+        const uint32_t flags) {
     sp<AMessage> meta;
 
+    bool secondPass = false;
+
     String8 tmp;
-    if (mime == NULL) {
+retry:
+    if (secondPass || mime == NULL) {
         float confidence;
+        if (secondPass) {
+            confidence = 3.14f;
+        }
         if (!source->sniff(&tmp, &confidence, &meta)) {
             ALOGV("FAILED to autodetect media content.");
 
@@ -94,7 +103,12 @@ sp<MediaExtractor> MediaExtractor::Create(
     }
 
     sp<MediaExtractor> ret = NULL;
-    if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta)) != NULL) {
+    AString extractorName;
+    if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta, flags)) != NULL) {
+    } else if (meta.get() && meta->findString("extended-extractor-use", &extractorName)
+            && sPlugin.create) {
+        ALOGI("Use extended extractor for the special mime(%s) or codec", mime);
+        ret = sPlugin.create(source, mime, meta);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4)
             || !strcasecmp(mime, "audio/mp4")) {
         ret = new MPEG4Extractor(source);
@@ -122,15 +136,26 @@ sp<MediaExtractor> MediaExtractor::Create(
         ret = new MPEG2PSExtractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MIDI)) {
         ret = new MidiExtractor(source);
+    } else if (!isDrm && sPlugin.create) {
+        ret = sPlugin.create(source, mime, meta);
     }
 
-    ret = AVFactory::get()->updateExtractor(ret, source, mime, meta);
+    ret = AVFactory::get()->updateExtractor(ret, source, mime, meta, flags);
     if (ret != NULL) {
        if (isDrm) {
            ret->setDrmFlag(true);
        } else {
            ret->setDrmFlag(false);
        }
+    }
+
+    if (ret != NULL) {
+
+        if (!secondPass && ( ret->countTracks() == 0 ||
+                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2) ) ) {
+            secondPass = true;
+            goto retry;
+        }
     }
 
     return ret;

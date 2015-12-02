@@ -60,13 +60,17 @@ struct MediaRecorderBase {
     virtual status_t setInputSurface(const sp<IGraphicBufferConsumer>& surface) = 0;
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const = 0;
 
-
 protected:
     String16 mOpPackageName;
 
 private:
     MediaRecorderBase(const MediaRecorderBase &);
     MediaRecorderBase &operator=(const MediaRecorderBase &);
+
+public:
+    virtual status_t pause() = 0;
+
+
 };
 
 }  // namespace android

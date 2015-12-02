@@ -66,8 +66,10 @@ int AVUtils::getAudioSampleBits(const sp<MetaData> &) {
     return 16;
 }
 
-int AVUtils::getAudioSampleBits(const sp<AMessage> &) {
-    return 16;
+int AVUtils::getAudioSampleBits(const sp<AMessage> &format) {
+    int32_t bits = 16;
+    format->findInt32("bits-per-sample", &bits);
+    return bits;
 }
 
 void AVUtils::setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/) {
@@ -167,6 +169,12 @@ void AVUtils::cacheCaptureBuffers(sp<ICamera>, video_encoder) {
 
 const char *AVUtils::getCustomCodecsLocation() {
     return "/etc/media_codecs.xml";
+}
+
+void AVUtils::setIntraPeriod(
+        int, int, const sp<IOMX>,
+        IOMX::node_id) {
+    return;
 }
 
 // ----- NO TRESSPASSING BEYOND THIS LINE ------

@@ -156,7 +156,10 @@ static VideoFrame *extractVideoFrame(
     sp<MetaData> format = source->getFormat();
 
     sp<AMessage> videoFormat;
-    convertMetaDataToMessage(trackMeta, &videoFormat);
+    if (convertMetaDataToMessage(trackMeta, &videoFormat) != OK) {
+        ALOGW("Failed to convert meta data to message");
+        return NULL;
+    }
 
     // TODO: Use Flexible color instead
     videoFormat->setInt32("color-format", OMX_COLOR_FormatYUV420Planar);
@@ -455,6 +458,10 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
     for (i = 0; i < n; ++i) {
         sp<MetaData> meta = mExtractor->getTrackMetaData(i);
 
+        if (meta == NULL) {
+            continue;
+        }
+
         const char *mime;
         CHECK(meta->findCString(kKeyMIMEType, &mime));
 
@@ -625,6 +632,10 @@ void StagefrightMetadataRetriever::parseMetaData() {
 
     size_t numTracks = mExtractor->countTracks();
 
+    if (numTracks == 0) {      //If no tracks available, corrupt or not valid stream
+        return;
+    }
+
     char tmp[32];
     sprintf(tmp, "%zu", numTracks);
 
@@ -648,6 +659,9 @@ void StagefrightMetadataRetriever::parseMetaData() {
     String8 timedTextLang;
     for (size_t i = 0; i < numTracks; ++i) {
         sp<MetaData> trackMeta = mExtractor->getTrackMetaData(i);
+        if (trackMeta == NULL) {
+            continue;
+        }
 
         int64_t durationUs;
         if (trackMeta->findInt64(kKeyDuration, &durationUs)) {

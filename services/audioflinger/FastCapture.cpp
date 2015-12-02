@@ -105,7 +105,7 @@ void FastCapture::onStateChange()
             mFormat = mInputSource->format();
             mSampleRate = Format_sampleRate(mFormat);
             unsigned channelCount = Format_channelCount(mFormat);
-            ALOG_ASSERT(channelCount >= 1 && channelCount <= FCC_8);
+            ALOG_ASSERT(channelCount >= 1 && channelCount <= 8);
         }
         dumpState->mSampleRate = mSampleRate;
         eitherChanged = true;

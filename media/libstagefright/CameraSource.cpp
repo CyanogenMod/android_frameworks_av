@@ -100,6 +100,11 @@ void CameraSourceListener::postDataTimestamp(
 }
 
 static int32_t getColorFormat(const char* colorFormat) {
+    if (!colorFormat) {
+        ALOGE("Invalid color format");
+        return -1;
+    }
+
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420P)) {
        return OMX_COLOR_FormatYUV420Planar;
     }
@@ -111,6 +116,13 @@ static int32_t getColorFormat(const char* colorFormat) {
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420SP)) {
         return OMX_COLOR_FormatYUV420SemiPlanar;
     }
+
+#ifdef USE_SAMSUNG_CAMERAFORMAT_NV21
+    if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420SP_NV21)) {
+        static const int OMX_SEC_COLOR_FormatNV21Linear = 0x7F000011;
+        return OMX_SEC_COLOR_FormatNV21Linear;
+    }
+#endif /* USE_SAMSUNG_CAMERAFORMAT_NV21 */
 
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV422I)) {
         return OMX_COLOR_FormatYCbYCr;
@@ -187,7 +199,11 @@ CameraSource::CameraSource(
       mNumFramesDropped(0),
       mNumGlitches(0),
       mGlitchDurationThresholdUs(200000),
-      mCollectStats(false) {
+      mCollectStats(false),
+      mPauseAdjTimeUs(0),
+      mPauseStartTimeUs(0),
+      mPauseEndTimeUs(0),
+      mRecPause(false) {
     mVideoSize.width  = -1;
     mVideoSize.height = -1;
 
@@ -657,6 +673,14 @@ status_t CameraSource::startCameraRecording() {
 
 status_t CameraSource::start(MetaData *meta) {
     ALOGV("start");
+    if(mRecPause) {
+        mRecPause = false;
+        mPauseAdjTimeUs = mPauseEndTimeUs - mPauseStartTimeUs;
+        ALOGV("resume : mPause Adj / End / Start : %" PRId64 " / %" PRId64 " / %" PRId64" us",
+            mPauseAdjTimeUs, mPauseEndTimeUs, mPauseStartTimeUs);
+        return OK;
+    }
+
     CHECK(!mStarted);
     if (mInitCheck != OK) {
         ALOGE("CameraSource is not initialized yet");
@@ -670,6 +694,10 @@ status_t CameraSource::start(MetaData *meta) {
     }
 
     mStartTimeUs = 0;
+    mRecPause = false;
+    mPauseAdjTimeUs = 0;
+    mPauseStartTimeUs = 0;
+    mPauseEndTimeUs = 0;
     mNumInputBuffers = 0;
     mEncoderFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     mEncoderDataSpace = HAL_DATASPACE_BT709;
@@ -701,6 +729,16 @@ status_t CameraSource::start(MetaData *meta) {
     }
 
     return err;
+}
+
+status_t CameraSource::pause() {
+    mRecPause = true;
+    mPauseStartTimeUs = mLastFrameTimestampUs;
+    //record the end time too, or there is a risk the end time is 0
+    mPauseEndTimeUs = mLastFrameTimestampUs;
+    ALOGV("pause : mPauseStart %" PRId64 " us, #Queued Frames : %zd",
+        mPauseStartTimeUs, mFramesReceived.size());
+    return OK;
 }
 
 void CameraSource::stopCameraRecording() {
@@ -904,10 +942,23 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
         return;
     }
 
+    if (mRecPause == true) {
+        if(!mFramesReceived.empty()) {
+            ALOGV("releaseQueuedFrames - #Queued Frames : %zd", mFramesReceived.size());
+            releaseQueuedFrames();
+        }
+        ALOGV("release One Video Frame for Pause : %" PRId64 "us", timestampUs);
+        releaseOneRecordingFrame(data);
+        mPauseEndTimeUs = timestampUs;
+        return;
+    }
+    timestampUs -= mPauseAdjTimeUs;
+    ALOGV("dataCallbackTimestamp: AdjTimestamp %" PRId64 "us", timestampUs);
+
     if (mNumFramesReceived > 0) {
         if (timestampUs <= mLastFrameTimestampUs) {
-            ALOGW("Dropping frame with backward timestamp %lld (last %lld)",
-                    (long long)timestampUs, (long long)mLastFrameTimestampUs);
+            ALOGW("Dropping frame with backward timestamp %" PRId64 " (last %" PRId64 ")",
+                    timestampUs, mLastFrameTimestampUs);
             releaseOneRecordingFrame(data);
             return;
         }

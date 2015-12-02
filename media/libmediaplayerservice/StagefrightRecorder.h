@@ -80,6 +80,9 @@ protected:
     String16 mClientName;
     uid_t mClientUid;
     sp<MediaWriter> mWriter;
+    sp<MediaSource> mVideoEncoderOMX;
+    sp<MediaSource> mAudioEncoderOMX;
+    sp<MediaSource> mVideoSourceNode;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
 
@@ -123,6 +126,7 @@ protected:
     MediaProfiles *mEncoderProfiles;
 
     bool mStarted;
+    bool mRecPaused;
     // Needed when GLFrames are encoded.
     // An <IGraphicBufferProducer> pointer
     // will be sent to the client side using which the
@@ -194,6 +198,9 @@ protected:
 
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);
+
+public:
+    virtual status_t setSourcePause(bool pause);
 };
 
 }  // namespace android

@@ -76,10 +76,14 @@ status_t AudioPolicyService::setPhoneState(audio_mode_t state)
 
     ALOGV("setPhoneState()");
 
+    // acquire lock before calling setMode() so that setMode() + setPhoneState() are an atomic
+    // operation from policy manager standpoint (no other operation (e.g track start or stop)
+    // can be interleaved).
+    Mutex::Autolock _l(mLock);
+
     // TODO: check if it is more appropriate to do it in platform specific policy manager
     AudioSystem::setMode(state);
 
-    Mutex::Autolock _l(mLock);
     mAudioPolicyManager->setPhoneState(state);
     mPhoneState = state;
     return NO_ERROR;
@@ -459,6 +463,7 @@ audio_devices_t AudioPolicyService::getDevicesForStream(audio_stream_type_t stre
     if (mAudioPolicyManager == NULL) {
         return AUDIO_DEVICE_NONE;
     }
+    Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->getDevicesForStream(stream);
 }
 

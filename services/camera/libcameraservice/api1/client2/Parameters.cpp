@@ -214,8 +214,8 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
                 supportedPreviewFormats);
     }
 
-    previewFpsRange[0] = availableFpsRanges.data.i32[0];
-    previewFpsRange[1] = availableFpsRanges.data.i32[1];
+    previewFpsRange[0] = fastInfo.bestStillCaptureFpsRange[0];
+    previewFpsRange[1] = fastInfo.bestStillCaptureFpsRange[1];
 
     // PREVIEW_FRAME_RATE / SUPPORTED_PREVIEW_FRAME_RATES are deprecated, but
     // still have to do something sane for them

@@ -80,6 +80,7 @@ LOCAL_SHARED_LIBRARIES := \
         libstagefright_amrnb_common
 
 LOCAL_MODULE := libstagefright_soft_amrdec
+LOCAL_CLANG := false
 LOCAL_MODULE_TAGS := optional
 
 include $(BUILD_SHARED_LIBRARY)
@@ -98,7 +99,7 @@ LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrnbdec libsndfile
 
 LOCAL_SHARED_LIBRARIES := \
-        libstagefright_amrnb_common libaudioutils
+        libstagefright_amrnb_common libaudioutils liblog
 
 LOCAL_MODULE := libstagefright_amrnbdec_test
 LOCAL_MODULE_TAGS := optional

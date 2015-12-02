@@ -131,6 +131,23 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(FlushDecoderAction);
 };
 
+struct NuPlayer::InstantiateDecoderAction : public Action {
+    InstantiateDecoderAction(bool audio, sp<DecoderBase> *decoder)
+        : mAudio(audio),
+          mdecoder(decoder) {
+    }
+
+    virtual void execute(NuPlayer *player) {
+        player->instantiateDecoder(mAudio, mdecoder);
+    }
+
+private:
+    bool mAudio;
+    sp<DecoderBase> *mdecoder;
+
+    DISALLOW_EVIL_CONSTRUCTORS(InstantiateDecoderAction);
+};
+
 struct NuPlayer::PostMessageAction : public Action {
     PostMessageAction(const sp<AMessage> &msg)
         : mMessage(msg) {
@@ -189,6 +206,7 @@ NuPlayer::NuPlayer(pid_t pid)
       mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mVideoFpsHint(-1.f),
       mStarted(false),
+      mResetting(false),
       mSourceStarted(false),
       mPaused(false),
       mPausedByClient(false),
@@ -1093,40 +1111,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 ALOGV("Tear down audio with reason %d.", reason);
-                mAudioDecoder.clear();
-                ++mAudioDecoderGeneration;
-                bool needsToCreateAudioDecoder = true;
-                if (mFlushingAudio == FLUSHING_DECODER) {
-                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
-                    mFlushingAudio = FLUSHED;
-                    finishFlushIfPossible();
-                } else if (mFlushingAudio == FLUSHING_DECODER_SHUTDOWN
-                        || mFlushingAudio == SHUTTING_DOWN_DECODER) {
-                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
-                    mFlushingAudio = SHUT_DOWN;
-                    finishFlushIfPossible();
-                    needsToCreateAudioDecoder = false;
-                }
-                if (mRenderer == NULL) {
-                    break;
-                }
-                closeAudioSink();
-                mRenderer->flush(
-                        true /* audio */, false /* notifyComplete */);
-                if (mVideoDecoder != NULL) {
-                    mRenderer->flush(
-                            false /* audio */, false /* notifyComplete */);
-                }
-
-                int64_t positionUs;
-                if (!msg->findInt64("positionUs", &positionUs)) {
-                    positionUs = mPreviousSeekTimeUs;
-                }
-                performSeek(positionUs);
-
-                if (reason == Renderer::kDueToError && needsToCreateAudioDecoder) {
-                    instantiateDecoder(true /* audio */, &mAudioDecoder);
-                }
+                performTearDown(msg);
             }
             break;
         }
@@ -1140,10 +1125,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
         {
             ALOGV("kWhatReset");
 
+            mResetting = true;
+
             mDeferredActions.push_back(
                     new FlushDecoderAction(
                         FLUSH_CMD_SHUTDOWN /* audio */,
                         FLUSH_CMD_SHUTDOWN /* video */));
+
+            mDeferredActions.push_back(
+                    new SimpleAction(&NuPlayer::closeAudioSink));
 
             mDeferredActions.push_back(
                     new SimpleAction(&NuPlayer::performReset));
@@ -1222,7 +1212,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 }
 
 void NuPlayer::onResume() {
-    if (!mPaused) {
+    if (!mPaused || mResetting) {
+        ALOGD_IF(mResetting, "resetting, onResume discarded");
         return;
     }
     mPaused = false;
@@ -1503,7 +1494,10 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     if (*decoder != NULL || (audio && mFlushingAudio == SHUT_DOWN)) {
         return OK;
     }
-
+    if (mSource == NULL) {
+        ALOGD("%s Ignore instantiate decoder after clearing source", __func__);
+        return INVALID_OPERATION;
+    }
     sp<AMessage> format = mSource->getFormat(audio);
 
     if (format == NULL) {
@@ -1576,7 +1570,8 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
     (*decoder)->configure(format);
 
     // allocate buffers to decrypt widevine source buffers
-    if (!audio && (mSourceFlags & Source::FLAG_SECURE)) {
+    if (!audio && ((mSourceFlags & Source::FLAG_SECURE) ||
+                   (mSourceFlags & Source::FLAG_USE_SET_BUFFERS))) {
         Vector<sp<ABuffer> > inputBufs;
         CHECK_EQ((*decoder)->getInputBuffers(&inputBufs), (status_t)OK);
 
@@ -1939,6 +1934,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mResetting = false;
     mSourceStarted = false;
 }
 
@@ -2199,7 +2195,7 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             int posMs;
             int64_t timeUs, posUs;
             driver->getCurrentPosition(&posMs);
-            posUs = posMs * 1000;
+            posUs = (int64_t) posMs * 1000ll;
             CHECK(buffer->meta()->findInt64("timeUs", &timeUs));
 
             if (posUs < timeUs) {
@@ -2382,6 +2378,53 @@ void NuPlayer::Source::notifyInstantiateSecureDecoders(const sp<AMessage> &reply
 
 void NuPlayer::Source::onMessageReceived(const sp<AMessage> & /* msg */) {
     TRESPASS();
+}
+
+//
+// There is a flush from within the decoder's onFlush handling.
+// Without it, it is still possible that a buffer can be queueued
+// after NuPlayer issues a flush on the renderer's audio queue.
+//
+void NuPlayer::performTearDown(const sp<AMessage> &msg) {
+    int32_t reason;
+    CHECK(msg->findInt32("reason", &reason));
+
+    if (mAudioDecoder != NULL) {
+        switch (mFlushingAudio) {
+        case NONE:
+        case FLUSHING_DECODER:
+            mDeferredActions.push_back(
+                new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
+                                       FLUSH_CMD_NONE /* video */));
+
+            if (reason == Renderer::kDueToError) {
+                mDeferredActions.push_back(
+                    new InstantiateDecoderAction(true /* audio */, &mAudioDecoder));
+            }
+
+            int64_t positionUs;
+            if (!msg->findInt64("positionUs", &positionUs)) {
+                positionUs = mPreviousSeekTimeUs;
+            }
+            mDeferredActions.push_back(new SeekAction(positionUs));
+            break;
+        default:
+            ALOGW("performTearDown while flushing audio in %d", mFlushingAudio);
+            break;
+        }
+    }
+
+    if (mRenderer != NULL) {
+        closeAudioSink();
+        // see comment at beginning of function
+        mRenderer->flush(
+            true /* audio */, false /* notifyComplete */);
+        if (mVideoDecoder != NULL) {
+            mRenderer->flush(
+                false /* audio */, false /* notifyComplete */);
+        }
+    }
+    processDeferredActions();
 }
 
 }  // namespace android
