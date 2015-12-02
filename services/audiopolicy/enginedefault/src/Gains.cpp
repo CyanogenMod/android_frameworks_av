@@ -114,7 +114,7 @@ Gains::sFullScaleVolumeCurve[Volume::VOLCNT] = {
 };
 
 const VolumeCurvePoint *Gains::sVolumeProfiles[AUDIO_STREAM_CNT]
-                                                  [Volume::DEVICE_CATEGORY_CNT] = {
+                                                  [DEVICE_CATEGORY_CNT] = {
     { // AUDIO_STREAM_VOICE_CALL
         Gains::sDefaultVoiceVolumeCurve, // DEVICE_CATEGORY_HEADSET
         Gains::sSpeakerVoiceVolumeCurve, // DEVICE_CATEGORY_SPEAKER
@@ -197,7 +197,7 @@ const VolumeCurvePoint *Gains::sVolumeProfiles[AUDIO_STREAM_CNT]
 };
 
 //static
-float Gains::volIndexToDb(Volume::device_category deviceCategory,
+float Gains::volIndexToDb(device_category deviceCategory,
                           const StreamDescriptor& streamDesc,
                           int indexInUi)
 {
@@ -243,7 +243,7 @@ float Gains::volIndexToDb(Volume::device_category deviceCategory,
 
 
 //static
-float Gains::volIndexToAmpl(Volume::device_category deviceCategory,
+float Gains::volIndexToAmpl(device_category deviceCategory,
                             const StreamDescriptor& streamDesc,
                             int indexInUi)
 {

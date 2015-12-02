@@ -30,6 +30,17 @@ public:
     float mDBAttenuation;
 };
 
+/**
+ * device categories used for volume curve management.
+ */
+enum device_category {
+    DEVICE_CATEGORY_HEADSET,
+    DEVICE_CATEGORY_SPEAKER,
+    DEVICE_CATEGORY_EARPIECE,
+    DEVICE_CATEGORY_EXT_MEDIA,
+    DEVICE_CATEGORY_CNT
+};
+
 class Volume
 {
 public:
@@ -47,17 +58,6 @@ public:
         VOLMAX = 3,
 
         VOLCNT = 4
-    };
-
-    /**
-     * device categories used for volume curve management.
-     */
-    enum device_category {
-        DEVICE_CATEGORY_HEADSET,
-        DEVICE_CATEGORY_SPEAKER,
-        DEVICE_CATEGORY_EARPIECE,
-        DEVICE_CATEGORY_EXT_MEDIA,
-        DEVICE_CATEGORY_CNT
     };
 
     /**

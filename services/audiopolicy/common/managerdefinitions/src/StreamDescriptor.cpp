@@ -71,7 +71,7 @@ void StreamDescriptor::setVolumeIndexMax(int volIndexMax)
     mIndexMax = volIndexMax;
 }
 
-void StreamDescriptor::setVolumeCurvePoint(Volume::device_category deviceCategory,
+void StreamDescriptor::setVolumeCurvePoint(device_category deviceCategory,
                                            const VolumeCurvePoint *point)
 {
     mVolumeCurve[deviceCategory] = point;
@@ -121,14 +121,14 @@ void StreamDescriptorCollection::addCurrentVolumeIndex(audio_stream_type_t strea
 }
 
 void StreamDescriptorCollection::setVolumeCurvePoint(audio_stream_type_t stream,
-                                                     Volume::device_category deviceCategory,
+                                                     device_category deviceCategory,
                                                      const VolumeCurvePoint *point)
 {
     editValueAt(stream).setVolumeCurvePoint(deviceCategory, point);
 }
 
 const VolumeCurvePoint *StreamDescriptorCollection::getVolumeCurvePoint(audio_stream_type_t stream,
-                                                                        Volume::device_category deviceCategory) const
+                                                                        device_category deviceCategory) const
 {
     return valueAt(stream).getVolumeCurvePoint(deviceCategory);
 }

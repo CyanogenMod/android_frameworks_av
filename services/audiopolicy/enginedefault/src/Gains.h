@@ -29,11 +29,11 @@ class StreamDescriptor;
 class Gains
 {
 public :
-    static float volIndexToAmpl(Volume::device_category deviceCategory,
+    static float volIndexToAmpl(device_category deviceCategory,
                                 const StreamDescriptor& streamDesc,
                                 int indexInUi);
 
-    static float volIndexToDb(Volume::device_category deviceCategory,
+    static float volIndexToDb(device_category deviceCategory,
                               const StreamDescriptor& streamDesc,
                               int indexInUi);
 
@@ -58,7 +58,7 @@ public :
     static const VolumeCurvePoint sSilentVolumeCurve[Volume::VOLCNT];
     static const VolumeCurvePoint sFullScaleVolumeCurve[Volume::VOLCNT];
     // default volume curves per stream and device category. See initializeVolumeCurves()
-    static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][Volume::DEVICE_CATEGORY_CNT];
+    static const VolumeCurvePoint *sVolumeProfiles[AUDIO_STREAM_CNT][DEVICE_CATEGORY_CNT];
 };
 
 }; // namespace android

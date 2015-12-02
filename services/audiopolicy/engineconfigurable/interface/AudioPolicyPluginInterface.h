@@ -116,7 +116,7 @@ public:
      * @return true if the strategy were set correclty for this stream, false otherwise.
      */
     virtual bool setVolumeProfileForStream(const audio_stream_type_t &stream,
-                                           Volume::device_category category,
+                                           device_category category,
                                            const VolumeCurvePoints &points) = 0;
 
     /**

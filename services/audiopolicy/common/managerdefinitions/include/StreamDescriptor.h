@@ -41,14 +41,14 @@ public:
 
     void dump(int fd) const;
 
-    void setVolumeCurvePoint(Volume::device_category deviceCategory, const VolumeCurvePoint *point);
-    const VolumeCurvePoint *getVolumeCurvePoint(Volume::device_category deviceCategory) const
+    void setVolumeCurvePoint(device_category deviceCategory, const VolumeCurvePoint *point);
+    const VolumeCurvePoint *getVolumeCurvePoint(device_category deviceCategory) const
     {
         return mVolumeCurve[deviceCategory];
     }
 
 private:
-    const VolumeCurvePoint *mVolumeCurve[Volume::DEVICE_CATEGORY_CNT];
+    const VolumeCurvePoint *mVolumeCurve[DEVICE_CATEGORY_CNT];
     KeyedVector<audio_devices_t, int> mIndexCur; /**< current volume index per device. */
     int mIndexMin; /**< min volume index. */
     int mIndexMax; /**< max volume index. */
@@ -71,11 +71,11 @@ public:
     status_t dump(int fd) const;
 
     void setVolumeCurvePoint(audio_stream_type_t stream,
-                             Volume::device_category deviceCategory,
+                             device_category deviceCategory,
                              const VolumeCurvePoint *point);
 
     const VolumeCurvePoint *getVolumeCurvePoint(audio_stream_type_t stream,
-                                                Volume::device_category deviceCategory) const;
+                                                device_category deviceCategory) const;
 
     void setVolumeIndexMin(audio_stream_type_t stream,int volIndexMin);
     void setVolumeIndexMax(audio_stream_type_t stream,int volIndexMax);

@@ -63,8 +63,7 @@ status_t Engine::initCheck()
     return (mApmObserver != NULL) ?  NO_ERROR : NO_INIT;
 }
 
-float Engine::volIndexToDb(Volume::device_category category, audio_stream_type_t streamType,
-                             int indexInUi)
+float Engine::volIndexToDb(device_category category, audio_stream_type_t streamType, int indexInUi)
 {
     const StreamDescriptor &streamDesc = mApmObserver->getStreamDescriptors().valueAt(streamType);
     return Gains::volIndexToDb(category, streamDesc, indexInUi);
@@ -89,26 +88,26 @@ void Engine::initializeVolumeCurves(bool isSpeakerDrcEnabled)
     StreamDescriptorCollection &streams = mApmObserver->getStreamDescriptors();
 
     for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
-        for (int j = 0; j < Volume::DEVICE_CATEGORY_CNT; j++) {
+        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
             streams.setVolumeCurvePoint(static_cast<audio_stream_type_t>(i),
-                                         static_cast<Volume::device_category>(j),
+                                         static_cast<device_category>(j),
                                          Gains::sVolumeProfiles[i][j]);
         }
     }
 
     // Check availability of DRC on speaker path: if available, override some of the speaker curves
     if (isSpeakerDrcEnabled) {
-        streams.setVolumeCurvePoint(AUDIO_STREAM_SYSTEM, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_SYSTEM, DEVICE_CATEGORY_SPEAKER,
                 Gains::sDefaultSystemVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_RING, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_RING, DEVICE_CATEGORY_SPEAKER,
                 Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_ALARM, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_ALARM, DEVICE_CATEGORY_SPEAKER,
                 Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_NOTIFICATION, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_NOTIFICATION, DEVICE_CATEGORY_SPEAKER,
                 Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_MUSIC, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_MUSIC, DEVICE_CATEGORY_SPEAKER,
                 Gains::sSpeakerMediaVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_ACCESSIBILITY, Volume::DEVICE_CATEGORY_SPEAKER,
+        streams.setVolumeCurvePoint(AUDIO_STREAM_ACCESSIBILITY, DEVICE_CATEGORY_SPEAKER,
                 Gains::sSpeakerMediaVolumeCurveDrc);
     }
 }
@@ -135,14 +134,14 @@ status_t Engine::setPhoneState(audio_mode_t state)
     // are we entering or starting a call
     if (!is_state_in_call(oldState) && is_state_in_call(state)) {
         ALOGV("  Entering call in setPhoneState()");
-        for (int j = 0; j < Volume::DEVICE_CATEGORY_CNT; j++) {
-            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<Volume::device_category>(j),
+        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
+            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<device_category>(j),
                                          Gains::sVolumeProfiles[AUDIO_STREAM_VOICE_CALL][j]);
         }
     } else if (is_state_in_call(oldState) && !is_state_in_call(state)) {
         ALOGV("  Exiting call in setPhoneState()");
-        for (int j = 0; j < Volume::DEVICE_CATEGORY_CNT; j++) {
-            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<Volume::device_category>(j),
+        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
+            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<device_category>(j),
                                          Gains::sVolumeProfiles[AUDIO_STREAM_DTMF][j]);
         }
     }

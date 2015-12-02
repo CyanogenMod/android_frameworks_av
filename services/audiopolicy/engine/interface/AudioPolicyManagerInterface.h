@@ -143,7 +143,7 @@ public:
      *
      * @return amplification value in dB matching the UI index for this given device and stream.
      */
-    virtual float volIndexToDb(Volume::device_category deviceCategory, audio_stream_type_t stream,
+    virtual float volIndexToDb(device_category deviceCategory, audio_stream_type_t stream,
                                  int indexInUi) = 0;
 
     /**

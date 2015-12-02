@@ -58,7 +58,7 @@ private:
     audio_stream_type_t mId;
 
     size_t mPoints;
-    Volume::device_category mCategory;
+    device_category mCategory;
 
     static const uint32_t gFractional = 8; /**< Beware to align with the structure. */
 };

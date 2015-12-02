@@ -101,8 +101,8 @@ private:
         {
             return mPolicyEngine->initializeVolumeCurves(isSpeakerDrcEnabled);
         }
-        virtual float volIndexToDb(Volume::device_category deviceCategory,
-                                     audio_stream_type_t stream,int indexInUi)
+        virtual float volIndexToDb(device_category deviceCategory,
+                                   audio_stream_type_t stream, int indexInUi)
         {
             return mPolicyEngine->volIndexToDb(deviceCategory, stream, indexInUi);
         }
@@ -141,8 +141,7 @@ private:
     audio_devices_t getDeviceForStrategy(routing_strategy strategy) const;
     audio_devices_t getDeviceForInputSource(audio_source_t inputSource) const;
 
-    float volIndexToDb(Volume::device_category category,
-                         audio_stream_type_t stream, int indexInUi);
+    float volIndexToDb(device_category category, audio_stream_type_t stream, int indexInUi);
     status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
     void initializeVolumeCurves(bool isSpeakerDrcEnabled);
 
