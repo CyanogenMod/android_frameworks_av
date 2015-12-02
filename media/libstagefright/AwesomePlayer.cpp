@@ -65,8 +65,6 @@
 
 #define USE_SURFACE_ALLOC 1
 #define FRAME_DROP_FREQ 0
-#define PROPERTY_OFFLOAD_HIWATERMARK "audio.offload.hiwatermark"
-#define PROPERTY_OFFLOAD_LOWATERMARK "audio.offload.lowatermark"
 
 namespace android {
 
@@ -74,8 +72,7 @@ static int64_t kLowWaterMarkUs = 2000000ll;  // 2secs
 static int64_t kHighWaterMarkUs = 5000000ll;  // 5secs
 static const size_t kLowWaterMarkBytes = 40000;
 static const size_t kHighWaterMarkBytes = 200000;
-static size_t kOffloadLowWaterMarkBytes = kLowWaterMarkBytes;
-static size_t kOffloadHighWaterMarkBytes = kHighWaterMarkBytes;
+
 // maximum time in paused state when offloading audio decompression. When elapsed, the AudioPlayer
 // is destroyed to allow the audio DSP to power down.
 static int64_t kOffloadPauseMaxUs = 10000000ll;
@@ -641,11 +638,6 @@ void AwesomePlayer::reset_l() {
 
     mMediaRenderingStartGeneration = 0;
     mStartGeneration = 0;
-
-    kOffloadLowWaterMarkBytes =
-        property_get_int32(PROPERTY_OFFLOAD_LOWATERMARK, kLowWaterMarkBytes);
-    kOffloadHighWaterMarkBytes =
-        property_get_int32(PROPERTY_OFFLOAD_HIWATERMARK, kHighWaterMarkBytes);
 }
 
 void AwesomePlayer::notifyListener_l(int msg, int ext1, int ext2) {
@@ -736,7 +728,6 @@ void AwesomePlayer::onBufferingUpdate() {
         size_t cachedDataRemaining = mCachedSource->approxDataRemaining(&finalStatus);
         bool eos = (finalStatus != OK);
 
-        ALOGV("cachedDataRemaining = %zu b, eos=%d", cachedDataRemaining, eos);
         if (eos) {
             if (finalStatus == ERROR_END_OF_STREAM) {
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, 100);
@@ -747,42 +738,36 @@ void AwesomePlayer::onBufferingUpdate() {
             }
         } else {
             bool eos2;
-            bool knownDuration = false;
             int64_t cachedDurationUs;
             if (getCachedDuration_l(&cachedDurationUs, &eos2) && mDurationUs > 0) {
-                knownDuration = true;
                 int percentage = 100.0 * (double)cachedDurationUs / mDurationUs;
                 if (percentage > 100) {
                     percentage = 100;
                 }
 
                 notifyListener_l(MEDIA_BUFFERING_UPDATE, percentage);
-            }
-            if (!knownDuration || mOffloadAudio) {
-                // If we don't know the bitrate/duration of the stream, or are offloading
-                // decode, use absolute size limits to maintain the cache.
+            } else {
+                // We don't know the bitrate/duration of the stream, use absolute size
+                // limits to maintain the cache.
 
-                size_t lowWatermark =
-                        mOffloadAudio ? kOffloadLowWaterMarkBytes : kLowWaterMarkBytes;
-                size_t highWatermark =
-                        mOffloadAudio ? kOffloadHighWaterMarkBytes : kHighWaterMarkBytes;
-
-                if ((mFlags & PLAYING) && !eos && (cachedDataRemaining < lowWatermark)) {
-                    ALOGI("cache is running low (< %zu) , pausing.", lowWatermark);
+                if ((mFlags & PLAYING) && !eos
+                        && (cachedDataRemaining < kLowWaterMarkBytes)) {
+                    ALOGI("cache is running low (< %zu) , pausing.",
+                         kLowWaterMarkBytes);
                     modifyFlags(CACHE_UNDERRUN, SET);
                     pause_l();
                     ensureCacheIsFetching_l();
                     sendCacheStats();
                     notifyListener_l(MEDIA_INFO, MEDIA_INFO_BUFFERING_START);
-                } else if (eos || cachedDataRemaining > highWatermark) {
+                } else if (eos || cachedDataRemaining > kHighWaterMarkBytes) {
                     if (mFlags & CACHE_UNDERRUN) {
                         ALOGI("cache has filled up (> %zu), resuming.",
-                             highWatermark);
+                             kHighWaterMarkBytes);
                         modifyFlags(CACHE_UNDERRUN, CLEAR);
                         play_l();
                     } else if (mFlags & PREPARING) {
                         ALOGV("cache has filled up (> %zu), prepare is done",
-                             highWatermark);
+                             kHighWaterMarkBytes);
                         finishAsyncPrepare_l();
                     }
                 }
@@ -816,7 +801,7 @@ void AwesomePlayer::onBufferingUpdate() {
 
     int64_t cachedDurationUs;
     bool eos;
-    if (!mOffloadAudio && getCachedDuration_l(&cachedDurationUs, &eos)) {
+    if (getCachedDuration_l(&cachedDurationUs, &eos)) {
         ALOGV("cachedDurationUs = %.2f secs, eos=%d",
              cachedDurationUs / 1E6, eos);
 
