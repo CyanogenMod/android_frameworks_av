@@ -32,19 +32,23 @@ bool ProcessInfo::getPriority(int pid, int* priority) {
     sp<IProcessInfoService> service = interface_cast<IProcessInfoService>(binder);
 
     size_t length = 1;
-    int32_t states;
-    status_t err = service->getProcessStatesFromPids(length, &pid, &states);
+    int32_t state;
+    static const int32_t INVALID_ADJ = -10000;
+    static const int32_t NATIVE_ADJ = -1000;
+    int32_t score = INVALID_ADJ;
+    status_t err = service->getProcessStatesAndOomScoresFromPids(length, &pid, &state, &score);
     if (err != OK) {
-        ALOGE("getProcessStatesFromPids failed");
+        ALOGE("getProcessStatesAndOomScoresFromPids failed");
         return false;
     }
-    ALOGV("pid %d states %d", pid, states);
-    if (states < 0) {
+    ALOGV("pid %d state %d score %d", pid, state, score);
+    if (score <= NATIVE_ADJ) {
+        ALOGE("pid %d invalid OOM adjustments value %d", pid, score);
         return false;
     }
 
-    // Use process state as the priority. Lower the value, higher the priority.
-    *priority = states;
+    // Use OOM adjustments value as the priority. Lower the value, higher the priority.
+    *priority = score;
     return true;
 }
 
