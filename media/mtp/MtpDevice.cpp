@@ -133,6 +133,10 @@ MtpDevice* MtpDevice::open(const char* deviceName, int fd) {
                     printf("no MTP string\n");
                 }
             }
+#else
+            else {
+                continue;
+            }
 #endif
             // if we got here, then we have a likely MTP or PTP device
 
