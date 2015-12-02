@@ -323,7 +323,8 @@ void AudioPolicyEffects::EffectVector::setProcessorEnabled(bool enabled)
     VOICE_CALL_SRC_TAG,
     CAMCORDER_SRC_TAG,
     VOICE_REC_SRC_TAG,
-    VOICE_COMM_SRC_TAG
+    VOICE_COMM_SRC_TAG,
+    UNPROCESSED_SRC_TAG
 };
 
 // returns the audio_source_t enum corresponding to the input source name or

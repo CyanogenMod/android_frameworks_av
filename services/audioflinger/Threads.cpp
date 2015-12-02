@@ -527,6 +527,7 @@ const char *sourceToString(audio_source_t source)
     case AUDIO_SOURCE_VOICE_RECOGNITION:    return "voice recognition";
     case AUDIO_SOURCE_VOICE_COMMUNICATION:  return "voice communication";
     case AUDIO_SOURCE_REMOTE_SUBMIX:        return "remote submix";
+    case AUDIO_SOURCE_UNPROCESSED:          return "unprocessed";
     case AUDIO_SOURCE_FM_TUNER:             return "FM tuner";
     case AUDIO_SOURCE_HOTWORD:              return "hotword";
     default:                                return "unknown";
