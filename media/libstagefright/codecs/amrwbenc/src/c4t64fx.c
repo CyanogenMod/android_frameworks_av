@@ -115,6 +115,7 @@ void search_ixiy(
 		);
 
 
+__attribute__((no_sanitize("integer")))
 void ACELP_4t64_fx(
 		Word16 dn[],                          /* (i) <12b : correlation between target x[] and H[]      */
 		Word16 cn[],                          /* (i) <12b : residual after long term prediction         */
