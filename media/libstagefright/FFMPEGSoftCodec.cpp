@@ -304,7 +304,9 @@ status_t FFMPEGSoftCodec::setVideoFormat(
             ALOGW("Failed to set frame packing format on component");
         }
 
+#ifdef QCOM_HARDWARE
         setQCDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
+#endif
 
         // Enable timestamp reordering for mpeg4 and vc1 codec types, the AVI file
         // type, and hevc content in the ts container
@@ -355,11 +357,11 @@ status_t FFMPEGSoftCodec::setVideoFormat(
     return err;
 }
 
+#ifdef QCOM_HARDWARE
 status_t FFMPEGSoftCodec::setQCDIVXFormat(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, int port_index) {
     status_t err = OK;
-#ifdef QCOM_HARDWARE
     if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
@@ -391,9 +393,9 @@ status_t FFMPEGSoftCodec::setQCDIVXFormat(
                          (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDivx,
                          &paramDivX, sizeof(paramDivX));
     }
-#endif
     return err;
 }
+#endif
 
 status_t FFMPEGSoftCodec::getVideoPortFormat(OMX_U32 portIndex, int coding,
         sp<AMessage> &notify, sp<IOMX> OMXHandle, IOMX::node_id nodeId) {
