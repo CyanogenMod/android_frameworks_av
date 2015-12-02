@@ -358,54 +358,54 @@ String8 devicesToString(audio_devices_t devices)
         audio_devices_t mDevices;
         const char *    mString;
     } mappingsOut[] = {
-        AUDIO_DEVICE_OUT_EARPIECE,          "EARPIECE",
-        AUDIO_DEVICE_OUT_SPEAKER,           "SPEAKER",
-        AUDIO_DEVICE_OUT_WIRED_HEADSET,     "WIRED_HEADSET",
-        AUDIO_DEVICE_OUT_WIRED_HEADPHONE,   "WIRED_HEADPHONE",
-        AUDIO_DEVICE_OUT_BLUETOOTH_SCO,     "BLUETOOTH_SCO",
-        AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,     "BLUETOOTH_SCO_HEADSET",
-        AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT,      "BLUETOOTH_SCO_CARKIT",
-        AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,            "BLUETOOTH_A2DP",
-        AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES, "BLUETOOTH_A2DP_HEADPHONES",
-        AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER,    "BLUETOOTH_A2DP_SPEAKER",
-        AUDIO_DEVICE_OUT_AUX_DIGITAL,       "AUX_DIGITAL",
-        AUDIO_DEVICE_OUT_HDMI,              "HDMI",
-        AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET, "ANLG_DOCK_HEADSET",
-        AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET, "DGTL_DOCK_HEADSET",
-        AUDIO_DEVICE_OUT_USB_ACCESSORY,     "USB_ACCESSORY",
-        AUDIO_DEVICE_OUT_USB_DEVICE,        "USB_DEVICE",
-        AUDIO_DEVICE_OUT_TELEPHONY_TX,      "TELEPHONY_TX",
-        AUDIO_DEVICE_OUT_LINE,              "LINE",
-        AUDIO_DEVICE_OUT_HDMI_ARC,          "HDMI_ARC",
-        AUDIO_DEVICE_OUT_SPDIF,             "SPDIF",
-        AUDIO_DEVICE_OUT_FM,                "FM",
-        AUDIO_DEVICE_OUT_AUX_LINE,          "AUX_LINE",
-        AUDIO_DEVICE_OUT_SPEAKER_SAFE,      "SPEAKER_SAFE",
-        AUDIO_DEVICE_OUT_IP,                "IP",
-        AUDIO_DEVICE_NONE,                  "NONE",         // must be last
+        {AUDIO_DEVICE_OUT_EARPIECE,         "EARPIECE"},
+        {AUDIO_DEVICE_OUT_SPEAKER,          "SPEAKER"},
+        {AUDIO_DEVICE_OUT_WIRED_HEADSET,    "WIRED_HEADSET"},
+        {AUDIO_DEVICE_OUT_WIRED_HEADPHONE,  "WIRED_HEADPHONE"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO,    "BLUETOOTH_SCO"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,    "BLUETOOTH_SCO_HEADSET"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_SCO_CARKIT,     "BLUETOOTH_SCO_CARKIT"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,           "BLUETOOTH_A2DP"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES,"BLUETOOTH_A2DP_HEADPHONES"},
+        {AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_SPEAKER,   "BLUETOOTH_A2DP_SPEAKER"},
+        {AUDIO_DEVICE_OUT_AUX_DIGITAL,      "AUX_DIGITAL"},
+        {AUDIO_DEVICE_OUT_HDMI,             "HDMI"},
+        {AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET,"ANLG_DOCK_HEADSET"},
+        {AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET,"DGTL_DOCK_HEADSET"},
+        {AUDIO_DEVICE_OUT_USB_ACCESSORY,    "USB_ACCESSORY"},
+        {AUDIO_DEVICE_OUT_USB_DEVICE,       "USB_DEVICE"},
+        {AUDIO_DEVICE_OUT_TELEPHONY_TX,     "TELEPHONY_TX"},
+        {AUDIO_DEVICE_OUT_LINE,             "LINE"},
+        {AUDIO_DEVICE_OUT_HDMI_ARC,         "HDMI_ARC"},
+        {AUDIO_DEVICE_OUT_SPDIF,            "SPDIF"},
+        {AUDIO_DEVICE_OUT_FM,               "FM"},
+        {AUDIO_DEVICE_OUT_AUX_LINE,         "AUX_LINE"},
+        {AUDIO_DEVICE_OUT_SPEAKER_SAFE,     "SPEAKER_SAFE"},
+        {AUDIO_DEVICE_OUT_IP,               "IP"},
+        {AUDIO_DEVICE_NONE,                 "NONE"},       // must be last
     }, mappingsIn[] = {
-        AUDIO_DEVICE_IN_COMMUNICATION,      "COMMUNICATION",
-        AUDIO_DEVICE_IN_AMBIENT,            "AMBIENT",
-        AUDIO_DEVICE_IN_BUILTIN_MIC,        "BUILTIN_MIC",
-        AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,  "BLUETOOTH_SCO_HEADSET",
-        AUDIO_DEVICE_IN_WIRED_HEADSET,      "WIRED_HEADSET",
-        AUDIO_DEVICE_IN_AUX_DIGITAL,        "AUX_DIGITAL",
-        AUDIO_DEVICE_IN_VOICE_CALL,         "VOICE_CALL",
-        AUDIO_DEVICE_IN_TELEPHONY_RX,       "TELEPHONY_RX",
-        AUDIO_DEVICE_IN_BACK_MIC,           "BACK_MIC",
-        AUDIO_DEVICE_IN_REMOTE_SUBMIX,      "REMOTE_SUBMIX",
-        AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET,  "ANLG_DOCK_HEADSET",
-        AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET,  "DGTL_DOCK_HEADSET",
-        AUDIO_DEVICE_IN_USB_ACCESSORY,      "USB_ACCESSORY",
-        AUDIO_DEVICE_IN_USB_DEVICE,         "USB_DEVICE",
-        AUDIO_DEVICE_IN_FM_TUNER,           "FM_TUNER",
-        AUDIO_DEVICE_IN_TV_TUNER,           "TV_TUNER",
-        AUDIO_DEVICE_IN_LINE,               "LINE",
-        AUDIO_DEVICE_IN_SPDIF,              "SPDIF",
-        AUDIO_DEVICE_IN_BLUETOOTH_A2DP,     "BLUETOOTH_A2DP",
-        AUDIO_DEVICE_IN_LOOPBACK,           "LOOPBACK",
-        AUDIO_DEVICE_IN_IP,                 "IP",
-        AUDIO_DEVICE_NONE,                  "NONE",         // must be last
+        {AUDIO_DEVICE_IN_COMMUNICATION,     "COMMUNICATION"},
+        {AUDIO_DEVICE_IN_AMBIENT,           "AMBIENT"},
+        {AUDIO_DEVICE_IN_BUILTIN_MIC,       "BUILTIN_MIC"},
+        {AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET, "BLUETOOTH_SCO_HEADSET"},
+        {AUDIO_DEVICE_IN_WIRED_HEADSET,     "WIRED_HEADSET"},
+        {AUDIO_DEVICE_IN_AUX_DIGITAL,       "AUX_DIGITAL"},
+        {AUDIO_DEVICE_IN_VOICE_CALL,        "VOICE_CALL"},
+        {AUDIO_DEVICE_IN_TELEPHONY_RX,      "TELEPHONY_RX"},
+        {AUDIO_DEVICE_IN_BACK_MIC,          "BACK_MIC"},
+        {AUDIO_DEVICE_IN_REMOTE_SUBMIX,     "REMOTE_SUBMIX"},
+        {AUDIO_DEVICE_IN_ANLG_DOCK_HEADSET, "ANLG_DOCK_HEADSET"},
+        {AUDIO_DEVICE_IN_DGTL_DOCK_HEADSET, "DGTL_DOCK_HEADSET"},
+        {AUDIO_DEVICE_IN_USB_ACCESSORY,     "USB_ACCESSORY"},
+        {AUDIO_DEVICE_IN_USB_DEVICE,        "USB_DEVICE"},
+        {AUDIO_DEVICE_IN_FM_TUNER,          "FM_TUNER"},
+        {AUDIO_DEVICE_IN_TV_TUNER,          "TV_TUNER"},
+        {AUDIO_DEVICE_IN_LINE,              "LINE"},
+        {AUDIO_DEVICE_IN_SPDIF,             "SPDIF"},
+        {AUDIO_DEVICE_IN_BLUETOOTH_A2DP,    "BLUETOOTH_A2DP"},
+        {AUDIO_DEVICE_IN_LOOPBACK,          "LOOPBACK"},
+        {AUDIO_DEVICE_IN_IP,                "IP"},
+        {AUDIO_DEVICE_NONE,                 "NONE"},        // must be last
     };
     String8 result;
     audio_devices_t allDevices = AUDIO_DEVICE_NONE;
@@ -443,11 +443,11 @@ String8 inputFlagsToString(audio_input_flags_t flags)
         audio_input_flags_t     mFlag;
         const char *            mString;
     } mappings[] = {
-        AUDIO_INPUT_FLAG_FAST,              "FAST",
-        AUDIO_INPUT_FLAG_HW_HOTWORD,        "HW_HOTWORD",
-        AUDIO_INPUT_FLAG_RAW,               "RAW",
-        AUDIO_INPUT_FLAG_SYNC,              "SYNC",
-        AUDIO_INPUT_FLAG_NONE,              "NONE",         // must be last
+        {AUDIO_INPUT_FLAG_FAST,             "FAST"},
+        {AUDIO_INPUT_FLAG_HW_HOTWORD,       "HW_HOTWORD"},
+        {AUDIO_INPUT_FLAG_RAW,              "RAW"},
+        {AUDIO_INPUT_FLAG_SYNC,             "SYNC"},
+        {AUDIO_INPUT_FLAG_NONE,             "NONE"},        // must be last
     };
     String8 result;
     audio_input_flags_t allFlags = AUDIO_INPUT_FLAG_NONE;
@@ -479,17 +479,17 @@ String8 outputFlagsToString(audio_output_flags_t flags)
         audio_output_flags_t    mFlag;
         const char *            mString;
     } mappings[] = {
-        AUDIO_OUTPUT_FLAG_DIRECT,           "DIRECT",
-        AUDIO_OUTPUT_FLAG_PRIMARY,          "PRIMARY",
-        AUDIO_OUTPUT_FLAG_FAST,             "FAST",
-        AUDIO_OUTPUT_FLAG_DEEP_BUFFER,      "DEEP_BUFFER",
-        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD, "COMPRESS_OFFLOAD",
-        AUDIO_OUTPUT_FLAG_NON_BLOCKING,     "NON_BLOCKING",
-        AUDIO_OUTPUT_FLAG_HW_AV_SYNC,       "HW_AV_SYNC",
-        AUDIO_OUTPUT_FLAG_RAW,              "RAW",
-        AUDIO_OUTPUT_FLAG_SYNC,             "SYNC",
-        AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO,  "IEC958_NONAUDIO",
-        AUDIO_OUTPUT_FLAG_NONE,             "NONE",         // must be last
+        {AUDIO_OUTPUT_FLAG_DIRECT,          "DIRECT"},
+        {AUDIO_OUTPUT_FLAG_PRIMARY,         "PRIMARY"},
+        {AUDIO_OUTPUT_FLAG_FAST,            "FAST"},
+        {AUDIO_OUTPUT_FLAG_DEEP_BUFFER,     "DEEP_BUFFER"},
+        {AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD,"COMPRESS_OFFLOAD"},
+        {AUDIO_OUTPUT_FLAG_NON_BLOCKING,    "NON_BLOCKING"},
+        {AUDIO_OUTPUT_FLAG_HW_AV_SYNC,      "HW_AV_SYNC"},
+        {AUDIO_OUTPUT_FLAG_RAW,             "RAW"},
+        {AUDIO_OUTPUT_FLAG_SYNC,            "SYNC"},
+        {AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO, "IEC958_NONAUDIO"},
+        {AUDIO_OUTPUT_FLAG_NONE,            "NONE"},        // must be last
     };
     String8 result;
     audio_output_flags_t allFlags = AUDIO_OUTPUT_FLAG_NONE;
