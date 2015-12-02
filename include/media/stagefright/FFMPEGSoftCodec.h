@@ -128,9 +128,11 @@ private:
             const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID);
 
+#ifdef QCOM_HARDWARE
     static status_t setQCDIVXFormat(
             const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle, IOMX::node_id nodeID, int port_index);
+#endif
 
 };
 
