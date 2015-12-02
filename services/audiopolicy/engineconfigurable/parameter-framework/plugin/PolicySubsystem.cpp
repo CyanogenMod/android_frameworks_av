@@ -20,7 +20,6 @@
 #include "Strategy.h"
 #include "Stream.h"
 #include "InputSource.h"
-#include "VolumeProfile.h"
 #include "Usage.h"
 #include <AudioPolicyPluginInterface.h>
 #include <AudioPolicyEngineInstance.h>
@@ -40,7 +39,6 @@ const char *const PolicySubsystem::mStreamComponentName = "Stream";
 const char *const PolicySubsystem::mStrategyComponentName = "Strategy";
 const char *const PolicySubsystem::mInputSourceComponentName = "InputSource";
 const char *const PolicySubsystem::mUsageComponentName = "Usage";
-const char *const PolicySubsystem::mVolumeProfileComponentName = "VolumeProfile";
 
 PolicySubsystem::PolicySubsystem(const std::string &name)
     : CSubsystem(name),
@@ -67,7 +65,7 @@ PolicySubsystem::PolicySubsystem(const std::string &name)
     addSubsystemObjectFactory(
         new TSubsystemObjectFactory<Stream>(
             mStreamComponentName,
-            (1 << MappingKeyAmend1) | (1 << MappingKeyIdentifier))
+            (1 << MappingKeyIdentifier))
         );
     addSubsystemObjectFactory(
         new TSubsystemObjectFactory<Strategy>(
@@ -83,11 +81,6 @@ PolicySubsystem::PolicySubsystem(const std::string &name)
         new TSubsystemObjectFactory<InputSource>(
             mInputSourceComponentName,
             (1 << MappingKeyAmend1) | (1 << MappingKeyIdentifier))
-        );
-    addSubsystemObjectFactory(
-        new TSubsystemObjectFactory<VolumeProfile>(
-            mVolumeProfileComponentName,
-            (1 << MappingKeyAmend1) | (1 << MappingKeyIdentifier) | (1 << MappingKeyIdentifier))
         );
 }
 

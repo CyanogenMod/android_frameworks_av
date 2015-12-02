@@ -111,13 +111,12 @@ public:
      * Set the strategy to be followed by a stream.
      *
      * @param[in] stream: name of the stream for which the strategy to use has to be set
-     * @param[in] strategy to follow for the given stream.
+     * @param[in] volumeProfile to follow for the given stream.
      *
-     * @return true if the strategy were set correclty for this stream, false otherwise.
+     * @return true if the profile was set correclty for this stream, false otherwise.
      */
     virtual bool setVolumeProfileForStream(const audio_stream_type_t &stream,
-                                           device_category category,
-                                           const VolumeCurvePoints &points) = 0;
+                                           const audio_stream_type_t &volumeProfile) = 0;
 
     /**
      * Set the strategy to be followed by a usage.

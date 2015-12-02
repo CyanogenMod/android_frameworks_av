@@ -28,7 +28,6 @@
 #include <AudioPolicyMix.h>
 #include <EffectDescriptor.h>
 #include <SoundTriggerSession.h>
-#include <StreamDescriptor.h>
 #include <SessionRoute.h>
 
 namespace android {
@@ -40,13 +39,23 @@ public:
                       DeviceVector &availableOutputDevices,
                       DeviceVector &availableInputDevices,
                       sp<DeviceDescriptor> &defaultOutputDevices,
-                      bool &isSpeakerDrcEnabled)
+                      bool &isSpeakerDrcEnabled,
+                      VolumeCurvesCollection *volumes = nullptr)
         : mHwModules(hwModules),
           mAvailableOutputDevices(availableOutputDevices),
           mAvailableInputDevices(availableInputDevices),
           mDefaultOutputDevices(defaultOutputDevices),
+          mVolumeCurves(volumes),
           mIsSpeakerDrcEnabled(isSpeakerDrcEnabled)
     {}
+
+    void setVolumes(const VolumeCurvesCollection &volumes)
+    {
+        if (mVolumeCurves != nullptr) {
+            *mVolumeCurves = volumes;
+            mVolumeCurves->setDefaultCurves();
+        }
+    }
 
     void setHwModules(const HwModuleCollection &hwModules)
     {
@@ -131,6 +140,7 @@ private:
     DeviceVector &mAvailableOutputDevices;
     DeviceVector &mAvailableInputDevices;
     sp<DeviceDescriptor> &mDefaultOutputDevices;
+    VolumeCurvesCollection *mVolumeCurves;
     bool &mIsSpeakerDrcEnabled;
 };
 

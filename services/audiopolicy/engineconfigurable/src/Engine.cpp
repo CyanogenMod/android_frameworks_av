@@ -115,18 +115,6 @@ status_t Engine::initCheck()
     return (mApmObserver != NULL)? NO_ERROR : NO_INIT;
 }
 
-bool Engine::setVolumeProfileForStream(const audio_stream_type_t &streamType,
-                                       device_category deviceCategory,
-                                       const VolumeCurvePoints &points)
-{
-    Stream *stream = getFromCollection<audio_stream_type_t>(streamType);
-    if (stream == NULL) {
-        ALOGE("%s: stream %d not found", __FUNCTION__, streamType);
-        return false;
-    }
-    return stream->setVolumeProfile(deviceCategory, points) == NO_ERROR;
-}
-
 template <typename Key>
 Element<Key> *Engine::getFromCollection(const Key &key) const
 {
@@ -188,6 +176,18 @@ audio_devices_t Engine::ManagerInterfaceImpl::getDeviceForStrategy(routing_strat
     return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(strategy);
 }
 
+bool Engine::PluginInterfaceImpl::setVolumeProfileForStream(const audio_stream_type_t &stream,
+                                                            const audio_stream_type_t &profile)
+{
+    if (mPolicyEngine->setPropertyForKey<audio_stream_type_t, audio_stream_type_t>(stream,
+                                                                                   profile)) {
+        mPolicyEngine->mApmObserver->getVolumeCurves().switchVolumeCurve(profile, stream);
+        return true;
+    }
+    return false;
+}
+
+
 template <typename Property, typename Key>
 bool Engine::setPropertyForKey(const Property &property, const Key &key)
 {
@@ -197,32 +197,6 @@ bool Engine::setPropertyForKey(const Property &property, const Key &key)
         return BAD_VALUE;
     }
     return element->template set<Property>(property) == NO_ERROR;
-}
-
-float Engine::volIndexToDb(device_category category,
-                           audio_stream_type_t streamType,
-                           int indexInUi)
-{
-    Stream *stream = getFromCollection<audio_stream_type_t>(streamType);
-    if (stream == NULL) {
-        ALOGE("%s: Element indexed by key=%d not found", __FUNCTION__, streamType);
-        return 1.0f;
-    }
-    return stream->volIndexToDb(category, indexInUi);
-}
-
-status_t Engine::initStreamVolume(audio_stream_type_t streamType,
-                                           int indexMin, int indexMax)
-{
-    Stream *stream = getFromCollection<audio_stream_type_t>(streamType);
-    if (stream == NULL) {
-        ALOGE("%s: Stream Type %d not found", __FUNCTION__, streamType);
-        return BAD_TYPE;
-    }
-    mApmObserver->getStreamDescriptors().setVolumeIndexMin(streamType, indexMin);
-    mApmObserver->getStreamDescriptors().setVolumeIndexMax(streamType, indexMax);
-
-    return stream->initVolume(indexMin, indexMax);
 }
 
 status_t Engine::setPhoneState(audio_mode_t mode)

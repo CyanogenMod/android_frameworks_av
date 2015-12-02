@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "FormattedSubsystemObject.h"
+#include "SubsystemObject.h"
 #include "InstanceConfigurableElement.h"
 #include "MappingContext.h"
 #include <AudioPolicyPluginInterface.h>
@@ -24,15 +24,21 @@
 
 class PolicySubsystem;
 
-class Stream : public CFormattedSubsystemObject
+class Stream : public CSubsystemObject
 {
+private:
+    struct Applicable
+    {
+        uint32_t strategy; /**< applicable strategy for this stream. */
+        uint32_t volumeProfile; /**< applicable strategy for this stream. */
+    } __attribute__((packed));
+
 public:
     Stream(const std::string &mappingValue,
              CInstanceConfigurableElement *instanceConfigurableElement,
              const CMappingContext &context);
 
 protected:
-    virtual bool receiveFromHW(std::string &error);
     virtual bool sendToHW(std::string &error);
 
 private:
@@ -42,8 +48,5 @@ private:
      * Interface to communicate with Audio Policy Engine.
      */
     android::AudioPolicyPluginInterface *mPolicyPluginInterface;
-
     audio_stream_type_t mId; /**< stream type identifier to link with audio.h. */
-    uint32_t mApplicableStrategy; /**< applicable strategy for this stream. */
-    static const uint32_t mDefaultApplicableStrategy = 0; /**< default strategy. */
 };

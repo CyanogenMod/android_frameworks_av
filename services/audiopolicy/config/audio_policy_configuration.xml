@@ -206,25 +206,10 @@
     </modules>
     <!-- End of Modules section -->
 
-    <!-- Volume section defines a volume curve for a given use case and device category.
-    It contains a list of points of this curve expressing the attenuation in Millibels for a given
-    volume index from 0 to 100.
-    <volume stream=”AUDIO_STREAM_MUSIC” deviceCategory=””>
-    <point>0, -9600</point>
-    <point>100, 0</point>
-    </volume>
-    -->
-    <volumes>
-        <volume stream="AUDIO_STREAM_MUSIC" deviceCategory="DEVICE_CATEGORY_SPEAKER">
-            <point>0,-9600</point>
-            <point>100,0</point>
-        </volume>
-        <volume stream="AUDIO_STREAM_MUSIC" deviceCategory="DEVICE_CATEGORY_EARPIECE">
-            <point>0,-9800</point>
-            <point>50,-1000</point>
-            <point>100,0</point>
-        </volume>
-    </volumes>
+    <!-- Volume section -->
+
+    <xi:include href="audio_policy_volumes.xml"/>
+    <xi:include href="default_volume_tables.xml"/>
 
     <!-- End of Volume section -->
 

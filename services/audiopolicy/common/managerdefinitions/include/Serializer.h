@@ -202,7 +202,7 @@ struct VolumeTraits
 
     typedef VolumeCurve Element;
     typedef sp<VolumeCurve> PtrElement;
-    typedef VolumeCurveCollection Collection;
+    typedef VolumeCurvesCollection Collection;
     typedef void *PtrSerializingCtx;
 
     static status_t deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElement &element,

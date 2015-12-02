@@ -8,7 +8,6 @@ LOCAL_SRC_FILES := \
     PolicySubsystem.cpp \
     Strategy.cpp \
     InputSource.cpp \
-    VolumeProfile.cpp \
     Stream.cpp \
     Usage.cpp
 

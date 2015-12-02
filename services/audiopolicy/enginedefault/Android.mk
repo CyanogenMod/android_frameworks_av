@@ -8,8 +8,6 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
     src/Engine.cpp \
     src/EngineInstance.cpp \
-    src/Gains.cpp \
-
 
 audio_policy_engine_includes_common := \
     $(LOCAL_PATH)/include \
@@ -38,11 +36,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicycomponents \
-
-ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
-LOCAL_STATIC_LIBRARIES += libxml2
-endif #ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
-
+    libxml2
 
 LOCAL_SHARED_LIBRARIES += \
     libcutils \

@@ -29,12 +29,7 @@ class StreamDescriptor;
 class Gains
 {
 public :
-    static float volIndexToAmpl(device_category deviceCategory,
-                                const StreamDescriptor& streamDesc,
-                                int indexInUi);
-
-    static float volIndexToDb(device_category deviceCategory,
-                              const StreamDescriptor& streamDesc,
+    static float volIndexToDb(const VolumeCurvePoint *point, int indexMin, int indexMax,
                               int indexInUi);
 
     // default volume curve

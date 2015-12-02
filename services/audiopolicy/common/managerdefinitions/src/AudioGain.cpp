@@ -25,7 +25,6 @@
 #endif
 
 #include "AudioGain.h"
-#include "StreamDescriptor.h"
 #include <utils/Log.h>
 #include <utils/String8.h>
 

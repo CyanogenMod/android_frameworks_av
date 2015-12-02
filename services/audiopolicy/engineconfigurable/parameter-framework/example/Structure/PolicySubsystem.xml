@@ -38,29 +38,29 @@
 
         <ComponentType Name="Streams" Description="associated to audio_stream_type_t definition,
                              identifier mapping must match the value of the enum">
-            <Component Name="voice_call" Type="Stream" Mapping="Amend1:VoiceCall,Identifier:0"/>
-            <Component Name="system" Type="Stream" Mapping="Amend1:System,Identifier:1"/>
-            <Component Name="ring" Type="Stream" Mapping="Amend1:Ring,Identifier:2"/>
-            <Component Name="music" Type="Stream" Mapping="Amend1:Music,Identifier:3"/>
-            <Component Name="alarm" Type="Stream" Mapping="Amend1:Alarm,Identifier:4"/>
+            <Component Name="voice_call" Type="Stream" Mapping="Stream:VoiceCall,Identifier:0"/>
+            <Component Name="system" Type="Stream" Mapping="Stream:System,Identifier:1"/>
+            <Component Name="ring" Type="Stream" Mapping="Stream:Ring,Identifier:2"/>
+            <Component Name="music" Type="Stream" Mapping="Stream:Music,Identifier:3"/>
+            <Component Name="alarm" Type="Stream" Mapping="Stream:Alarm,Identifier:4"/>
             <Component Name="notification" Type="Stream"
-                                           Mapping="Amend1:Notification,Identifier:5"/>
+                                           Mapping="Stream:Notification,Identifier:5"/>
             <Component Name="bluetooth_sco" Type="Stream"
-                                            Mapping="Amend1:BluetoothSco,Identifier:6"/>
+                                            Mapping="Stream:BluetoothSco,Identifier:6"/>
             <Component Name="enforced_audible" Type="Stream"
-                                               Mapping="Amend1:EnforceAudible,Identifier:7"
+                                               Mapping="Stream:EnforceAudible,Identifier:7"
                        Description="Sounds that cannot be muted by user and must
                                     be routed to speaker"/>
-            <Component Name="dtmf" Type="Stream" Mapping="Amend1:Dtmf,Identifier:8"/>
-            <Component Name="tts" Type="Stream" Mapping="Amend1:Tts,Identifier:9"
+            <Component Name="dtmf" Type="Stream" Mapping="Stream:Dtmf,Identifier:8"/>
+            <Component Name="tts" Type="Stream" Mapping="Stream:Tts,Identifier:9"
                              Description="Transmitted Through Speaker.
                                           Plays over speaker only, silent on other devices"/>
             <Component Name="accessibility" Type="Stream"
-                                            Mapping="Amend1:Accessibility,Identifier:10"
+                                            Mapping="Stream:Accessibility,Identifier:10"
                              Description="For accessibility talk back prompts"/>
-            <Component Name="rerouting" Type="Stream" Mapping="Amend1:Rerouting,Identifier:11"
+            <Component Name="rerouting" Type="Stream" Mapping="Stream:Rerouting,Identifier:11"
                              Description="For dynamic policy output mixes"/>
-            <Component Name="patch" Type="Stream" Mapping="Amend1:Patch,Identifier:12"
+            <Component Name="patch" Type="Stream" Mapping="Stream:Patch,Identifier:12"
                              Description="For internal audio flinger tracks. Fixed volume"/>
         </ComponentType>
 
