@@ -255,6 +255,13 @@ status_t FFMPEGSoftCodec::setVideoFormat(
         *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingFLV1;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
         *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+#ifdef QCOM_HARDWARE
+    // compressionFormat will be override later
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+#endif
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
         *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingHEVC;
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FFMPEG, mime)) {
@@ -275,16 +282,9 @@ status_t FFMPEGSoftCodec::setVideoFormat(
     // from the CAF L release. It was unfortunately moved to a proprietary
     // blob and an architecture which is hellish for OEMs who wish to
     // customize the platform.
-    if (err != BAD_TYPE && (strncmp(componentName, "OMX.qcom.", 9) == 0)) {
+    if (err != BAD_TYPE && (!strncmp(componentName, "OMX.qcom.", 9))) {
         status_t xerr = OK;
 
-        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
-            *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
-            *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
-            *compressionFormat= (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
-        }
 
         int32_t mode = 0;
         OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
@@ -304,7 +304,13 @@ status_t FFMPEGSoftCodec::setVideoFormat(
             ALOGW("Failed to set frame packing format on component");
         }
 
-        setQCDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
+        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+            // Override with QCOM specific compressionFormat
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+            setQCDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
+        }
 
         // Enable timestamp reordering for mpeg4 and vc1 codec types, the AVI file
         // type, and hevc content in the ts container
@@ -360,37 +366,45 @@ status_t FFMPEGSoftCodec::setQCDIVXFormat(
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, int port_index) {
     status_t err = OK;
-    if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
-        !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime) ||
-        !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
-        ALOGV("Setting the QOMX_VIDEO_PARAM_DIVXTYPE params ");
-        QOMX_VIDEO_PARAM_DIVXTYPE paramDivX;
-        InitOMXParams(&paramDivX);
-        paramDivX.nPortIndex = port_index;
-        int32_t DivxVersion = 0;
-        if (!msg->findInt32(getMsgKey(kKeyDivXVersion), &DivxVersion)) {
+    ALOGV("Setting the QOMX_VIDEO_PARAM_DIVXTYPE params ");
+    QOMX_VIDEO_PARAM_DIVXTYPE paramDivX;
+    InitOMXParams(&paramDivX);
+    paramDivX.nPortIndex = port_index;
+    int32_t DivxVersion = 0;
+    if (!msg->findInt32(getMsgKey(kKeyDivXVersion), &DivxVersion)) {
+        // Cannot find the key, the caller is skipping the container
+        // and use codec directly, let determine divx version from
+        // mime type
+        DivxVersion = kTypeDivXVer_4;
+        const char *v;
+        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
             DivxVersion = kTypeDivXVer_4;
-            ALOGW("Divx version key missing, initializing the version to %d", DivxVersion);
+            v = "4";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+            DivxVersion = kTypeDivXVer_3_11;
+            v = "3.11";
         }
-        ALOGV("Divx Version Type %d", DivxVersion);
-
-        if (DivxVersion == kTypeDivXVer_4) {
-            paramDivX.eFormat = QOMX_VIDEO_DIVXFormat4;
-        } else if (DivxVersion == kTypeDivXVer_5) {
-            paramDivX.eFormat = QOMX_VIDEO_DIVXFormat5;
-        } else if (DivxVersion == kTypeDivXVer_6) {
-            paramDivX.eFormat = QOMX_VIDEO_DIVXFormat6;
-        } else if (DivxVersion == kTypeDivXVer_3_11 ) {
-            paramDivX.eFormat = QOMX_VIDEO_DIVXFormat311;
-        } else {
-            paramDivX.eFormat = QOMX_VIDEO_DIVXFormatUnused;
-        }
-        paramDivX.eProfile = (QOMX_VIDEO_DIVXPROFILETYPE)0;    //Not used for now.
-
-        err =  OMXhandle->setParameter(nodeID,
-                         (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDivx,
-                         &paramDivX, sizeof(paramDivX));
+        ALOGW("Divx version key missing, initializing the version to %s", v);
     }
+    ALOGV("Divx Version Type %d", DivxVersion);
+
+    if (DivxVersion == kTypeDivXVer_4) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat4;
+    } else if (DivxVersion == kTypeDivXVer_5) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat5;
+    } else if (DivxVersion == kTypeDivXVer_6) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat6;
+    } else if (DivxVersion == kTypeDivXVer_3_11 ) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat311;
+    } else {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormatUnused;
+    }
+    paramDivX.eProfile = (QOMX_VIDEO_DIVXPROFILETYPE)0;    //Not used for now.
+
+    err =  OMXhandle->setParameter(nodeID,
+            (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDivx,
+            &paramDivX, sizeof(paramDivX));
     return err;
 }
 #endif
