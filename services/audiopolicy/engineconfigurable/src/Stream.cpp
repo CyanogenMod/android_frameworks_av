@@ -65,12 +65,12 @@ routing_strategy Element<audio_stream_type_t>::get<routing_strategy>() const
 status_t Element<audio_stream_type_t>::setVolumeProfile(Volume::device_category category,
                                                         const VolumeCurvePoints &points)
 {
-    ALOGD("%s: adding volume profile for %s for device category %d, points nb =%d", __FUNCTION__,
+    ALOGD("%s: adding volume profile for %s for device category %d, points nb =%zu", __FUNCTION__,
           getName().c_str(), category, points.size());
     mVolumeProfiles[category] = points;
 
     for (size_t i = 0; i < points.size(); i++) {
-        ALOGV("%s: %s cat=%d curve index =%d Index=%d dBAttenuation=%f",
+        ALOGV("%s: %s cat=%d curve index =%zu Index=%d dBAttenuation=%f",
               __FUNCTION__, getName().c_str(), category, i, points[i].mIndex,
              points[i].mDBAttenuation);
     }
