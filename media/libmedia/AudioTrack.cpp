@@ -920,7 +920,7 @@ status_t AudioTrack::getMarkerPosition(uint32_t *marker) const
     }
 
     AutoMutex lock(mLock);
-    *marker = mMarkerPosition;
+    mMarkerPosition.getValue(marker);
 
     return NO_ERROR;
 }
@@ -1018,7 +1018,7 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
         // IAudioTrack::stop() isn't synchronous; we don't know when presentation completes
         *position = (mState == STATE_STOPPED || mState == STATE_FLUSHED) ?
-                0 : updateAndGetPosition_l();
+                0 : updateAndGetPosition_l().value();
     }
     return NO_ERROR;
 }
@@ -1774,23 +1774,23 @@ nsecs_t AudioTrack::processAudioBuffer()
     }
 
     // Get current position of server
-    size_t position = updateAndGetPosition_l();
+    Modulo<uint32_t> position(updateAndGetPosition_l());
 
     // Manage marker callback
     bool markerReached = false;
-    size_t markerPosition = mMarkerPosition;
-    // FIXME fails for wraparound, need 64 bits
-    if (!mMarkerReached && (markerPosition > 0) && (position >= markerPosition)) {
+    Modulo<uint32_t> markerPosition(mMarkerPosition);
+    // uses 32 bit wraparound for comparison with position.
+    if (!mMarkerReached && markerPosition.value() > 0 && position >= markerPosition) {
         mMarkerReached = markerReached = true;
     }
 
     // Determine number of new position callback(s) that will be needed, while locked
     size_t newPosCount = 0;
-    size_t newPosition = mNewPosition;
-    size_t updatePeriod = mUpdatePeriod;
+    Modulo<uint32_t> newPosition(mNewPosition);
+    uint32_t updatePeriod = mUpdatePeriod;
     // FIXME fails for wraparound, need 64 bits
     if (updatePeriod > 0 && position >= newPosition) {
-        newPosCount = ((position - newPosition) / updatePeriod) + 1;
+        newPosCount = ((position - newPosition).value() / updatePeriod) + 1;
         mNewPosition += updatePeriod * newPosCount;
     }
 
@@ -1891,7 +1891,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         mCbf(EVENT_MARKER, mUserData, &markerPosition);
     }
     while (newPosCount > 0) {
-        size_t temp = newPosition;
+        size_t temp = newPosition.value(); // FIXME size_t != uint32_t
         mCbf(EVENT_NEW_POS, mUserData, &temp);
         newPosition += updatePeriod;
         newPosCount--;
@@ -1915,14 +1915,14 @@ nsecs_t AudioTrack::processAudioBuffer()
     // FIXME only for non-compressed audio
     uint32_t minFrames = ~0;
     if (!markerReached && position < markerPosition) {
-        minFrames = markerPosition - position;
+        minFrames = (markerPosition - position).value();
     }
     if (loopPeriod > 0 && loopPeriod < minFrames) {
         // loopPeriod is already adjusted for actual position.
         minFrames = loopPeriod;
     }
     if (updatePeriod > 0) {
-        minFrames = min(minFrames, uint32_t(newPosition - position));
+        minFrames = min(minFrames, (newPosition - position).value());
     }
 
     // If > 0, poll periodically to recover from a stuck server.  A good value is 2.
@@ -2157,11 +2157,11 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     return result;
 }
 
-uint32_t AudioTrack::updateAndGetPosition_l()
+Modulo<uint32_t> AudioTrack::updateAndGetPosition_l()
 {
     // This is the sole place to read server consumed frames
-    uint32_t newServer = mProxy->getPosition();
-    uint32_t delta = newServer > mServer ? newServer - mServer : 0;
+    Modulo<uint32_t> newServer(mProxy->getPosition());
+    const int32_t delta = (newServer - mServer).signedValue();
     // TODO There is controversy about whether there can be "negative jitter" in server position.
     //      This should be investigated further, and if possible, it should be addressed.
     //      A more definite failure mode is infrequent polling by client.
@@ -2170,12 +2170,14 @@ uint32_t AudioTrack::updateAndGetPosition_l()
     //      That should ensure delta never goes negative for infrequent polling
     //      unless the server has more than 2^31 frames in its buffer,
     //      in which case the use of uint32_t for these counters has bigger issues.
-    if (newServer < mServer) {
-        ALOGE("detected illegal retrograde motion by the server: mServer advanced by %d",
-              (int32_t) newServer - mServer);
-    }
+    ALOGE_IF(delta < 0,
+            "detected illegal retrograde motion by the server: mServer advanced by %d",
+            delta);
     mServer = newServer;
-    return mPosition += delta;
+    if (delta > 0) { // avoid retrograde
+        mPosition += delta;
+    }
+    return mPosition;
 }
 
 bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const
@@ -2197,7 +2199,6 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
     return mAudioTrack->setParameters(keyValuePairs);
 }
 
-__attribute__((no_sanitize("integer")))
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 {
     AutoMutex lock(mLock);
@@ -2310,15 +2311,19 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         // If this delta between these is greater than the client position, it means that
         // actually presented is still stuck at the starting line (figuratively speaking),
         // waiting for the first frame to go by.  So we can't report a valid timestamp yet.
-        if ((uint32_t) (mServer - timestamp.mPosition) > mPosition) {
+        // Note: We explicitly use non-Modulo comparison here - potential wrap issue when
+        // mPosition exceeds 32 bits.
+        // TODO Remove when timestamp is updated to contain pipeline status info.
+        const int32_t pipelineDepthInFrames = (mServer - timestamp.mPosition).signedValue();
+        if (pipelineDepthInFrames > 0 /* should be true, but we check anyways */
+                && (uint32_t)pipelineDepthInFrames > mPosition.value()) {
             return INVALID_OPERATION;
         }
         // Convert timestamp position from server time base to client time base.
         // TODO The following code should work OK now because timestamp.mPosition is 32-bit.
         // But if we change it to 64-bit then this could fail.
-        // Split this out instead of using += to prevent unsigned overflow
-        // checks in the outer sum.
-        timestamp.mPosition = timestamp.mPosition + static_cast<int32_t>(mPosition) - mServer;
+        // Use Modulo computation here.
+        timestamp.mPosition = (mPosition - mServer + timestamp.mPosition).value();
         // Immediately after a call to getPosition_l(), mPosition and
         // mServer both represent the same frame position.  mPosition is
         // in client's point of view, and mServer is in server's point of
@@ -2332,9 +2337,9 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     // This is sometimes caused by erratic reports of the available space in the ALSA drivers.
     if (status == NO_ERROR) {
         if (previousTimestampValid) {
-#define TIME_TO_NANOS(time) ((uint64_t)time.tv_sec * 1000000000 + time.tv_nsec)
-            const uint64_t previousTimeNanos = TIME_TO_NANOS(mPreviousTimestamp.mTime);
-            const uint64_t currentTimeNanos = TIME_TO_NANOS(timestamp.mTime);
+#define TIME_TO_NANOS(time) ((int64_t)time.tv_sec * 1000000000 + time.tv_nsec)
+            const int64_t previousTimeNanos = TIME_TO_NANOS(mPreviousTimestamp.mTime);
+            const int64_t currentTimeNanos = TIME_TO_NANOS(timestamp.mTime);
 #undef TIME_TO_NANOS
             if (currentTimeNanos < previousTimeNanos) {
                 ALOGW("retrograde timestamp time");
@@ -2343,8 +2348,8 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
             // Looking at signed delta will work even when the timestamps
             // are wrapping around.
-            int32_t deltaPosition = static_cast<int32_t>(timestamp.mPosition
-                    - mPreviousTimestamp.mPosition);
+            int32_t deltaPosition = (Modulo<uint32_t>(timestamp.mPosition)
+                    - mPreviousTimestamp.mPosition).signedValue();
             // position can bobble slightly as an artifact; this hides the bobble
             static const int32_t MINIMUM_POSITION_DELTA = 8;
             if (deltaPosition < 0) {

@@ -396,7 +396,7 @@ status_t AudioRecord::getMarkerPosition(uint32_t *marker) const
     }
 
     AutoMutex lock(mLock);
-    *marker = mMarkerPosition;
+    mMarkerPosition.getValue(marker);
 
     return NO_ERROR;
 }
@@ -438,7 +438,7 @@ status_t AudioRecord::getPosition(uint32_t *position) const
     }
 
     AutoMutex lock(mLock);
-    *position = mProxy->getPosition();
+    mProxy->getPosition().getValue(position);
 
     return NO_ERROR;
 }
@@ -480,7 +480,7 @@ audio_port_handle_t AudioRecord::getRoutedDeviceId() {
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-status_t AudioRecord::openRecord_l(size_t epoch, const String16& opPackageName)
+status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16& opPackageName)
 {
     const sp<IAudioFlinger>& audioFlinger = AudioSystem::get_audio_flinger();
     if (audioFlinger == 0) {
@@ -890,23 +890,23 @@ nsecs_t AudioRecord::processAudioBuffer()
     }
 
     // Get current position of server
-    size_t position = mProxy->getPosition();
+    Modulo<uint32_t> position(mProxy->getPosition());
 
     // Manage marker callback
     bool markerReached = false;
-    size_t markerPosition = mMarkerPosition;
+    Modulo<uint32_t> markerPosition(mMarkerPosition);
     // FIXME fails for wraparound, need 64 bits
-    if (!mMarkerReached && (markerPosition > 0) && (position >= markerPosition)) {
+    if (!mMarkerReached && markerPosition.value() > 0 && position >= markerPosition) {
         mMarkerReached = markerReached = true;
     }
 
     // Determine the number of new position callback(s) that will be needed, while locked
     size_t newPosCount = 0;
-    size_t newPosition = mNewPosition;
+    Modulo<uint32_t> newPosition(mNewPosition);
     uint32_t updatePeriod = mUpdatePeriod;
     // FIXME fails for wraparound, need 64 bits
     if (updatePeriod > 0 && position >= newPosition) {
-        newPosCount = ((position - newPosition) / updatePeriod) + 1;
+        newPosCount = ((position - newPosition).value() / updatePeriod) + 1;
         mNewPosition += updatePeriod * newPosCount;
     }
 
@@ -933,7 +933,7 @@ nsecs_t AudioRecord::processAudioBuffer()
         mCbf(EVENT_MARKER, mUserData, &markerPosition);
     }
     while (newPosCount > 0) {
-        size_t temp = newPosition;
+        size_t temp = newPosition.value(); // FIXME size_t != uint32_t
         mCbf(EVENT_NEW_POS, mUserData, &temp);
         newPosition += updatePeriod;
         newPosCount--;
@@ -951,10 +951,10 @@ nsecs_t AudioRecord::processAudioBuffer()
     // Compute the estimated time until the next timed event (position, markers)
     uint32_t minFrames = ~0;
     if (!markerReached && position < markerPosition) {
-        minFrames = markerPosition - position;
+        minFrames = (markerPosition - position).value();
     }
     if (updatePeriod > 0) {
-        uint32_t remaining = newPosition - position;
+        uint32_t remaining = (newPosition - position).value();
         if (remaining < minFrames) {
             minFrames = remaining;
         }
@@ -1087,7 +1087,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
     // if the new IAudioRecord is created, openRecord_l() will modify the
     // following member variables: mAudioRecord, mCblkMemory, mCblk, mBufferMemory.
     // It will also delete the strong references on previous IAudioRecord and IMemory
-    size_t position = mProxy->getPosition();
+    Modulo<uint32_t> position(mProxy->getPosition());
     mNewPosition = position + mUpdatePeriod;
     status_t result = openRecord_l(position, mOpPackageName);
     if (result == NO_ERROR) {

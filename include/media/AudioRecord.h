@@ -20,6 +20,7 @@
 #include <cutils/sched_policy.h>
 #include <media/AudioSystem.h>
 #include <media/IAudioRecord.h>
+#include <media/Modulo.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -526,7 +527,7 @@ private:
 
             // caller must hold lock on mLock for all _l methods
 
-            status_t openRecord_l(size_t epoch, const String16& opPackageName);
+            status_t openRecord_l(const Modulo<uint32_t> &epoch, const String16& opPackageName);
 
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreRecord_l(const char *from);
@@ -556,9 +557,9 @@ private:
     bool                    mRetryOnPartialBuffer;  // sleep and retry after partial obtainBuffer()
     uint32_t                mObservedSequence;      // last observed value of mSequence
 
-    uint32_t                mMarkerPosition;        // in wrapping (overflow) frame units
+    Modulo<uint32_t>        mMarkerPosition;        // in wrapping (overflow) frame units
     bool                    mMarkerReached;
-    uint32_t                mNewPosition;           // in frames
+    Modulo<uint32_t>        mNewPosition;           // in frames
     uint32_t                mUpdatePeriod;          // in frames, zero means no EVENT_NEW_POS
 
     status_t                mStatus;
