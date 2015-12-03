@@ -7,6 +7,7 @@
 #
 ################################################################################################
 
+ifeq (1, 0)
 
 LOCAL_PATH := $(call my-dir)
 
@@ -103,3 +104,5 @@ else
 LOCAL_SRC_FILES := Settings/$(LOCAL_MODULE_STEM)
 include $(BUILD_PREBUILT)
 endif # pfw_rebuild_settings
+
+endif # ifeq (1, 0)
