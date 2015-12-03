@@ -1547,10 +1547,9 @@ void NuPlayer::Renderer::onPause() {
     mDrainAudioQueuePending = false;
     mDrainVideoQueuePending = false;
 
-    if (mHasAudio) {
-        mAudioSink->pause();
-        startAudioOffloadPauseTimeout();
-    }
+    // Note: audio data may not have been decoded, and the AudioSink may not be opened.
+    mAudioSink->pause();
+    startAudioOffloadPauseTimeout();
 
     ALOGV("now paused audio queue has %zu entries, video has %zu entries",
           mAudioQueue.size(), mVideoQueue.size());
@@ -1561,8 +1560,9 @@ void NuPlayer::Renderer::onResume() {
         return;
     }
 
-    if (mHasAudio) {
-        cancelAudioOffloadPauseTimeout();
+    // Note: audio data may not have been decoded, and the AudioSink may not be opened.
+    cancelAudioOffloadPauseTimeout();
+    if (mAudioSink->ready()) {
         status_t err = mAudioSink->start();
         if (err != OK) {
             ALOGE("cannot start AudioSink err %d", err);
