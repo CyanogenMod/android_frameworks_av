@@ -98,13 +98,13 @@ float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceC
     if (it == mVolumeProfiles.end()) {
         ALOGE("%s: device category %d not found for stream %s", __FUNCTION__, deviceCategory,
               getName().c_str());
-        return 1.0f;
+        return 0.0f;
     }
     const VolumeCurvePoints curve = mVolumeProfiles[deviceCategory];
     if (curve.size() != Volume::VOLCNT) {
         ALOGE("%s: invalid profile for category %d and for stream %s", __FUNCTION__, deviceCategory,
               getName().c_str());
-        return 1.0f;
+        return 0.0f;
     }
 
     // the volume index in the UI is relative to the min and max volume indices for this stream type
@@ -113,7 +113,7 @@ float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceC
 
     if (mIndexMax - mIndexMin == 0) {
         ALOGE("%s: Invalid volume indexes Min=Max=%d", __FUNCTION__, mIndexMin);
-        return 1.0f;
+        return 0.0f;
     }
     int volIdx = (nbSteps * (indexInUi - mIndexMin)) /
             (mIndexMax - mIndexMin);
@@ -121,7 +121,7 @@ float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceC
     // find what part of the curve this index volume belongs to, or if it's out of bounds
     int segment = 0;
     if (volIdx < curve[Volume::VOLMIN].mIndex) {         // out of bounds
-        return 0.0f;
+        return VOLUME_MIN_DB;
     } else if (volIdx < curve[Volume::VOLKNEE1].mIndex) {
         segment = 0;
     } else if (volIdx < curve[Volume::VOLKNEE2].mIndex) {
@@ -129,7 +129,7 @@ float Element<audio_stream_type_t>::volIndexToDb(Volume::device_category deviceC
     } else if (volIdx <= curve[Volume::VOLMAX].mIndex) {
         segment = 2;
     } else {                                                               // out of bounds
-        return 1.0f;
+        return 0.0f;
     }
 
     // linear interpolation in the attenuation table in dB
