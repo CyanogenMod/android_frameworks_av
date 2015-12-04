@@ -36,6 +36,8 @@ public:
     void setIoHandle(audio_io_handle_t ioHandle);
     audio_port_handle_t getId() const;
     audio_module_handle_t getModuleHandle() const;
+    void changeOpenRefCount(int delta);
+    uint32_t getOpenRefCount() const;
 
     status_t    dump(int fd);
 
@@ -43,9 +45,8 @@ public:
     audio_devices_t               mDevice;         // current device this input is routed to
     AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
     audio_patch_handle_t          mPatchHandle;
-    uint32_t                      mRefCount;       // number of AudioRecord clients using
-    // this input
-    uint32_t                      mOpenRefCount;
+    uint32_t                      mRefCount;       // number of AudioRecord clients active on
+                                                   // this input
     audio_source_t                mInputSource;    // input source selected by application
     //(mediarecorder.h)
     const sp<IOProfile>           mProfile;        // I/O profile this output derives from
@@ -63,6 +64,7 @@ public:
 
 private:
     audio_port_handle_t           mId;
+    uint32_t                      mOpenRefCount;
     // Because a preemtible capture session can preempt another one, we end up in an endless loop
     // situation were each session is allowed to restart after being preempted,
     // thus preempting the other one which restarts and so on.

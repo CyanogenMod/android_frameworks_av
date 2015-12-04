@@ -1456,7 +1456,6 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(profile);
     inputDesc->mInputSource = inputSource;
     inputDesc->mRefCount = 0;
-    inputDesc->mOpenRefCount = 1;
     inputDesc->mSamplingRate = profileSamplingRate;
     inputDesc->mFormat = profileFormat;
     inputDesc->mChannelMask = profileChannelMask;
@@ -1464,6 +1463,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     inputDesc->mSessions.add(session);
     inputDesc->mIsSoundTrigger = isSoundTrigger;
     inputDesc->mPolicyMix = policyMix;
+    inputDesc->changeOpenRefCount(1);
 
     ALOGV("getInputForAttr() returns input type = %d", *inputType);
 
@@ -1648,12 +1648,12 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input,
         return;
     }
     inputDesc->mSessions.remove(session);
-    if (inputDesc->mOpenRefCount == 0) {
-        ALOGW("releaseInput() invalid open ref count %d", inputDesc->mOpenRefCount);
+    if (inputDesc->getOpenRefCount() == 0) {
+        ALOGW("releaseInput() invalid open ref count %d", inputDesc->getOpenRefCount());
         return;
     }
-    inputDesc->mOpenRefCount--;
-    if (inputDesc->mOpenRefCount > 0) {
+    inputDesc->changeOpenRefCount(-1);
+    if (inputDesc->getOpenRefCount() > 0) {
         ALOGV("releaseInput() exit > 0");
         return;
     }
