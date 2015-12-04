@@ -974,7 +974,17 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             // (Case 1)
             // Must be a multiple of the frame size.  If it is not a multiple of a frame size, it
             // needs to fail, as we should not carry over fractional frames between calls.
-            CHECK_EQ(copy % mAudioSink->frameSize(), 0);
+
+            if (copy % mAudioSink->frameSize()) {
+                // CHECK_EQ(copy % mAudioSink->frameSize(), 0);
+                ALOGE("CHECK_EQ(copy % mAudioSink->frameSize(), 0) failed b/25372978");
+                ALOGE("mAudioSink->frameSize() %zu", mAudioSink->frameSize());
+                ALOGE("bytes to copy %zu", copy);
+                ALOGE("entry size %zu, entry offset %zu", entry->mBuffer->size(),
+                                                          entry->mOffset - written);
+                notifyEOS(true /*audio*/, UNKNOWN_ERROR);
+                return false;
+            }
 
             // (Case 2, 3, 4)
             // Return early to the caller.
