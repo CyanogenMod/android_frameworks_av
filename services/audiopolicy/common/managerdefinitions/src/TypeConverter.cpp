@@ -166,7 +166,6 @@ template<>
 const size_t InputChannelConverter::mSize = sizeof(InputChannelConverter::mTable) /
         sizeof(InputChannelConverter::mTable[0]);
 
-
 template <>
 const ChannelIndexConverter::Table ChannelIndexConverter::mTable[] = {
     "AUDIO_CHANNEL_INDEX_MASK_1", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_1),
@@ -194,9 +193,41 @@ template<>
 const size_t GainModeConverter::mSize = sizeof(GainModeConverter::mTable) /
         sizeof(GainModeConverter::mTable[0]);
 
+template <>
+const DeviceCategoryConverter::Table DeviceCategoryConverter::mTable[] = {
+    MAKE_STRING_FROM_ENUM(DEVICE_CATEGORY_HEADSET),
+    MAKE_STRING_FROM_ENUM(DEVICE_CATEGORY_SPEAKER),
+    MAKE_STRING_FROM_ENUM(DEVICE_CATEGORY_EARPIECE),
+    MAKE_STRING_FROM_ENUM(DEVICE_CATEGORY_EXT_MEDIA)
+};
 
-template <typename T, typename SupportedType>
-bool TypeConverter<T, SupportedType>::toString(const T &value, std::string &str)
+template<>
+const size_t DeviceCategoryConverter::mSize = sizeof(DeviceCategoryConverter::mTable) /
+        sizeof(DeviceCategoryConverter::mTable[0]);
+
+template <>
+const StreamTypeConverter::Table StreamTypeConverter::mTable[] = {
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_VOICE_CALL),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_SYSTEM),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_RING),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_MUSIC),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_ALARM),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_NOTIFICATION),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_BLUETOOTH_SCO ),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_ENFORCED_AUDIBLE),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_DTMF),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_TTS),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_ACCESSIBILITY),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_REROUTING),
+    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_PATCH)
+};
+
+template<>
+const size_t StreamTypeConverter::mSize = sizeof(StreamTypeConverter::mTable) /
+        sizeof(StreamTypeConverter::mTable[0]);
+
+template <class Traits>
+bool TypeConverter<Traits>::toString(const typename Traits::Type &value, std::string &str)
 {
     for (size_t i = 0; i < mSize; i++) {
         if (mTable[i].value == value) {
@@ -207,8 +238,8 @@ bool TypeConverter<T, SupportedType>::toString(const T &value, std::string &str)
     return false;
 }
 
-template <typename T, typename SupportedType>
-bool TypeConverter<T, SupportedType>::fromString(const std::string &str, T &result)
+template <class Traits>
+bool TypeConverter<Traits>::fromString(const std::string &str, typename Traits::Type &result)
 {
     for (size_t i = 0; i < mSize; i++) {
         if (strcmp(mTable[i].literal, str.c_str()) == 0) {
@@ -220,14 +251,15 @@ bool TypeConverter<T, SupportedType>::fromString(const std::string &str, T &resu
     return false;
 }
 
-template <typename T, typename SupportedType>
-void TypeConverter<T, SupportedType>::collectionFromString(const std::string &str,
-                                                           Vector<T> &collection)
+template <class Traits>
+void TypeConverter<Traits>::collectionFromString(const std::string &str,
+                                                 typename Traits::Collection &collection,
+                                                 const char *del)
 {
     char *literal = strdup(str.c_str());
 
-    for (const char *cstr = strtok(literal, "|"); cstr != NULL; cstr = strtok(NULL, "|")) {
-        T value;
+    for (const char *cstr = strtok(literal, del); cstr != NULL; cstr = strtok(NULL, del)) {
+        typename Traits::Type value;
         if (fromString(cstr, value)) {
             collection.add(value);
         }
@@ -235,13 +267,13 @@ void TypeConverter<T, SupportedType>::collectionFromString(const std::string &st
     free(literal);
 }
 
-template <typename T, typename SupportedType>
-uint32_t TypeConverter<T, SupportedType>::maskFromString(const std::string &str)
+template <class Traits>
+uint32_t TypeConverter<Traits>::maskFromString(const std::string &str, const char *del)
 {
     char *literal = strdup(str.c_str());
     uint32_t value = 0;
-    for (const char *cstr = strtok(literal, "|"); cstr != NULL; cstr = strtok(NULL, "|")) {
-        T type;
+    for (const char *cstr = strtok(literal, del); cstr != NULL; cstr = strtok(NULL, del)) {
+        typename Traits::Type type;
         if (fromString(cstr, type)) {
             value |= static_cast<uint32_t>(type);
         }
@@ -250,14 +282,16 @@ uint32_t TypeConverter<T, SupportedType>::maskFromString(const std::string &str)
     return value;
 }
 
-template class TypeConverter<audio_devices_t, Devices>;
-template class TypeConverter<audio_output_flags_t, OutputFlags>;
-template class TypeConverter<audio_input_flags_t, InputFlags>;
-template class TypeConverter<audio_format_t, Formats>;
-template class TypeConverter<audio_channel_mask_t, OutputChannel>;
-template class TypeConverter<audio_channel_mask_t, InputChannel>;
-template class TypeConverter<audio_channel_mask_t, ChannelIndex>;
-template class TypeConverter<audio_gain_mode_t, GainMode>;
+template class TypeConverter<DeviceTraits>;
+template class TypeConverter<OutputFlagTraits>;
+template class TypeConverter<InputFlagTraits>;
+template class TypeConverter<FormatTraits>;
+template class TypeConverter<OutputChannelTraits>;
+template class TypeConverter<InputChannelTraits>;
+template class TypeConverter<ChannelIndexTraits>;
+template class TypeConverter<GainModeTraits>;
+template class TypeConverter<StreamTraits>;
+template class TypeConverter<DeviceCategoryTraits>;
 
 }; // namespace android
 

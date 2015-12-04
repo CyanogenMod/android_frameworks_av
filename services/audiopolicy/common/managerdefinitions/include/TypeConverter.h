@@ -16,123 +16,218 @@
 
 #pragma once
 
+#include "policy.h"
+#include <Volume.h>
 #include <system/audio.h>
 #include <convert/convert.h>
 #include <utils/Log.h>
 #include <string>
 #include <utils/Vector.h>
+#include <utils/SortedVector.h>
 
 namespace android {
-
-/**
- * As far as we do not have real type (only typedef on uint32_t for some types, we
- * will need this trick to handle template specialization.
- */
-class Devices;
-class InputFlags;
-class OutputFlags;
-class Formats;
-class OutputChannel;
-class InputChannel;
-class ChannelIndex;
-class GainMode;
 
 #define DYNAMIC_VALUE_TAG "dynamic" // special value for "channel_masks", "sampling_rates" and
                                     // "formats" in outputs descriptors indicating that supported
                                     // values should be queried after opening the output.
 
+struct SampleRateTraits
+{
+    typedef uint32_t Type;
+    typedef Vector<Type> Collection;
+};
+struct DeviceTraits
+{
+    typedef audio_devices_t Type;
+    typedef Vector<Type> Collection;
+};
+struct OutputFlagTraits
+{
+    typedef audio_output_flags_t Type;
+    typedef Vector<Type> Collection;
+};
+struct InputFlagTraits
+{
+    typedef audio_input_flags_t Type;
+    typedef Vector<Type> Collection;
+};
+struct FormatTraits
+{
+    typedef audio_format_t Type;
+    typedef Vector<Type> Collection;
+};
+struct ChannelTraits
+{
+    typedef audio_channel_mask_t Type;
+    typedef Vector<Type> Collection;
+};
+struct OutputChannelTraits : public ChannelTraits {};
+struct InputChannelTraits : public ChannelTraits {};
+struct ChannelIndexTraits : public ChannelTraits {};
+struct GainModeTraits
+{
+    typedef audio_gain_mode_t Type;
+    typedef Vector<Type> Collection;
+};
+struct StreamTraits
+{
+  typedef audio_stream_type_t Type;
+  typedef Vector<Type> Collection;
+};
+struct DeviceCategoryTraits
+{
+  typedef device_category Type;
+  typedef Vector<Type> Collection;
+};
 template <typename T>
-static void collectionFromString(const std::string &str, Vector<T> &collection)
+struct DefaultTraits
+{
+  typedef T Type;
+  typedef Vector<Type> Collection;
+};
+
+template <class Traits>
+static void collectionFromString(const std::string &str, typename Traits::Collection &collection,
+                                 const char *del = "|")
 {
     char *literal = strdup(str.c_str());
-    for (const char *cstr = strtok(literal, "|"); cstr != NULL; cstr = strtok(NULL, "|")) {
-        T value;
-        if (utilities::convertTo<std::string, T>(cstr, value)) {
+    for (const char *cstr = strtok(literal, del); cstr != NULL; cstr = strtok(NULL, del)) {
+        typename Traits::Type value;
+        if (utilities::convertTo<std::string, typename Traits::Type >(cstr, value)) {
             collection.add(value);
         }
     }
     free(literal);
 }
 
-template <typename T, typename SupportedType>
+template <class Traits>
 class TypeConverter
 {
 public:
-    static bool toString(const T &value, std::string &str);
+    static bool toString(const typename Traits::Type &value, std::string &str);
 
-    static bool fromString(const std::string &str, T &result);
+    static bool fromString(const std::string &str, typename Traits::Type &result);
 
-    static void collectionFromString(const std::string &str, Vector<T> &collection);
+    static void collectionFromString(const std::string &str,
+                                     typename Traits::Collection &collection,
+                                     const char *del = "|");
 
-    static uint32_t maskFromString(const std::string &str);
+    static uint32_t maskFromString(const std::string &str, const char *del = "|");
 
 protected:
     struct Table {
         const char *literal;
-        T value;
+        typename Traits::Type value;
     };
 
     static const Table mTable[];
     static const size_t mSize;
 };
 
-typedef TypeConverter<audio_devices_t, Devices> DeviceConverter;
-typedef TypeConverter<audio_output_flags_t, OutputFlags> OutputFlagConverter;
-typedef TypeConverter<audio_input_flags_t, InputFlags> InputFlagConverter;
-typedef TypeConverter<audio_format_t, Formats> FormatConverter;
-typedef TypeConverter<audio_channel_mask_t, OutputChannel> OutputChannelConverter;
-typedef TypeConverter<audio_channel_mask_t, InputChannel> InputChannelConverter;
-typedef TypeConverter<audio_channel_mask_t, ChannelIndex> ChannelIndexConverter;
-typedef TypeConverter<audio_gain_mode_t, GainMode> GainModeConverter;
+typedef TypeConverter<DeviceTraits> DeviceConverter;
+typedef TypeConverter<OutputFlagTraits> OutputFlagConverter;
+typedef TypeConverter<InputFlagTraits> InputFlagConverter;
+typedef TypeConverter<FormatTraits> FormatConverter;
+typedef TypeConverter<OutputChannelTraits> OutputChannelConverter;
+typedef TypeConverter<InputChannelTraits> InputChannelConverter;
+typedef TypeConverter<ChannelIndexTraits> ChannelIndexConverter;
+typedef TypeConverter<GainModeTraits> GainModeConverter;
+typedef TypeConverter<StreamTraits> StreamTypeConverter;
+typedef TypeConverter<DeviceCategoryTraits> DeviceCategoryConverter;
 
-static Vector<uint32_t> samplingRatesFromString(const std::string &samplingRates)
+static SampleRateTraits::Collection samplingRatesFromString(const std::string &samplingRates,
+                                                            const char *del = "|")
 {
-    Vector<uint32_t> samplingRateCollection;
+    SampleRateTraits::Collection samplingRateCollection;
     // by convention, "0' in the first entry in mSamplingRates indicates the supported sampling
     // rates should be read from the output stream after it is opened for the first time
     if (samplingRates == DYNAMIC_VALUE_TAG) {
-        samplingRateCollection.add(0);
+        samplingRateCollection.add(gDynamicRate);
     } else {
-        collectionFromString<uint32_t>(samplingRates, samplingRateCollection);
+        collectionFromString<SampleRateTraits>(samplingRates, samplingRateCollection, del);
     }
     return samplingRateCollection;
 }
 
-static Vector<audio_format_t> formatsFromString(const std::string &formats)
+static FormatTraits::Collection formatsFromString(const std::string &formats, const char *del = "|")
 {
-    Vector<audio_format_t> formatCollection;
+    FormatTraits::Collection formatCollection;
     // by convention, "0' in the first entry in mFormats indicates the supported formats
     // should be read from the output stream after it is opened for the first time
     if (formats == DYNAMIC_VALUE_TAG) {
-        formatCollection.add(AUDIO_FORMAT_DEFAULT);
+        formatCollection.add(gDynamicFormat);
     } else {
-        FormatConverter::collectionFromString(formats, formatCollection);
+        FormatConverter::collectionFromString(formats, formatCollection, del);
     }
     return formatCollection;
 }
 
-static Vector<audio_channel_mask_t> inputChannelMasksFromString(const std::string &inChannels)
+static audio_format_t formatFromString(const std::string &literalFormat)
 {
-    Vector <audio_channel_mask_t> inputChannelMaskCollection;
-    if (inChannels == DYNAMIC_VALUE_TAG) {
-        inputChannelMaskCollection.add(0);
+    audio_format_t format;
+    // by convention, "0' in the first entry in literalFormat indicates the supported formats
+    // should be read from the output stream after it is opened for the first time
+    if (literalFormat == DYNAMIC_VALUE_TAG) {
+        return gDynamicFormat;
     } else {
-        InputChannelConverter::collectionFromString(inChannels, inputChannelMaskCollection);
-        ChannelIndexConverter::collectionFromString(inChannels, inputChannelMaskCollection);
+        FormatConverter::fromString(literalFormat, format);
+    }
+    return format;
+}
+
+static audio_channel_mask_t channelMaskFromString(const std::string &literalChannels)
+{
+    audio_channel_mask_t channels;
+    // by convention, "0' in the first entry in literalChannels indicates the supported channels
+    // should be read from the output stream after it is opened for the first time
+    if (literalChannels == DYNAMIC_VALUE_TAG) {
+        return gDynamicChannelMask;
+    }
+    if (!OutputChannelConverter::fromString(literalChannels, channels) ||
+            !InputChannelConverter::fromString(literalChannels, channels)) {
+        return AUDIO_CHANNEL_INVALID;
+    }
+    return channels;
+}
+
+static ChannelTraits::Collection channelMasksFromString(const std::string &channels,
+                                                        const char *del = "|")
+{
+    ChannelTraits::Collection channelMaskCollection;
+    if (channels == DYNAMIC_VALUE_TAG) {
+        channelMaskCollection.add(gDynamicChannelMask);
+    } else {
+        OutputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
+        InputChannelConverter::collectionFromString(channels, channelMaskCollection, del);
+        ChannelIndexConverter::collectionFromString(channels, channelMaskCollection, del);
+    }
+    return channelMaskCollection;
+}
+
+static InputChannelTraits::Collection inputChannelMasksFromString(const std::string &inChannels,
+                                                                  const char *del = "|")
+{
+    InputChannelTraits::Collection inputChannelMaskCollection;
+    if (inChannels == DYNAMIC_VALUE_TAG) {
+        inputChannelMaskCollection.add(gDynamicChannelMask);
+    } else {
+        InputChannelConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
+        ChannelIndexConverter::collectionFromString(inChannels, inputChannelMaskCollection, del);
     }
     return inputChannelMaskCollection;
 }
 
-static Vector<audio_channel_mask_t> outputChannelMasksFromString(const std::string &outChannels)
+static OutputChannelTraits::Collection outputChannelMasksFromString(const std::string &outChannels,
+                                                                    const char *del = "|")
 {
-    Vector <audio_channel_mask_t> outputChannelMaskCollection;
+    OutputChannelTraits::Collection outputChannelMaskCollection;
     // by convention, "0' in the first entry in mChannelMasks indicates the supported channel
     // masks should be read from the output stream after it is opened for the first time
     if (outChannels == DYNAMIC_VALUE_TAG) {
-        outputChannelMaskCollection.add(0);
+        outputChannelMaskCollection.add(gDynamicChannelMask);
     } else {
-        OutputChannelConverter::collectionFromString(outChannels, outputChannelMaskCollection);
-        ChannelIndexConverter::collectionFromString(outChannels, outputChannelMaskCollection);
+        OutputChannelConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
+        ChannelIndexConverter::collectionFromString(outChannels, outputChannelMaskCollection, del);
     }
     return outputChannelMaskCollection;
 }
