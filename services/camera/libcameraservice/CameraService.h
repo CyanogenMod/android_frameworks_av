@@ -620,6 +620,7 @@ private:
 
     /**
      * Add a event log message that a serious service-level error has occured
+     * The errorCode should be one of the Android Errors
      */
     void logServiceError(const char* msg, int errorCode);
 

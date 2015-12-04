@@ -31,7 +31,7 @@
 
 #include "api2/CameraDeviceClient.h"
 
-#include "CameraDeviceFactory.h"
+#include "device3/Camera3Device.h"
 
 namespace android {
 using namespace camera2;
@@ -62,7 +62,7 @@ Camera2ClientBase<TClientBase>::Camera2ClientBase(
             String8(clientPackageName).string(), clientPid, clientUid);
 
     mInitialClientPid = clientPid;
-    mDevice = CameraDeviceFactory::createDevice(cameraId);
+    mDevice = new Camera3Device(cameraId);
     LOG_ALWAYS_FATAL_IF(mDevice == 0, "Device should never be NULL here.");
 }
 

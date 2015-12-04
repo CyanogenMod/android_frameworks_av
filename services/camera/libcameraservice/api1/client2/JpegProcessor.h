@@ -35,7 +35,7 @@ class MemoryHeapBase;
 namespace camera2 {
 
 class CaptureSequencer;
-class Parameters;
+struct Parameters;
 
 /***
  * Still image capture output image processing

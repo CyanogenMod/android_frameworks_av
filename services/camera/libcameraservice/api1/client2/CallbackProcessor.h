@@ -33,7 +33,7 @@ class CameraDeviceBase;
 
 namespace camera2 {
 
-class Parameters;
+struct Parameters;
 
 /***
  * Still image capture output image processing
@@ -75,7 +75,6 @@ class CallbackProcessor:
     sp<CpuConsumer>    mCallbackConsumer;
     sp<Surface>        mCallbackWindow;
     sp<Camera2Heap>    mCallbackHeap;
-    int mCallbackHeapId;
     size_t mCallbackHeapHead, mCallbackHeapFree;
 
     virtual bool threadLoop();

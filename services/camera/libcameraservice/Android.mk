@@ -22,7 +22,6 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
     CameraService.cpp \
-    CameraDeviceFactory.cpp \
     CameraFlashlight.cpp \
     common/Camera2ClientBase.cpp \
     common/CameraDeviceBase.cpp \
@@ -35,14 +34,10 @@ LOCAL_SRC_FILES:=               \
     api1/client2/StreamingProcessor.cpp \
     api1/client2/JpegProcessor.cpp \
     api1/client2/CallbackProcessor.cpp \
-    api1/client2/ZslProcessor.cpp \
-    api1/client2/ZslProcessorInterface.cpp \
-    api1/client2/BurstCapture.cpp \
     api1/client2/JpegCompressor.cpp \
     api1/client2/CaptureSequencer.cpp \
-    api1/client2/ZslProcessor3.cpp \
+    api1/client2/ZslProcessor.cpp \
     api2/CameraDeviceClient.cpp \
-    device2/Camera2Device.cpp \
     device3/Camera3Device.cpp \
     device3/Camera3Stream.cpp \
     device3/Camera3IOStreamBase.cpp \
