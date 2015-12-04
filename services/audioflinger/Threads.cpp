@@ -6586,7 +6586,11 @@ size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
                 break;
             }
             // format convert to destination buffer
+#ifdef LEGACY_ALSA_AUDIO
+            convert(dst, buffer.raw, buffer.frameCount);
+#else
             convertNoResampler(dst, buffer.raw, buffer.frameCount);
+#endif
 
             dst = (int8_t*)dst + buffer.frameCount * mDstFrameSize;
             i -= buffer.frameCount;
@@ -6606,7 +6610,11 @@ size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
         memset(mBuf, 0, frames * mBufFrameSize);
         frames = mResampler->resample((int32_t*)mBuf, frames, provider);
         // format convert to destination buffer
+#ifdef LEGACY_ALSA_AUDIO
+        convert(dst, mBuf, frames);
+#else
         convertResampler(dst, mBuf, frames);
+#endif
     }
     return frames;
 }
@@ -6707,6 +6715,56 @@ status_t AudioFlinger::RecordThread::RecordBufferConverter::updateParameters(
     return NO_ERROR;
 }
 
+#ifdef LEGACY_ALSA_AUDIO
+void AudioFlinger::RecordThread::RecordBufferConverter::convert(
+        void *dst, /*const*/ void *src, size_t frames)
+{
+    // check if a memcpy will do
+    if (mResampler == NULL
+            && mSrcChannelCount == mDstChannelCount
+            && mSrcFormat == mDstFormat) {
+        memcpy(dst, src,
+                frames * mDstChannelCount * audio_bytes_per_sample(mDstFormat));
+        return;
+    }
+    // reallocate buffer if needed
+    if (mBufFrameSize != 0 && mBufFrames < frames) {
+        free(mBuf);
+        mBufFrames = frames;
+        (void)posix_memalign(&mBuf, 32, mBufFrames * mBufFrameSize);
+    }
+    // do processing
+    if (mResampler != NULL) {
+        // src channel count is always >= 2.
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        // ditherAndClamp() works as long as all buffers returned by
+        // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
+        if (mDstChannelCount == 1) {
+            // the resampler always outputs stereo samples.
+            // FIXME: this rewrites back into src
+            ditherAndClamp((int32_t *)src, (const int32_t *)src, frames);
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        } else {
+            ditherAndClamp((int32_t *)dstBuf, (const int32_t *)src, frames);
+        }
+    } else if (mSrcChannelCount != mDstChannelCount) {
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        if (mSrcChannelCount == 1) {
+            upmix_to_stereo_i16_from_mono_i16((int16_t *)dstBuf, (const int16_t *)src,
+                    frames);
+        } else {
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        }
+    }
+    if (mSrcFormat != mDstFormat) {
+        void *srcBuf = mBuf != NULL ? mBuf : src;
+        memcpy_by_audio_format(dst, mDstFormat, srcBuf, mSrcFormat,
+                frames * mDstChannelCount);
+    }
+}
+#else
 void AudioFlinger::RecordThread::RecordBufferConverter::convertNoResampler(
         void *dst, const void *src, size_t frames)
 {
@@ -6780,6 +6838,7 @@ void AudioFlinger::RecordThread::RecordBufferConverter::convertResampler(
     memcpy_by_audio_format(dst, mDstFormat, src, AUDIO_FORMAT_PCM_FLOAT,
             frames * mDstChannelCount);
 }
+#endif
 
 bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValuePair,
                                                         status_t& status)
