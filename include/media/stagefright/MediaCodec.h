@@ -287,6 +287,7 @@ private:
     sp<CodecBase> mCodec;
     AString mComponentName;
     sp<AReplyToken> mReplyID;
+    Vector<sp<AReplyToken>> mReplyIDVector;
     uint32_t mFlags;
     status_t mStickyError;
     sp<Surface> mSurface;
@@ -311,6 +312,10 @@ private:
     AString mInitName;
     bool mInitNameIsType;
     bool mInitIsEncoder;
+
+    void putReplyID(sp<AReplyToken>& reply, bool add = false);
+    void notifyReplyID(sp<AMessage> msg);
+    void notifyReplyID(sp<AMessage> msg, const sp<AReplyToken>& replyID);
 
     // configure parameter
     sp<AMessage> mConfigureMsg;
