@@ -91,6 +91,12 @@ public:
     uint32_t        mCbFlags; // flags indicating which callbacks to use, see kCbFlag*
 };
 
+
+// definitions for audio recording configuration updates
+// which update type is reported
+#define RECORD_CONFIG_EVENT_START 1
+#define RECORD_CONFIG_EVENT_STOP  0
+
 }; // namespace android
 
 #endif  // ANDROID_AUDIO_POLICY_H

@@ -225,6 +225,10 @@ public:
 
             void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
             void doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+            void onRecordingConfigurationUpdate(int event, audio_session_t session,
+                    audio_source_t source);
+            void doOnRecordingConfigurationUpdate(int event, audio_session_t session,
+                    audio_source_t source);
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -256,7 +260,8 @@ private:
             UPDATE_AUDIOPORT_LIST,
             UPDATE_AUDIOPATCH_LIST,
             SET_AUDIOPORT_CONFIG,
-            DYN_POLICY_MIX_STATE_UPDATE
+            DYN_POLICY_MIX_STATE_UPDATE,
+            RECORDING_CONFIGURATION_UPDATE
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -295,6 +300,9 @@ private:
                     status_t    setAudioPortConfigCommand(const struct audio_port_config *config,
                                                           int delayMs);
                     void        dynamicPolicyMixStateUpdateCommand(String8 regId, int32_t state);
+                    void        recordingConfigurationUpdateCommand(
+                                                        int event, audio_session_t session,
+                                                        audio_source_t source);
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
@@ -383,6 +391,13 @@ private:
         public:
             String8 mRegId;
             int32_t mState;
+        };
+
+        class RecordingConfigurationUpdateData : public AudioCommandData {
+        public:
+            int mEvent;
+            audio_session_t mSession;
+            audio_source_t mSource;
         };
 
         Mutex   mLock;
@@ -491,6 +506,8 @@ private:
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
         virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+        virtual void onRecordingConfigurationUpdate(int event,
+                        audio_session_t session, audio_source_t source);
 
         virtual audio_unique_id_t newAudioUniqueId();
 
@@ -509,6 +526,9 @@ private:
                             void      onAudioPortListUpdate();
                             void      onAudioPatchListUpdate();
                             void      onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+                            void      onRecordingConfigurationUpdate(
+                                        int event, audio_session_t session,
+                                        audio_source_t source);
                             void      setAudioPortCallbacksEnabled(bool enabled);
 
                 // IBinder::DeathRecipient

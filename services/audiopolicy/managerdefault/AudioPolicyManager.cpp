@@ -1462,7 +1462,8 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
                                                               channelMask,
                                                               flags,
                                                               uid,
-                                                              isSoundTrigger);
+                                                              isSoundTrigger,
+                                                              policyMix, mpClientInterface);
 
 // TODO enable input reuse
 #if 0
@@ -1692,6 +1693,7 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
 void AudioPolicyManager::releaseInput(audio_io_handle_t input,
                                       audio_session_t session)
 {
+
     ALOGV("releaseInput() %d", input);
     ssize_t index = mInputs.indexOfKey(input);
     if (index < 0) {
@@ -3078,7 +3080,8 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             if ((profileType & inputDeviceTypes) == 0) {
                 continue;
             }
-            sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(inProfile);
+            sp<AudioInputDescriptor> inputDesc =
+                    new AudioInputDescriptor(inProfile);
 
             inputDesc->mDevice = profileType;
 

@@ -21,8 +21,11 @@
 #include <utils/RefBase.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
+#include <media/AudioPolicy.h>
 
 namespace android {
+
+class AudioPolicyClientInterface;
 
 class AudioSession : public RefBase
 {
@@ -34,7 +37,9 @@ public:
                  audio_channel_mask_t channelMask,
                  audio_input_flags_t flags,
                  uid_t uid,
-                 bool isSoundTrigger);
+                 bool isSoundTrigger,
+                 AudioMix* policyMix,
+                 AudioPolicyClientInterface *clientInterface);
 
     status_t dump(int fd, int spaces, int index) const;
 
@@ -64,6 +69,8 @@ private:
     bool  mIsSoundTrigger;
     uint32_t  mOpenCount;
     uint32_t  mActiveCount;
+    AudioMix* mPolicyMix; // non NULL when used by a dynamic policy
+    AudioPolicyClientInterface* mClientInterface;
 };
 
 class AudioSessionCollection :

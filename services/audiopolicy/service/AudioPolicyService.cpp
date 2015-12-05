@@ -215,19 +215,6 @@ void AudioPolicyService::onAudioPatchListUpdate()
     mOutputCommandThread->updateAudioPatchListCommand();
 }
 
-status_t AudioPolicyService::clientCreateAudioPatch(const struct audio_patch *patch,
-                                                audio_patch_handle_t *handle,
-                                                int delayMs)
-{
-    return mAudioCommandThread->createAudioPatchCommand(patch, handle, delayMs);
-}
-
-status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle,
-                                                 int delayMs)
-{
-    return mAudioCommandThread->releaseAudioPatchCommand(handle, delayMs);
-}
-
 void AudioPolicyService::doOnAudioPatchListUpdate()
 {
     Mutex::Autolock _l(mNotificationClientsLock);
@@ -249,6 +236,34 @@ void AudioPolicyService::doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t 
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
         mNotificationClients.valueAt(i)->onDynamicPolicyMixStateUpdate(regId, state);
     }
+}
+
+void AudioPolicyService::onRecordingConfigurationUpdate(int event, audio_session_t session,
+        audio_source_t source)
+{
+    mOutputCommandThread->recordingConfigurationUpdateCommand(event, session, source);
+}
+
+void AudioPolicyService::doOnRecordingConfigurationUpdate(int event, audio_session_t session,
+        audio_source_t source)
+{
+    Mutex::Autolock _l(mNotificationClientsLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onRecordingConfigurationUpdate(event, session, source);
+    }
+}
+
+status_t AudioPolicyService::clientCreateAudioPatch(const struct audio_patch *patch,
+                                                audio_patch_handle_t *handle,
+                                                int delayMs)
+{
+    return mAudioCommandThread->createAudioPatchCommand(patch, handle, delayMs);
+}
+
+status_t AudioPolicyService::clientReleaseAudioPatch(audio_patch_handle_t handle,
+                                                 int delayMs)
+{
+    return mAudioCommandThread->releaseAudioPatchCommand(handle, delayMs);
 }
 
 status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_config *config,
@@ -296,7 +311,15 @@ void AudioPolicyService::NotificationClient::onDynamicPolicyMixStateUpdate(
         String8 regId, int32_t state)
 {
     if (mAudioPolicyServiceClient != 0) {
-            mAudioPolicyServiceClient->onDynamicPolicyMixStateUpdate(regId, state);
+        mAudioPolicyServiceClient->onDynamicPolicyMixStateUpdate(regId, state);
+    }
+}
+
+void AudioPolicyService::NotificationClient::onRecordingConfigurationUpdate(
+        int event, audio_session_t session, audio_source_t source)
+{
+    if (mAudioPolicyServiceClient != 0) {
+        mAudioPolicyServiceClient->onRecordingConfigurationUpdate(event, session, source);
     }
 }
 
@@ -558,7 +581,6 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                 case DYN_POLICY_MIX_STATE_UPDATE: {
                     DynPolicyMixStateUpdateData *data =
                             (DynPolicyMixStateUpdateData *)command->mParam.get();
-                    //###ALOGV("AudioCommandThread() processing dyn policy mix state update");
                     ALOGV("AudioCommandThread() processing dyn policy mix state update %s %d",
                             data->mRegId.string(), data->mState);
                     svc = mService.promote();
@@ -567,6 +589,19 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }
                     mLock.unlock();
                     svc->doOnDynamicPolicyMixStateUpdate(data->mRegId, data->mState);
+                    mLock.lock();
+                    } break;
+                case RECORDING_CONFIGURATION_UPDATE: {
+                    RecordingConfigurationUpdateData *data =
+                            (RecordingConfigurationUpdateData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing recording configuration update");
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->doOnRecordingConfigurationUpdate(data->mEvent, data->mSession,
+                            data->mSource);
                     mLock.lock();
                     } break;
                 default:
@@ -825,6 +860,21 @@ void AudioPolicyService::AudioCommandThread::dynamicPolicyMixStateUpdateCommand(
     sendCommand(command);
 }
 
+void AudioPolicyService::AudioCommandThread::recordingConfigurationUpdateCommand(
+        int event, audio_session_t session, audio_source_t source)
+{
+    sp<AudioCommand>command = new AudioCommand();
+    command->mCommand = RECORDING_CONFIGURATION_UPDATE;
+    RecordingConfigurationUpdateData *data = new RecordingConfigurationUpdateData();
+    data->mEvent = event;
+    data->mSession = session;
+    data->mSource = source;
+    command->mParam = data;
+    ALOGV("AudioCommandThread() adding recording configuration update event %d, source %d",
+            event, source);
+    sendCommand(command);
+}
+
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
 {
     {
@@ -968,6 +1018,10 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
         } break;
 
         case DYN_POLICY_MIX_STATE_UPDATE: {
+
+        } break;
+
+        case RECORDING_CONFIGURATION_UPDATE: {
 
         } break;
 

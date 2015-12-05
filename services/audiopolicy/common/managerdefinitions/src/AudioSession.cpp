@@ -17,6 +17,7 @@
 #define LOG_TAG "APM::AudioSession"
 //#define LOG_NDEBUG 0
 
+#include <AudioPolicyInterface.h>
 #include "AudioSession.h"
 #include "AudioGain.h"
 #include "TypeConverter.h"
@@ -32,11 +33,13 @@ AudioSession::AudioSession(audio_session_t session,
                            audio_channel_mask_t channelMask,
                            audio_input_flags_t flags,
                            uid_t uid,
-                           bool isSoundTrigger) :
+                           bool isSoundTrigger,
+                           AudioMix* policyMix,
+                           AudioPolicyClientInterface *clientInterface) :
     mSession(session), mInputSource(inputSource),
     mFormat(format), mSampleRate(sampleRate), mChannelMask(channelMask),
     mFlags(flags), mUid(uid), mIsSoundTrigger(isSoundTrigger),
-    mOpenCount(1), mActiveCount(0)
+    mOpenCount(1), mActiveCount(0), mPolicyMix(policyMix), mClientInterface(clientInterface)
 {
 }
 
@@ -54,6 +57,7 @@ uint32_t AudioSession::changeOpenCount(int delta)
 
 uint32_t AudioSession::changeActiveCount(int delta)
 {
+    const uint32_t oldActiveCount = mActiveCount;
     if ((delta + (int)mActiveCount) < 0) {
         ALOGW("%s invalid delta %d, active count %d",
               __FUNCTION__, delta, mActiveCount);
@@ -61,6 +65,27 @@ uint32_t AudioSession::changeActiveCount(int delta)
     }
     mActiveCount += delta;
     ALOGV("%s active count %d", __FUNCTION__, mActiveCount);
+
+    if ((oldActiveCount == 0) && (mActiveCount > 0)) {
+        // if input maps to a dynamic policy with an activity listener, notify of state change
+        if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
+        {
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+                    MIX_STATE_MIXING);
+        }
+        mClientInterface->onRecordingConfigurationUpdate(RECORD_CONFIG_EVENT_START,
+                mSession, mInputSource);
+    } else if ((oldActiveCount > 0) && (mActiveCount == 0)) {
+        // if input maps to a dynamic policy with an activity listener, notify of state change
+        if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
+        {
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+                    MIX_STATE_IDLE);
+        }
+        mClientInterface->onRecordingConfigurationUpdate(RECORD_CONFIG_EVENT_STOP,
+                mSession, mInputSource);
+    }
+
     return mActiveCount;
 }
 
