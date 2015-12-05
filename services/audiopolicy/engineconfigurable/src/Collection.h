@@ -47,6 +47,7 @@ template <typename Key>
 class Collection : public std::map<Key, Element<Key> *>
 {
 private:
+    typedef std::map<Key, Element<Key> *> Base;
     typedef Element<Key> T;
     typedef typename std::map<Key, T *>::iterator CollectionIterator;
     typedef typename std::map<Key, T *>::const_iterator CollectionConstIterator;
@@ -127,7 +128,7 @@ public:
         for (it = (*this).begin(); it != (*this).end(); ++it) {
             delete it->second;
         }
-        (*this).clear();
+        Base::clear();
     }
 
 private:
