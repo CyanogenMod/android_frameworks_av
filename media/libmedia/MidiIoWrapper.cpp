@@ -42,7 +42,7 @@ MidiIoWrapper::MidiIoWrapper(const char *path) {
 
 MidiIoWrapper::MidiIoWrapper(int fd, off64_t offset, int64_t size) {
     ALOGV("MidiIoWrapper(fd=%d)", fd);
-    mFd = dup(fd);
+    mFd = fd < 0 ? -1 : dup(fd);
     mBase = offset;
     mLength = size;
 }
@@ -61,7 +61,9 @@ MidiIoWrapper::MidiIoWrapper(const sp<DataSource> &source) {
 
 MidiIoWrapper::~MidiIoWrapper() {
     ALOGV("~MidiIoWrapper");
-    close(mFd);
+    if (mFd >= 0) {
+        close(mFd);
+    }
 }
 
 int MidiIoWrapper::readAt(void *buffer, int offset, int size) {
@@ -69,6 +71,10 @@ int MidiIoWrapper::readAt(void *buffer, int offset, int size) {
 
     if (mDataSource != NULL) {
         return mDataSource->readAt(offset, buffer, size);
+    }
+    if (mFd < 0) {
+        errno = EBADF;
+        return -1; // as per failed read.
     }
     lseek(mFd, mBase + offset, SEEK_SET);
     if (offset + size > mLength) {
