@@ -443,7 +443,7 @@ void NuCachedSource2::onFetch() {
         delayUs = 100000ll;
     }
 
-    if (mSuspended) {
+    if (mSuspended || !(mFetching || keepAlive)) {
         static_cast<HTTPBase *>(mSource.get())->disconnect();
         mFinalStatus = -EAGAIN;
         return;
