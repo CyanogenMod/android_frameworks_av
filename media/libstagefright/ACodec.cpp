@@ -3530,8 +3530,8 @@ status_t ACodec::setupHEVCEncoderParameters(const sp<AMessage> &msg) {
         hevcType.eProfile = static_cast<OMX_VIDEO_HEVCPROFILETYPE>(profile);
         hevcType.eLevel = static_cast<OMX_VIDEO_HEVCLEVELTYPE>(level);
     }
-
-    // TODO: Need OMX structure definition for setting iFrameInterval
+    // TODO: finer control?
+    hevcType.nKeyFrameInterval = setPFramesSpacing(iFrameInterval, frameRate);
 
     err = mOMX->setParameter(
             mNode, (OMX_INDEXTYPE)OMX_IndexParamVideoHevc, &hevcType, sizeof(hevcType));

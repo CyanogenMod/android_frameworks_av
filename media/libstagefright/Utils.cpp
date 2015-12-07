@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 
 #include "include/ESDS.h"
+#include "include/HevcUtils.h"
 
 #include <arpa/inet.h>
 #include <cutils/properties.h>
@@ -575,6 +576,41 @@ static void reassembleESDS(const sp<ABuffer> &csd0, char *esds) {
 
 }
 
+static size_t reassembleHVCC(const sp<ABuffer> &csd0, uint8_t *hvcc, size_t hvccSize, size_t nalSizeLength) {
+    HevcParameterSets paramSets;
+    uint8_t* data = csd0->data();
+    if (csd0->size() < 4) {
+        ALOGE("csd0 too small");
+        return 0;
+    }
+    if (memcmp(data, "\x00\x00\x00\x01", 4) != 0) {
+        ALOGE("csd0 doesn't start with a start code");
+        return 0;
+    }
+    size_t prevNalOffset = 4;
+    status_t err = OK;
+    for (size_t i = 1; i < csd0->size() - 4; ++i) {
+        if (memcmp(&data[i], "\x00\x00\x00\x01", 4) != 0) {
+            continue;
+        }
+        err = paramSets.addNalUnit(&data[prevNalOffset], i - prevNalOffset);
+        if (err != OK) {
+            return 0;
+        }
+        prevNalOffset = i + 4;
+    }
+    err = paramSets.addNalUnit(&data[prevNalOffset], csd0->size() - prevNalOffset);
+    if (err != OK) {
+        return 0;
+    }
+    size_t size = hvccSize;
+    err = paramSets.makeHvcc(hvcc, &size, nalSizeLength);
+    if (err != OK) {
+        return 0;
+    }
+    return size;
+}
+
 void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     AString mime;
     if (msg->findString("mime", &mime)) {
@@ -693,6 +729,10 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             // for transporting the CSD to muxers.
             reassembleESDS(csd0, esds);
             meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
+        } else if (mime == MEDIA_MIMETYPE_VIDEO_HEVC) {
+            uint8_t hvcc[1024]; // that oughta be enough, right?
+            size_t outsize = reassembleHVCC(csd0, hvcc, 1024, 4);
+            meta->setData(kKeyHVCC, kKeyHVCC, hvcc, outsize);
         }
     }
 
