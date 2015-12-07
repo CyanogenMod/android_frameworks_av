@@ -28,9 +28,9 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         uint32_t deviceVersion, CameraMetadata &chars) {
     ATRACE_CALL();
 
+    Vector<int32_t> derivedCharKeys;
     // Keys added in HAL3.3
     if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_3) {
-        const size_t NUM_DERIVED_KEYS_HAL3_3 = 5;
         Vector<uint8_t> controlModes;
         uint8_t data = ANDROID_CONTROL_AE_LOCK_AVAILABLE_TRUE;
         chars.update(ANDROID_CONTROL_AE_LOCK_AVAILABLE, &data, /*count*/1);
@@ -102,18 +102,11 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         chars.update(ANDROID_SHADING_AVAILABLE_MODES, lscModes);
         chars.update(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES, lscMapModes);
 
-        entry = chars.find(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
-        Vector<int32_t> availableCharsKeys;
-        availableCharsKeys.setCapacity(entry.count + NUM_DERIVED_KEYS_HAL3_3);
-        for (size_t i = 0; i < entry.count; i++) {
-            availableCharsKeys.push(entry.data.i32[i]);
-        }
-        availableCharsKeys.push(ANDROID_CONTROL_AE_LOCK_AVAILABLE);
-        availableCharsKeys.push(ANDROID_CONTROL_AWB_LOCK_AVAILABLE);
-        availableCharsKeys.push(ANDROID_CONTROL_AVAILABLE_MODES);
-        availableCharsKeys.push(ANDROID_SHADING_AVAILABLE_MODES);
-        availableCharsKeys.push(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES);
-        chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
+        derivedCharKeys.push(ANDROID_CONTROL_AE_LOCK_AVAILABLE);
+        derivedCharKeys.push(ANDROID_CONTROL_AWB_LOCK_AVAILABLE);
+        derivedCharKeys.push(ANDROID_CONTROL_AVAILABLE_MODES);
+        derivedCharKeys.push(ANDROID_SHADING_AVAILABLE_MODES);
+        derivedCharKeys.push(ANDROID_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES);
 
         // Need update android.control.availableHighSpeedVideoConfigurations since HAL3.3
         // adds batch size to this array.
@@ -132,6 +125,44 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         }
     }
 
+    // Keys added in HAL3.4
+    if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_4) {
+        // Check if HAL supports RAW_OPAQUE output
+        camera_metadata_entry entry = chars.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+        bool supportRawOpaque = false;
+        const int STREAM_CONFIGURATION_SIZE = 4;
+        const int STREAM_FORMAT_OFFSET = 0;
+        const int STREAM_WIDTH_OFFSET = 1;
+        const int STREAM_HEIGHT_OFFSET = 2;
+        const int STREAM_IS_INPUT_OFFSET = 3;
+        Vector<int32_t> rawOpaqueSizes;
+
+        for (size_t i=0; i < entry.count; i += STREAM_CONFIGURATION_SIZE) {
+            int32_t format = entry.data.i32[i + STREAM_FORMAT_OFFSET];
+            int32_t width = entry.data.i32[i + STREAM_WIDTH_OFFSET];
+            int32_t height = entry.data.i32[i + STREAM_HEIGHT_OFFSET];
+            int32_t isInput = entry.data.i32[i + STREAM_IS_INPUT_OFFSET];
+            if (isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
+                    format == HAL_PIXEL_FORMAT_RAW_OPAQUE) {
+                supportRawOpaque = true;
+                rawOpaqueSizes.push(width);
+                rawOpaqueSizes.push(height);
+                // 2 bytes per pixel. This rough estimation is only used when
+                // HAL does not fill in the opaque raw size
+                rawOpaqueSizes.push(width * height *2);
+            }
+        }
+
+        if (supportRawOpaque) {
+            entry = chars.find(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
+            if (entry.count == 0) {
+                // Fill in estimated value if HAL does not list it
+                chars.update(ANDROID_SENSOR_OPAQUE_RAW_SIZE, rawOpaqueSizes);
+                derivedCharKeys.push(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
+            }
+        }
+    }
+
     // Always add a default for the pre-correction active array if the vendor chooses to omit this
     camera_metadata_entry entry = chars.find(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
     if (entry.count == 0) {
@@ -139,8 +170,21 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         entry = chars.find(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
         preCorrectionArray.appendArray(entry.data.i32, entry.count);
         chars.update(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE, preCorrectionArray);
+        derivedCharKeys.push(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
     }
 
+    // Add those newly added keys to AVAILABLE_CHARACTERISTICS_KEYS
+    // This has to be done at this end of this function.
+    entry = chars.find(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
+    Vector<int32_t> availableCharsKeys;
+    availableCharsKeys.setCapacity(entry.count + derivedCharKeys.size());
+    for (size_t i = 0; i < entry.count; i++) {
+        availableCharsKeys.push(entry.data.i32[i]);
+    }
+    for (size_t i = 0; i < derivedCharKeys.size(); i++) {
+        availableCharsKeys.push(derivedCharKeys[i]);
+    }
+    chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
     return;
 }
 

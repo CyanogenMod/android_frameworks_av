@@ -150,6 +150,7 @@ class Camera3Device :
 
     virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
     ssize_t getPointCloudBufferSize() const;
+    ssize_t getRawOpaqueBufferSize(uint32_t width, uint32_t height) const;
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker

@@ -57,7 +57,7 @@ Camera3OutputStream::Camera3OutputStream(int id,
         mTransform(0),
         mTraceFirstBuffer(true) {
 
-    if (format != HAL_PIXEL_FORMAT_BLOB) {
+    if (format != HAL_PIXEL_FORMAT_BLOB && format != HAL_PIXEL_FORMAT_RAW_OPAQUE) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
                 format);
         mState = STATE_ERROR;

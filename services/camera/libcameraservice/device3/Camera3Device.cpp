@@ -422,7 +422,31 @@ ssize_t Camera3Device::getPointCloudBufferSize() const {
     return maxBytesForPointCloud;
 }
 
+ssize_t Camera3Device::getRawOpaqueBufferSize(uint32_t width, uint32_t height) const {
+    const int PER_CONFIGURATION_SIZE = 3;
+    const int WIDTH_OFFSET = 0;
+    const int HEIGHT_OFFSET = 1;
+    const int SIZE_OFFSET = 2;
+    camera_metadata_ro_entry rawOpaqueSizes =
+        mDeviceInfo.find(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
+    int count = rawOpaqueSizes.count;
+    if (count == 0 || (count % PER_CONFIGURATION_SIZE)) {
+        ALOGE("%s: Camera %d: bad opaque RAW size static metadata length(%d)!",
+                __FUNCTION__, mId, count);
+        return BAD_VALUE;
+    }
 
+    for (size_t i = 0; i < count; i += PER_CONFIGURATION_SIZE) {
+        if (width == rawOpaqueSizes.data.i32[i + WIDTH_OFFSET] &&
+                height == rawOpaqueSizes.data.i32[i + HEIGHT_OFFSET]) {
+            return rawOpaqueSizes.data.i32[i + SIZE_OFFSET];
+        }
+    }
+
+    ALOGE("%s: Camera %d: cannot find size for %dx%d opaque RAW image!",
+            __FUNCTION__, mId, width, height);
+    return BAD_VALUE;
+}
 
 status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     ATRACE_CALL();
@@ -956,6 +980,14 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
                 width, height, blobBufferSize, format, dataSpace, rotation);
+    } else if (format == HAL_PIXEL_FORMAT_RAW_OPAQUE) {
+        ssize_t rawOpaqueBufferSize = getRawOpaqueBufferSize(width, height);
+        if (rawOpaqueBufferSize <= 0) {
+            SET_ERR_L("Invalid RAW opaque buffer size %zd", rawOpaqueBufferSize);
+            return BAD_VALUE;
+        }
+        newStream = new Camera3OutputStream(mNextStreamId, consumer,
+                width, height, rawOpaqueBufferSize, format, dataSpace, rotation);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
                 width, height, format, dataSpace, rotation);

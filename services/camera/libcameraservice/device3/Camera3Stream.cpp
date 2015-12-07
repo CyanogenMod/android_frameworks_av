@@ -66,8 +66,9 @@ Camera3Stream::Camera3Stream(int id,
     camera3_stream::max_buffers = 0;
     camera3_stream::priv = NULL;
 
-    if (format == HAL_PIXEL_FORMAT_BLOB && maxSize == 0) {
-        ALOGE("%s: BLOB format with size == 0", __FUNCTION__);
+    if ((format == HAL_PIXEL_FORMAT_BLOB || format == HAL_PIXEL_FORMAT_RAW_OPAQUE) &&
+            maxSize == 0) {
+        ALOGE("%s: BLOB or RAW_OPAQUE format with size == 0", __FUNCTION__);
         mState = STATE_ERROR;
     }
 }

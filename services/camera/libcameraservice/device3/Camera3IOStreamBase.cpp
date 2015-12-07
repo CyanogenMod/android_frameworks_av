@@ -42,7 +42,8 @@ Camera3IOStreamBase::Camera3IOStreamBase(int id, camera3_stream_type_t type,
 
     mCombinedFence = new Fence();
 
-    if (maxSize > 0 && format != HAL_PIXEL_FORMAT_BLOB) {
+    if (maxSize > 0 &&
+            (format != HAL_PIXEL_FORMAT_BLOB && format != HAL_PIXEL_FORMAT_RAW_OPAQUE)) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
                 format);
         mState = STATE_ERROR;
