@@ -29,7 +29,8 @@ namespace android {
 AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
     : mIoHandle(0),
       mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL), mPatchHandle(0), mRefCount(0),
-      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false), mId(0)
+      mInputSource(AUDIO_SOURCE_DEFAULT), mProfile(profile), mIsSoundTrigger(false), mId(0),
+      mOpenRefCount(0)
 {
     if (profile != NULL) {
         mSamplingRate = profile->pickSamplingRate();
@@ -53,6 +54,22 @@ audio_module_handle_t AudioInputDescriptor::getModuleHandle() const
         return 0;
     }
     return mProfile->getModuleHandle();
+}
+
+void AudioInputDescriptor::changeOpenRefCount(int delta)
+{
+    if ((delta + (int)mOpenRefCount) < 0) {
+        ALOGW("changeOpenRefCount() invalid delta %d, refCount %d",  delta, mOpenRefCount);
+        mOpenRefCount = 0;
+        return;
+    }
+    mOpenRefCount += delta;
+    ALOGV("changeOpenRefCount() count %d", mOpenRefCount);
+}
+
+uint32_t AudioInputDescriptor::getOpenRefCount() const
+{
+    return mOpenRefCount;
 }
 
 audio_port_handle_t AudioInputDescriptor::getId() const
