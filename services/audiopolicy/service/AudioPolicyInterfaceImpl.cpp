@@ -187,6 +187,20 @@ status_t AudioPolicyService::startOutput(audio_io_handle_t output,
         return NO_INIT;
     }
     ALOGV("startOutput()");
+    return mOutputCommandThread->startOutputCommand(output, stream, session);
+}
+
+status_t AudioPolicyService::doStartOutput(audio_io_handle_t output,
+                                           audio_stream_type_t stream,
+                                           audio_session_t session)
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+    ALOGV("doStartOutput()");
     sp<AudioPolicyEffects>audioPolicyEffects;
     {
         Mutex::Autolock _l(mLock);
