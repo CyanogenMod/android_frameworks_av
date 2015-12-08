@@ -69,14 +69,23 @@ void Preemph2(
 	for (i = (Word16) (lg - 1); i > 0; i--)
 	{
 		L_tmp = L_deposit_h(x[i]);
-		L_tmp -= (x[i - 1] * mu)<<1;
+		L_tmp -= (x[i - 1] * mu)<<1; // only called with mu == 22282, so this won't overflow
+		if (L_tmp > INT32_MAX / 2) {
+			L_tmp = INT32_MAX / 2;
+		}
 		L_tmp = (L_tmp << 1);
 		x[i] = (L_tmp + 0x8000)>>16;
 	}
 
 	L_tmp = L_deposit_h(x[0]);
 	L_tmp -= ((*mem) * mu)<<1;
+	if (L_tmp > INT32_MAX / 2) {
+		L_tmp = INT32_MAX / 2;
+	}
 	L_tmp = (L_tmp << 1);
+	if (L_tmp > INT32_MAX - 0x8000) {
+		L_tmp = INT32_MAX - 0x8000;
+	}
 	x[0] = (L_tmp + 0x8000)>>16;
 
 	*mem = temp;
