@@ -68,8 +68,19 @@ void Deemph2(
 	x[0] = (L_tmp + 0x8000)>>16;
 	for (i = 1; i < L; i++)
 	{
+		Word32 tmp;
 		L_tmp = x[i] << 15;
-		L_tmp += (x[i - 1] * mu)<<1;
+		tmp = (x[i - 1] * mu)<<1;
+		if (tmp > 0 && L_tmp > INT_MAX - tmp) {
+			L_tmp = INT_MAX;
+		} else if (tmp < 0 && L_tmp < INT_MIN - tmp) {
+			L_tmp = INT_MIN;
+		} else {
+			L_tmp += tmp;
+		}
+		if (L_tmp > INT32_MAX - 0x8000) {
+			L_tmp = INT_MAX - 0x8000;
+		}
 		x[i] = (L_tmp + 0x8000)>>16;
 	}
 	*mem = x[L - 1];
