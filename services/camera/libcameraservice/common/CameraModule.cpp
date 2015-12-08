@@ -191,6 +191,9 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
         int ret;
         ATRACE_BEGIN("camera_module->get_camera_info");
         ret = mModule->get_camera_info(cameraId, info);
+        // Fill in this so CameraService won't be confused by
+        // possibly 0 device_version
+        info->device_version = CAMERA_DEVICE_API_VERSION_1_0;
         ATRACE_END();
         return ret;
     }

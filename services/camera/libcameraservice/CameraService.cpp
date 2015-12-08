@@ -1551,24 +1551,30 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
  * Also check that the device HAL version is still in support
  */
 int CameraService::checkCameraCapabilities(int id, camera_info info, int *latestStrangeCameraId) {
-
-    // Verify the device version is in the supported range
-    switch (info.device_version) {
-        case CAMERA_DEVICE_API_VERSION_1_0:
-        case CAMERA_DEVICE_API_VERSION_3_0:
-        case CAMERA_DEVICE_API_VERSION_3_1:
-        case CAMERA_DEVICE_API_VERSION_3_2:
-        case CAMERA_DEVICE_API_VERSION_3_3:
-            // in support
-            break;
-        case CAMERA_DEVICE_API_VERSION_2_0:
-        case CAMERA_DEVICE_API_VERSION_2_1:
-            // no longer supported
-        default:
-            ALOGE("%s: Device %d has HAL version %x, which is not supported",
-                    __FUNCTION__, id, info.device_version);
-            logServiceError("Unsupported device HAL version", NO_INIT);
-            return NO_INIT;
+    // device_version undefined in CAMERA_MODULE_API_VERSION_1_0,
+    // All CAMERA_MODULE_API_VERSION_1_0 devices are backward-compatible
+    if (mModule->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_0) {
+        // Verify the device version is in the supported range
+        switch (info.device_version) {
+            case CAMERA_DEVICE_API_VERSION_1_0:
+            case CAMERA_DEVICE_API_VERSION_3_0:
+            case CAMERA_DEVICE_API_VERSION_3_1:
+            case CAMERA_DEVICE_API_VERSION_3_2:
+            case CAMERA_DEVICE_API_VERSION_3_3:
+                // in support
+                break;
+            case CAMERA_DEVICE_API_VERSION_2_0:
+            case CAMERA_DEVICE_API_VERSION_2_1:
+                // no longer supported
+            default:
+                ALOGE("%s: Device %d has HAL version %x, which is not supported",
+                        __FUNCTION__, id, info.device_version);
+                String8 msg = String8::format(
+                        "Unsupported device HAL version %x for device %d",
+                        info.device_version, id);
+                logServiceError(msg.string(), NO_INIT);
+                return NO_INIT;
+        }
     }
 
     // Assume all devices pre-v3.3 are backward-compatible
