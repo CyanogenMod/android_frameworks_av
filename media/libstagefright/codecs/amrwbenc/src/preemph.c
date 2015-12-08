@@ -71,6 +71,9 @@ void Preemph2(
 		L_tmp = L_deposit_h(x[i]);
 		L_tmp -= (x[i - 1] * mu)<<1;
 		L_tmp = (L_tmp << 1);
+		if (L_tmp > INT32_MAX - 0x8000) {
+			L_tmp = INT32_MAX - 0x8000;
+		}
 		x[i] = (L_tmp + 0x8000)>>16;
 	}
 
