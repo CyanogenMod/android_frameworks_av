@@ -6962,6 +6962,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     free(mRsmpInBuffer);
+    mRsmpInBuffer = NULL;
 
     // TODO optimize audio capture buffer sizes ...
     // Here we calculate the size of the sliding buffer used as a source
@@ -6971,7 +6972,9 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The current value is higher than necessary.  However it should not add to latency.
 
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
-    (void)posix_memalign(&mRsmpInBuffer, 32, (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize);
+    size_t bufferSize = (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize;
+    (void)posix_memalign(&mRsmpInBuffer, 32, bufferSize);
+    memset(mRsmpInBuffer, 0, bufferSize); // if posix_memalign fails, will segv here.
 
     // AudioRecord mSampleRate and mChannelCount are constant due to AudioRecord API constraints.
     // But if thread's mSampleRate or mChannelCount changes, how will that affect active tracks?

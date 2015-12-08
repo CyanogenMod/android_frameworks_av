@@ -47,6 +47,10 @@ struct MediaCodecList : public BnMediaCodecList {
     virtual size_t countCodecs() const;
 
     virtual sp<MediaCodecInfo> getCodecInfo(size_t index) const {
+        if (index >= mCodecInfos.size()) {
+            ALOGE("b/24445127");
+            return NULL;
+        }
         return mCodecInfos.itemAt(index);
     }
 

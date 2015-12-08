@@ -717,6 +717,7 @@ status_t AudioFlinger::PlaybackThread::Track::start(AudioSystem::sync_event_t ev
             // But in this case we know the mixer thread (whether normal mixer or fast mixer)
             // isn't looking at this track yet:  we still hold the normal mixer thread lock,
             // and for fast tracks the track is not yet in the fast mixer thread's active set.
+            // For static tracks, this is used to acknowledge change in position or loop.
             ServerProxy::Buffer buffer;
             buffer.mFrameCount = 1;
             (void) mAudioTrackServerProxy->obtainBuffer(&buffer, true /*ackFlush*/);

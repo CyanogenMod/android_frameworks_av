@@ -125,6 +125,7 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStarted(false),
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
+      mRenderingDataDelivered(false),
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioTornDown(false),
       mCurrentOffloadInfo(AUDIO_INFO_INITIALIZER),
@@ -670,11 +671,16 @@ void NuPlayer::Renderer::postDrainAudioQueue_l(int64_t delayUs) {
 void NuPlayer::Renderer::prepareForMediaRenderingStart_l() {
     mAudioRenderingStartGeneration = mAudioDrainGeneration;
     mVideoRenderingStartGeneration = mVideoDrainGeneration;
+    mRenderingDataDelivered = false;
 }
 
 void NuPlayer::Renderer::notifyIfMediaRenderingStarted_l() {
     if (mVideoRenderingStartGeneration == mVideoDrainGeneration &&
         mAudioRenderingStartGeneration == mAudioDrainGeneration) {
+        mRenderingDataDelivered = true;
+        if (mPaused) {
+            return;
+        }
         mVideoRenderingStartGeneration = -1;
         mAudioRenderingStartGeneration = -1;
 
@@ -932,6 +938,13 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
 
         {
             Mutex::Autolock autoLock(mLock);
+            int64_t maxTimeMedia;
+            maxTimeMedia =
+                mAnchorTimeMediaUs +
+                        (int64_t)(max((long long)mNumFramesWritten - mAnchorNumFramesWritten, 0LL)
+                                * 1000LL * mAudioSink->msecsPerFrame());
+            mMediaClock->updateMaxTimeMedia(maxTimeMedia);
+
             notifyIfMediaRenderingStarted_l();
         }
 
@@ -958,15 +971,6 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             break;
         }
     }
-    int64_t maxTimeMedia;
-    {
-        Mutex::Autolock autoLock(mLock);
-        maxTimeMedia =
-            mAnchorTimeMediaUs +
-                    (int64_t)(max((long long)mNumFramesWritten - mAnchorNumFramesWritten, 0LL)
-                            * 1000LL * mAudioSink->msecsPerFrame());
-    }
-    mMediaClock->updateMaxTimeMedia(maxTimeMedia);
 
     // calculate whether we need to reschedule another write.
     bool reschedule = !mAudioQueue.empty()
@@ -1545,7 +1549,10 @@ void NuPlayer::Renderer::onResume() {
     {
         Mutex::Autolock autoLock(mLock);
         mPaused = false;
-
+        // rendering started message may have been delayed if we were paused.
+        if (mRenderingDataDelivered) {
+            notifyIfMediaRenderingStarted_l();
+        }
         // configure audiosink as we did not do it when pausing
         if (mAudioSink != NULL && mAudioSink->ready()) {
             mAudioSink->setPlaybackRate(mPlaybackSettings);

@@ -442,6 +442,20 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
             patch.num_sources = 2;
         }
 
+        // terminate active capture if on the same HW module as the call TX source device
+        // FIXME: would be better to refine to only inputs whose profile connects to the
+        // call TX device but this information is not in the audio patch and logic here must be
+        // symmetric to the one in startInput()
+        audio_io_handle_t activeInput = mInputs.getActiveInput();
+        if (activeInput != 0) {
+            sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
+            if (activeDesc->getModuleHandle() == txSourceDeviceDesc->getModuleHandle()) {
+                audio_session_t activeSession = activeDesc->mSessions.itemAt(0);
+                stopInput(activeInput, activeSession);
+                releaseInput(activeInput, activeSession);
+            }
+        }
+
         afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
         status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, 0);
         ALOGW_IF(status != NO_ERROR, "setPhoneState() error %d creating TX audio patch",
@@ -606,9 +620,15 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
 
     audio_io_handle_t activeInput = mInputs.getActiveInput();
     if (activeInput != 0) {
-        setInputDevice(activeInput, getNewInputDevice(activeInput));
+        sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
+        audio_devices_t newDevice = getNewInputDevice(activeInput);
+        // Force new input selection if the new device can not be reached via current input
+        if (activeDesc->mProfile->mSupportedDevices.types() & (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
+            setInputDevice(activeInput, newDevice);
+        } else {
+            closeInput(activeInput);
+        }
     }
-
 }
 
 void AudioPolicyManager::setSystemProperty(const char* property, const char* value)
@@ -1546,6 +1566,15 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
                 ALOGE("startInput(%d) failed: other input %d already started", input, activeInput);
                 return INVALID_OPERATION;
             }
+        }
+
+        // Do not allow capture if an active voice call is using a software patch and
+        // the call TX source device is on the same HW module.
+        // FIXME: would be better to refine to only inputs whose profile connects to the
+        // call TX device but this information is not in the audio patch
+        if (mCallTxPatch != 0 &&
+            inputDesc->getModuleHandle() == mCallTxPatch->mPatch.sources[0].ext.device.hw_module) {
+            return INVALID_OPERATION;
         }
     }
 
