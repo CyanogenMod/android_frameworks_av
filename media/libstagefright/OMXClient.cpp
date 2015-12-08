@@ -189,7 +189,7 @@ bool MuxOMX::CanLiveLocally(const char *name) {
     return false;
 #else
     // 32 bit processes run only OMX.google.* components locally
-    return !strncasecmp(name, "OMX.google.", 11);
+    return !strncasecmp(name, "OMX.google.", 11) || !strncasecmp(name, "OMX.ffmpeg.", 11);
 #endif
 }
 
