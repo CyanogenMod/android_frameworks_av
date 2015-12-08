@@ -418,7 +418,9 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         if (activeInput != 0) {
             sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
             if (activeDesc->getModuleHandle() == txSourceDeviceDesc->getModuleHandle()) {
-                audio_session_t activeSession = activeDesc->mSessions.itemAt(0);
+                //FIXME: consider all active sessions
+                AudioSessionCollection activeSessions = activeDesc->getActiveAudioSessions();
+                audio_session_t activeSession = activeSessions.keyAt(0);
                 stopInput(activeInput, activeSession);
                 releaseInput(activeInput, activeSession);
             }
@@ -1329,7 +1331,6 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     audio_devices_t device;
     // handle legacy remote submix case where the address was not always specified
     String8 address = String8("");
-    bool isSoundTrigger = false;
     audio_source_t inputSource = attr->source;
     audio_source_t halInputSource;
     AudioMix *policyMix = NULL;
@@ -1385,16 +1386,44 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
             *inputType = API_INPUT_LEGACY;
         }
 
-        if (inputSource == AUDIO_SOURCE_HOTWORD) {
-            ssize_t index = mSoundTriggerSessions.indexOfKey(session);
-            if (index >= 0) {
-                *input = mSoundTriggerSessions.valueFor(session);
-                isSoundTrigger = true;
-                flags = (audio_input_flags_t)(flags | AUDIO_INPUT_FLAG_HW_HOTWORD);
-                ALOGV("SoundTrigger capture on session %d input %d", session, *input);
-            } else {
-                halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
-            }
+    }
+
+    *input = getInputForDevice(device, address, session, uid, inputSource,
+                               samplingRate, format, channelMask, flags,
+                               policyMix);
+    if (*input == AUDIO_IO_HANDLE_NONE) {
+        mInputRoutes.removeRoute(session);
+        return INVALID_OPERATION;
+    }
+    ALOGV("getInputForAttr() returns input type = %d", *inputType);
+    return NO_ERROR;
+}
+
+
+audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
+                                                        String8 address,
+                                                        audio_session_t session,
+                                                        uid_t uid,
+                                                        audio_source_t inputSource,
+                                                        uint32_t samplingRate,
+                                                        audio_format_t format,
+                                                        audio_channel_mask_t channelMask,
+                                                        audio_input_flags_t flags,
+                                                        AudioMix *policyMix)
+{
+    audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+    audio_source_t halInputSource = inputSource;
+    bool isSoundTrigger = false;
+
+    if (inputSource == AUDIO_SOURCE_HOTWORD) {
+        ssize_t index = mSoundTriggerSessions.indexOfKey(session);
+        if (index >= 0) {
+            input = mSoundTriggerSessions.valueFor(session);
+            isSoundTrigger = true;
+            flags = (audio_input_flags_t)(flags | AUDIO_INPUT_FLAG_HW_HOTWORD);
+            ALOGV("SoundTrigger capture on session %d input %d", session, input);
+        } else {
+            halInputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
         }
     }
 
@@ -1414,17 +1443,54 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
         } else if (profileFlags != AUDIO_INPUT_FLAG_NONE) {
             profileFlags = AUDIO_INPUT_FLAG_NONE; // retry
         } else { // fail
-            ALOGW("getInputForAttr() could not find profile for device 0x%X, samplingRate %u,"
-                    "format %#x, channelMask 0x%X, flags %#x",
+            ALOGW("getInputForDevice() could not find profile for device 0x%X,"
+                  "samplingRate %u, format %#x, channelMask 0x%X, flags %#x",
                     device, samplingRate, format, channelMask, flags);
-            return BAD_VALUE;
+            return input;
         }
     }
 
     if (profile->getModuleHandle() == 0) {
         ALOGE("getInputForAttr(): HW module %s not opened", profile->getModuleName());
-        return NO_INIT;
+        return input;
     }
+
+    sp<AudioSession> audioSession = new AudioSession(session,
+                                                              inputSource,
+                                                              format,
+                                                              samplingRate,
+                                                              channelMask,
+                                                              flags,
+                                                              uid,
+                                                              isSoundTrigger);
+
+// TODO enable input reuse
+#if 0
+    // reuse an open input if possible
+    for (size_t i = 0; i < mInputs.size(); i++) {
+        sp<AudioInputDescriptor> desc = mInputs.valueAt(i);
+        // reuse input if it shares the same profile and same sound trigger attribute
+        if (profile == desc->mProfile &&
+            isSoundTrigger == desc->isSoundTrigger()) {
+
+            sp<AudioSession> as = desc->getAudioSession(session);
+            if (as != 0) {
+                // do not allow unmatching properties on same session
+                if (as->matches(audioSession)) {
+                    as->changeOpenCount(1);
+                } else {
+                    ALOGW("getInputForDevice() record with different attributes"
+                          " exists for session %d", session);
+                    return input;
+                }
+            } else {
+                desc->addAudioSession(session, audioSession);
+            }
+            ALOGV("getInputForDevice() reusing input %d", mInputs.keyAt(i));
+            return mInputs.keyAt(i);
+        }
+    }
+#endif
 
     audio_config_t config = AUDIO_CONFIG_INITIALIZER;
     config.sample_rate = profileSamplingRate;
@@ -1432,7 +1498,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
     config.format = profileFormat;
 
     status_t status = mpClientInterface->openInput(profile->getModuleHandle(),
-                                                   input,
+                                                   &input,
                                                    &config,
                                                    &device,
                                                    address,
@@ -1440,37 +1506,31 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
                                                    profileFlags);
 
     // only accept input with the exact requested set of parameters
-    if (status != NO_ERROR || *input == AUDIO_IO_HANDLE_NONE ||
+    if (status != NO_ERROR || input == AUDIO_IO_HANDLE_NONE ||
         (profileSamplingRate != config.sample_rate) ||
         (profileFormat != config.format) ||
         (profileChannelMask != config.channel_mask)) {
-        ALOGW("getInputForAttr() failed opening input: samplingRate %d, format %d,"
-                " channelMask %x",
+        ALOGW("getInputForAttr() failed opening input: samplingRate %d"
+              ", format %d, channelMask %x",
                 samplingRate, format, channelMask);
-        if (*input != AUDIO_IO_HANDLE_NONE) {
-            mpClientInterface->closeInput(*input);
+        if (input != AUDIO_IO_HANDLE_NONE) {
+            mpClientInterface->closeInput(input);
         }
-        return BAD_VALUE;
+        return AUDIO_IO_HANDLE_NONE;
     }
 
     sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(profile);
-    inputDesc->mInputSource = inputSource;
-    inputDesc->mRefCount = 0;
     inputDesc->mSamplingRate = profileSamplingRate;
     inputDesc->mFormat = profileFormat;
     inputDesc->mChannelMask = profileChannelMask;
     inputDesc->mDevice = device;
-    inputDesc->mSessions.add(session);
-    inputDesc->mIsSoundTrigger = isSoundTrigger;
     inputDesc->mPolicyMix = policyMix;
-    inputDesc->changeOpenRefCount(1);
+    inputDesc->addAudioSession(session, audioSession);
 
-    ALOGV("getInputForAttr() returns input type = %d", *inputType);
-
-    addInput(*input, inputDesc);
+    addInput(input, inputDesc);
     mpClientInterface->onAudioPortListUpdate();
 
-    return NO_ERROR;
+    return input;
 }
 
 status_t AudioPolicyManager::startInput(audio_io_handle_t input,
@@ -1484,8 +1544,8 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
 
-    index = inputDesc->mSessions.indexOf(session);
-    if (index < 0) {
+    sp<AudioSession> audioSession = inputDesc->getAudioSession(session);
+    if (audioSession == 0) {
         ALOGW("startInput() unknown session %d on input %d", session, input);
         return BAD_VALUE;
     }
@@ -1500,11 +1560,14 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
             // If the already active input uses AUDIO_SOURCE_HOTWORD then it is closed,
             // otherwise the active input continues and the new input cannot be started.
             sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
-            if ((activeDesc->mInputSource == AUDIO_SOURCE_HOTWORD) &&
+            if ((activeDesc->inputSource() == AUDIO_SOURCE_HOTWORD) &&
                     !activeDesc->hasPreemptedSession(session)) {
                 ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
-                audio_session_t activeSession = activeDesc->mSessions.itemAt(0);
-                SortedVector<audio_session_t> sessions = activeDesc->getPreemptedSessions();
+                //FIXME: consider all active sessions
+                AudioSessionCollection activeSessions = activeDesc->getActiveAudioSessions();
+                audio_session_t activeSession = activeSessions.keyAt(0);
+                SortedVector<audio_session_t> sessions =
+                                           activeDesc->getPreemptedSessions();
                 sessions.add(activeSession);
                 inputDesc->setPreemptedSessions(sessions);
                 stopInput(activeInput, activeSession);
@@ -1528,7 +1591,7 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
     // Routing?
     mInputRoutes.incRouteActivity(session);
 
-    if (inputDesc->mRefCount == 0 || mInputRoutes.hasRouteChanged(session)) {
+    if (!inputDesc->isActive() || mInputRoutes.hasRouteChanged(session)) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
                 && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
@@ -1559,9 +1622,9 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
         }
     }
 
-    ALOGV("AudioPolicyManager::startInput() input source = %d", inputDesc->mInputSource);
+    ALOGV("AudioPolicyManager::startInput() input source = %d", audioSession->inputSource());
 
-    inputDesc->mRefCount++;
+    audioSession->changeActiveCount(1);
     return NO_ERROR;
 }
 
@@ -1576,23 +1639,23 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
     }
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
 
-    index = inputDesc->mSessions.indexOf(session);
+    sp<AudioSession> audioSession = inputDesc->getAudioSession(session);
     if (index < 0) {
         ALOGW("stopInput() unknown session %d on input %d", session, input);
         return BAD_VALUE;
     }
 
-    if (inputDesc->mRefCount == 0) {
+    if (audioSession->activeCount() == 0) {
         ALOGW("stopInput() input %d already stopped", input);
         return INVALID_OPERATION;
     }
 
-    inputDesc->mRefCount--;
+    audioSession->changeActiveCount(-1);
 
     // Routing?
     mInputRoutes.decRouteActivity(session);
 
-    if (inputDesc->mRefCount == 0) {
+    if (!inputDesc->isActive()) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((inputDesc->mPolicyMix != NULL)
                 && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
@@ -1642,17 +1705,22 @@ void AudioPolicyManager::releaseInput(audio_io_handle_t input,
     sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(index);
     ALOG_ASSERT(inputDesc != 0);
 
-    index = inputDesc->mSessions.indexOf(session);
+    sp<AudioSession> audioSession = inputDesc->getAudioSession(session);
     if (index < 0) {
         ALOGW("releaseInput() unknown session %d on input %d", session, input);
         return;
     }
-    inputDesc->mSessions.remove(session);
-    if (inputDesc->getOpenRefCount() == 0) {
-        ALOGW("releaseInput() invalid open ref count %d", inputDesc->getOpenRefCount());
+
+    if (audioSession->openCount() == 0) {
+        ALOGW("releaseInput() invalid open count %d on session %d",
+              audioSession->openCount(), session);
         return;
     }
-    inputDesc->changeOpenRefCount(-1);
+
+    if (audioSession->changeOpenCount(-1) == 0) {
+        inputDesc->removeAudioSession(session);
+    }
+
     if (inputDesc->getOpenRefCount() > 0) {
         ALOGV("releaseInput() exit > 0");
         return;
@@ -1867,22 +1935,8 @@ bool AudioPolicyManager::isSourceActive(audio_source_t source) const
 {
     for (size_t i = 0; i < mInputs.size(); i++) {
         const sp<AudioInputDescriptor>  inputDescriptor = mInputs.valueAt(i);
-        if (inputDescriptor->mRefCount == 0) {
-            continue;
-        }
-        if (inputDescriptor->mInputSource == (int)source) {
+        if (inputDescriptor->isSourceActive(source)) {
             return true;
-        }
-        // AUDIO_SOURCE_HOTWORD is equivalent to AUDIO_SOURCE_VOICE_RECOGNITION only if it
-        // corresponds to an active capture triggered by a hardware hotword recognition
-        if ((source == AUDIO_SOURCE_VOICE_RECOGNITION) &&
-                 (inputDescriptor->mInputSource == AUDIO_SOURCE_HOTWORD)) {
-            // FIXME: we should not assume that the first session is the active one and keep
-            // activity count per session. Same in startInput().
-            ssize_t index = mSoundTriggerSessions.indexOfKey(inputDescriptor->mSessions.itemAt(0));
-            if (index >= 0) {
-                return true;
-            }
         }
     }
     return false;
@@ -2663,7 +2717,7 @@ void AudioPolicyManager::clearSessionRoutes(uid_t uid)
     SortedVector<audio_io_handle_t> inputsToClose;
     for (size_t i = 0; i < mInputs.size(); i++) {
         sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(i);
-        if (affectedSources.indexOf(inputDesc->mInputSource) >= 0) {
+        if (affectedSources.indexOf(inputDesc->inputSource()) >= 0) {
             inputsToClose.add(inputDesc->mIoHandle);
         }
     }
@@ -3026,7 +3080,6 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             }
             sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(inProfile);
 
-            inputDesc->mInputSource = AUDIO_SOURCE_MIC;
             inputDesc->mDevice = profileType;
 
             // find the address
@@ -4171,7 +4224,7 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
         }
     }
 
-    audio_devices_t device = getDeviceAndMixForInputSource(inputDesc->mInputSource);
+    audio_devices_t device = getDeviceAndMixForInputSource(inputDesc->inputSource());
 
     return device;
 }
@@ -4583,7 +4636,7 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
             // AUDIO_SOURCE_HOTWORD is for internal use only:
             // handled as AUDIO_SOURCE_VOICE_RECOGNITION by the audio HAL
             if (patch.sinks[0].ext.mix.usecase.source == AUDIO_SOURCE_HOTWORD &&
-                    !inputDesc->mIsSoundTrigger) {
+                    !inputDesc->isSoundTrigger()) {
                 patch.sinks[0].ext.mix.usecase.source = AUDIO_SOURCE_VOICE_RECOGNITION;
             }
             patch.num_sinks = 1;

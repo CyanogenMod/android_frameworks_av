@@ -18,7 +18,8 @@ LOCAL_SRC_FILES:= \
     src/SoundTriggerSession.cpp \
     src/SessionRoute.cpp \
     src/AudioSourceDescriptor.cpp \
-    src/TypeConverter.cpp
+    src/TypeConverter.cpp \
+    src/AudioSession.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \

@@ -610,6 +610,18 @@ private:
                 audio_channel_mask_t channelMask,
                 audio_output_flags_t flags,
                 const audio_offload_info_t *offloadInfo);
+        // internal method to return the input handle for the given device and format
+        audio_io_handle_t getInputForDevice(audio_devices_t device,
+                String8 address,
+                audio_session_t session,
+                uid_t uid,
+                audio_source_t inputSource,
+                uint32_t samplingRate,
+                audio_format_t format,
+                audio_channel_mask_t channelMask,
+                audio_input_flags_t flags,
+                AudioMix *policyMix);
+
         // internal function to derive a stream type value from audio attributes
         audio_stream_type_t streamTypefromAttributesInt(const audio_attributes_t *attr);
         // event is one of STARTING_OUTPUT, STARTING_BEACON, STOPPING_OUTPUT, STOPPING_BEACON

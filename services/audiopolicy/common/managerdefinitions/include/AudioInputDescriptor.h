@@ -17,6 +17,7 @@
 #pragma once
 
 #include "AudioPort.h"
+#include "AudioSession.h"
 #include <utils/Errors.h>
 #include <system/audio.h>
 #include <utils/SortedVector.h>
@@ -36,7 +37,6 @@ public:
     void setIoHandle(audio_io_handle_t ioHandle);
     audio_port_handle_t getId() const;
     audio_module_handle_t getModuleHandle() const;
-    void changeOpenRefCount(int delta);
     uint32_t getOpenRefCount() const;
 
     status_t    dump(int fd);
@@ -45,13 +45,7 @@ public:
     audio_devices_t               mDevice;         // current device this input is routed to
     AudioMix                      *mPolicyMix;     // non NULL when used by a dynamic policy
     audio_patch_handle_t          mPatchHandle;
-    uint32_t                      mRefCount;       // number of AudioRecord clients active on
-                                                   // this input
-    audio_source_t                mInputSource;    // input source selected by application
-    //(mediarecorder.h)
     const sp<IOProfile>           mProfile;        // I/O profile this output derives from
-    SortedVector<audio_session_t> mSessions;       // audio sessions attached to this input
-    bool                          mIsSoundTrigger; // used by a soundtrigger capture
 
     virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
             const struct audio_port_config *srcConfig = NULL) const;
@@ -61,10 +55,20 @@ public:
     SortedVector<audio_session_t> getPreemptedSessions() const;
     bool hasPreemptedSession(audio_session_t session) const;
     void clearPreemptedSessions();
+    bool isActive() const;
+    bool isSourceActive(audio_source_t source) const;
+    audio_source_t inputSource() const;
+    bool isSoundTrigger() const;
+    status_t addAudioSession(audio_session_t session,
+                             const sp<AudioSession>& audioSession);
+    status_t removeAudioSession(audio_session_t session);
+    sp<AudioSession> getAudioSession(audio_session_t session) const;
+    AudioSessionCollection getActiveAudioSessions() const;
 
 private:
     audio_port_handle_t           mId;
-    uint32_t                      mOpenRefCount;
+    // audio sessions attached to this input
+    AudioSessionCollection        mSessions;
     // Because a preemtible capture session can preempt another one, we end up in an endless loop
     // situation were each session is allowed to restart after being preempted,
     // thus preempting the other one which restarts and so on.
@@ -72,7 +76,6 @@ private:
     // a particular input started and prevent preemption of this active input by this session.
     // We also inherit sessions from the preempted input to avoid a 3 way preemption loop etc...
     SortedVector<audio_session_t> mPreemptedSessions;
-
 };
 
 class AudioInputCollection :
