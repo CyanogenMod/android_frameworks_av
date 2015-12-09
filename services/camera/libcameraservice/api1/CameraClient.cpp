@@ -482,14 +482,24 @@ void CameraClient::releaseRecordingFrame(const sp<IMemory>& mem) {
     mHardware->releaseRecordingFrame(mem);
 }
 
-status_t CameraClient::storeMetaDataInBuffers(bool enabled)
-{
-    LOG1("storeMetaDataInBuffers: %s", enabled? "true": "false");
+status_t CameraClient::setVideoBufferMode(int32_t videoBufferMode) {
+    LOG1("setVideoBufferMode: %d", videoBufferMode);
+    bool enableMetadataInBuffers = false;
+
+    if (videoBufferMode == VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA) {
+        enableMetadataInBuffers = true;
+    } else if (videoBufferMode != VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV) {
+        ALOGE("%s: %d: videoBufferMode %d is not supported.", __FUNCTION__, __LINE__,
+                videoBufferMode);
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) {
         return UNKNOWN_ERROR;
     }
-    return mHardware->storeMetaDataInBuffers(enabled);
+
+    return mHardware->storeMetaDataInBuffers(enableMetadataInBuffers);
 }
 
 bool CameraClient::previewEnabled() {
@@ -989,6 +999,11 @@ int CameraClient::getOrientation(int degrees, bool mirror) {
     }
     ALOGE("Invalid setDisplayOrientation degrees=%d", degrees);
     return -1;
+}
+
+status_t CameraClient::setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer) {
+    ALOGE("%s: %d: CameraClient doesn't support setting a video target.", __FUNCTION__, __LINE__);
+    return INVALID_OPERATION;
 }
 
 }; // namespace android

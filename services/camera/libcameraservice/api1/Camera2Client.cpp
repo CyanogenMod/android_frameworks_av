@@ -93,7 +93,6 @@ status_t Camera2Client::initialize(CameraModule *module)
     mStreamingProcessor = new StreamingProcessor(this);
     threadName = String8::format("C2-%d-StreamProc",
             mCameraId);
-    mStreamingProcessor->run(threadName.string());
 
     mFrameProcessor = new FrameProcessor(mDevice, this);
     threadName = String8::format("C2-%d-FrameProc",
@@ -390,7 +389,6 @@ void Camera2Client::disconnect() {
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
-    mStreamingProcessor->requestExit();
     mFrameProcessor->requestExit();
     mCaptureSequencer->requestExit();
     mJpegProcessor->requestExit();
@@ -404,7 +402,6 @@ void Camera2Client::disconnect() {
         // complete callbacks that re-enter Camera2Client
         mBinderSerializationLock.unlock();
 
-        mStreamingProcessor->join();
         mFrameProcessor->join();
         mCaptureSequencer->join();
         mJpegProcessor->join();
@@ -944,7 +941,7 @@ bool Camera2Client::previewEnabled() {
     return l.mParameters.state == Parameters::PREVIEW;
 }
 
-status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
+status_t Camera2Client::setVideoBufferMode(int32_t videoBufferMode) {
     ATRACE_CALL();
     Mutex::Autolock icl(mBinderSerializationLock);
     status_t res;
@@ -963,7 +960,12 @@ status_t Camera2Client::storeMetaDataInBuffers(bool enabled) {
             break;
     }
 
-    l.mParameters.storeMetadataInBuffers = enabled;
+    if (videoBufferMode != VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
+        ALOGE("%s: %d: Only video buffer queue is supported", __FUNCTION__, __LINE__);
+        return BAD_VALUE;
+    }
+
+    l.mParameters.videoBufferMode = videoBufferMode;
 
     return OK;
 }
@@ -1009,10 +1011,14 @@ status_t Camera2Client::startRecordingL(Parameters &params, bool restart) {
             return INVALID_OPERATION;
     };
 
-    if (!params.storeMetadataInBuffers) {
-        ALOGE("%s: Camera %d: Recording only supported in metadata mode, but "
-                "non-metadata recording mode requested!", __FUNCTION__,
-                mCameraId);
+    if (params.videoBufferMode != VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
+        ALOGE("%s: Camera %d: Recording only supported buffer queue mode, but "
+                "mode %d is requested!", __FUNCTION__, mCameraId, params.videoBufferMode);
+        return INVALID_OPERATION;
+    }
+
+    if (!mStreamingProcessor->haveValidRecordingWindow()) {
+        ALOGE("%s: No valid recording window", __FUNCTION__);
         return INVALID_OPERATION;
     }
 
@@ -1176,28 +1182,28 @@ void Camera2Client::stopRecording() {
 
     mCameraService->playSound(CameraService::SOUND_RECORDING_STOP);
 
-    // Remove recording stream to prevent it from slowing down takePicture later
-    if (!l.mParameters.recordingHint && l.mParameters.isJpegSizeOverridden()) {
-        res = stopStream();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-        }
-        res = mDevice->waitUntilDrained();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-        }
-        // Clean up recording stream
-        res = mStreamingProcessor->deleteRecordingStream();
-        if (res != OK) {
-            ALOGE("%s: Camera %d: Unable to delete recording stream before "
-                    "stop preview: %s (%d)",
-                    __FUNCTION__, mCameraId, strerror(-res), res);
-        }
-        l.mParameters.recoverOverriddenJpegSize();
+    // Remove recording stream because the video target may be abandoned soon.
+    res = stopStream();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Can't stop streaming: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
     }
 
+    res = mDevice->waitUntilDrained();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Waiting to stop streaming failed: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+    }
+    // Clean up recording stream
+    res = mStreamingProcessor->deleteRecordingStream();
+    if (res != OK) {
+        ALOGE("%s: Camera %d: Unable to delete recording stream before "
+                "stop preview: %s (%d)",
+                __FUNCTION__, mCameraId, strerror(-res), res);
+    }
+    l.mParameters.recoverOverriddenJpegSize();
+
+    // Restart preview
     res = startPreviewL(l.mParameters, true);
     if (res != OK) {
         ALOGE("%s: Camera %d: Unable to return to preview",
@@ -1224,10 +1230,7 @@ bool Camera2Client::recordingEnabledL() {
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
     ATRACE_CALL();
-    Mutex::Autolock icl(mBinderSerializationLock);
-    if ( checkPid(__FUNCTION__) != OK) return;
-
-    mStreamingProcessor->releaseRecordingFrame(mem);
+    ALOGW("%s: Not supported in buffer queue mode.", __FUNCTION__);
 }
 
 status_t Camera2Client::autoFocus() {
@@ -1529,10 +1532,10 @@ status_t Camera2Client::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         case CAMERA_CMD_PING:
             return commandPingL();
         case CAMERA_CMD_SET_VIDEO_BUFFER_COUNT:
-            return commandSetVideoBufferCountL(arg1);
         case CAMERA_CMD_SET_VIDEO_FORMAT:
-            return commandSetVideoFormatL(arg1,
-                    static_cast<android_dataspace>(arg2));
+            ALOGE("%s: command %d (arguments %d, %d) is not supported.",
+                    __FUNCTION__, cmd, arg1, arg2);
+            return BAD_VALUE;
         default:
             ALOGE("%s: Unknown command %d (arguments %d, %d)",
                     __FUNCTION__, cmd, arg1, arg2);
@@ -1672,27 +1675,6 @@ status_t Camera2Client::commandPingL() {
     } else {
         return NO_INIT;
     }
-}
-
-status_t Camera2Client::commandSetVideoBufferCountL(size_t count) {
-    if (recordingEnabledL()) {
-        ALOGE("%s: Camera %d: Error setting video buffer count after "
-                "recording was started", __FUNCTION__, mCameraId);
-        return INVALID_OPERATION;
-    }
-
-    return mStreamingProcessor->setRecordingBufferCount(count);
-}
-
-status_t Camera2Client::commandSetVideoFormatL(int format,
-        android_dataspace dataspace) {
-    if (recordingEnabledL()) {
-        ALOGE("%s: Camera %d: Error setting video format after "
-                "recording was started", __FUNCTION__, mCameraId);
-        return INVALID_OPERATION;
-    }
-
-    return mStreamingProcessor->setRecordingFormat(format, dataspace);
 }
 
 void Camera2Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
@@ -2116,6 +2098,84 @@ status_t Camera2Client::overrideVideoSnapshotSize(Parameters &params) {
                 __FUNCTION__, mCameraId, strerror(-res), res);
     }
     return res;
+}
+
+status_t Camera2Client::setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer) {
+    ATRACE_CALL();
+    ALOGV("%s: E", __FUNCTION__);
+    Mutex::Autolock icl(mBinderSerializationLock);
+    status_t res;
+    if ( (res = checkPid(__FUNCTION__) ) != OK) return res;
+
+    sp<IBinder> binder = IInterface::asBinder(bufferProducer);
+    if (binder == mVideoSurface) {
+        ALOGV("%s: Camera %d: New video window is same as old video window",
+                __FUNCTION__, mCameraId);
+        return NO_ERROR;
+    }
+
+    sp<Surface> window;
+    int format;
+    android_dataspace dataSpace;
+
+    if (bufferProducer != nullptr) {
+        // Using controlledByApp flag to ensure that the buffer queue remains in
+        // async mode for the old camera API, where many applications depend
+        // on that behavior.
+        window = new Surface(bufferProducer, /*controlledByApp*/ true);
+
+        ANativeWindow *anw = window.get();
+
+        if ((res = anw->query(anw, NATIVE_WINDOW_FORMAT, &format)) != OK) {
+            ALOGE("%s: Failed to query Surface format", __FUNCTION__);
+            return res;
+        }
+
+        if ((res = anw->query(anw, NATIVE_WINDOW_DEFAULT_DATASPACE,
+                                reinterpret_cast<int*>(&dataSpace))) != OK) {
+            ALOGE("%s: Failed to query Surface dataSpace", __FUNCTION__);
+            return res;
+        }
+    }
+
+    Parameters::State state;
+    {
+        SharedParameters::Lock l(mParameters);
+        state = l.mParameters.state;
+    }
+
+    switch (state) {
+        case Parameters::STOPPED:
+        case Parameters::WAITING_FOR_PREVIEW_WINDOW:
+        case Parameters::PREVIEW:
+            // OK
+            break;
+        case Parameters::DISCONNECTED:
+        case Parameters::RECORD:
+        case Parameters::STILL_CAPTURE:
+        case Parameters::VIDEO_SNAPSHOT:
+        default:
+            ALOGE("%s: Camera %d: Cannot set video target while in state %s",
+                    __FUNCTION__, mCameraId,
+                    Parameters::getStateName(state));
+            return INVALID_OPERATION;
+    }
+
+    mVideoSurface = binder;
+    res = mStreamingProcessor->setRecordingWindow(window);
+    if (res != OK) {
+        ALOGE("%s: Unable to set new recording window: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+
+    {
+        SharedParameters::Lock l(mParameters);
+        l.mParameters.videoFormat = format;
+        l.mParameters.videoDataSpace = dataSpace;
+    }
+
+    return OK;
 }
 
 const char* Camera2Client::kAutofocusLabel = "autofocus";

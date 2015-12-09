@@ -126,8 +126,15 @@ public:
             // send command to camera driver
             status_t    sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
 
-            // tell camera hal to store meta data or real YUV in video buffers.
-            status_t    storeMetaDataInBuffers(bool enabled);
+            // Tell camera how to pass video buffers. videoBufferMode is one of VIDEO_BUFFER_MODE_*.
+            // Returns OK if the specified video buffer mode is supported. If videoBufferMode is
+            // VIDEO_BUFFER_MODE_BUFFER_QUEUE, setVideoTarget() must be called before starting
+            // video recording.
+            status_t    setVideoBufferMode(int32_t videoBufferMode);
+
+            // Set the video buffer producer for camera to use in VIDEO_BUFFER_MODE_BUFFER_QUEUE
+            // mode.
+            status_t    setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer);
 
             void        setListener(const sp<CameraListener>& listener);
             void        setRecordingProxyListener(const sp<ICameraRecordingProxyListener>& listener);
