@@ -15,18 +15,18 @@
  */
 
 /*******************************************************************************
-	File:		mem_align.c
+    File:       mem_align.c
 
-	Content:	Memory alloc alignments functions
+    Content:    Memory alloc alignments functions
 
 *******************************************************************************/
 
 
-#include	"mem_align.h"
+#include    "mem_align.h"
 #ifdef _MSC_VER
-#include	<stddef.h>
+#include    <stddef.h>
 #else
-#include	<stdint.h>
+#include    <stdint.h>
 #endif
 
 /*****************************************************************************
@@ -39,50 +39,50 @@
 void *
 mem_malloc(VO_MEM_OPERATOR *pMemop, unsigned int size, unsigned char alignment, unsigned int CodecID)
 {
-	int ret;
-	unsigned char *mem_ptr;
-	VO_MEM_INFO MemInfo;
+    int ret;
+    unsigned char *mem_ptr;
+    VO_MEM_INFO MemInfo;
 
-	if (!alignment) {
+    if (!alignment) {
 
-		MemInfo.Flag = 0;
-		MemInfo.Size = size + 1;
-		ret = pMemop->Alloc(CodecID, &MemInfo);
-		if(ret != 0)
-			return 0;
-		mem_ptr = (unsigned char *)MemInfo.VBuffer;
+        MemInfo.Flag = 0;
+        MemInfo.Size = size + 1;
+        ret = pMemop->Alloc(CodecID, &MemInfo);
+        if(ret != 0)
+            return 0;
+        mem_ptr = (unsigned char *)MemInfo.VBuffer;
 
-		pMemop->Set(CodecID, mem_ptr, 0, size + 1);
+        pMemop->Set(CodecID, mem_ptr, 0, size + 1);
 
-		*mem_ptr = (unsigned char)1;
+        *mem_ptr = (unsigned char)1;
 
-		return ((void *)(mem_ptr+1));
-	} else {
-		unsigned char *tmp;
+        return ((void *)(mem_ptr+1));
+    } else {
+        unsigned char *tmp;
 
-		MemInfo.Flag = 0;
-		MemInfo.Size = size + alignment;
-		ret = pMemop->Alloc(CodecID, &MemInfo);
-		if(ret != 0)
-			return 0;
+        MemInfo.Flag = 0;
+        MemInfo.Size = size + alignment;
+        ret = pMemop->Alloc(CodecID, &MemInfo);
+        if(ret != 0)
+            return 0;
 
-		tmp = (unsigned char *)MemInfo.VBuffer;
+        tmp = (unsigned char *)MemInfo.VBuffer;
 
-		pMemop->Set(CodecID, tmp, 0, size + alignment);
+        pMemop->Set(CodecID, tmp, 0, size + alignment);
 
-		mem_ptr =
-			(unsigned char *) ((intptr_t) (tmp + alignment - 1) &
-					(~((intptr_t) (alignment - 1))));
+        mem_ptr =
+            (unsigned char *) ((intptr_t) (tmp + alignment - 1) &
+                    (~((intptr_t) (alignment - 1))));
 
-		if (mem_ptr == tmp)
-			mem_ptr += alignment;
+        if (mem_ptr == tmp)
+            mem_ptr += alignment;
 
-		*(mem_ptr - 1) = (unsigned char) (mem_ptr - tmp);
+        *(mem_ptr - 1) = (unsigned char) (mem_ptr - tmp);
 
-		return ((void *)mem_ptr);
-	}
+        return ((void *)mem_ptr);
+    }
 
-	return(0);
+    return(0);
 }
 
 
@@ -96,16 +96,16 @@ void
 mem_free(VO_MEM_OPERATOR *pMemop, void *mem_ptr, unsigned int CodecID)
 {
 
-	unsigned char *ptr;
+    unsigned char *ptr;
 
-	if (mem_ptr == 0)
-		return;
+    if (mem_ptr == 0)
+        return;
 
-	ptr = mem_ptr;
+    ptr = mem_ptr;
 
-	ptr -= *(ptr - 1);
+    ptr -= *(ptr - 1);
 
-	pMemop->Free(CodecID, ptr);
+    pMemop->Free(CodecID, ptr);
 }
 
 
