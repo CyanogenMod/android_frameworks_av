@@ -105,10 +105,6 @@ public:
         return android::ERROR_DRM_CANNOT_HANDLE;
     }
 
-    virtual status_t unprovisionDevice() {
-        return android::ERROR_DRM_CANNOT_HANDLE;
-    }
-
     virtual status_t getSecureStops(List<Vector<uint8_t> >& secureStops) {
         UNUSED(secureStops);
         return android::ERROR_DRM_CANNOT_HANDLE;

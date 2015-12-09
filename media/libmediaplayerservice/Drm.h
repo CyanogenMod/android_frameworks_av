@@ -77,8 +77,6 @@ struct Drm : public BnDrm,
                                               Vector<uint8_t> &certificate,
                                               Vector<uint8_t> &wrappedKey);
 
-    virtual status_t unprovisionDevice();
-
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops);
     virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop);
 

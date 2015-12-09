@@ -71,8 +71,6 @@ struct IDrm : public IInterface {
                                               Vector<uint8_t> &certificate,
                                               Vector<uint8_t> &wrappedKey) = 0;
 
-    virtual status_t unprovisionDevice() = 0;
-
     virtual status_t getSecureStops(List<Vector<uint8_t> > &secureStops) = 0;
     virtual status_t getSecureStop(Vector<uint8_t> const &ssid, Vector<uint8_t> &secureStop) = 0;
 
