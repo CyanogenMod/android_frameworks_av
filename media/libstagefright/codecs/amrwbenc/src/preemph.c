@@ -74,6 +74,9 @@ void Preemph2(
             L_tmp = INT32_MAX / 2;
         }
         L_tmp = (L_tmp << 1);
+        if (L_tmp > INT32_MAX - 0x8000) {
+            L_tmp = INT32_MAX - 0x8000;
+        }
         x[i] = (L_tmp + 0x8000)>>16;
     }
 
