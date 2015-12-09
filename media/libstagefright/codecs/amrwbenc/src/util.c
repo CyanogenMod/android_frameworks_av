@@ -30,15 +30,15 @@
 ************************************************************************/
 
 void Set_zero(
-		Word16 x[],                           /* (o)    : vector to clear     */
-		Word16 L                              /* (i)    : length of vector    */
-	     )
+        Word16 x[],                           /* (o)    : vector to clear     */
+        Word16 L                              /* (i)    : length of vector    */
+         )
 {
-	Word32 num = (Word32)L;
-	while (num > 0) {
-		*x++ = 0;
+    Word32 num = (Word32)L;
+    while (num > 0) {
+        *x++ = 0;
                 --num;
-	}
+    }
 }
 
 
@@ -49,28 +49,28 @@ void Set_zero(
 *********************************************************************/
 
 void Copy(
-		Word16 x[],                           /* (i)   : input vector   */
-		Word16 y[],                           /* (o)   : output vector  */
-		Word16 L                              /* (i)   : vector length  */
-	 )
+        Word16 x[],                           /* (i)   : input vector   */
+        Word16 y[],                           /* (o)   : output vector  */
+        Word16 L                              /* (i)   : vector length  */
+     )
 {
-	Word32	temp1,temp2,num;
+    Word32  temp1,temp2,num;
         if (L <= 0) {
                 return;
         }
-	if(L&1)
-	{
-		temp1 = *x++;
-		*y++ = temp1;
-	}
-	num = (Word32)(L>>1);
-	while (num > 0) {
-		temp1 = *x++;
-		temp2 = *x++;
-		*y++ = temp1;
-		*y++ = temp2;
+    if(L&1)
+    {
+        temp1 = *x++;
+        *y++ = temp1;
+    }
+    num = (Word32)(L>>1);
+    while (num > 0) {
+        temp1 = *x++;
+        temp2 = *x++;
+        *y++ = temp1;
+        *y++ = temp2;
                 --num;
-	}
+    }
 }
 
 
