@@ -312,12 +312,6 @@ namespace android {
         return OK;
     }
 
-    status_t MockDrmPlugin::unprovisionDevice()
-    {
-        ALOGD("MockDrmPlugin::unprovisionDevice()");
-        return OK;
-    }
-
     status_t MockDrmPlugin::getSecureStop(Vector<uint8_t> const & /* ssid */,
                                           Vector<uint8_t> & secureStop)
     {
