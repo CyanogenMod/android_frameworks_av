@@ -628,8 +628,16 @@ void ACELP_4t64_fx(
 			L_tmp = 0L;
 			for(i = 0; i < L_SUBFR; i++)
 			{
+				Word32 vecSq2;
 				vec[i]  = add1(add1(add1(*p0++, *p1++), *p2++), *p3++);
-				L_tmp  += (vec[i] * vec[i]) << 1;
+				vecSq2 = (vec[i] * vec[i]) << 1;
+				if (vecSq2 > 0 && L_tmp > INT_MAX - vecSq2) {
+					L_tmp = INT_MAX;
+				} else if (vecSq2 < 0 && L_tmp < INT_MIN - vecSq2) {
+					L_tmp = INT_MIN;
+				} else {
+					L_tmp  += vecSq2;
+				}
 			}
 
 			alp = ((L_tmp >> 3) + 0x8000) >> 16;
