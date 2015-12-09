@@ -199,7 +199,7 @@ void FFMPEGSoftCodec::overrideComponentName(
     if (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
             msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
         ALOGD("Found WMV version key %d", wmvVersion);
-        if (wmvVersion == 1) {
+        if (wmvVersion != 2) {
             ALOGD("Use FFMPEG for unsupported WMV track");
             componentName->setTo("OMX.ffmpeg.wmv.decoder");
         }
