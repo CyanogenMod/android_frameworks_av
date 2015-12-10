@@ -423,6 +423,13 @@ status_t MediaCodec::configure(
         if (!format->findInt32("rotation-degrees", &mRotationDegrees)) {
             mRotationDegrees = 0;
         }
+
+        // Prevent possible integer overflow in downstream code.
+        if (mInitIsEncoder
+                && (uint64_t)mVideoWidth * mVideoHeight > (uint64_t)INT32_MAX / 4) {
+            ALOGE("buffer size is too big, width=%d, height=%d", mVideoWidth, mVideoHeight);
+            return BAD_VALUE;
+        }
     }
 
     msg->setMessage("format", format);
