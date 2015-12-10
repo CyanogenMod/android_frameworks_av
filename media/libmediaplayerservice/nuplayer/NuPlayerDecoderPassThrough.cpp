@@ -53,7 +53,8 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
       mPendingAudioErr(OK),
       mPendingBuffersToDrain(0),
       mCachedBytes(0),
-      mComponentName("pass through decoder") {
+      mComponentName("pass through decoder"),
+      mPCMFormat(AUDIO_FORMAT_INVALID) {
     ALOGW_IF(renderer == NULL, "expect a non-NULL renderer");
 }
 
@@ -75,6 +76,15 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     // The audio sink is already opened before the PassThrough decoder is created.
     // Opening again might be relevant if decoder is instantiated after shutdown and
     // format is different.
+    sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+    if (AVNuUtils::get()->isRAWFormat(audioMeta)) {
+        mPCMFormat = AVNuUtils::get()->getKeyPCMFormat(audioMeta);
+        if (mPCMFormat != AUDIO_FORMAT_INVALID) {
+            AVNuUtils::get()->setPCMFormat(format, mPCMFormat);
+            AVNuUtils::get()->updateAudioBitWidth(mPCMFormat, format);
+        }
+    }
+
     status_t err = mRenderer->openAudioSink(
             format, true /* offloadOnly */, hasVideo,
             AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */, mSource->isStreaming());
