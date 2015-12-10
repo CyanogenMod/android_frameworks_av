@@ -56,6 +56,10 @@
 #include "api2/CameraDeviceClient.h"
 #include "utils/CameraTraces.h"
 
+namespace {
+    const char* kPermissionServiceName = "permission";
+}; // namespace anonymous
+
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -1920,6 +1924,37 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mServicePid = servicePid;
     mOpsActive = false;
     mDestructionStarted = false;
+
+    // In some cases the calling code has no access to the package it runs under.
+    // For example, NDK camera API.
+    // In this case we will get the packages for the calling UID and pick the first one
+    // for attributing the app op. This will work correctly for runtime permissions
+    // as for legacy apps we will toggle the app op for all packages in the UID.
+    // The caveat is that the operation may be attributed to the wrong package and
+    // stats based on app ops may be slightly off.
+    if (mClientPackageName.size() <= 0) {
+        sp<IServiceManager> sm = defaultServiceManager();
+        sp<IBinder> binder = sm->getService(String16(kPermissionServiceName));
+        if (binder == 0) {
+            ALOGE("Cannot get permission service");
+            // Leave mClientPackageName unchanged (empty) and the further interaction
+            // with camera will fail in BasicClient::startCameraOps
+            return;
+        }
+
+        sp<IPermissionController> permCtrl = interface_cast<IPermissionController>(binder);
+        Vector<String16> packages;
+
+        permCtrl->getPackagesForUid(mClientUid, packages);
+
+        if (packages.isEmpty()) {
+            ALOGE("No packages for calling UID");
+            // Leave mClientPackageName unchanged (empty) and the further interaction
+            // with camera will fail in BasicClient::startCameraOps
+            return;
+        }
+        mClientPackageName = packages[0];
+    }
 }
 
 CameraService::BasicClient::~BasicClient() {
