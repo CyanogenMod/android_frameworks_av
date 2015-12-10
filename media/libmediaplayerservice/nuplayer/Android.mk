@@ -27,7 +27,7 @@ LOCAL_C_INCLUDES := \
 	$(TOP)/frameworks/av/media/libavextensions                    \
 	$(TOP)/frameworks/av/include/media                            \
 
-LOCAL_CFLAGS += -Werror -Wall
+LOCAL_CFLAGS += -Werror -Wall #-DLOG_NDEBUG=0
 
 # enable experiments only in userdebug and eng builds
 ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
