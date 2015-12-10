@@ -106,24 +106,24 @@ SoftVPXEncoder::~SoftVPXEncoder() {
 
 status_t SoftVPXEncoder::initEncoder() {
     vpx_codec_err_t codec_return;
+    status_t result = UNKNOWN_ERROR;
 
-    mCodecContext = new vpx_codec_ctx_t;
-    mCodecConfiguration = new vpx_codec_enc_cfg_t;
     mCodecInterface = vpx_codec_vp8_cx();
-
     if (mCodecInterface == NULL) {
-        return UNKNOWN_ERROR;
+        goto CLEAN_UP;
     }
     ALOGD("VP8: initEncoder. BRMode: %u. TSLayers: %zu. KF: %u. QP: %u - %u",
           (uint32_t)mBitrateControlMode, mTemporalLayers, mKeyFrameInterval,
           mMinQuantizer, mMaxQuantizer);
+
+    mCodecConfiguration = new vpx_codec_enc_cfg_t;
     codec_return = vpx_codec_enc_config_default(mCodecInterface,
                                                 mCodecConfiguration,
                                                 0);  // Codec specific flags
 
     if (codec_return != VPX_CODEC_OK) {
         ALOGE("Error populating default configuration for vpx encoder.");
-        return UNKNOWN_ERROR;
+        goto CLEAN_UP;
     }
 
     mCodecConfiguration->g_w = mWidth;
@@ -250,7 +250,7 @@ status_t SoftVPXEncoder::initEncoder() {
         default:
         {
             ALOGE("Wrong number of temporal layers %zu", mTemporalLayers);
-            return UNKNOWN_ERROR;
+            goto CLEAN_UP;
         }
     }
 
@@ -272,6 +272,7 @@ status_t SoftVPXEncoder::initEncoder() {
         mCodecConfiguration->rc_max_quantizer = mMaxQuantizer;
     }
 
+    mCodecContext = new vpx_codec_ctx_t;
     codec_return = vpx_codec_enc_init(mCodecContext,
                                       mCodecInterface,
                                       mCodecConfiguration,
@@ -279,7 +280,7 @@ status_t SoftVPXEncoder::initEncoder() {
 
     if (codec_return != VPX_CODEC_OK) {
         ALOGE("Error initializing vpx encoder");
-        return UNKNOWN_ERROR;
+        goto CLEAN_UP;
     }
 
     codec_return = vpx_codec_control(mCodecContext,
@@ -287,7 +288,7 @@ status_t SoftVPXEncoder::initEncoder() {
                                      mDCTPartitions);
     if (codec_return != VPX_CODEC_OK) {
         ALOGE("Error setting dct partitions for vpx encoder.");
-        return UNKNOWN_ERROR;
+        goto CLEAN_UP;
     }
 
     // Extra CBR settings
@@ -313,7 +314,7 @@ status_t SoftVPXEncoder::initEncoder() {
         }
         if (codec_return != VPX_CODEC_OK) {
             ALOGE("Error setting cbr parameters for vpx encoder.");
-            return UNKNOWN_ERROR;
+            goto CLEAN_UP;
         }
     }
 
@@ -321,16 +322,20 @@ status_t SoftVPXEncoder::initEncoder() {
         free(mConversionBuffer);
         mConversionBuffer = NULL;
         if (((uint64_t)mWidth * mHeight) > ((uint64_t)INT32_MAX / 3)) {
-            ALOGE("b/25812794, Buffer size is too big.");
-            return UNKNOWN_ERROR;
+            ALOGE("b/25812794, Buffer size is too big, width=%d, height=%d.", mWidth, mHeight);
+            goto CLEAN_UP;
         }
         mConversionBuffer = (uint8_t *)malloc(mWidth * mHeight * 3 / 2);
         if (mConversionBuffer == NULL) {
             ALOGE("Allocating conversion buffer failed.");
-            return UNKNOWN_ERROR;
+            goto CLEAN_UP;
         }
     }
     return OK;
+
+CLEAN_UP:
+    releaseEncoder();
+    return result;
 }
 
 
