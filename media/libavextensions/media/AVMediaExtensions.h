@@ -33,6 +33,7 @@
 #include <common/AVExtensionsCommon.h>
 #include <hardware/audio.h>
 #include <media/AudioTrack.h>
+#include <audio_utils/format.h>
 
 namespace android {
 
@@ -43,8 +44,8 @@ class Parcel;
  */
 struct AVMediaUtils {
 
-    virtual bool AudioTrackIsPcmOffloaded(const audio_format_t /*format*/) {
-        return false;
+    virtual bool AudioTrackIsPcmOffloaded(const audio_format_t format) {
+        return audio_is_offload_pcm(format);
     }
     virtual status_t AudioTrackGetPosition(AudioTrack* /*track*/,
             uint32_t* /*position*/) {
