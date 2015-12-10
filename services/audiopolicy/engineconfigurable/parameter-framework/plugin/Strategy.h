@@ -29,7 +29,8 @@ class Strategy : public CFormattedSubsystemObject
 public:
     Strategy(const std::string &mappingValue,
              CInstanceConfigurableElement *instanceConfigurableElement,
-             const CMappingContext &context);
+             const CMappingContext &context,
+             core::log::Logger& logger);
 
 protected:
     virtual bool sendToHW(std::string &error);

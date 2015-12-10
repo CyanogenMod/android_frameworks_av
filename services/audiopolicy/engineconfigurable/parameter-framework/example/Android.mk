@@ -13,7 +13,7 @@ LOCAL_PATH := $(call my-dir)
 
 PFW_CORE := external/parameter-framework
 BUILD_PFW_SETTINGS := $(PFW_CORE)/support/android/build_pfw_settings.mk
-PFW_DEFAULT_SCHEMAS_DIR := $(PFW_CORE)/Schemas
+PFW_DEFAULT_SCHEMAS_DIR := $(PFW_CORE)/upstream/schemas
 PFW_SCHEMAS_DIR := $(PFW_DEFAULT_SCHEMAS_DIR)
 
 ##################################################################
@@ -26,7 +26,17 @@ LOCAL_MODULE := ParameterFrameworkConfigurationPolicy.xml
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := ETC
 LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/parameter-framework
-LOCAL_SRC_FILES := $(LOCAL_MODULE)
+LOCAL_SRC_FILES := $(LOCAL_MODULE).in
+
+AUDIO_PATTERN = @TUNING_ALLOWED@
+ifeq ($(TARGET_BUILD_VARIANT),user)
+AUDIO_VALUE = false
+else
+AUDIO_VALUE = true
+endif
+
+LOCAL_POST_INSTALL_CMD := $(hide) sed -i -e 's|$(AUDIO_PATTERN)|$(AUDIO_VALUE)|g' $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
+
 include $(BUILD_PREBUILT)
 
 

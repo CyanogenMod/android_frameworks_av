@@ -21,10 +21,10 @@
 using std::string;
 using android::routing_strategy;
 
-Stream::Stream(const string &mappingValue,
-                   CInstanceConfigurableElement *instanceConfigurableElement,
-                   const CMappingContext &context)
-    : CSubsystemObject(instanceConfigurableElement),
+Stream::Stream(const string &/*mappingValue*/,
+               CInstanceConfigurableElement *instanceConfigurableElement,
+               const CMappingContext &context, core::log::Logger &logger)
+    : CSubsystemObject(instanceConfigurableElement, logger),
       mPolicySubsystem(static_cast<const PolicySubsystem *>(
                            instanceConfigurableElement->getBelongingSubsystem())),
       mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface())

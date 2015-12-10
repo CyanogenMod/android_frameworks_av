@@ -40,8 +40,8 @@ const char *const PolicySubsystem::mStrategyComponentName = "Strategy";
 const char *const PolicySubsystem::mInputSourceComponentName = "InputSource";
 const char *const PolicySubsystem::mUsageComponentName = "Usage";
 
-PolicySubsystem::PolicySubsystem(const std::string &name)
-    : CSubsystem(name),
+PolicySubsystem::PolicySubsystem(const std::string &name, core::log::Logger &logger)
+    : CSubsystem(name, logger),
       mPluginInterface(NULL)
 {
     // Try to connect a Plugin Interface from Audio Policy Engine

@@ -2,7 +2,7 @@
 <Subsystem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xmlns:xi="http://www.w3.org/2001/XInclude"
            xsi:noNamespaceSchemaLocation="Schemas/Subsystem.xsd"
-           Name="policy" Type="Policy" Endianness="Little">
+           Name="policy" Type="Policy">
 
     <ComponentLibrary>
         <!--#################### GLOBAL COMPONENTS BEGIN ####################-->

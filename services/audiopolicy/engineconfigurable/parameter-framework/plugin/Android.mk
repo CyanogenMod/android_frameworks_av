@@ -17,9 +17,10 @@ LOCAL_CFLAGS += \
     -Wall \
     -Werror \
     -Wextra \
+    -fvisibility-inlines-hidden \
+    -fvisibility=hidden
 
 LOCAL_C_INCLUDES := \
-    $(TOPDIR)external/parameter-framework/parameter \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/interface \
@@ -27,8 +28,9 @@ LOCAL_C_INCLUDES := \
 LOCAL_SHARED_LIBRARIES := \
     libaudiopolicyengineconfigurable  \
     libparameter \
-    libxmlserializer \
     liblog \
+
+LOCAL_STATIC_LIBRARIES := libpfw_utility
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE := libpolicy-subsystem

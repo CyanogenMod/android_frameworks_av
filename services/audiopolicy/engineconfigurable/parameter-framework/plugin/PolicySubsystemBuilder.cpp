@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "SubsystemLibrary.h"
-#include "NamedElementBuilderTemplate.h"
+#include <Plugin.h>
+#include "LoggingElementBuilderTemplate.h"
 #include "PolicySubsystem.h"
 
 static const char *const POLICY_SUBSYSTEM_NAME = "Policy";
 extern "C"
 {
-void getPOLICYSubsystemBuilder(CSubsystemLibrary *subsystemLibrary)
+void PARAMETER_FRAMEWORK_PLUGIN_ENTRYPOINT_V1(CSubsystemLibrary *subsystemLibrary, core::log::Logger& logger)
 {
     subsystemLibrary->addElementBuilder(POLICY_SUBSYSTEM_NAME,
-                                        new TNamedElementBuilderTemplate<PolicySubsystem>());
+                                        new TLoggingElementBuilderTemplate<PolicySubsystem>(logger));
 }
 }
