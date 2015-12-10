@@ -192,6 +192,40 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
+const char* FFMPEGSoftCodec::overrideComponentName(
+        uint32_t /*quirks*/, const sp<MetaData> &meta, const char *mime, bool isEncoder) {
+    const char* componentName = NULL;
+
+    int32_t wmvVersion = 0;
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
+            meta->findInt32(kKeyWMVVersion, &wmvVersion)) {
+        ALOGD("Found WMV version key %d", wmvVersion);
+        if (wmvVersion != 2) {
+            ALOGD("Use FFMPEG for unsupported WMV track");
+            componentName = "OMX.ffmpeg.wmv.decoder";
+        }
+    }
+
+    int32_t encodeOptions = 0;
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
+            !meta->findInt32(kKeyWMAEncodeOpt, &encodeOptions)) {
+        ALOGD("Use FFMPEG for unsupported WMA track");
+        componentName = "OMX.ffmpeg.wma.decoder";
+    }
+
+    // Google's decoder doesn't support MAIN profile
+    int32_t aacProfile = 0;
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
+            meta->findInt32(kKeyAACAOT, &aacProfile)) {
+        if (aacProfile == OMX_AUDIO_AACObjectMain) {
+            ALOGD("Use FFMPEG for AAC MAIN profile");
+            componentName = "OMX.ffmpeg.aac.decoder";
+        }
+    }
+
+    return componentName;
+}
+
 void FFMPEGSoftCodec::overrideComponentName(
         uint32_t /*quirks*/, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
 

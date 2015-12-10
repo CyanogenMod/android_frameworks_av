@@ -28,6 +28,8 @@
 #include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
 
+#include <media/stagefright/FFMPEGSoftCodec.h>
+
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -506,6 +508,14 @@ VideoFrame *StagefrightMetadataRetriever::getFrameAtTime(
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
         const char *componentName = matchingCodecs[i].mName.string();
+        const char *ffmpegComponentName;
+        /* determine whether ffmpeg should override a broken h/w codec */
+        ffmpegComponentName = FFMPEGSoftCodec::overrideComponentName(0, trackMeta, mime, false);
+        if (ffmpegComponentName) {
+            ALOGV("override compoent %s to %s for video frame extraction.", componentName, ffmpegComponentName);
+            componentName = ffmpegComponentName;
+        }
+
         VideoFrame *frame =
             extractVideoFrame(componentName, trackMeta, source, timeUs, option);
 
