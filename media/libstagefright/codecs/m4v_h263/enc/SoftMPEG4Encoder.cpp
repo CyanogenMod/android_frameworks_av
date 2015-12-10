@@ -37,6 +37,10 @@
 
 #include <inttypes.h>
 
+#ifndef INT32_MAX
+#define INT32_MAX   2147483647
+#endif
+
 namespace android {
 
 template<class T>
@@ -137,6 +141,11 @@ OMX_ERRORTYPE SoftMPEG4Encoder::initEncParams() {
     if (mColorFormat != OMX_COLOR_FormatYUV420Planar || mInputDataIsMeta) {
         // Color conversion is needed.
         free(mInputFrameData);
+        mInputFrameData = NULL;
+        if (((uint64_t)mWidth * mHeight) > ((uint64_t)INT32_MAX / 3)) {
+            ALOGE("b/25812794, Buffer size is too big.");
+            return OMX_ErrorBadParameter;
+        }
         mInputFrameData =
             (uint8_t *) malloc((mWidth * mHeight * 3 ) >> 1);
         CHECK(mInputFrameData != NULL);
