@@ -189,6 +189,7 @@ NuPlayer::NuPlayer(pid_t pid)
       mPID(pid),
       mSourceFlags(0),
       mOffloadAudio(false),
+      mOffloadDecodedPCM(false),
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
@@ -1133,10 +1134,12 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
             mResetting = true;
 
-            mDeferredActions.push_back(
-                    new FlushDecoderAction(
-                        FLUSH_CMD_SHUTDOWN /* audio */,
-                        FLUSH_CMD_SHUTDOWN /* video */));
+            if (mAudioDecoder != NULL && mFlushingAudio == NONE) {
+                mDeferredActions.push_back(
+                        new FlushDecoderAction(
+                            FLUSH_CMD_SHUTDOWN /* audio */,
+                            FLUSH_CMD_SHUTDOWN /* video */));
+            }
 
             mDeferredActions.push_back(
                     new SimpleAction(&NuPlayer::closeAudioSink));
@@ -1228,9 +1231,16 @@ void NuPlayer::onResume() {
     } else {
         ALOGW("resume called when source is gone or not set");
     }
+    if (mOffloadAudio && !mOffloadDecodedPCM) {
+          // Resuming after a pause timed out event, check if can continue with offload
+          sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
+          sp<AMessage> format = mSource->getFormat(true /*audio*/);
+          const bool hasVideo = (videoFormat != NULL);
+          tryOpenAudioSinkForOffload(format, hasVideo);
+    } 
     // |mAudioDecoder| may have been released due to the pause timeout, so re-create it if
     // needed.
-    if (audioDecoderStillNeeded() && mAudioDecoder == NULL) {
+    if (audioDecoderStillNeeded() && mAudioDecoder == NULL && !mOffloadDecodedPCM) {
         instantiateDecoder(true /* audio */, &mAudioDecoder);
     }
     if (mRenderer != NULL) {
@@ -1282,6 +1292,7 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     }
 
     mOffloadAudio = false;
+    mOffloadDecodedPCM = false;
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
@@ -1292,8 +1303,10 @@ void NuPlayer::onStart(int64_t startPositionUs) {
         flags |= Renderer::FLAG_REAL_TIME;
     }
 
+    ALOGV("onStart");
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
     AVNuUtils::get()->setSourcePCMFormat(audioMeta);
+    audioMeta->dumpToLog();
     audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
     if (mAudioSink != NULL) {
         streamType = mAudioSink->getAudioStreamType();
@@ -1687,6 +1700,18 @@ void NuPlayer::flushDecoder(bool audio, bool needShutdown) {
     if (decoder == NULL) {
         ALOGI("flushDecoder %s without decoder present",
              audio ? "audio" : "video");
+        return;
+    }
+
+    FlushStatus *state = audio ? &mFlushingAudio : &mFlushingVideo;
+
+    bool inShutdown = *state != NONE &&
+                      *state != FLUSHING_DECODER &&
+                      *state != FLUSHED;
+
+    // Reject flush if the decoder state is not one of the above
+    if (inShutdown) {
+        ALOGI("flush %s called while in shutdown", audio ? "audio" : "video");
         return;
     }
 
@@ -2431,6 +2456,34 @@ void NuPlayer::performTearDown(const sp<AMessage> &msg) {
         }
     }
     processDeferredActions();
+}
+
+bool NuPlayer::ifDecodedPCMOffload() {
+    return mOffloadDecodedPCM;
+}
+
+void NuPlayer::setDecodedPcmOffload(bool decodePcmOffload) {
+    mOffloadDecodedPCM = decodePcmOffload;
+}
+
+bool NuPlayer::canOffloadDecodedPCMStream(const sp<MetaData> audioMeta,
+            bool hasVideo, bool isStreaming, audio_stream_type_t streamType) {
+    const char *mime = NULL;
+
+     //For offloading decoded content
+    if (!mOffloadAudio && (audioMeta != NULL)) {
+        audioMeta->findCString(kKeyMIMEType, &mime);
+        sp<MetaData> audioPCMMeta =
+                AVNuUtils::get()->createPCMMetaFromSource(audioMeta);
+
+        ALOGI("canOffloadDecodedPCMStream");
+        audioMeta->dumpToLog();
+        mOffloadDecodedPCM =
+                ((mime && !AVNuUtils::get()->pcmOffloadException(audioMeta)) &&
+                canOffloadStream(audioPCMMeta, hasVideo, isStreaming, streamType));
+        ALOGI("PCM offload decided: %d", mOffloadDecodedPCM);
+    }
+    return mOffloadDecodedPCM;
 }
 
 }  // namespace android
