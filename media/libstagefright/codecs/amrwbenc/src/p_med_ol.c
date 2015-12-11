@@ -129,7 +129,7 @@ Word16 Pitch_med_ol(
     R2 = (R2 << exp_R2);
 
 
-    R1 = vo_L_mult(vo_round(R1), vo_round(R2));
+    R1 = vo_L_mult(voround(R1), voround(R2));
 
     i = norm_l(R1);
     R1 = (R1 << i);
