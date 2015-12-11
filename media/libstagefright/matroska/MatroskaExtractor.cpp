@@ -19,9 +19,11 @@
 #include <utils/Log.h>
 
 #include "MatroskaExtractor.h"
+#include "avc_utils.h"
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AUtils.h>
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -144,7 +146,7 @@ private:
     Type mType;
     bool mIsAudio;
     BlockIterator mBlockIter;
-    size_t mNALSizeLen;  // for type AVC
+    ssize_t mNALSizeLen;  // for type AVC
 
     List<MediaBuffer *> mPendingFrames;
 
@@ -214,7 +216,7 @@ MatroskaSource::MatroskaSource(
       mBlockIter(mExtractor.get(),
                  mExtractor->mTracks.itemAt(index).mTrackNum,
                  index),
-      mNALSizeLen(0) {
+      mNALSizeLen(-1) {
     sp<MetaData> meta = mExtractor->mTracks.itemAt(index).mMeta;
 
     const char *mime;
@@ -228,13 +230,18 @@ MatroskaSource::MatroskaSource(
         uint32_t dummy;
         const uint8_t *avcc;
         size_t avccSize;
-        CHECK(meta->findData(
-                    kKeyAVCC, &dummy, (const void **)&avcc, &avccSize));
-
-        CHECK_GE(avccSize, 5u);
-
-        mNALSizeLen = 1 + (avcc[4] & 3);
-        ALOGV("mNALSizeLen = %zu", mNALSizeLen);
+        int32_t nalSizeLen = 0;
+        if (meta->findInt32(kKeyNalLengthSize, &nalSizeLen)) {
+            if (nalSizeLen >= 0 && nalSizeLen <= 4) {
+                mNALSizeLen = nalSizeLen;
+            }
+        } else if (meta->findData(kKeyAVCC, &dummy, (const void **)&avcc, &avccSize)
+                && avccSize >= 5u) {
+            mNALSizeLen = 1 + (avcc[4] & 3);
+            ALOGV("mNALSizeLen = %zd", mNALSizeLen);
+        } else {
+            ALOGE("No mNALSizeLen");
+        }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {
         mType = AAC;
     }
@@ -245,6 +252,10 @@ MatroskaSource::~MatroskaSource() {
 }
 
 status_t MatroskaSource::start(MetaData * /* params */) {
+    if (mType == AVC && mNALSizeLen < 0) {
+        return ERROR_MALFORMED;
+    }
+
     mBlockIter.reset();
 
     return OK;
@@ -493,6 +504,9 @@ const mkvparser::Block *BlockIterator::block() const {
 }
 
 int64_t BlockIterator::blockTimeUs() const {
+    if (mCluster == NULL || mBlockEntry == NULL) {
+        return -1;
+    }
     return (mBlockEntry->GetBlock()->GetTime(mCluster) + 500ll) / 1000ll;
 }
 
@@ -655,7 +669,7 @@ status_t MatroskaSource::read(
     MediaBuffer *frame = *mPendingFrames.begin();
     mPendingFrames.erase(mPendingFrames.begin());
 
-    if (mType != AVC) {
+    if (mType != AVC || mNALSizeLen == 0) {
         if (targetSampleTimeUs >= 0ll) {
             frame->meta_data()->setInt64(
                     kKeyTargetTime, targetSampleTimeUs);
@@ -671,6 +685,9 @@ status_t MatroskaSource::read(
     // followed by a corresponding number of bytes containing the fragment.
     // We output all these fragments into a single large buffer separated
     // by startcodes (0x00 0x00 0x00 0x01).
+    //
+    // When mNALSizeLen is 0, we assume the data is already in the format
+    // desired.
 
     const uint8_t *srcPtr =
         (const uint8_t *)frame->data() + frame->range_offset();
@@ -1012,6 +1029,35 @@ status_t addVorbisCodecInfo(
     return OK;
 }
 
+status_t MatroskaExtractor::synthesizeAVCC(TrackInfo *trackInfo, size_t index) {
+    BlockIterator iter(this, trackInfo->mTrackNum, index);
+    if (iter.eos()) {
+        return ERROR_MALFORMED;
+    }
+
+    const mkvparser::Block *block = iter.block();
+    if (block->GetFrameCount() <= 0) {
+        return ERROR_MALFORMED;
+    }
+
+    const mkvparser::Block::Frame &frame = block->GetFrame(0);
+    sp<ABuffer> abuf = new ABuffer(frame.len);
+    long n = frame.Read(mReader, abuf->data());
+    if (n != 0) {
+        return ERROR_MALFORMED;
+    }
+
+    sp<MetaData> avcMeta = MakeAVCCodecSpecificData(abuf);
+    if (avcMeta == NULL) {
+        return ERROR_MALFORMED;
+    }
+
+    // Override the synthesized nal length size, which is arbitrary
+    avcMeta->setInt32(kKeyNalLengthSize, 0);
+    trackInfo->mMeta = avcMeta;
+    return OK;
+}
+
 void MatroskaExtractor::addTracks() {
     const mkvparser::Tracks *tracks = mSegment->GetTracks();
 
@@ -1124,7 +1170,8 @@ void MatroskaExtractor::addTracks() {
         meta->setInt64(kKeyDuration, (durationNs + 500) / 1000);
 
         mTracks.push();
-        TrackInfo *trackInfo = &mTracks.editItemAt(mTracks.size() - 1);
+        size_t n = mTracks.size() - 1;
+        TrackInfo *trackInfo = &mTracks.editItemAt(n);
         trackInfo->mTrackNum = track->GetNumber();
         trackInfo->mMeta = meta;
         trackInfo->mExtractor = this;
@@ -1138,6 +1185,14 @@ void MatroskaExtractor::addTracks() {
                 meta->setData(kKeyCryptoKey, 0, encryption->key_id, encryption->key_id_len);
                 trackInfo->mEncrypted = true;
                 break;
+            }
+        }
+
+        if (!strcmp("V_MPEG4/ISO/AVC", codecID) && codecPrivateSize == 0) {
+            // Attempt to recover from AVC track without codec private data
+            err = synthesizeAVCC(trackInfo, n);
+            if (err != OK) {
+                mTracks.pop();
             }
         }
     }

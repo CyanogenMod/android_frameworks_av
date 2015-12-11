@@ -75,6 +75,7 @@ private:
     bool mIsWebm;
     int64_t mSeekPreRollNs;
 
+    status_t synthesizeAVCC(TrackInfo *trackInfo, size_t index);
     void addTracks();
     void findThumbnails();
 
