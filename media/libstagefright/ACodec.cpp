@@ -6654,8 +6654,34 @@ bool ACodec::OutputPortSettingsChangedState::onMessageReceived(
     bool handled = false;
 
     switch (msg->what()) {
-        case kWhatFlush:
         case kWhatShutdown:
+        {
+            int32_t keepComponentAllocated;
+            CHECK(msg->findInt32(
+                        "keepComponentAllocated", &keepComponentAllocated));
+
+            mCodec->mShutdownInProgress = true;
+            mCodec->mExplicitShutdown = true;
+            mCodec->mKeepComponentAllocated = keepComponentAllocated;
+
+            status_t err = mCodec->mOMX->sendCommand(
+                    mCodec->mNode, OMX_CommandStateSet, OMX_StateIdle);
+            if (err != OK) {
+                if (keepComponentAllocated) {
+                    mCodec->signalError(OMX_ErrorUndefined, FAILED_TRANSACTION);
+                }
+                // TODO: do some recovery here.
+            } else {
+                // This is technically not correct, but appears to be
+                // the only way to free the component instance using
+                // ExectingToIdleState.
+                mCodec->changeState(mCodec->mExecutingToIdleState);
+            }
+
+            handled = true;
+            break;
+        }
+        case kWhatFlush:
         case kWhatResume:
         case kWhatSetParameters:
         {
@@ -6722,15 +6748,6 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
 
                 if (err != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
-
-                    // This is technically not correct, but appears to be
-                    // the only way to free the component instance.
-                    // Controlled transitioning from excecuting->idle
-                    // and idle->loaded seem impossible probably because
-                    // the output port never finishes re-enabling.
-                    mCodec->mShutdownInProgress = true;
-                    mCodec->mKeepComponentAllocated = false;
-                    mCodec->changeState(mCodec->mLoadedState);
                 }
 
                 return true;
