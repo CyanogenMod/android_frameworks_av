@@ -68,11 +68,14 @@ private:
     Mutex                   mEventMutexForInterrupt;
 
 public:
-    typedef bool (*ReadObjectCallback)(void* data, int offset, int length, void* clientData);
-                            MtpDevice(struct usb_device* device, int interface,
-                                    const struct usb_endpoint_descriptor *ep_in,
-                                    const struct usb_endpoint_descriptor *ep_out,
-                                    const struct usb_endpoint_descriptor *ep_intr);
+    typedef bool (*ReadObjectCallback)
+            (void* data, uint32_t offset, uint32_t length, void* clientData);
+
+    MtpDevice(struct usb_device* device,
+              int interface,
+              const struct usb_endpoint_descriptor *ep_in,
+              const struct usb_endpoint_descriptor *ep_out,
+              const struct usb_endpoint_descriptor *ep_intr);
 
     static MtpDevice*       open(const char* deviceName, int fd);
 
@@ -105,10 +108,16 @@ public:
     MtpProperty*            getObjectPropDesc(MtpObjectProperty code, MtpObjectFormat format);
 
     bool                    readObject(MtpObjectHandle handle, ReadObjectCallback callback,
-                                    size_t objectSize, void* clientData);
+                                    uint32_t objectSize, void* clientData);
     bool                    readObject(MtpObjectHandle handle, const char* destPath, int group,
                                     int perm);
     bool                    readObject(MtpObjectHandle handle, int fd);
+    bool                    readPartialObject(MtpObjectHandle handle,
+                                              uint32_t offset,
+                                              uint32_t size,
+                                              uint32_t *writtenSize,
+                                              ReadObjectCallback callback,
+                                              void* clientData);
     // Starts a request to read MTP event from MTP device. It returns a request handle that
     // can be used for blocking read or cancel. If other thread has already been processing an
     // event returns -1.
@@ -124,8 +133,15 @@ public:
 
 private:
     // If |objectSize| is not NULL, it checks object size before reading data bytes.
-    bool                    readObjectInternal(MtpObjectHandle handle, ReadObjectCallback callback,
-                                     const size_t* objectSize, void* clientData);
+    bool                    readObjectInternal(MtpObjectHandle handle,
+                                               ReadObjectCallback callback,
+                                               const uint32_t* objectSize,
+                                               void* clientData);
+    // If |objectSize| is not NULL, it checks object size before reading data bytes.
+    bool                    readData(ReadObjectCallback callback,
+                                     const uint32_t* objectSize,
+                                     uint32_t* writtenData,
+                                     void* clientData);
     bool                    sendRequest(MtpOperationCode operation);
     bool                    sendData();
     bool                    readData();
