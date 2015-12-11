@@ -673,8 +673,10 @@ void coder(
             exc2[i] = exc[i] >> Q_new;
         }
         L_tmp = 0;
-        for (i = 0; i < L_FRAME; i++)
-            L_tmp += (exc2[i] * exc2[i])<<1;
+        for (i = 0; i < L_FRAME; i++) {
+            Word32 tmp = L_mult(exc2[i], exc2[i]); // (exc2[i] * exc2[i])<<1;
+            L_tmp = L_add(L_tmp, tmp);
+        }
         L_tmp >>= 1;
 
         dtx_buffer(st->dtx_encSt, isf, L_tmp, codec_mode);
@@ -1216,10 +1218,12 @@ void coder(
 
         for (i = 0; i < L_SUBFR; i++)
         {
+            Word32 tmp;
             /* code in Q9, gain_pit in Q14 */
             L_tmp = (gain_code * code[i])<<1;
             L_tmp = (L_tmp << 5);
-            L_tmp += (exc[i + i_subfr] * gain_pit)<<1;
+            tmp = L_mult(exc[i + i_subfr], gain_pit); // (exc[i + i_subfr] * gain_pit)<<1
+            L_tmp = L_add(L_tmp, tmp);
             L_tmp = L_shl2(L_tmp, 1);
             exc[i + i_subfr] = extract_h(L_add(L_tmp, 0x8000));
         }
@@ -1301,7 +1305,7 @@ void coder(
                 L_tmp = (L_tmp << 5);
                 L_tmp += (exc2[i] * gain_pit)<<1;
                 L_tmp = (L_tmp << 1);
-                exc2[i] = vo_round(L_tmp);
+                exc2[i] = voround(L_tmp);
             }
 
             corr_gain = synthesis(p_Aq, exc2, Q_new, &speech16k[i_subfr * 5 / 4], st);

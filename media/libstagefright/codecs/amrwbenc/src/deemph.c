@@ -64,24 +64,16 @@ void Deemph2(
     Word32 i;
     Word32 L_tmp;
     L_tmp = x[0] << 15;
-    L_tmp += ((*mem) * mu)<<1;
-    x[0] = (L_tmp + 0x8000)>>16;
+    i = L_mult(*mem, mu);
+    L_tmp = L_add(L_tmp, i);
+    x[0] = voround(L_tmp);
     for (i = 1; i < L; i++)
     {
         Word32 tmp;
         L_tmp = x[i] << 15;
         tmp = (x[i - 1] * mu)<<1;
-        if (tmp > 0 && L_tmp > INT_MAX - tmp) {
-            L_tmp = INT_MAX;
-        } else if (tmp < 0 && L_tmp < INT_MIN - tmp) {
-            L_tmp = INT_MIN;
-        } else {
-            L_tmp += tmp;
-        }
-        if (L_tmp > INT32_MAX - 0x8000) {
-            L_tmp = INT_MAX - 0x8000;
-        }
-        x[i] = (L_tmp + 0x8000)>>16;
+        L_tmp = L_add(L_tmp, tmp);
+        x[i] = voround(L_tmp);
     }
     *mem = x[L - 1];
     return;
