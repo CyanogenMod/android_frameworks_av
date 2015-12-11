@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "BatteryNotifier"
+//#define LOG_NDEBUG 0
+
 #include "include/mediautils/BatteryNotifier.h"
 
 #include <binder/IServiceManager.h>
@@ -64,7 +67,7 @@ void BatteryNotifier::noteResetVideo() {
     sp<IBatteryStats> batteryService = getBatteryService_l();
     mVideoRefCount = 0;
     if (batteryService != nullptr) {
-        batteryService->noteResetAudio();
+        batteryService->noteResetVideo();
     }
 }
 
@@ -72,7 +75,7 @@ void BatteryNotifier::noteStartAudio() {
     Mutex::Autolock _l(mLock);
     sp<IBatteryStats> batteryService = getBatteryService_l();
     if (mAudioRefCount == 0 && batteryService != nullptr) {
-        batteryService->noteStartAudio(AID_MEDIA);
+        batteryService->noteStartAudio(AID_AUDIOSERVER);
     }
     mAudioRefCount++;
 }
@@ -88,7 +91,7 @@ void BatteryNotifier::noteStopAudio() {
 
     mAudioRefCount--;
     if (mAudioRefCount == 0 && batteryService != nullptr) {
-        batteryService->noteStopAudio(AID_MEDIA);
+        batteryService->noteStopAudio(AID_AUDIOSERVER);
     }
 }
 
@@ -190,20 +193,25 @@ sp<IBatteryStats> BatteryNotifier::getBatteryService_l() {
         const String16 name("batterystats");
         mBatteryStatService = interface_cast<IBatteryStats>(sm->checkService(name));
         if (mBatteryStatService == nullptr) {
-            ALOGE("batterystats service unavailable!");
+            // this may occur normally during the init sequence as mediaserver
+            // and audioserver start before the batterystats service is available.
+            ALOGW("batterystats service unavailable!");
             return nullptr;
         }
 
         mDeathNotifier = new DeathNotifier();
         IInterface::asBinder(mBatteryStatService)->linkToDeath(mDeathNotifier);
 
-        // Notify start now if media already started
+        // Notify start now if mediaserver or audioserver is already started.
+        // 1) mediaserver and audioserver is started before batterystats service
+        // 2) batterystats server may have crashed.
         if (mVideoRefCount > 0) {
             mBatteryStatService->noteStartVideo(AID_MEDIA);
         }
         if (mAudioRefCount > 0) {
-            mBatteryStatService->noteStartAudio(AID_MEDIA);
+            mBatteryStatService->noteStartAudio(AID_AUDIOSERVER);
         }
+        // TODO: Notify for camera and flashlight state as well?
     }
     return mBatteryStatService;
 }
