@@ -205,9 +205,14 @@ Word32 Dot_product12(                      /* (o) Q31: normalized result (1 < va
     L_sum = 0;
     for (i = 0; i < lg; i++)
     {
-        L_sum += x[i] * y[i];
+        Word32 tmp = (Word32) x[i] * (Word32) y[i];
+        if (tmp == (Word32) 0x40000000L) {
+            tmp = MAX_32;
+        }
+        L_sum = L_add(L_sum, tmp);
     }
-    L_sum = (L_sum << 1) + 1;
+    L_sum = L_shl2(L_sum, 1);
+    L_sum = L_add(L_sum, 1);
     /* Normalize acc in Q31 */
     sft = norm_l(L_sum);
     L_sum = L_sum << sft;
