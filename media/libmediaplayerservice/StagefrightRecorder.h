@@ -199,6 +199,7 @@ protected:
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);
 
+    status_t setupWAVERecording();
 public:
     virtual status_t setSourcePause(bool pause);
 };

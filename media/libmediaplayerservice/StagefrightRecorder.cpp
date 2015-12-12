@@ -44,6 +44,7 @@
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/WAVEWriter.h>
 #include <media/MediaProfiles.h>
 #include <camera/ICamera.h>
 #include <camera/CameraParameters.h>
@@ -822,6 +823,10 @@ status_t StagefrightRecorder::prepareInternal() {
             status = setupMPEG2TSRecording();
             break;
 
+        case OUTPUT_FORMAT_WAVE:
+            status = setupWAVERecording();
+            break;
+
         default:
             if (handleCustomRecording() != OK) {
                 ALOGE("Unsupported output file format: %d", mOutputFormat);
@@ -899,6 +904,7 @@ status_t StagefrightRecorder::start() {
         case OUTPUT_FORMAT_AAC_ADTS:
         case OUTPUT_FORMAT_RTP_AVP:
         case OUTPUT_FORMAT_MPEG2TS:
+        case OUTPUT_FORMAT_WAVE:
         {
             status = mWriter->start();
             break;
@@ -990,6 +996,9 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         case AUDIO_ENCODER_AAC_ELD:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             format->setInt32("aac-profile", OMX_AUDIO_AACObjectELD);
+            break;
+        case AUDIO_ENCODER_LPCM:
+            format->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
             break;
 
         default:
@@ -1191,6 +1200,15 @@ status_t StagefrightRecorder::setupMPEG2TSRecording() {
     mWriter = writer;
 
     return OK;
+}
+
+status_t StagefrightRecorder::setupWAVERecording() {
+    CHECK(mOutputFormat == OUTPUT_FORMAT_WAVE);
+    CHECK(mAudioEncoder == AUDIO_ENCODER_LPCM);
+    CHECK(mAudioSource != AUDIO_SOURCE_CNT);
+
+    mWriter = new WAVEWriter(mOutputFd);
+    return setupRawAudioRecording();
 }
 
 void StagefrightRecorder::clipVideoFrameRate() {
@@ -1662,6 +1680,7 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
         case AUDIO_ENCODER_AAC:
         case AUDIO_ENCODER_HE_AAC:
         case AUDIO_ENCODER_AAC_ELD:
+        case AUDIO_ENCODER_LPCM:
             break;
 
         default:
