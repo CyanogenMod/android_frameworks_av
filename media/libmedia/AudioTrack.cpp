@@ -1297,7 +1297,7 @@ status_t AudioTrack::createTrack_l()
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
-    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+    if ((mFlags & AUDIO_OUTPUT_FLAG_DIRECT) || mTrackOffloaded) {
         trackFlags |= IAudioFlinger::TRACK_DIRECT;
     }
 
