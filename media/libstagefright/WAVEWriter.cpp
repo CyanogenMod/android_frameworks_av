@@ -265,7 +265,7 @@ status_t WAVEWriter::threadFunc() {
             mResumed = false;
         }
         timestampUs -= previousPausedDurationUs;
-        ALOGV("time stamp: %lld, previous paused duration: %lld",
+        ALOGV("time stamp: %" PRId64 " previous paused duration: %" PRId64
                 timestampUs, previousPausedDurationUs);
         if (timestampUs > maxTimestampUs) {
             maxTimestampUs = timestampUs;
