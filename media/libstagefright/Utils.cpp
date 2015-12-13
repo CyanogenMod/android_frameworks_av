@@ -74,7 +74,7 @@ uint64_t hton64(uint64_t x) {
     return ((uint64_t)htonl(x & 0xffffffff) << 32) | htonl(x >> 32);
 }
 
-static status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_t length) {
+status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_t length) {
     if (((*buffer)->size() + 4 + length) > ((*buffer)->capacity() - (*buffer)->offset())) {
         sp<ABuffer> tmpBuffer = new (std::nothrow) ABuffer((*buffer)->size() + 4 + length + 1024);
         if (tmpBuffer.get() == NULL || tmpBuffer->base() == NULL) {

@@ -38,6 +38,8 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaCodec.h>
+#include <media/stagefright/MPEG4Writer.h>
+#include <media/stagefright/Utils.h>
 
 #ifdef QCOM_HARDWARE
 #include "QCMediaDefs.h"
@@ -51,6 +53,10 @@
 #include "stagefright/AVExtensions.h"
 
 namespace android {
+
+static const uint8_t kHEVCNalUnitTypeVidParamSet = 0x20;
+static const uint8_t kHEVCNalUnitTypeSeqParamSet = 0x21;
+static const uint8_t kHEVCNalUnitTypePicParamSet = 0x22;
 
 enum MetaKeyType{
     INT32, INT64, STRING, DATA, CSD
@@ -373,38 +379,591 @@ bool AVUtils::isEnhancedExtension(const char *) {
     return false;
 }
 
-bool AVUtils::HEVCMuxer::reassembleHEVCCSD(const AString &/*mime*/, sp<ABuffer> /*csd0*/, sp<MetaData> &/*meta*/) {
+bool AVUtils::HEVCMuxer::reassembleHEVCCSD(const AString &mime, sp<ABuffer> csd0, sp<MetaData> &meta) {
+    if (!isVideoHEVC(mime.c_str())) {
+        return false;
+    }
+    uint32_t type;
+    const void *data;
+    size_t size;
+    if (meta->findData(kKeyHVCC, &type, &data, &size)) {
+        const uint8_t *ptr = (const uint8_t *)data;
+
+        CHECK(size >= 7);
+        uint8_t profile = ptr[1] & 31;
+        uint8_t level = ptr[12];
+        ptr += 22;
+        size -= 22;
+
+
+        size_t numofArrays = (char)ptr[0];
+        ptr += 1;
+        size -= 1;
+        size_t j = 0, i = 0;
+
+        csd0->setRange(0, 0);
+
+        for (i = 0; i < numofArrays; i++) {
+            ptr += 1;
+            size -= 1;
+
+            //Num of nals
+            size_t numofNals = U16_AT(ptr);
+
+            ptr += 2;
+            size -= 2;
+
+            for (j = 0; j < numofNals; j++) {
+                CHECK(size >= 2);
+                size_t length = U16_AT(ptr);
+
+                ptr += 2;
+                size -= 2;
+
+                if (size < length) {
+                    return false;
+                }
+                status_t err = copyNALUToABuffer(&csd0, ptr, length);
+                if (err != OK) {
+                    return false;
+                }
+
+                ptr += length;
+                size -= length;
+            }
+        }
+        csd0->meta()->setInt32("csd", true);
+        csd0->meta()->setInt64("timeUs", 0);
+        return true;
+    }
     return false;
 }
 
-void AVUtils::HEVCMuxer::writeHEVCFtypBox(MPEG4Writer * /*writer*/) {
-    return;
+void AVUtils::HEVCMuxer::writeHEVCFtypBox(MPEG4Writer *writer) {
+    ALOGV("writeHEVCFtypBox called");
+    writer->writeFourcc("3gp5");
+    writer->writeInt32(0);
+    writer->writeFourcc("hvc1");
+    writer->writeFourcc("hev1");
+    writer->writeFourcc("3gp5");
 }
 
-status_t AVUtils::HEVCMuxer::makeHEVCCodecSpecificData(const uint8_t * /*data*/,
-        size_t /*size*/, void ** /*codecSpecificData*/,
-        size_t * /*codecSpecificDataSize*/) {
-    return UNKNOWN_ERROR;
+status_t AVUtils::HEVCMuxer::makeHEVCCodecSpecificData(
+                         const uint8_t *data, size_t size, void** codecSpecificData,
+                         size_t *codecSpecificDataSize) {
+    ALOGV("makeHEVCCodecSpecificData called");
+
+    if (*codecSpecificData != NULL) {
+        ALOGE("Already have codec specific data");
+        return ERROR_MALFORMED;
+    }
+
+    if (size < 4) {
+        ALOGE("Codec specific data length too short: %zu", size);
+        return ERROR_MALFORMED;
+    }
+
+    // Data is in the form of HVCCodecSpecificData
+    if (memcmp("\x00\x00\x00\x01", data, 4)) {
+        // 23 byte fixed header
+        if (size < 23) {
+            ALOGE("Codec specific data length too short: %zu", size);
+            return ERROR_MALFORMED;
+        }
+
+        *codecSpecificData = malloc(size);
+
+        if (*codecSpecificData != NULL) {
+            *codecSpecificDataSize = size;
+            memcpy(*codecSpecificData, data, size);
+            return OK;
+        }
+
+        return NO_MEMORY;
+    }
+
+    List<HEVCParamSet> vidParamSets;
+    List<HEVCParamSet> seqParamSets;
+    List<HEVCParamSet> picParamSets;
+
+    if ((*codecSpecificDataSize = parseHEVCCodecSpecificData(data, size,
+                                   vidParamSets, seqParamSets, picParamSets)) <= 0) {
+        ALOGE("cannot parser codec specific data, bailing out");
+        return ERROR_MALFORMED;
+    }
+
+    size_t numOfNALArray = 0;
+    bool doneWritingVPS = true, doneWritingSPS = true, doneWritingPPS = true;
+
+    if (!vidParamSets.empty()) {
+        doneWritingVPS = false;
+        ++numOfNALArray;
+    }
+
+    if (!seqParamSets.empty()) {
+       doneWritingSPS = false;
+       ++numOfNALArray;
+    }
+
+    if (!picParamSets.empty()) {
+       doneWritingPPS = false;
+       ++numOfNALArray;
+    }
+
+    //additional 23 bytes needed (22 bytes for hvc1 header + 1 byte for number of arrays)
+    *codecSpecificDataSize += 23;
+    //needed 3 bytes per NAL array
+    *codecSpecificDataSize += 3 * numOfNALArray;
+
+    int count = 0;
+    void *codecConfigData = malloc(*codecSpecificDataSize);
+    if (codecSpecificData == NULL) {
+        ALOGE("Failed to allocate memory, bailing out");
+        return NO_MEMORY;
+    }
+
+    uint8_t *header = (uint8_t *)codecConfigData;
+    // 8  - bit version
+    header[0]  = 1;
+    //Profile space 2 bit, tier flag 1 bit and profile IDC 5 bit
+    header[1]  = 0x00;
+    // 32 - bit compatibility flag
+    header[2]  = 0x00;
+    header[3]  = 0x00;
+    header[4]  = 0x00;
+    header[5]  = 0x00;
+    // 48 - bit general constraint indicator flag
+    header[6]  = header[7]  = header[8]  = 0x00;
+    header[9]  = header[10] = header[11] = 0x00;
+    // 8  - bit general IDC level
+    header[12] = 0x00;
+    // 4  - bit reserved '1111'
+    // 12 - bit spatial segmentation idc
+    header[13] = 0xf0;
+    header[14] = 0x00;
+    // 6  - bit reserved '111111'
+    // 2  - bit parallelism Type
+    header[15] = 0xfc;
+    // 6  - bit reserved '111111'
+    // 2  - bit chromaFormat
+    header[16] = 0xfc;
+    // 5  - bit reserved '11111'
+    // 3  - bit DepthLumaMinus8
+    header[17] = 0xf8;
+    // 5  - bit reserved '11111'
+    // 3  - bit DepthChromaMinus8
+    header[18] = 0xf8;
+    // 16 - bit average frame rate
+    header[19] = header[20] = 0x00;
+    // 2  - bit constant frame rate
+    // 3  - bit num temporal layers
+    // 1  - bit temoral nested
+    // 2  - bit lengthSizeMinusOne
+    header[21] = 0x07;
+
+    // 8-bit number of NAL types
+    header[22] = (uint8_t)numOfNALArray;
+
+    header += 23;
+    count  += 23;
+
+    bool ifProfileIDCAlreadyFilled = false;
+
+    if (!doneWritingVPS) {
+        doneWritingVPS = true;
+        ALOGV("Writing VPS");
+        //8-bit, last 6 bit for NAL type
+        header[0] = 0x20; // NAL type is VPS
+        //16-bit, number of nal Units
+        uint16_t vidParamSetLength = vidParamSets.size();
+        header[1] = vidParamSetLength >> 8;
+        header[2] = vidParamSetLength & 0xff;
+
+        header += 3;
+        count  += 3;
+
+        for (List<HEVCParamSet>::iterator it = vidParamSets.begin();
+            it != vidParamSets.end(); ++it) {
+            // 16-bit video parameter set length
+            uint16_t vidParamSetLength = it->mLength;
+            header[0] = vidParamSetLength >> 8;
+            header[1] = vidParamSetLength & 0xff;
+
+            extractNALRBSPData(it->mData, it->mLength,
+                               (uint8_t **)&codecConfigData,
+                               &ifProfileIDCAlreadyFilled);
+
+            // VPS NAL unit (video parameter length bytes)
+            memcpy(&header[2], it->mData, vidParamSetLength);
+            header += (2 + vidParamSetLength);
+            count  += (2 + vidParamSetLength);
+        }
+    }
+
+    if (!doneWritingSPS) {
+        doneWritingSPS = true;
+        ALOGV("Writting SPS");
+        //8-bit, last 6 bit for NAL type
+        header[0] = 0x21; // NAL type is SPS
+        //16-bit, number of nal Units
+        uint16_t seqParamSetLength = seqParamSets.size();
+        header[1] = seqParamSetLength >> 8;
+        header[2] = seqParamSetLength & 0xff;
+
+        header += 3;
+        count  += 3;
+
+        for (List<HEVCParamSet>::iterator it = seqParamSets.begin();
+              it != seqParamSets.end(); ++it) {
+            // 16-bit sequence parameter set length
+            uint16_t seqParamSetLength = it->mLength;
+
+            // 16-bit number of NAL units of this type
+            header[0] = seqParamSetLength >> 8;
+            header[1] = seqParamSetLength & 0xff;
+
+            extractNALRBSPData(it->mData, it->mLength,
+                               (uint8_t **)&codecConfigData,
+                               &ifProfileIDCAlreadyFilled);
+
+            // SPS NAL unit (sequence parameter length bytes)
+            memcpy(&header[2], it->mData, seqParamSetLength);
+            header += (2 + seqParamSetLength);
+            count  += (2 + seqParamSetLength);
+        }
+    }
+
+    if (!doneWritingPPS) {
+        doneWritingPPS = true;
+        ALOGV("writing PPS");
+        //8-bit, last 6 bit for NAL type
+        header[0] = 0x22; // NAL type is PPS
+        //16-bit, number of nal Units
+        uint16_t picParamSetLength = picParamSets.size();
+        header[1] = picParamSetLength >> 8;
+        header[2] = picParamSetLength & 0xff;
+
+        header += 3;
+        count  += 3;
+
+        for (List<HEVCParamSet>::iterator it = picParamSets.begin();
+             it != picParamSets.end(); ++it) {
+            // 16-bit picture parameter set length
+            uint16_t picParamSetLength = it->mLength;
+            header[0] = picParamSetLength >> 8;
+            header[1] = picParamSetLength & 0xff;
+
+            // PPS Nal unit (picture parameter set length bytes)
+            memcpy(&header[2], it->mData, picParamSetLength);
+            header += (2 + picParamSetLength);
+            count  += (2 + picParamSetLength);
+        }
+    }
+    *codecSpecificData = codecConfigData;
+    return OK;
 }
 
-const char *AVUtils::HEVCMuxer::getFourCCForMime(const char * /*mime*/) {
+const char *AVUtils::HEVCMuxer::getFourCCForMime(const char * mime) {
+    if (isVideoHEVC(mime)) {
+        return "hvc1";
+    }
     return NULL;
 }
 
-void AVUtils::HEVCMuxer::writeHvccBox(MPEG4Writer * /*writer*/,
-        void * /*codecSpecificData*/, size_t /*codecSpecificDataSize*/,
-        bool /*useNalLengthFour*/) {
-    return;
+void AVUtils::HEVCMuxer::writeHvccBox(MPEG4Writer *writer,
+        void *codecSpecificData, size_t codecSpecificDataSize,
+        bool useNalLengthFour) {
+    ALOGV("writeHvccBox called");
+    CHECK(codecSpecificData);
+    CHECK_GE(codecSpecificDataSize, 23);
+
+    // Patch hvcc's lengthSize field to match the number
+    // of bytes we use to indicate the size of a nal unit.
+    uint8_t *ptr = (uint8_t *)codecSpecificData;
+    ptr[21] = (ptr[21] & 0xfc) | (useNalLengthFour? 3 : 1);
+    writer->beginBox("hvcC");
+    writer->write(codecSpecificData, codecSpecificDataSize);
+    writer->endBox();  // hvcC
 }
 
-bool AVUtils::HEVCMuxer::isVideoHEVC(const char * /*mime*/) {
-    return false;
+bool AVUtils::HEVCMuxer::isVideoHEVC(const char * mime) {
+    return (!strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC,
+                         strlen(MEDIA_MIMETYPE_VIDEO_HEVC)));
+}
+
+status_t AVUtils::HEVCMuxer::extractNALRBSPData(const uint8_t *data,
+                                            size_t size,
+                                            uint8_t **header,
+                                            bool *alreadyFilled) {
+    ALOGV("extractNALRBSPData called");
+    CHECK_GE(size, 2);
+
+    uint8_t type = data[0] >> 1;
+    type = 0x3f & type;
+
+    //start parsing here
+    size_t rbspSize = 0;
+    uint8_t *rbspData = (uint8_t *) malloc(size);
+
+    if (rbspData == NULL) {
+        ALOGE("allocation failed");
+        return UNKNOWN_ERROR;
+    }
+
+    //populate rbsp data start from i+2, search for 0x000003,
+    //and ignore emulation_prevention byte
+    size_t itt = 2;
+    while (itt < size) {
+        if ((itt+2 < size) && (!memcmp("\x00\x00\x03", &data[itt], 3) )) {
+            rbspData[rbspSize++] = data[itt++];
+            rbspData[rbspSize++] = data[itt++];
+            itt++;
+        } else {
+            rbspData[rbspSize++] = data[itt++];
+        }
+    }
+
+    uint8_t maxSubLayerMinus1 = 0;
+
+    //parser profileTierLevel
+    if (type == kHEVCNalUnitTypeVidParamSet) { // if VPS
+        ALOGV("its VPS ... start with 5th byte");
+        if (rbspSize < 5) {
+            free(rbspData);
+            return ERROR_MALFORMED;
+        }
+
+        maxSubLayerMinus1 = 0x0E & rbspData[1];
+        maxSubLayerMinus1 = maxSubLayerMinus1 >> 1;
+        parserProfileTierLevel(&rbspData[4], rbspSize - 4, header, alreadyFilled);
+
+    } else if (type == kHEVCNalUnitTypeSeqParamSet) {
+        ALOGV("its SPS .. start with 2nd byte");
+        if (rbspSize < 2) {
+            free(rbspData);
+            return ERROR_MALFORMED;
+        }
+
+        maxSubLayerMinus1 = 0x0E & rbspData[0];
+        maxSubLayerMinus1 = maxSubLayerMinus1 >> 1;
+
+        parserProfileTierLevel(&rbspData[1], rbspSize - 1, header, alreadyFilled);
+    }
+    free(rbspData);
+    return OK;
+}
+
+status_t AVUtils::HEVCMuxer::parserProfileTierLevel(const uint8_t *data, size_t size,
+                                                     uint8_t **header, bool *alreadyFilled) {
+    CHECK_GE(size, 12);
+    uint8_t *tmpHeader = *header;
+    ALOGV("parserProfileTierLevel called");
+    uint8_t generalProfileSpace; //2 bit
+    uint8_t generalTierFlag;     //1 bit
+    uint8_t generalProfileIdc;   //5 bit
+    uint8_t generalProfileCompatibilityFlag[4];
+    uint8_t generalConstraintIndicatorFlag[6];
+    uint8_t generalLevelIdc;     //8 bit
+
+    // Need first 12 bytes
+
+    // First byte will give below info
+    generalProfileSpace = 0xC0 & data[0];
+    generalProfileSpace = generalProfileSpace > 6;
+    generalTierFlag = 0x20 & data[0];
+    generalTierFlag = generalTierFlag > 5;
+    generalProfileIdc = 0x1F & data[0];
+
+    // Next 4 bytes is compatibility flag
+    memcpy(&generalProfileCompatibilityFlag, &data[1], 4);
+
+    // Next 6 bytes is constraint indicator flag
+    memcpy(&generalConstraintIndicatorFlag, &data[5], 6);
+
+    // Next 1 byte is general Level IDC
+    generalLevelIdc = data[11];
+
+    if (*alreadyFilled) {
+        bool overwriteTierValue = false;
+
+        //find profile space
+        uint8_t prvGeneralProfileSpace; //2 bit
+        prvGeneralProfileSpace = 0xC0 & tmpHeader[1];
+        prvGeneralProfileSpace = prvGeneralProfileSpace > 6;
+        //prev needs to be same as current
+        if (prvGeneralProfileSpace != generalProfileSpace) {
+            ALOGW("Something wrong!!! profile space mismatch");
+        }
+
+        uint8_t prvGeneralTierFlag = 0x20 & tmpHeader[1];
+        prvGeneralTierFlag = prvGeneralTierFlag > 5;
+
+        if (prvGeneralTierFlag < generalTierFlag) {
+            overwriteTierValue = true;
+            ALOGV("Found higher tier value, replacing old one");
+        }
+
+        uint8_t prvGeneralProfileIdc = 0x1F & tmpHeader[1];
+
+        if (prvGeneralProfileIdc != generalProfileIdc) {
+            ALOGW("Something is wrong!!! profile space mismatch");
+        }
+
+        if (overwriteTierValue) {
+            tmpHeader[1] = data[0];
+        }
+
+        //general level IDC should be set highest among all
+        if (tmpHeader[12] < data[11]) {
+            tmpHeader[12] = data[11];
+            ALOGV("Found higher level IDC value, replacing old one");
+        }
+
+    } else {
+        *alreadyFilled = true;
+        tmpHeader[1] = data[0];
+        memcpy(&tmpHeader[2], &data[1], 4);
+        memcpy(&tmpHeader[6], &data[5], 6);
+        tmpHeader[12] = data[11];
+    }
+
+    char printCodecConfig[PROPERTY_VALUE_MAX];
+    property_get("hevc.mux.print.codec.config", printCodecConfig, "0");
+
+    if (atoi(printCodecConfig)) {
+        //if property enabled, print these values
+        ALOGI("Start::-----------------");
+        ALOGI("generalProfileSpace = %2x", generalProfileSpace);
+        ALOGI("generalTierFlag     = %2x", generalTierFlag);
+        ALOGI("generalProfileIdc   = %2x", generalProfileIdc);
+        ALOGI("generalLevelIdc     = %2x", generalLevelIdc);
+        ALOGI("generalProfileCompatibilityFlag = %2x %2x %2x %2x", generalProfileCompatibilityFlag[0],
+               generalProfileCompatibilityFlag[1], generalProfileCompatibilityFlag[2],
+               generalProfileCompatibilityFlag[3]);
+        ALOGI("generalConstraintIndicatorFlag = %2x %2x %2x %2x %2x %2x", generalConstraintIndicatorFlag[0],
+               generalConstraintIndicatorFlag[1], generalConstraintIndicatorFlag[2],
+               generalConstraintIndicatorFlag[3], generalConstraintIndicatorFlag[4],
+               generalConstraintIndicatorFlag[5]);
+        ALOGI("End::-----------------");
+    }
+
+    return OK;
+}
+static const uint8_t *findNextStartCode(
+       const uint8_t *data, size_t length) {
+    ALOGV("findNextStartCode: %p %d", data, length);
+
+    size_t bytesLeft = length;
+
+    while (bytesLeft > 4 &&
+            memcmp("\x00\x00\x00\x01", &data[length - bytesLeft], 4)) {
+        --bytesLeft;
+    }
+
+    if (bytesLeft <= 4) {
+        bytesLeft = 0; // Last parameter set
+    }
+
+    return &data[length - bytesLeft];
+}
+
+const uint8_t *AVUtils::HEVCMuxer::parseHEVCParamSet(
+        const uint8_t *data, size_t length, List<HEVCParamSet> &paramSetList, size_t *paramSetLen) {
+    ALOGV("parseHEVCParamSet called");
+    const uint8_t *nextStartCode = findNextStartCode(data, length);
+    *paramSetLen = nextStartCode - data;
+    if (*paramSetLen == 0) {
+        ALOGE("Param set is malformed, since its length is 0");
+        return NULL;
+    }
+
+    HEVCParamSet paramSet(*paramSetLen, data);
+    paramSetList.push_back(paramSet);
+
+    return nextStartCode;
+}
+
+static void getHEVCNalUnitType(uint8_t byte, uint8_t* type) {
+    ALOGV("getNalUnitType: %d", (int)byte);
+    // nal_unit_type: 6-bit unsigned integer
+    *type = (byte & 0x7E) >> 1;
+}
+
+size_t AVUtils::HEVCMuxer::parseHEVCCodecSpecificData(
+        const uint8_t *data, size_t size,List<HEVCParamSet> &vidParamSet,
+        List<HEVCParamSet> &seqParamSet, List<HEVCParamSet> &picParamSet ) {
+    ALOGV("parseHEVCCodecSpecificData called");
+    // Data starts with a start code.
+    // VPS, SPS and PPS are separated with start codes.
+    uint8_t type = kHEVCNalUnitTypeVidParamSet;
+    bool gotVps = false;
+    bool gotSps = false;
+    bool gotPps = false;
+    const uint8_t *tmp = data;
+    const uint8_t *nextStartCode = data;
+    size_t bytesLeft = size;
+    size_t paramSetLen = 0;
+    size_t codecSpecificDataSize = 0;
+    while (bytesLeft > 4 && !memcmp("\x00\x00\x00\x01", tmp, 4)) {
+        getHEVCNalUnitType(*(tmp + 4), &type);
+        if (type == kHEVCNalUnitTypeVidParamSet) {
+            nextStartCode = parseHEVCParamSet(tmp + 4, bytesLeft - 4, vidParamSet, &paramSetLen);
+            if (!gotVps) {
+                gotVps = true;
+            }
+        } else if (type == kHEVCNalUnitTypeSeqParamSet) {
+            nextStartCode = parseHEVCParamSet(tmp + 4, bytesLeft - 4, seqParamSet, &paramSetLen);
+            if (!gotSps) {
+                gotSps = true;
+            }
+
+        } else if (type == kHEVCNalUnitTypePicParamSet) {
+            nextStartCode = parseHEVCParamSet(tmp + 4, bytesLeft - 4, picParamSet, &paramSetLen);
+            if (!gotPps) {
+                gotPps = true;
+            }
+        } else {
+            ALOGE("Only VPS, SPS and PPS Nal units are expected");
+            return ERROR_MALFORMED;
+        }
+
+        if (nextStartCode == NULL) {
+            ALOGE("Next start code is NULL");
+            return ERROR_MALFORMED;
+        }
+
+        // Move on to find the next parameter set
+        bytesLeft -= nextStartCode - tmp;
+        tmp = nextStartCode;
+        codecSpecificDataSize += (2 + paramSetLen);
+    }
+
+#if 0
+//not adding this check now, but might be needed
+    if (!gotVps || !gotVps || !gotVps ) {
+        return 0;
+    }
+#endif
+
+    return codecSpecificDataSize;
 }
 
 void AVUtils::HEVCMuxer::getHEVCCodecSpecificDataFromInputFormatIfPossible(
-        sp<MetaData> /*meta*/, void ** /*codecSpecificData*/,
-        size_t * /*codecSpecificDataSize*/, bool * /*gotAllCodecSpecificData*/) {
-    return;
+    sp<MetaData> meta, void ** codecSpecificData,
+    size_t * codecSpecificDataSize, bool * gotAllCodecSpecificData) {
+    uint32_t type;
+    const void *data;
+    size_t size;
+    //kKeyHVCC needs to be populated
+    if (meta->findData(kKeyHVCC, &type, &data, &size)) {
+        *codecSpecificData = malloc(size);
+        CHECK(*codecSpecificData != NULL);
+        *codecSpecificDataSize = size;
+        memcpy(*codecSpecificData, data, size);
+        *gotAllCodecSpecificData = true;
+    } else {
+        ALOGW("getHEVCCodecConfigData:: failed to find kKeyHvcc");
+    }
 }
 
 bool AVUtils::isAudioMuxFormatSupported(const char *) {
@@ -432,7 +991,7 @@ AVUtils::~AVUtils() {}
 
 //static
 AVUtils *AVUtils::sInst =
-        ExtensionsLoader<AVUtils>::createInstance("createExtendedUtils");
+        ExtensionsLoader<AVUtils>::createInstance("createAVUtils");
 
 } //namespace android
 

@@ -189,7 +189,30 @@ struct AVUtils {
         HEVCMuxer() {};
         virtual ~HEVCMuxer() {};
         friend struct AVUtils;
+
+    private:
+        struct HEVCParamSet {
+            HEVCParamSet(uint16_t length, const uint8_t *data)
+                   : mLength(length), mData(data) {}
+
+            uint16_t mLength;
+            const uint8_t *mData;
+        };
+
+        status_t extractNALRBSPData(const uint8_t *data, size_t size,
+                uint8_t **header, bool *alreadyFilled);
+
+        status_t parserProfileTierLevel(const uint8_t *data, size_t size,
+                uint8_t **header, bool *alreadyFilled);
+
+        const uint8_t *parseHEVCParamSet(const uint8_t *data, size_t length,
+                List<HEVCParamSet> &paramSetList, size_t *paramSetLen);
+
+        size_t parseHEVCCodecSpecificData(const uint8_t *data, size_t size,
+                List<HEVCParamSet> &vidParamSet, List<HEVCParamSet> &seqParamSet,
+                List<HEVCParamSet> &picParamSet );
     };
+
 
     virtual inline HEVCMuxer& HEVCMuxerUtils() {
          return mHEVCMuxer;

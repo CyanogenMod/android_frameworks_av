@@ -18,6 +18,7 @@
 
 #define UTILS_H_
 
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/AString.h>
 #include <stdint.h>
 #include <utils/Errors.h>
@@ -90,6 +91,8 @@ audio_format_t getPCMFormat(const sp<AMessage> &format);
 void updateVideoTrackInfoFromESDS_MPEG4Video(sp<MetaData> meta);
 bool checkDPFromVOLHeader(const uint8_t *ptr, size_t size);
 bool checkDPFromCodecSpecificData(const uint8_t *ptr, size_t size);
+
+status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_t length);
 
 }  // namespace android
 
