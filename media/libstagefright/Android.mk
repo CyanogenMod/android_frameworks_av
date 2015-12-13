@@ -173,8 +173,12 @@ LOCAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
 endif
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
     LOCAL_CFLAGS += -DQTI_FLAC_DECODER
+endif
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DFLAC_OFFLOAD_ENABLED
 endif
 endif
 
@@ -191,7 +195,7 @@ endif
 # FFMPEG plugin
 LOCAL_C_INCLUDES += $(TOP)/external/stagefright-plugins/include
 
-LOCAL_CFLAGS += -DLOG_NDEBUG=0
+#LOCAL_CFLAGS += -DLOG_NDEBUG=0
 
 ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT

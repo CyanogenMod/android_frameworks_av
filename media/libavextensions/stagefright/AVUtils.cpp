@@ -42,6 +42,9 @@
 #ifdef QCOM_HARDWARE
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
+#ifdef FLAC_OFFLOAD_ENABLED
+#include "audio_defs.h"
+#endif
 #endif
 
 #include "common/ExtensionsLoader.hpp"
@@ -84,6 +87,12 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyUseArbitraryMode     , "use-arbitrary-mode"     , INT32},  //bool (int32_t)
    {kKeySmoothStreaming      , "smooth-streaming"       , INT32},  //bool (int32_t)
    {kKeyHFR                  , "hfr"                    , INT32},  // int32_t
+#ifdef FLAC_OFFLOAD_ENABLED
+   {kKeyMinBlkSize           , "min-block-size"         , INT32},
+   {kKeyMaxBlkSize           , "max-block-size"         , INT32},
+   {kKeyMinFrmSize           , "min-frame-size"         , INT32},
+   {kKeyMaxFrmSize           , "max-frame-size"         , INT32},
+#endif
 #endif
 
 
@@ -221,16 +230,16 @@ status_t AVUtils::sendMetaDataToHal(
 #ifdef FLAC_OFFLOAD_ENABLED
     int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
     if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
     }
     if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
     }
     if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
     }
     if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
-        param.addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
     }
 #else
     (void)meta;
