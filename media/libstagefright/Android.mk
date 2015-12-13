@@ -155,7 +155,7 @@ LOCAL_SHARED_LIBRARIES += \
         libdl \
         libRScpp \
 
-LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
+LOCAL_CFLAGS += -Werror -Wno-multichar -Wno-error=deprecated-declarations
 
 ifeq ($(TARGET_USES_QCOM_BSP), true)
     LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libgralloc
@@ -174,8 +174,12 @@ LOCAL_CFLAGS += -DBOARD_CANT_REALLOCATE_OMX_BUFFERS
 endif
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FLAC_DECODER)),true)
     LOCAL_CFLAGS += -DQTI_FLAC_DECODER
+endif
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
+    LOCAL_CFLAGS += -DFLAC_OFFLOAD_ENABLED
 endif
 endif
 
