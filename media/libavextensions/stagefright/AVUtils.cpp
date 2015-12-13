@@ -29,6 +29,8 @@
 
 #define LOG_TAG "AVUtils"
 #include <utils/Log.h>
+#include <utils/StrongPointer.h>
+#include <cutils/properties.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -38,6 +40,9 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaCodec.h>
+
+#include <binder/IPCThreadState.h>
+#include <camera/CameraParameters.h>
 
 #include "common/ExtensionsLoader.hpp"
 #include "stagefright/AVExtensions.h"
@@ -129,12 +134,43 @@ bool AVUtils::isEnhancedExtension(const char *) {
     return false;
 }
 
-bool AVUtils::isAudioMuxFormatSupported(const char *) {
-    return true;
+
+bool AVUtils::isAudioMuxFormatSupported(const char * mime) {
+    if (mime == NULL) {
+        ALOGE("NULL audio mime type");
+        return false;
+    }
+
+    if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)
+            || !strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
+        return true;
+    }
+    return false;
 }
 
-void AVUtils::cacheCaptureBuffers(sp<hardware::ICamera>, video_encoder) {
-    return;
+void AVUtils::cacheCaptureBuffers(sp<hardware::ICamera> camera, video_encoder encoder) {
+    if (camera != NULL) {
+        char mDeviceName[PROPERTY_VALUE_MAX];
+        property_get("ro.board.platform", mDeviceName, "0");
+        if (!strncmp(mDeviceName, "msm8909", 7)) {
+            int64_t token = IPCThreadState::self()->clearCallingIdentity();
+            String8 s = camera->getParameters();
+            CameraParameters params(s);
+            const char *enable;
+            if (encoder == VIDEO_ENCODER_H263 ||
+                encoder == VIDEO_ENCODER_MPEG_4_SP) {
+                enable = "1";
+            } else {
+                enable = "0";
+            }
+            params.set("cache-video-buffers", enable);
+            if (camera->setParameters(params.flatten()) != OK) {
+                ALOGE("Failed to enabled cached camera buffers");
+            }
+            IPCThreadState::self()->restoreCallingIdentity(token);
+        }
+    }
 }
 
 const char *AVUtils::getCustomCodecsLocation() {
