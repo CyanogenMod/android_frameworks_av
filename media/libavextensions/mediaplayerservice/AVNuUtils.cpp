@@ -228,6 +228,9 @@ void AVNuUtils::setPCMFormat(const sp<AMessage> &format, audio_format_t audioFor
 }
 
 void AVNuUtils::setSourcePCMFormat(const sp<MetaData> &audioMeta) {
+    if (!isRAWFormat(audioMeta))
+        return;
+
     audio_format_t pcmFormat = getKeyPCMFormat(audioMeta);
     ALOGI("setSourcePCMFormat fmt=%x", pcmFormat);
     audioMeta->dumpToLog();
