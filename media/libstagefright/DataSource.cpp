@@ -232,7 +232,9 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer_l(SniffMatroska);
     RegisterSniffer_l(SniffOgg);
     RegisterSniffer_l(SniffWAV);
+#ifndef FLAC_OFFLOAD_ENABLED
     RegisterSniffer_l(SniffFLAC);
+#endif
     RegisterSniffer_l(SniffAMR);
     RegisterSniffer_l(SniffMPEG2TS);
     RegisterSniffer_l(SniffMP3);

@@ -42,7 +42,7 @@
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/Utils.h>
 
-#ifdef QCOM_HARDWARE
+#if defined(QCOM_HARDWARE) || defined(FLAC_OFFLOAD_ENABLED)
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
 #ifdef FLAC_OFFLOAD_ENABLED
@@ -97,12 +97,12 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyUseArbitraryMode     , "use-arbitrary-mode"     , INT32},  //bool (int32_t)
    {kKeySmoothStreaming      , "smooth-streaming"       , INT32},  //bool (int32_t)
    {kKeyHFR                  , "hfr"                    , INT32},  // int32_t
+#endif
 #ifdef FLAC_OFFLOAD_ENABLED
    {kKeyMinBlkSize           , "min-block-size"         , INT32},
    {kKeyMaxBlkSize           , "max-block-size"         , INT32},
    {kKeyMinFrmSize           , "min-frame-size"         , INT32},
    {kKeyMaxFrmSize           , "max-frame-size"         , INT32},
-#endif
 #endif
 
 

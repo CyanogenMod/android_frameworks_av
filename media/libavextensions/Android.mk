@@ -17,14 +17,14 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
-ifeq ($(call is-vendor-board-platform,QCOM),true)
 LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
+
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
 endif
+
 ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
        LOCAL_CFLAGS += -DFLAC_OFFLOAD_ENABLED
-endif
 endif
 
 LOCAL_MODULE:= libavextensions
