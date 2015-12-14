@@ -980,8 +980,12 @@ void AudioFlinger::ThreadBase::getPowerManager_l() {
 
 void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uids) {
     getPowerManager_l();
-    if (mWakeLockToken == NULL) {
-        ALOGE("no wake lock to update!");
+    if (mWakeLockToken == NULL) { // token may be NULL if AudioFlinger::systemReady() not called.
+        if (mSystemReady) {
+            ALOGE("no wake lock to update, but system ready!");
+        } else {
+            ALOGW("no wake lock to update, system not ready yet");
+        }
         return;
     }
     if (mPowerManager != 0) {
