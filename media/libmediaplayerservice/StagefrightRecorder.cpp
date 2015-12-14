@@ -185,7 +185,8 @@ status_t StagefrightRecorder::setAudioEncoder(audio_encoder ae) {
 status_t StagefrightRecorder::setVideoEncoder(video_encoder ve) {
     ALOGV("setVideoEncoder: %d", ve);
     if (ve < VIDEO_ENCODER_DEFAULT ||
-        ve >= VIDEO_ENCODER_LIST_END) {
+        (ve >= VIDEO_ENCODER_LIST_END && ve <= VIDEO_ENCODER_LIST_VENDOR_START) ||
+        ve >= VIDEO_ENCODER_LIST_VENDOR_END) {
         ALOGE("Invalid video encoder: %d", ve);
         return BAD_VALUE;
     }
