@@ -1926,7 +1926,7 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
         return INVALID_OPERATION;
     }
 
-    ALOGV("registerPolicyMixes() num mixes %d", mixes.size());
+    ALOGV("registerPolicyMixes() num mixes %zu", mixes.size());
 
     for (size_t i = 0; i < mixes.size(); i++) {
         String8 address = mixes[i].mRegistrationId;
@@ -1973,7 +1973,7 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
         return INVALID_OPERATION;
     }
 
-    ALOGV("unregisterPolicyMixes() num mixes %d", mixes.size());
+    ALOGV("unregisterPolicyMixes() num mixes %zu", mixes.size());
 
     for (size_t i = 0; i < mixes.size(); i++) {
         String8 address = mixes[i].mRegistrationId;
@@ -2218,7 +2218,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                                                            patch->sources[0].type);
 #if LOG_NDEBUG == 0
     for (size_t i = 0; i < patch->num_sinks; i++) {
-        ALOGV("createAudioPatch sink %d: id %d role %d type %d", i, patch->sinks[i].id,
+        ALOGV("createAudioPatch sink %zu: id %d role %d type %d", i, patch->sinks[i].id,
                                                              patch->sinks[i].role,
                                                              patch->sinks[i].type);
     }
@@ -3390,7 +3390,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
             }
         }
 
-        ALOGV("  found %d profiles, %d outputs", profiles.size(), outputs.size());
+        ALOGV("  found %zu profiles, %zu outputs", profiles.size(), outputs.size());
 
         if (profiles.isEmpty() && outputs.isEmpty()) {
             ALOGW("checkOutputsForDevice(): No output available for device %04x", device);

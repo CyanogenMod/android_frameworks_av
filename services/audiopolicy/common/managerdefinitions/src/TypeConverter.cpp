@@ -168,14 +168,14 @@ const size_t InputChannelConverter::mSize = sizeof(InputChannelConverter::mTable
 
 template <>
 const ChannelIndexConverter::Table ChannelIndexConverter::mTable[] = {
-    "AUDIO_CHANNEL_INDEX_MASK_1", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_1),
-    "AUDIO_CHANNEL_INDEX_MASK_2", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_2),
-    "AUDIO_CHANNEL_INDEX_MASK_3", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_3),
-    "AUDIO_CHANNEL_INDEX_MASK_4", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_4),
-    "AUDIO_CHANNEL_INDEX_MASK_5", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_5),
-    "AUDIO_CHANNEL_INDEX_MASK_6", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_6),
-    "AUDIO_CHANNEL_INDEX_MASK_7", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_7),
-    "AUDIO_CHANNEL_INDEX_MASK_8", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_8),
+    {"AUDIO_CHANNEL_INDEX_MASK_1", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_1)},
+    {"AUDIO_CHANNEL_INDEX_MASK_2", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_2)},
+    {"AUDIO_CHANNEL_INDEX_MASK_3", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_3)},
+    {"AUDIO_CHANNEL_INDEX_MASK_4", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_4)},
+    {"AUDIO_CHANNEL_INDEX_MASK_5", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_5)},
+    {"AUDIO_CHANNEL_INDEX_MASK_6", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_6)},
+    {"AUDIO_CHANNEL_INDEX_MASK_7", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_7)},
+    {"AUDIO_CHANNEL_INDEX_MASK_8", static_cast<audio_channel_mask_t>(AUDIO_CHANNEL_INDEX_MASK_8)},
 };
 template<>
 const size_t ChannelIndexConverter::mSize = sizeof(ChannelIndexConverter::mTable) /

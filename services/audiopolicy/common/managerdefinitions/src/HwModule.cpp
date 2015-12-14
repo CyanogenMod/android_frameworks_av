@@ -117,7 +117,8 @@ status_t HwModule::addInputProfile(String8 name, const audio_config_t *config,
     devDesc->mAddress = address;
     profile->addSupportedDevice(devDesc);
 
-    ALOGV("addInputProfile() name %s rate %d mask 0x08", name.string(), config->sample_rate, config->channel_mask);
+    ALOGV("addInputProfile() name %s rate %d mask 0x%08x",
+          name.string(), config->sample_rate, config->channel_mask);
 
     return addInputProfile(profile);
 }
