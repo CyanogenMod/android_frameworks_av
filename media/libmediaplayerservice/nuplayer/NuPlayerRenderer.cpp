@@ -1772,8 +1772,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         onDisableOffloadAudio();
     } else {
         audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
-
         bitWidth = AVUtils::get()->getAudioSampleBits(format);
+        ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
+                mime.c_str(), audioFormat);
+
         int avgBitRate = -1;
         format->findInt32("bitrate", &avgBitRate);
 
@@ -1792,6 +1794,8 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 ALOGV("Format is AAC ADTS\n");
             }
         }
+
+        ALOGV("onOpenAudioSink: %s", format->debugString().c_str());
 
         int32_t offloadBufferSize =
                                 AVUtils::get()->getAudioMaxInputBufferSize(
@@ -1839,9 +1843,6 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
 
         if (err == OK) {
             err = mAudioSink->setPlaybackRate(mPlaybackSettings);
-        }
-
-        if (err == OK) {
             // If the playback is offloaded to h/w, we pass
             // the HAL some metadata information.
             // We don't want to do this for PCM because it
@@ -1853,6 +1854,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 err = mAudioSink->start();
             }
             ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
+            mFlags |= FLAG_OFFLOAD_AUDIO;
         }
         if (err != OK) {
             // Clean up, fall back to non offload mode.
