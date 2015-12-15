@@ -1763,108 +1763,113 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
     AString mime;
     CHECK(format->findString("mime", &mime));
 
-    audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
-    status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
+    if (offloadingAudio()) {
+        audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+        status_t err = mapMimeToAudioFormat(audioFormat, mime.c_str());
 
-    if (err != OK) {
-        ALOGE("Couldn't map mime \"%s\" to a valid "
-                "audio_format", mime.c_str());
-        onDisableOffloadAudio();
-    } else {
-        audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
-        bitWidth = AVUtils::get()->getAudioSampleBits(format);
-        ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
-                mime.c_str(), audioFormat);
-
-        int avgBitRate = -1;
-        format->findInt32("bitrate", &avgBitRate);
-
-        int32_t aacProfile = -1;
-        if (audioFormat == AUDIO_FORMAT_AAC
-                && format->findInt32("aac-profile", &aacProfile)) {
-            // Redefine AAC format as per aac profile
-            int32_t isADTSSupported;
-            isADTSSupported = AVUtils::get()->mapAACProfileToAudioFormat(format,
-                                      audioFormat,
-                                      aacProfile);
-            if (!isADTSSupported) {
-                mapAACProfileToAudioFormat(audioFormat,
-                        aacProfile);
-            } else {
-                ALOGV("Format is AAC ADTS\n");
-            }
-        }
-
-        ALOGV("onOpenAudioSink: %s", format->debugString().c_str());
-
-        int32_t offloadBufferSize =
-                                AVUtils::get()->getAudioMaxInputBufferSize(
-                                               audioFormat,
-                                               format);
-        audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
-
-        offloadInfo.duration_us = -1;
-        format->findInt64(
-                "durationUs", &offloadInfo.duration_us);
-        offloadInfo.sample_rate = sampleRate;
-        offloadInfo.channel_mask = channelMask;
-        offloadInfo.format = audioFormat;
-        offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
-        offloadInfo.bit_rate = avgBitRate;
-        offloadInfo.has_video = hasVideo;
-        offloadInfo.is_streaming = isStreaming;
-        offloadInfo.bit_width = bitWidth;
-        offloadInfo.offload_buffer_size = offloadBufferSize;
-
-        if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
-            ALOGV("openAudioSink: no change in offload mode");
-            // no change from previous configuration, everything ok.
-            return OK;
-        }
-        mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
-
-        ALOGV("openAudioSink: try to open AudioSink in offload mode");
-        uint32_t offloadFlags = flags;
-        offloadFlags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
-        offloadFlags &= ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
-        audioSinkChanged = true;
-        mAudioSink->close();
-
-        err = mAudioSink->open(
-                sampleRate,
-                numChannels,
-                (audio_channel_mask_t)channelMask,
-                audioFormat,
-                0 /* bufferCount - unused */,
-                &NuPlayer::Renderer::AudioSinkCallback,
-                this,
-                (audio_output_flags_t)offloadFlags,
-                &offloadInfo);
-
-        if (err == OK) {
-            err = mAudioSink->setPlaybackRate(mPlaybackSettings);
-            // If the playback is offloaded to h/w, we pass
-            // the HAL some metadata information.
-            // We don't want to do this for PCM because it
-            // will be going through the AudioFlinger mixer
-            // before reaching the hardware.
-            // TODO
-            mCurrentOffloadInfo = offloadInfo;
-            if (!mPaused) { // for preview mode, don't start if paused
-                err = mAudioSink->start();
-            }
-            ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
-            mFlags |= FLAG_OFFLOAD_AUDIO;
-        }
         if (err != OK) {
-            // Clean up, fall back to non offload mode.
-            mAudioSink->close();
+            ALOGE("Couldn't map mime \"%s\" to a valid "
+                    "audio_format", mime.c_str());
             onDisableOffloadAudio();
-            mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
-            ALOGV("openAudioSink: offload failed");
         } else {
-            mUseAudioCallback = true;  // offload mode transfers data through callback
-            ++mAudioDrainGeneration;  // discard pending kWhatDrainAudioQueue message.
+            audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
+            bitWidth = AVUtils::get()->getAudioSampleBits(format);
+            ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
+                    mime.c_str(), audioFormat);
+
+            int avgBitRate = -1;
+            format->findInt32("bitrate", &avgBitRate);
+
+            int32_t aacProfile = -1;
+            if (audioFormat == AUDIO_FORMAT_AAC
+                    && format->findInt32("aac-profile", &aacProfile)) {
+                // Redefine AAC format as per aac profile
+                int32_t isADTSSupported;
+                isADTSSupported = AVUtils::get()->mapAACProfileToAudioFormat(format,
+                                          audioFormat,
+                                          aacProfile);
+                if (!isADTSSupported) {
+                    mapAACProfileToAudioFormat(audioFormat,
+                            aacProfile);
+                } else {
+                    ALOGV("Format is AAC ADTS\n");
+                }
+            }
+
+            ALOGV("onOpenAudioSink: %s", format->debugString().c_str());
+
+            int32_t offloadBufferSize =
+                                    AVUtils::get()->getAudioMaxInputBufferSize(
+                                                   audioFormat,
+                                                   format);
+            audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+
+            offloadInfo.duration_us = -1;
+            format->findInt64(
+                    "durationUs", &offloadInfo.duration_us);
+            offloadInfo.sample_rate = sampleRate;
+            offloadInfo.channel_mask = channelMask;
+            offloadInfo.format = audioFormat;
+            offloadInfo.stream_type = AUDIO_STREAM_MUSIC;
+            offloadInfo.bit_rate = avgBitRate;
+            offloadInfo.has_video = hasVideo;
+            offloadInfo.is_streaming = isStreaming;
+            offloadInfo.bit_width = bitWidth;
+            offloadInfo.offload_buffer_size = offloadBufferSize;
+
+            if (memcmp(&mCurrentOffloadInfo, &offloadInfo, sizeof(offloadInfo)) == 0) {
+                ALOGV("openAudioSink: no change in offload mode");
+                // no change from previous configuration, everything ok.
+                return OK;
+            }
+            mCurrentPcmInfo = AUDIO_PCMINFO_INITIALIZER;
+
+            ALOGV("openAudioSink: try to open AudioSink in offload mode");
+            uint32_t offloadFlags = flags;
+            offloadFlags |= AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+            offloadFlags &= ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+            audioSinkChanged = true;
+            mAudioSink->close();
+
+            err = mAudioSink->open(
+                    sampleRate,
+                    numChannels,
+                    (audio_channel_mask_t)channelMask,
+                    audioFormat,
+                    0 /* bufferCount - unused */,
+                    &NuPlayer::Renderer::AudioSinkCallback,
+                    this,
+                    (audio_output_flags_t)offloadFlags,
+                    &offloadInfo);
+
+            if (err == OK) {
+                err = mAudioSink->setPlaybackRate(mPlaybackSettings);
+            }
+
+            if (err == OK) {
+                // If the playback is offloaded to h/w, we pass
+                // the HAL some metadata information.
+                // We don't want to do this for PCM because it
+                // will be going through the AudioFlinger mixer
+                // before reaching the hardware.
+                // TODO
+                mCurrentOffloadInfo = offloadInfo;
+                if (!mPaused) { // for preview mode, don't start if paused
+                    err = mAudioSink->start();
+                }
+                ALOGV_IF(err == OK, "openAudioSink: offload succeeded");
+            }
+            if (err != OK) {
+                // Clean up, fall back to non offload mode.
+                mAudioSink->close();
+                onDisableOffloadAudio();
+                mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
+                ALOGV("openAudioSink: offload failed");
+            } else {
+                mUseAudioCallback = true;  // offload mode transfers data through callback
+                ++mAudioDrainGeneration;  // discard pending kWhatDrainAudioQueue message.
+                mFlags |= FLAG_OFFLOAD_AUDIO;
+            }
         }
     }
     if (!offloadOnly && !offloadingAudio()) {
