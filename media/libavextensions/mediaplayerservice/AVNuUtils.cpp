@@ -138,7 +138,11 @@ bool AVNuUtils::pcmOffloadException(const sp<MetaData> &meta) {
         ALOGV("%s: no audio mime present, ignoring pcm offload", __func__);
         return true;
     }
-//#if defined (PCM_OFFLOAD_ENABLED) || defined (PCM_OFFLOAD_ENABLED_24)
+
+    if (!is24bitPCMOffloadEnabled() && !is16bitPCMOffloadEnabled()) {
+        return true;
+    }
+
     const char * const ExceptionTable[] = {
         MEDIA_MIMETYPE_AUDIO_AMR_NB,
         MEDIA_MIMETYPE_AUDIO_AMR_WB,
@@ -256,8 +260,11 @@ status_t AVNuUtils::convertToSinkFormatIfNeeded(
         const sp<ABuffer> &buffer, sp<ABuffer> &newBuffer,
         audio_format_t sinkFormat, bool isOffload) {
 
+    ALOGV("convert meta: %s", buffer->meta()->debugString().c_str());
+
     audio_format_t srcFormat = AUDIO_FORMAT_INVALID;
-    if (!buffer->meta()->findInt32("pcm-format", (int32_t *)&srcFormat)) {
+    if (!buffer->meta()->findInt32("pcm-format", (int32_t *)&srcFormat)
+            || ((int32_t)srcFormat < 0)) {
         newBuffer = buffer;
         return OK;
     }
@@ -286,12 +293,10 @@ status_t AVNuUtils::convertToSinkFormatIfNeeded(
                 dstFormat = AUDIO_FORMAT_PCM_16_BIT;
                 break;
             case AUDIO_FORMAT_PCM_24_BIT_OFFLOAD:
-                if (srcFormat != AUDIO_FORMAT_PCM_24_BIT_PACKED &&
-                    srcFormat != AUDIO_FORMAT_PCM_8_24_BIT) {
-                        ALOGE("Invalid src format for 24 bit conversion");
-                        return INVALID_OPERATION;
-                }
-                dstFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
+                if (srcFormat == AUDIO_FORMAT_PCM_32_BIT)
+                    dstFormat = AUDIO_FORMAT_PCM_32_BIT;
+                else
+                    dstFormat = AUDIO_FORMAT_PCM_24_BIT_OFFLOAD;
                 break;
             case AUDIO_FORMAT_DEFAULT:
                 ALOGI("OffloadInfo not yet initialized, retry");
@@ -314,6 +319,8 @@ status_t AVNuUtils::convertToSinkFormatIfNeeded(
         newBuffer = buffer;
         return OK;
     }
+
+    ALOGV("convert %d to %d", srcFormat, dstFormat);
 
     size_t dstFrameSize = audio_bytes_per_sample(dstFormat);
     size_t dstBytes = frames * dstFrameSize;

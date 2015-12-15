@@ -18,6 +18,8 @@
 
 #define NUPLAYER_DECODER_PASS_THROUGH_H_
 
+#include <media/stagefright/foundation/AMessage.h>
+
 #include "NuPlayer.h"
 
 #include "NuPlayerDecoderBase.h"
@@ -43,7 +45,7 @@ protected:
     virtual void onFlush();
     virtual void onShutdown(bool notifyComplete);
     virtual bool doRequestBuffers();
-    virtual void setPcmFormat(const sp<AMessage> & /*format*/) {}
+    virtual void setPcmFormat(const sp<AMessage> &format) { format->setInt32("pcm-format", mPCMFormat); }
     virtual sp<ABuffer> aggregateBuffer(const sp<ABuffer> &accessUnit);
 
     enum {
