@@ -30,6 +30,9 @@
 
 namespace android {
 
+// allocations larger than this will use shared memory
+static const size_t kSharedMemThreshold = 64 * 1024;
+
 MediaBuffer::MediaBuffer(void *data, size_t size)
     : mObserver(NULL),
       mNextBuffer(NULL),
@@ -47,13 +50,29 @@ MediaBuffer::MediaBuffer(size_t size)
     : mObserver(NULL),
       mNextBuffer(NULL),
       mRefCount(0),
-      mData(malloc(size)),
+      mData(NULL),
       mSize(size),
       mRangeOffset(0),
       mRangeLength(size),
       mOwnsData(true),
       mMetaData(new MetaData),
       mOriginal(NULL) {
+    if (size < kSharedMemThreshold) {
+        mData = malloc(size);
+    } else {
+        sp<MemoryDealer> memoryDealer = new MemoryDealer(size, "MediaBuffer");
+        mMemory = memoryDealer->allocate(size);
+        if (mMemory == NULL) {
+            ALOGW("Failed to allocate shared memory, trying regular allocation!");
+            mData = malloc(size);
+            if (mData == NULL) {
+                ALOGE("Out of memory");
+            }
+        } else {
+            mData = mMemory->pointer();
+            ALOGV("Allocated shared mem buffer of size %zu @ %p", size, mData);
+        }
+    }
 }
 
 MediaBuffer::MediaBuffer(const sp<GraphicBuffer>& graphicBuffer)
@@ -158,7 +177,7 @@ void MediaBuffer::reset() {
 MediaBuffer::~MediaBuffer() {
     CHECK(mObserver == NULL);
 
-    if (mOwnsData && mData != NULL) {
+    if (mOwnsData && mData != NULL && mMemory == NULL) {
         free(mData);
         mData = NULL;
     }

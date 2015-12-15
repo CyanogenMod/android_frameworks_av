@@ -22,6 +22,7 @@
 
 #include <pthread.h>
 
+#include <binder/MemoryDealer.h>
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 
@@ -93,6 +94,8 @@ protected:
 private:
     friend class MediaBufferGroup;
     friend class OMXDecoder;
+    friend class BnMediaSource;
+    friend class BpMediaSource;
 
     // For use by OMXDecoder, reference count must be 1, drop reference
     // count to 0 without signalling the observer.
@@ -118,6 +121,7 @@ private:
 
     MediaBuffer(const MediaBuffer &);
     MediaBuffer &operator=(const MediaBuffer &);
+    sp<IMemory> mMemory;
 };
 
 }  // namespace android
