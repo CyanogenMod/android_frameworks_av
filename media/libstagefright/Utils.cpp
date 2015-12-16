@@ -194,7 +194,7 @@ static void parseAacProfileFromCsd(const sp<ABuffer> &csd, sp<AMessage> &format)
 
     OMX_AUDIO_AACPROFILETYPE profile;
     if (profiles.map(audioObjectType, &profile)) {
-        format->setInt32("profile", profile);
+        format->setInt32("aac-profile", profile);
     }
 }
 
