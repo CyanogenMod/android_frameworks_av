@@ -347,16 +347,6 @@ sp<IMediaCodecList> MediaPlayerService::getCodecList() const {
     return MediaCodecList::getLocalInstance();
 }
 
-sp<IOMX> MediaPlayerService::getOMX() {
-    Mutex::Autolock autoLock(mLock);
-
-    if (mOMX.get() == NULL) {
-        mOMX = new OMX;
-    }
-
-    return mOMX;
-}
-
 sp<ICrypto> MediaPlayerService::makeCrypto() {
     return new Crypto;
 }

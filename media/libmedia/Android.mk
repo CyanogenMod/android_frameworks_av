@@ -30,6 +30,7 @@ LOCAL_SRC_FILES:= \
     AudioSystem.cpp \
     mediaplayer.cpp \
     IMediaCodecList.cpp \
+    IMediaCodecService.cpp \
     IMediaHTTPConnection.cpp \
     IMediaHTTPService.cpp \
     IMediaLogService.cpp \
