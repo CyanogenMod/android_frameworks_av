@@ -78,14 +78,6 @@ class ServerProxy;
 
 // ----------------------------------------------------------------------------
 
-// The macro FCC_2 highlights some (but not all) places where there are are 2-channel assumptions.
-// This is typically due to legacy implementation of stereo input or output.
-// Search also for "2", "left", "right", "[0]", "[1]", ">> 16", "<< 16", etc.
-#define FCC_2 2     // FCC_2 = Fixed Channel Count 2
-// The macro FCC_8 highlights places where there are 8-channel assumptions.
-// This is typically due to audio mixer and resampler limitations.
-#define FCC_8 8     // FCC_8 = Fixed Channel Count 8
-
 static const nsecs_t kDefaultStandbyTimeInNsecs = seconds(3);
 
 
