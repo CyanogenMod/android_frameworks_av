@@ -32,7 +32,6 @@ public:
              const CMappingContext &context);
 
 protected:
-    virtual bool receiveFromHW(std::string &error);
     virtual bool sendToHW(std::string &error);
 
 private:
@@ -44,6 +43,4 @@ private:
     android::AudioPolicyPluginInterface *mPolicyPluginInterface;
 
     audio_usage_t mId; /**< usage identifier to link with audio.h. */
-    uint32_t mApplicableStrategy; /**< applicable strategy for this usage. */
-    static const uint32_t mDefaultApplicableStrategy = 0; /**< default strategy. */
 };

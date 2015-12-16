@@ -30,24 +30,16 @@ InputSource::InputSource(const string &mappingValue,
                                 context),
       mPolicySubsystem(static_cast<const PolicySubsystem *>(
                            instanceConfigurableElement->getBelongingSubsystem())),
-      mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface()),
-      mApplicableInputDevice(mDefaultApplicableInputDevice)
+      mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface())
 {
     mId = static_cast<audio_source_t>(context.getItemAsInteger(MappingKeyIdentifier));
     // Declares the strategy to audio policy engine
     mPolicyPluginInterface->addInputSource(getFormattedMappingValue(), mId);
 }
 
-bool InputSource::receiveFromHW(string & /*error*/)
-{
-    blackboardWrite(&mApplicableInputDevice, sizeof(mApplicableInputDevice));
-    return true;
-}
-
 bool InputSource::sendToHW(string & /*error*/)
 {
     uint32_t applicableInputDevice;
     blackboardRead(&applicableInputDevice, sizeof(applicableInputDevice));
-    mApplicableInputDevice = applicableInputDevice;
-    return mPolicyPluginInterface->setDeviceForInputSource(mId, mApplicableInputDevice);
+    return mPolicyPluginInterface->setDeviceForInputSource(mId, applicableInputDevice);
 }
