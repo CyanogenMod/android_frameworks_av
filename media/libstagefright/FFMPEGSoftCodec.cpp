@@ -217,8 +217,8 @@ const char* FFMPEGSoftCodec::overrideComponentName(
     int32_t aacProfile = 0;
     if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
             meta->findInt32(kKeyAACAOT, &aacProfile)) {
-        if (aacProfile == OMX_AUDIO_AACObjectMain) {
-            ALOGD("Use FFMPEG for AAC MAIN profile");
+        if ((aacProfile == OMX_AUDIO_AACObjectMain) || (aacProfile == OMX_AUDIO_AACObjectLTP)) {
+            ALOGD("Use FFMPEG for AAC Main/LTP profile");
             componentName = "OMX.ffmpeg.aac.decoder";
         }
     }
@@ -250,8 +250,8 @@ void FFMPEGSoftCodec::overrideComponentName(
     int32_t aacProfile = 0;
     if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
             msg->findInt32(getMsgKey(kKeyAACAOT), &aacProfile)) {
-        if (aacProfile == OMX_AUDIO_AACObjectMain) {
-            ALOGD("Use FFMPEG for AAC MAIN profile");
+        if ((aacProfile == OMX_AUDIO_AACObjectMain) || (aacProfile == OMX_AUDIO_AACObjectLTP)) {
+            ALOGD("Use FFMPEG for AAC Main/LTP profile");
             componentName->setTo("OMX.ffmpeg.aac.decoder");
         }
     }
