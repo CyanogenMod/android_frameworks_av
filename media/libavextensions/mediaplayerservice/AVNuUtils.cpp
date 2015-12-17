@@ -202,7 +202,8 @@ bool AVNuUtils::isVorbisFormat(const sp<MetaData> &) {
 int AVNuUtils::updateAudioBitWidth(audio_format_t audioFormat,
         const sp<AMessage> &format){
     int bits = 16;
-    if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)) {
+    if (format.get() &&
+            (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat))) {
         bits = audio_bytes_per_sample(audioFormat) * 8;
         format->setInt32("bits-per-sample", bits);
     }
@@ -211,42 +212,45 @@ int AVNuUtils::updateAudioBitWidth(audio_format_t audioFormat,
 
 audio_format_t AVNuUtils::getKeyPCMFormat(const sp<MetaData> &meta) {
     audio_format_t pcmFormat = AUDIO_FORMAT_INVALID;
-    meta->findInt32('pfmt', (int32_t *)&pcmFormat);
+    if (meta.get())
+        meta->findInt32('pfmt', (int32_t *)&pcmFormat);
     return pcmFormat;
 }
 
 void AVNuUtils::setKeyPCMFormat(const sp<MetaData> &meta, audio_format_t audioFormat) {
-    if (meta != NULL && audio_is_linear_pcm(audioFormat))
+    if (meta.get() && audio_is_linear_pcm(audioFormat))
         meta->setInt32('pfmt', audioFormat);
 }
 
 audio_format_t AVNuUtils::getPCMFormat(const sp<AMessage> &format) {
     audio_format_t pcmFormat = AUDIO_FORMAT_INVALID;
-    format->findInt32("pcm-format", (int32_t *)&pcmFormat);
+    if (format.get())
+        format->findInt32("pcm-format", (int32_t *)&pcmFormat);
     return pcmFormat;
 }
 
 void AVNuUtils::setPCMFormat(const sp<AMessage> &format, audio_format_t audioFormat) {
-    if (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat))
+    if (format.get() &&
+            (audio_is_linear_pcm(audioFormat) || audio_is_offload_pcm(audioFormat)))
         format->setInt32("pcm-format", audioFormat);
 }
 
 void AVNuUtils::setSourcePCMFormat(const sp<MetaData> &audioMeta) {
-    if (!isRAWFormat(audioMeta))
+    if (!audioMeta.get() || !isRAWFormat(audioMeta))
         return;
 
     audio_format_t pcmFormat = getKeyPCMFormat(audioMeta);
-    ALOGI("setSourcePCMFormat fmt=%x", pcmFormat);
-    audioMeta->dumpToLog();
     if (pcmFormat == AUDIO_FORMAT_INVALID) {
         int32_t bits = 16;
         if (audioMeta->findInt32(kKeyBitsPerSample, &bits)) {
             if (bits == 8)
                 pcmFormat = AUDIO_FORMAT_PCM_8_BIT;
-            if (bits == 24)
+            else if (bits == 24)
                 pcmFormat = AUDIO_FORMAT_PCM_32_BIT;
-            if (bits == 32)
+            else if (bits == 32)
                 pcmFormat = AUDIO_FORMAT_PCM_FLOAT;
+            else
+                pcmFormat = AUDIO_FORMAT_PCM_16_BIT;
             setKeyPCMFormat(audioMeta, pcmFormat);
         }
     }
