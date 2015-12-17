@@ -1165,7 +1165,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 
     // Reject any effect on mixer or duplicating multichannel sinks.
     // TODO: fix both format and multichannel issues with effects.
-    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount > FCC_2) {
+    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount != FCC_2) {
         ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) %s threads",
                 desc->name, mChannelCount, mType == MIXER ? "MIXER" : "DUPLICATING");
         lStatus = BAD_VALUE;
@@ -7021,7 +7021,6 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     free(mRsmpInBuffer);
-    mRsmpInBuffer = NULL;
 
     // TODO optimize audio capture buffer sizes ...
     // Here we calculate the size of the sliding buffer used as a source
@@ -7031,9 +7030,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The current value is higher than necessary.  However it should not add to latency.
 
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
-    size_t bufferSize = (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize;
-    (void)posix_memalign(&mRsmpInBuffer, 32, bufferSize);
-    memset(mRsmpInBuffer, 0, bufferSize); // if posix_memalign fails, will segv here.
+    (void)posix_memalign(&mRsmpInBuffer, 32, (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize);
 
     // AudioRecord mSampleRate and mChannelCount are constant due to AudioRecord API constraints.
     // But if thread's mSampleRate or mChannelCount changes, how will that affect active tracks?
@@ -7239,4 +7236,4 @@ void AudioFlinger::RecordThread::getAudioPortConfig(struct audio_port_config *co
     config->ext.mix.usecase.source = mAudioSource;
 }
 
-} // namespace android
+} // namespace android
