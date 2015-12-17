@@ -211,7 +211,8 @@ int AVNuUtils::updateAudioBitWidth(audio_format_t audioFormat,
 
 audio_format_t AVNuUtils::getKeyPCMFormat(const sp<MetaData> &meta) {
     audio_format_t pcmFormat = AUDIO_FORMAT_INVALID;
-    meta->findInt32('pfmt', (int32_t *)&pcmFormat);
+    if (meta != NULL)
+        meta->findInt32('pfmt', (int32_t *)&pcmFormat);
     return pcmFormat;
 }
 
