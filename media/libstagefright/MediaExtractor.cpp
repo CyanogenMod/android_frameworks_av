@@ -117,7 +117,7 @@ retry:
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)
             || !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB)) {
         ret = new AMRExtractor(source);
-#ifndef FLAC_OFFLOAD_ENABLED
+#ifdef FLAC_OFFLOAD_ENABLED
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
         ret = new FLACExtractor(source);
 #endif
