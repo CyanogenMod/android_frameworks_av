@@ -361,7 +361,7 @@ void NuPlayer::GenericSource::prepareAsync() {
     if (mLooper == NULL) {
         mLooper = new ALooper;
         mLooper->setName("generic");
-        mLooper->start();
+        mLooper->start(false, false, PRIORITY_AUDIO);
 
         mLooper->registerHandler(this);
     }
