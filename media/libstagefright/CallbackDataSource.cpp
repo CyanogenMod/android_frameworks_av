@@ -64,7 +64,7 @@ ssize_t CallbackDataSource::readAt(off64_t offset, void* data, size_t size) {
             mIDataSource->readAt(offset + totalNumRead, numToRead);
         // A negative return value represents an error. Pass it on.
         if (numRead < 0) {
-            return numRead;
+            return numRead == ERROR_END_OF_STREAM && totalNumRead > 0 ? totalNumRead : numRead;
         }
         // A zero return value signals EOS. Return the bytes read so far.
         if (numRead == 0) {
