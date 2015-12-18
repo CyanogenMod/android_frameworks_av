@@ -387,41 +387,26 @@ bool ParameterManagerWrapper::isValueValidForCriterion(ISelectionCriterionInterf
     return interface->getLiteralValue(valueToCheck, literalValue);
 }
 
-status_t ParameterManagerWrapper::setDeviceConnectionState(audio_devices_t devices,
-                                                           audio_policy_dev_state_t state,
-                                                           const char */*deviceAddres*/)
+status_t ParameterManagerWrapper::setAvailableInputDevices(audio_devices_t inputDevices)
 {
-    ISelectionCriterionInterface *criterion = NULL;
-
-    if (audio_is_output_devices(devices)) {
-        criterion = mPolicyCriteria[gOutputDeviceCriterionTag];
-    } else if (devices & AUDIO_DEVICE_BIT_IN) {
-        criterion = mPolicyCriteria[gInputDeviceCriterionTag];
-    } else {
-        return BAD_TYPE;
-    }
+    ISelectionCriterionInterface *criterion = mPolicyCriteria[gInputDeviceCriterionTag];
     if (criterion == NULL) {
-        ALOGE("%s: no criterion found for devices", __FUNCTION__);
+        ALOGE("%s: no criterion found for input devices", __FUNCTION__);
         return DEAD_OBJECT;
     }
+    criterion->setCriterionState(inputDevices & ~AUDIO_DEVICE_BIT_IN);
+    applyPlatformConfiguration();
+    return NO_ERROR;
+}
 
-    int32_t previousDevices = criterion->getCriterionState();
-    switch (state)
-    {
-    case AUDIO_POLICY_DEVICE_STATE_AVAILABLE:
-        criterion->setCriterionState(previousDevices |= devices);
-        break;
-
-    case AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE:
-        if (devices & AUDIO_DEVICE_BIT_IN) {
-            devices &= ~AUDIO_DEVICE_BIT_IN;
-        }
-        criterion->setCriterionState(previousDevices &= ~devices);
-        break;
-
-    default:
-        return BAD_VALUE;
+status_t ParameterManagerWrapper::setAvailableOutputDevices(audio_devices_t outputDevices)
+{
+    ISelectionCriterionInterface *criterion = mPolicyCriteria[gOutputDeviceCriterionTag];
+    if (criterion == NULL) {
+        ALOGE("%s: no criterion found for output devices", __FUNCTION__);
+        return DEAD_OBJECT;
     }
+    criterion->setCriterionState(outputDevices);
     applyPlatformConfiguration();
     return NO_ERROR;
 }

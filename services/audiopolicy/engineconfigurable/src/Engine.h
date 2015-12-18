@@ -86,8 +86,7 @@ private:
         virtual android::status_t setDeviceConnectionState(const sp<DeviceDescriptor> devDesc,
                                                            audio_policy_dev_state_t state)
         {
-            return mPolicyEngine->setDeviceConnectionState(devDesc->type(), state,
-                                                           devDesc->mAddress);
+            return mPolicyEngine->setDeviceConnectionState(devDesc, state);
         }
         virtual status_t initStreamVolume(audio_stream_type_t stream,
                                                    int indexMin, int indexMax)
@@ -180,9 +179,8 @@ private:
     audio_mode_t getPhoneState() const;
     status_t setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config);
     audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage) const;
-    status_t setDeviceConnectionState(audio_devices_t devices, audio_policy_dev_state_t state,
-                                      const char *deviceAddress);
-
+    status_t setDeviceConnectionState(const sp<DeviceDescriptor> devDesc,
+                                      audio_policy_dev_state_t state);
     float volIndexToDb(device_category category, audio_stream_type_t stream, int indexInUi);
     status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
 

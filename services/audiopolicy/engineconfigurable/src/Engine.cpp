@@ -246,10 +246,17 @@ audio_policy_forced_cfg_t Engine::getForceUse(audio_policy_force_use_t usage) co
     return mPolicyParameterMgr->getForceUse(usage);
 }
 
-status_t Engine::setDeviceConnectionState(audio_devices_t devices, audio_policy_dev_state_t state,
-                                          const char *deviceAddress)
+status_t Engine::setDeviceConnectionState(const sp<DeviceDescriptor> devDesc,
+                                          audio_policy_dev_state_t /*state*/)
 {
-    return mPolicyParameterMgr->setDeviceConnectionState(devices, state, deviceAddress);
+    if (audio_is_output_device(devDesc->type())) {
+        return mPolicyParameterMgr->setAvailableOutputDevices(
+                    mApmObserver->getAvailableOutputDevices().types());
+    } else if (audio_is_input_device(devDesc->type())) {
+        return mPolicyParameterMgr->setAvailableInputDevices(
+                    mApmObserver->getAvailableInputDevices().types());
+    }
+    return BAD_TYPE;
 }
 
 template <>

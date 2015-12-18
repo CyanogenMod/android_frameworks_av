@@ -103,18 +103,22 @@ public:
     audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage) const;
 
     /**
-     * Set the connection state of device(s).
-     * It will set the associated policy parameter framework criterion.
+     * Set the available input devices i.e. set the associated policy parameter framework criterion
      *
-     * @param[in] devices mask of devices for which the state has changed.
-     * @param[in] state of availability of this(these) device(s).
-     * @param[in] deviceAddress: the mask might not be enough, as it may represents a type of
-     *            device, so address of the device will help precise identification.
+     * @param[in] inputDevices mask of available input devices.
      *
      * @return NO_ERROR if devices criterion updated correctly, error code otherwise.
      */
-    status_t setDeviceConnectionState(audio_devices_t devices, audio_policy_dev_state_t state,
-                                      const char *deviceAddress);
+    status_t setAvailableInputDevices(audio_devices_t inputDevices);
+
+    /**
+     * Set the available output devices i.e. set the associated policy parameter framework criterion
+     *
+     * @param[in] outputDevices mask of available output devices.
+     *
+     * @return NO_ERROR if devices criterion updated correctly, error code otherwise.
+     */
+    status_t setAvailableOutputDevices(audio_devices_t outputDevices);
 
 private:
     /**
