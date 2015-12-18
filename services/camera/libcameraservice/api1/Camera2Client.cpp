@@ -371,7 +371,7 @@ void Camera2Client::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock icl(mBinderSerializationLock);
 
-    // Allow both client and the media server to disconnect at all times
+    // Allow both client and the cameraserver to disconnect at all times
     int callingPid = getCallingPid();
     if (callingPid != mClientPid && callingPid != mServicePid) return;
 
@@ -1233,6 +1233,7 @@ bool Camera2Client::recordingEnabledL() {
 }
 
 void Camera2Client::releaseRecordingFrame(const sp<IMemory>& mem) {
+    (void)mem;
     ATRACE_CALL();
     ALOGW("%s: Not supported in buffer queue mode.", __FUNCTION__);
 }

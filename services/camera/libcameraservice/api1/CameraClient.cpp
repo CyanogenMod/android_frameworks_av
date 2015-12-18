@@ -234,7 +234,7 @@ void CameraClient::disconnect() {
     LOG1("disconnect E (pid %d)", callingPid);
     Mutex::Autolock lock(mLock);
 
-    // Allow both client and the media server to disconnect at all times
+    // Allow both client and the cameraserver to disconnect at all times
     if (callingPid != mClientPid && callingPid != mServicePid) {
         ALOGW("different client - don't disconnect");
         return;
@@ -1001,6 +1001,7 @@ int CameraClient::getOrientation(int degrees, bool mirror) {
 }
 
 status_t CameraClient::setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer) {
+    (void)bufferProducer;
     ALOGE("%s: %d: CameraClient doesn't support setting a video target.", __FUNCTION__, __LINE__);
     return INVALID_OPERATION;
 }

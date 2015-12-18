@@ -55,6 +55,10 @@ public:
     };
 
     enum {
+        USE_CALLING_PID = -1
+    };
+
+    enum {
         USE_CALLING_UID = -1
     };
 
@@ -113,14 +117,17 @@ public:
     virtual status_t removeListener(const sp<ICameraServiceListener>& listener)
                                                                             = 0;
     /**
-     * clientPackageName and clientUid are used for permissions checking.  if
-     * clientUid == USE_CALLING_UID, then the calling UID is used instead. Only
-     * trusted callers can set a clientUid other than USE_CALLING_UID.
+     * clientPackageName, clientUid, and clientPid are used for permissions checking. If
+     * clientUid == USE_CALLING_UID, then the calling UID is used instead. If
+     * clientPid == USE_CALLING_PID, then the calling PID is used instead. Only
+     * trusted callers can set a clientUid and clientPid other than USE_CALLING_UID and
+     * USE_CALLING_UID respectively.
      */
     virtual status_t connect(const sp<ICameraClient>& cameraClient,
             int cameraId,
             const String16& clientPackageName,
             int clientUid,
+            int clientPid,
             /*out*/
             sp<ICamera>& device) = 0;
 

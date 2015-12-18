@@ -782,8 +782,9 @@ status_t StagefrightRecorder::prepareInternal() {
         return INVALID_OPERATION;
     }
 
-    // Get UID here for permission checking
+    // Get UID and PID here for permission checking
     mClientUid = IPCThreadState::self()->getCallingUid();
+    mClientPid = IPCThreadState::self()->getCallingPid();
 
     status_t status = OK;
 
@@ -1450,13 +1451,13 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
         mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
+                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid, mClientPid,
                 videoSize, mFrameRate, mPreviewSurface,
                 mTimeBetweenCaptureUs);
         *cameraSource = mCameraSourceTimeLapse;
     } else {
         *cameraSource = CameraSource::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid,
+                mCamera, mCameraProxy, mCameraId, mClientName, mClientUid, mClientPid,
                 videoSize, mFrameRate,
                 mPreviewSurface);
     }

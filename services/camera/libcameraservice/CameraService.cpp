@@ -46,6 +46,7 @@
 #include <utils/Log.h>
 #include <utils/String16.h>
 #include <utils/Trace.h>
+#include <private/android_filesystem_config.h>
 #include <system/camera_vendor_tags.h>
 #include <system/camera_metadata.h>
 #include <system/camera.h>
@@ -779,13 +780,13 @@ String8 CameraService::toString(std::set<userid_t> intSet) {
 status_t CameraService::initializeShimMetadata(int cameraId) {
     int uid = getCallingUid();
 
-    String16 internalPackageName("media");
+    String16 internalPackageName("cameraserver");
     String8 id = String8::format("%d", cameraId);
     status_t ret = NO_ERROR;
     sp<Client> tmp = nullptr;
     if ((ret = connectHelper<ICameraClient,Client>(sp<ICameraClient>{nullptr}, id,
-            static_cast<int>(CAMERA_HAL_API_VERSION_UNSPECIFIED), internalPackageName, uid, API_1,
-            false, true, tmp)) != NO_ERROR) {
+            static_cast<int>(CAMERA_HAL_API_VERSION_UNSPECIFIED), internalPackageName, uid,
+            USE_CALLING_PID, API_1, false, true, tmp)) != NO_ERROR) {
         ALOGE("%s: Error %d (%s) initializing shim metadata.", __FUNCTION__, ret, strerror(ret));
         return ret;
     }
@@ -852,21 +853,51 @@ status_t CameraService::getLegacyParametersLazy(int cameraId,
     return INVALID_OPERATION;
 }
 
-status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid)
-        const {
+// Can camera service trust the caller based on the calling UID?
+static bool isTrustedCallingUid(uid_t uid) {
+    switch (uid) {
+        case AID_MEDIA:         // mediaserver
+        case AID_CAMERASERVER: // cameraserver
+            return true;
+        default:
+            return false;
+    }
+}
+
+status_t CameraService::validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid,
+        /*inout*/int& clientPid) const {
 
     int callingPid = getCallingPid();
+    int callingUid = getCallingUid();
 
+    // Check if we can trust clientUid
     if (clientUid == USE_CALLING_UID) {
-        clientUid = getCallingUid();
-    } else {
-        // We only trust our own process to forward client UIDs
-        if (callingPid != getpid()) {
-            ALOGE("CameraService::connect X (PID %d) rejected (don't trust clientUid %d)",
-                    callingPid, clientUid);
-            return PERMISSION_DENIED;
-        }
+        clientUid = callingUid;
+    } else if (!isTrustedCallingUid(callingUid)) {
+        ALOGE("CameraService::connect X (calling PID %d, calling UID %d) rejected "
+                "(don't trust clientUid %d)", callingPid, callingUid, clientUid);
+        return PERMISSION_DENIED;
     }
+
+    // Check if we can trust clientPid
+    if (clientPid == USE_CALLING_PID) {
+        clientPid = callingPid;
+    } else if (!isTrustedCallingUid(callingUid)) {
+        ALOGE("CameraService::connect X (calling PID %d, calling UID %d) rejected "
+                "(don't trust clientPid %d)", callingPid, callingUid, clientPid);
+        return PERMISSION_DENIED;
+    }
+
+    // If it's not calling from cameraserver, check the permission.
+    if (callingPid != getpid() &&
+            !checkPermission(String16("android.permission.CAMERA"), clientPid, clientUid)) {
+        ALOGE("Permission Denial: can't use the camera pid=%d, uid=%d", clientPid, clientUid);
+        return PERMISSION_DENIED;
+    }
+
+    // Only use passed in clientPid to check permission. Use calling PID as the client PID that's
+    // connected to camera service directly.
+    clientPid = callingPid;
 
     if (!mModule) {
         ALOGE("CameraService::connect X (PID %d) rejected (camera HAL module not loaded)",
@@ -1140,6 +1171,7 @@ status_t CameraService::connect(
         int cameraId,
         const String16& clientPackageName,
         int clientUid,
+        int clientPid,
         /*out*/
         sp<ICamera>& device) {
 
@@ -1148,7 +1180,7 @@ status_t CameraService::connect(
     String8 id = String8::format("%d", cameraId);
     sp<Client> client = nullptr;
     ret = connectHelper<ICameraClient,Client>(cameraClient, id, CAMERA_HAL_API_VERSION_UNSPECIFIED,
-            clientPackageName, clientUid, API_1, false, false, /*out*/client);
+            clientPackageName, clientUid, clientPid, API_1, false, false, /*out*/client);
 
     if(ret != NO_ERROR) {
         logRejected(id, getCallingPid(), String8(clientPackageName),
@@ -1189,7 +1221,7 @@ status_t CameraService::connectLegacy(
     status_t ret = NO_ERROR;
     sp<Client> client = nullptr;
     ret = connectHelper<ICameraClient,Client>(cameraClient, id, halVersion, clientPackageName,
-            clientUid, API_1, true, false, /*out*/client);
+            clientUid, USE_CALLING_PID, API_1, true, false, /*out*/client);
 
     if(ret != NO_ERROR) {
         logRejected(id, getCallingPid(), String8(clientPackageName),
@@ -1214,8 +1246,8 @@ status_t CameraService::connectDevice(
     String8 id = String8::format("%d", cameraId);
     sp<CameraDeviceClient> client = nullptr;
     ret = connectHelper<ICameraDeviceCallbacks,CameraDeviceClient>(cameraCb, id,
-            CAMERA_HAL_API_VERSION_UNSPECIFIED, clientPackageName, clientUid, API_2, false, false,
-            /*out*/client);
+            CAMERA_HAL_API_VERSION_UNSPECIFIED, clientPackageName, clientUid, USE_CALLING_PID,
+            API_2, false, false, /*out*/client);
 
     if(ret != NO_ERROR) {
         logRejected(id, getCallingPid(), String8(clientPackageName),
@@ -1781,21 +1813,6 @@ status_t CameraService::onTransact(uint32_t code, const Parcel& data, Parcel* re
 
     // Permission checks
     switch (code) {
-        case BnCameraService::CONNECT:
-        case BnCameraService::CONNECT_DEVICE:
-        case BnCameraService::CONNECT_LEGACY: {
-            if (pid != selfPid) {
-                // we're called from a different process, do the real check
-                if (!checkCallingPermission(
-                        String16("android.permission.CAMERA"))) {
-                    const int uid = getCallingUid();
-                    ALOGE("Permission Denial: "
-                         "can't use the camera pid=%d, uid=%d", pid, uid);
-                    return PERMISSION_DENIED;
-                }
-            }
-            break;
-        }
         case BnCameraService::NOTIFY_SYSTEM_EVENT: {
             if (pid != selfPid) {
                 // Ensure we're being called by system_server, or similar process with
