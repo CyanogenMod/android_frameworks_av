@@ -33,8 +33,8 @@ class CameraClient : public CameraService::Client
 {
 public:
     // ICamera interface (see ICamera for details)
-    virtual void            disconnect();
-    virtual status_t        connect(const sp<ICameraClient>& client);
+    virtual binder::Status  disconnect();
+    virtual status_t        connect(const sp<hardware::ICameraClient>& client);
     virtual status_t        lock();
     virtual status_t        unlock();
     virtual status_t        setPreviewTarget(const sp<IGraphicBufferProducer>& bufferProducer);
@@ -59,7 +59,7 @@ public:
 
     // Interface used by CameraService
     CameraClient(const sp<CameraService>& cameraService,
-            const sp<ICameraClient>& cameraClient,
+            const sp<hardware::ICameraClient>& cameraClient,
             const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
@@ -116,7 +116,7 @@ private:
 
     void                    copyFrameAndPostCopiedFrame(
         int32_t msgType,
-        const sp<ICameraClient>& client,
+        const sp<hardware::ICameraClient>& client,
         const sp<IMemoryHeap>& heap,
         size_t offset, size_t size,
         camera_frame_metadata_t *metadata);

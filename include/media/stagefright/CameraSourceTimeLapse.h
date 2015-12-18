@@ -26,14 +26,17 @@
 
 namespace android {
 
+namespace hardware {
 class ICamera;
+}
+
 class IMemory;
 class Camera;
 
 class CameraSourceTimeLapse : public CameraSource {
 public:
     static CameraSourceTimeLapse *CreateFromCamera(
-        const sp<ICamera> &camera,
+        const sp<hardware::ICamera> &camera,
         const sp<ICameraRecordingProxy> &proxy,
         int32_t cameraId,
         const String16& clientName,
@@ -110,7 +113,7 @@ private:
     status_t mLastReadStatus;
 
     CameraSourceTimeLapse(
-        const sp<ICamera> &camera,
+        const sp<hardware::ICamera> &camera,
         const sp<ICameraRecordingProxy> &proxy,
         int32_t cameraId,
         const String16& clientName,

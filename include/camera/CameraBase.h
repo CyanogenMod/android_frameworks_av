@@ -18,13 +18,18 @@
 #define ANDROID_HARDWARE_CAMERA_BASE_H
 
 #include <utils/Mutex.h>
-#include <camera/ICameraService.h>
 
 struct camera_frame_metadata;
 
 namespace android {
 
-struct CameraInfo {
+namespace hardware {
+
+
+class ICameraService;
+class ICameraServiceListener;
+
+struct CameraInfo : public android::Parcelable {
     /**
      * The direction that the camera faces to. It should be CAMERA_FACING_BACK
      * or CAMERA_FACING_FRONT.
@@ -44,7 +49,16 @@ struct CameraInfo {
      * right of the screen, the value should be 270.
      */
     int orientation;
+
+    virtual status_t writeToParcel(Parcel* parcel) const;
+    virtual status_t readFromParcel(const Parcel* parcel);
+
 };
+
+} // namespace hardware
+
+using hardware::CameraInfo;
+
 
 template <typename TCam>
 struct CameraTraits {
@@ -70,13 +84,13 @@ public:
 
     static status_t      getCameraInfo(int cameraId,
                                        /*out*/
-                                       struct CameraInfo* cameraInfo);
+                                       struct hardware::CameraInfo* cameraInfo);
 
     static status_t      addServiceListener(
-                                    const sp<ICameraServiceListener>& listener);
+        const sp<::android::hardware::ICameraServiceListener>& listener);
 
     static status_t      removeServiceListener(
-                                    const sp<ICameraServiceListener>& listener);
+        const sp<::android::hardware::ICameraServiceListener>& listener);
 
     sp<TCamUser>         remote();
 
@@ -101,7 +115,7 @@ protected:
     virtual void                     binderDied(const wp<IBinder>& who);
 
     // helper function to obtain camera service handle
-    static const sp<ICameraService>& getCameraService();
+    static const sp<::android::hardware::ICameraService>& getCameraService();
 
     sp<TCamUser>                     mCamera;
     status_t                         mStatus;

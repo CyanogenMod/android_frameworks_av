@@ -32,12 +32,9 @@ LOCAL_SHARED_LIBRARIES := \
 	libbinder
 
 LOCAL_C_INCLUDES += \
-	system/media/camera/include \
 	system/media/private/camera/include \
 	system/media/camera/tests \
 	frameworks/av/services/camera/libcameraservice \
-	frameworks/av/include/camera \
-	frameworks/native/include \
 
 LOCAL_CFLAGS += -Wall -Wextra
 

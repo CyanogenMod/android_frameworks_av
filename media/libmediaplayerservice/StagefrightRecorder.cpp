@@ -22,6 +22,8 @@
 #include "WebmWriter.h"
 #include "StagefrightRecorder.h"
 
+#include <android/hardware/ICamera.h>
+
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 
@@ -42,7 +44,6 @@
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/MediaProfiles.h>
-#include <camera/ICamera.h>
 #include <camera/CameraParameters.h>
 
 #include <utils/Errors.h>
@@ -215,7 +216,7 @@ status_t StagefrightRecorder::setVideoFrameRate(int frames_per_second) {
     return OK;
 }
 
-status_t StagefrightRecorder::setCamera(const sp<ICamera> &camera,
+status_t StagefrightRecorder::setCamera(const sp<hardware::ICamera> &camera,
                                         const sp<ICameraRecordingProxy> &proxy) {
     ALOGV("setCamera");
     if (camera == 0) {

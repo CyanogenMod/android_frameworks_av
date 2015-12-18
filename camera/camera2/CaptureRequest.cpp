@@ -25,8 +25,10 @@
 #include <gui/Surface.h>
 
 namespace android {
+namespace hardware {
+namespace camera2 {
 
-status_t CaptureRequest::readFromParcel(Parcel* parcel) {
+status_t CaptureRequest::readFromParcel(const Parcel* parcel) {
     if (parcel == NULL) {
         ALOGE("%s: Null parcel", __FUNCTION__);
         return BAD_VALUE;
@@ -130,4 +132,6 @@ status_t CaptureRequest::writeToParcel(Parcel* parcel) const {
     return OK;
 }
 
-}; // namespace android
+} // namespace camera2
+} // namespace hardware
+} // namespace android

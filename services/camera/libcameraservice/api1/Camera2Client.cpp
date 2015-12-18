@@ -24,6 +24,7 @@
 
 #include <cutils/properties.h>
 #include <gui/Surface.h>
+#include <android/hardware/camera2/ICameraDeviceCallbacks.h>
 
 #include "api1/Camera2Client.h"
 
@@ -46,7 +47,7 @@ static int getCallingPid() {
 // Interface used by CameraService
 
 Camera2Client::Camera2Client(const sp<CameraService>& cameraService,
-        const sp<ICameraClient>& cameraClient,
+        const sp<hardware::ICameraClient>& cameraClient,
         const String16& clientPackageName,
         int cameraId,
         int cameraFacing,
@@ -367,15 +368,16 @@ status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
 
 // ICamera interface
 
-void Camera2Client::disconnect() {
+binder::Status Camera2Client::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock icl(mBinderSerializationLock);
 
+    binder::Status res = binder::Status::ok();
     // Allow both client and the cameraserver to disconnect at all times
     int callingPid = getCallingPid();
-    if (callingPid != mClientPid && callingPid != mServicePid) return;
+    if (callingPid != mClientPid && callingPid != mServicePid) return res;
 
-    if (mDevice == 0) return;
+    if (mDevice == 0) return res;
 
     ALOGV("Camera %d: Shutting down", mCameraId);
 
@@ -389,7 +391,7 @@ void Camera2Client::disconnect() {
 
     {
         SharedParameters::Lock l(mParameters);
-        if (l.mParameters.state == Parameters::DISCONNECTED) return;
+        if (l.mParameters.state == Parameters::DISCONNECTED) return res;
         l.mParameters.state = Parameters::DISCONNECTED;
     }
 
@@ -430,9 +432,11 @@ void Camera2Client::disconnect() {
     mDevice.clear();
 
     CameraService::Client::disconnect();
+
+    return res;
 }
 
-status_t Camera2Client::connect(const sp<ICameraClient>& client) {
+status_t Camera2Client::connect(const sp<hardware::ICameraClient>& client) {
     ATRACE_CALL();
     ALOGV("%s: E", __FUNCTION__);
     Mutex::Autolock icl(mBinderSerializationLock);
@@ -1682,22 +1686,22 @@ status_t Camera2Client::commandPingL() {
     }
 }
 
-void Camera2Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+void Camera2Client::notifyError(int32_t errorCode,
         const CaptureResultExtras& resultExtras) {
     int32_t err = CAMERA_ERROR_UNKNOWN;
     switch(errorCode) {
-        case ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED:
             err = CAMERA_ERROR_RELEASED;
             break;
-        case ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
             err = CAMERA_ERROR_UNKNOWN;
             break;
-        case ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE:
             err = CAMERA_ERROR_SERVER_DIED;
             break;
-        case ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
-        case ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
-        case ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
             ALOGW("%s: Received recoverable error %d from HAL - ignoring, requestId %" PRId32,
                     __FUNCTION__, errorCode, resultExtras.requestId);
             return;

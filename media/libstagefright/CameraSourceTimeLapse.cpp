@@ -35,7 +35,7 @@ namespace android {
 
 // static
 CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
-        const sp<ICamera> &camera,
+        const sp<hardware::ICamera> &camera,
         const sp<ICameraRecordingProxy> &proxy,
         int32_t cameraId,
         const String16& clientName,
@@ -64,7 +64,7 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
 }
 
 CameraSourceTimeLapse::CameraSourceTimeLapse(
-        const sp<ICamera>& camera,
+        const sp<hardware::ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
         const String16& clientName,

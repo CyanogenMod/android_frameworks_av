@@ -19,15 +19,17 @@
 
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
+#include <binder/Parcelable.h>
 #include <camera/CameraMetadata.h>
 
 namespace android {
 
 class Surface;
 
-struct CaptureRequest : public RefBase {
-public:
+namespace hardware {
+namespace camera2 {
 
+struct CaptureRequest : public Parcelable {
     CameraMetadata          mMetadata;
     Vector<sp<Surface> >    mSurfaceList;
     bool                    mIsReprocess;
@@ -35,9 +37,20 @@ public:
     /**
      * Keep impl up-to-date with CaptureRequest.java in frameworks/base
      */
-    status_t                readFromParcel(Parcel* parcel);
-    status_t                writeToParcel(Parcel* parcel) const;
+    status_t                readFromParcel(const Parcel* parcel) override;
+    status_t                writeToParcel(Parcel* parcel) const override;
 };
-}; // namespace android
+
+} // namespace camera2
+} // namespace hardware
+
+struct CaptureRequest :
+        public RefBase, public hardware::camera2::CaptureRequest {
+  public:
+    // Same as android::hardware::camera2::CaptureRequest, except that you can
+    // put this in an sp<>
+};
+
+} // namespace android
 
 #endif

@@ -14,7 +14,8 @@ LOCAL_SRC_FILES:= \
 	main_mediaserver.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libcamera_metadata\
+	libcamera_metadata \
+	libcamera_client \
 	libcameraservice \
 	libresourcemanagerservice \
 	libcutils \

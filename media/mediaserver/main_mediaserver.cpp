@@ -25,7 +25,6 @@
 #include "RegisterExtensions.h"
 
 // from LOCAL_C_INCLUDES
-#include "CameraService.h"
 #include "IcuUtils.h"
 #include "MediaPlayerService.h"
 #include "ResourceManagerService.h"

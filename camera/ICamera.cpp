@@ -22,12 +22,14 @@
 #include <sys/types.h>
 #include <binder/Parcel.h>
 #include <camera/CameraUtils.h>
-#include <camera/ICamera.h>
+#include <android/hardware/ICamera.h>
+#include <android/hardware/ICameraClient.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 #include <media/hardware/HardwareAPI.h>
 
 namespace android {
+namespace hardware {
 
 enum {
     DISCONNECT = IBinder::FIRST_CALL_TRANSACTION,
@@ -63,13 +65,14 @@ public:
     }
 
     // disconnect from camera service
-    void disconnect()
+    binder::Status disconnect()
     {
         ALOGV("disconnect");
         Parcel data, reply;
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
         remote()->transact(DISCONNECT, data, &reply);
         reply.readExceptionCode();
+        return binder::Status::ok();
     }
 
     // pass the buffered IGraphicBufferProducer to the camera service
@@ -467,4 +470,5 @@ status_t BnCamera::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace hardware
+} // namespace android

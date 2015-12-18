@@ -141,14 +141,14 @@ CameraSource *CameraSource::Create(const String16 &clientName) {
     size.width = -1;
     size.height = -1;
 
-    sp<ICamera> camera;
+    sp<hardware::ICamera> camera;
     return new CameraSource(camera, NULL, 0, clientName, Camera::USE_CALLING_UID,
             Camera::USE_CALLING_PID, size, -1, NULL, false);
 }
 
 // static
 CameraSource *CameraSource::CreateFromCamera(
-    const sp<ICamera>& camera,
+    const sp<hardware::ICamera>& camera,
     const sp<ICameraRecordingProxy>& proxy,
     int32_t cameraId,
     const String16& clientName,
@@ -166,7 +166,7 @@ CameraSource *CameraSource::CreateFromCamera(
 }
 
 CameraSource::CameraSource(
-    const sp<ICamera>& camera,
+    const sp<hardware::ICamera>& camera,
     const sp<ICameraRecordingProxy>& proxy,
     int32_t cameraId,
     const String16& clientName,
@@ -206,7 +206,7 @@ status_t CameraSource::initCheck() const {
 }
 
 status_t CameraSource::isCameraAvailable(
-    const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy,
+    const sp<hardware::ICamera>& camera, const sp<ICameraRecordingProxy>& proxy,
     int32_t cameraId, const String16& clientName, uid_t clientUid, pid_t clientPid) {
 
     if (camera == 0) {
@@ -489,7 +489,7 @@ status_t CameraSource::checkFrameRate(
  * @return OK if no error.
  */
 status_t CameraSource::init(
-        const sp<ICamera>& camera,
+        const sp<hardware::ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
         const String16& clientName,
@@ -581,7 +581,7 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
 }
 
 status_t CameraSource::initWithCameraAccess(
-        const sp<ICamera>& camera,
+        const sp<hardware::ICamera>& camera,
         const sp<ICameraRecordingProxy>& proxy,
         int32_t cameraId,
         const String16& clientName,
@@ -630,18 +630,18 @@ status_t CameraSource::initWithCameraAccess(
     }
 
     // By default, store real data in video buffers.
-    mVideoBufferMode = ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV;
+    mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV;
     if (storeMetaDataInVideoBuffers) {
-        if (OK == mCamera->setVideoBufferMode(ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE)) {
-            mVideoBufferMode = ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE;
+        if (OK == mCamera->setVideoBufferMode(hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE)) {
+            mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE;
         } else if (OK == mCamera->setVideoBufferMode(
-                ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA)) {
-            mVideoBufferMode = ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA;
+                hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA)) {
+            mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA;
         }
     }
 
-    if (mVideoBufferMode == ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV) {
-        err = mCamera->setVideoBufferMode(ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV);
+    if (mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV) {
+        err = mCamera->setVideoBufferMode(hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV);
         if (err != OK) {
             ALOGE("%s: Setting video buffer mode to VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV failed: "
                     "%s (err=%d)", __FUNCTION__, strerror(-err), err);
@@ -686,7 +686,7 @@ status_t CameraSource::startCameraRecording() {
     int64_t token = IPCThreadState::self()->clearCallingIdentity();
     status_t err;
 
-    if (mVideoBufferMode == ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
+    if (mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
         // Initialize buffer queue.
         err = initBufferQueue(mVideoSize.width, mVideoSize.height, mEncoderFormat,
                 (android_dataspace_t)mEncoderDataSpace,
@@ -894,7 +894,7 @@ status_t CameraSource::reset() {
 void CameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
     ALOGV("releaseRecordingFrame");
 
-    if (mVideoBufferMode == ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
+    if (mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE) {
         // Return the buffer to buffer queue in VIDEO_BUFFER_MODE_BUFFER_QUEUE mode.
         ssize_t offset;
         size_t size;
@@ -1165,8 +1165,8 @@ bool CameraSource::isMetaDataStoredInVideoBuffers() const {
 
     // Output buffers will contain metadata if camera sends us buffer in metadata mode or via
     // buffer queue.
-    return (mVideoBufferMode == ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA ||
-            mVideoBufferMode == ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE);
+    return (mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA ||
+            mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE);
 }
 
 CameraSource::ProxyListener::ProxyListener(const sp<CameraSource>& source) {

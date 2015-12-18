@@ -24,6 +24,8 @@
 #include <NdkCameraManager.h>
 #include "impl/ACameraManager.h"
 
+using namespace android;
+
 EXPORT
 ACameraManager* ACameraManager_create() {
     ATRACE_CALL();

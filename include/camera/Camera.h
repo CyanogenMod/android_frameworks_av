@@ -18,13 +18,15 @@
 #define ANDROID_HARDWARE_CAMERA_H
 
 #include <utils/Timers.h>
+
+#include <android/hardware/ICameraService.h>
+
 #include <gui/IGraphicBufferProducer.h>
 #include <system/camera.h>
-#include <camera/ICameraClient.h>
 #include <camera/ICameraRecordingProxy.h>
 #include <camera/ICameraRecordingProxyListener.h>
-#include <camera/ICameraService.h>
-#include <camera/ICamera.h>
+#include <camera/android/hardware/ICamera.h>
+#include <camera/android/hardware/ICameraClient.h>
 #include <camera/CameraBase.h>
 
 namespace android {
@@ -48,31 +50,32 @@ class Camera;
 template <>
 struct CameraTraits<Camera>
 {
-    typedef CameraListener        TCamListener;
-    typedef ICamera               TCamUser;
-    typedef ICameraClient         TCamCallbacks;
-    typedef status_t (ICameraService::*TCamConnectService)(const sp<ICameraClient>&,
-                                                           int, const String16&, int, int,
-                                                           /*out*/
-                                                           sp<ICamera>&);
+    typedef CameraListener                     TCamListener;
+    typedef ::android::hardware::ICamera       TCamUser;
+    typedef ::android::hardware::ICameraClient TCamCallbacks;
+    typedef ::android::binder::Status(::android::hardware::ICameraService::*TCamConnectService)
+        (const sp<::android::hardware::ICameraClient>&,
+        int, const String16&, int, int,
+        /*out*/
+        sp<::android::hardware::ICamera>*);
     static TCamConnectService     fnConnectService;
 };
 
 
 class Camera :
     public CameraBase<Camera>,
-    public BnCameraClient
+    public ::android::hardware::BnCameraClient
 {
 public:
     enum {
-        USE_CALLING_UID = ICameraService::USE_CALLING_UID
+        USE_CALLING_UID = ::android::hardware::ICameraService::USE_CALLING_UID
     };
     enum {
-        USE_CALLING_PID = ICameraService::USE_CALLING_PID
+        USE_CALLING_PID = ::android::hardware::ICameraService::USE_CALLING_PID
     };
 
             // construct a camera client from an existing remote
-    static  sp<Camera>  create(const sp<ICamera>& camera);
+    static  sp<Camera>  create(const sp<::android::hardware::ICamera>& camera);
     static  sp<Camera>  connect(int cameraId,
                                 const String16& clientPackageName,
                                 int clientUid, int clientPid);

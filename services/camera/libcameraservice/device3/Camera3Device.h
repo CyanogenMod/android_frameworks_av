@@ -26,7 +26,6 @@
 #include <utils/Timers.h>
 #include <hardware/camera3.h>
 #include <camera/CaptureResult.h>
-#include <camera/camera2/ICameraDeviceUser.h>
 
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
@@ -153,7 +152,7 @@ class Camera3Device :
 
     virtual ssize_t getJpegBufferSize(uint32_t width, uint32_t height) const;
     ssize_t getPointCloudBufferSize() const;
-    ssize_t getRawOpaqueBufferSize(uint32_t width, uint32_t height) const;
+    ssize_t getRawOpaqueBufferSize(int32_t width, int32_t height) const;
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker

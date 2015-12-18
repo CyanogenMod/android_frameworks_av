@@ -21,14 +21,17 @@
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
 #include <binder/IMemory.h>
+#include <binder/Status.h>
 #include <utils/String8.h>
-#include <camera/Camera.h>
 
 namespace android {
 
-class ICameraClient;
 class IGraphicBufferProducer;
 class Surface;
+
+namespace hardware {
+
+class ICameraClient;
 
 class ICamera: public IInterface
 {
@@ -47,7 +50,7 @@ public:
 
     DECLARE_META_INTERFACE(Camera);
 
-    virtual void            disconnect() = 0;
+    virtual binder::Status  disconnect() = 0;
 
     // connect new client with existing camera remote
     virtual status_t        connect(const sp<ICameraClient>& client) = 0;
@@ -141,6 +144,7 @@ public:
                                     uint32_t flags = 0);
 };
 
-}; // namespace android
+} // namespace hardware
+} // namespace android
 
 #endif

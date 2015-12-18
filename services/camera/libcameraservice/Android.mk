@@ -20,7 +20,9 @@ LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:=               \
+# Camera service source
+
+LOCAL_SRC_FILES :=  \
     CameraService.cpp \
     CameraFlashlight.cpp \
     common/Camera2ClientBase.cpp \
@@ -67,11 +69,12 @@ LOCAL_SHARED_LIBRARIES:= \
     libjpeg
 
 LOCAL_C_INCLUDES += \
-    system/media/camera/include \
     system/media/private/camera/include \
     frameworks/native/include/media/openmax \
     external/jpeg
 
+LOCAL_EXPORT_C_INCLUDE_DIRS := \
+    frameworks/av/services/camera/libcameraservice
 
 LOCAL_CFLAGS += -Wall -Wextra
 

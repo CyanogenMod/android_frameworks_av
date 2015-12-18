@@ -34,7 +34,7 @@ static int getCallingPid() {
 }
 
 CameraClient::CameraClient(const sp<CameraService>& cameraService,
-        const sp<ICameraClient>& cameraClient,
+        const sp<hardware::ICameraClient>& cameraClient,
         const String16& clientPackageName,
         int cameraId, int cameraFacing,
         int clientPid, int clientUid,
@@ -193,7 +193,7 @@ status_t CameraClient::unlock() {
 }
 
 // connect a new client to the camera
-status_t CameraClient::connect(const sp<ICameraClient>& client) {
+status_t CameraClient::connect(const sp<hardware::ICameraClient>& client) {
     int callingPid = getCallingPid();
     LOG1("connect E (pid %d)", callingPid);
     Mutex::Autolock lock(mLock);
@@ -229,20 +229,21 @@ static void disconnectWindow(const sp<ANativeWindow>& window) {
     }
 }
 
-void CameraClient::disconnect() {
+binder::Status CameraClient::disconnect() {
     int callingPid = getCallingPid();
     LOG1("disconnect E (pid %d)", callingPid);
     Mutex::Autolock lock(mLock);
 
+    binder::Status res = binder::Status::ok();
     // Allow both client and the cameraserver to disconnect at all times
     if (callingPid != mClientPid && callingPid != mServicePid) {
         ALOGW("different client - don't disconnect");
-        return;
+        return res;
     }
 
     // Make sure disconnect() is done once and once only, whether it is called
     // from the user directly, or called by the destructor.
-    if (mHardware == 0) return;
+    if (mHardware == 0) return res;
 
     LOG1("hardware teardown");
     // Before destroying mHardware, we must make sure it's in the
@@ -268,6 +269,8 @@ void CameraClient::disconnect() {
     CameraService::Client::disconnect();
 
     LOG1("disconnect X (pid %d)", callingPid);
+
+    return res;
 }
 
 // ----------------------------------------------------------------------------
@@ -797,7 +800,7 @@ void CameraClient::handleShutter(void) {
         mCameraService->playSound(CameraService::SOUND_SHUTTER);
     }
 
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     if (c != 0) {
         mLock.unlock();
         c->notifyCallback(CAMERA_MSG_SHUTTER, 0, 0);
@@ -834,7 +837,7 @@ void CameraClient::handlePreviewData(int32_t msgType,
     }
 
     // hold a strong pointer to the client
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
 
     // clear callback flags if no client or one-shot mode
     if (c == 0 || (mPreviewCallbackFlag & CAMERA_FRAME_CALLBACK_FLAG_ONE_SHOT_MASK)) {
@@ -864,7 +867,7 @@ void CameraClient::handlePreviewData(int32_t msgType,
 void CameraClient::handlePostview(const sp<IMemory>& mem) {
     disableMsgType(CAMERA_MSG_POSTVIEW_FRAME);
 
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_POSTVIEW_FRAME, mem, NULL);
@@ -879,7 +882,7 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
     size_t size;
     sp<IMemoryHeap> heap = mem->getMemory(&offset, &size);
 
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_RAW_IMAGE, mem, NULL);
@@ -890,7 +893,7 @@ void CameraClient::handleRawPicture(const sp<IMemory>& mem) {
 void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
     disableMsgType(CAMERA_MSG_COMPRESSED_IMAGE);
 
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(CAMERA_MSG_COMPRESSED_IMAGE, mem, NULL);
@@ -900,7 +903,7 @@ void CameraClient::handleCompressedPicture(const sp<IMemory>& mem) {
 
 void CameraClient::handleGenericNotify(int32_t msgType,
     int32_t ext1, int32_t ext2) {
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->notifyCallback(msgType, ext1, ext2);
@@ -909,7 +912,7 @@ void CameraClient::handleGenericNotify(int32_t msgType,
 
 void CameraClient::handleGenericData(int32_t msgType,
     const sp<IMemory>& dataPtr, camera_frame_metadata_t *metadata) {
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallback(msgType, dataPtr, metadata);
@@ -918,7 +921,7 @@ void CameraClient::handleGenericData(int32_t msgType,
 
 void CameraClient::handleGenericDataTimestamp(nsecs_t timestamp,
     int32_t msgType, const sp<IMemory>& dataPtr) {
-    sp<ICameraClient> c = mRemoteCallback;
+    sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
     if (c != 0) {
         c->dataCallbackTimestamp(timestamp, msgType, dataPtr);
@@ -926,7 +929,7 @@ void CameraClient::handleGenericDataTimestamp(nsecs_t timestamp,
 }
 
 void CameraClient::copyFrameAndPostCopiedFrame(
-        int32_t msgType, const sp<ICameraClient>& client,
+        int32_t msgType, const sp<hardware::ICameraClient>& client,
         const sp<IMemoryHeap>& heap, size_t offset, size_t size,
         camera_frame_metadata_t *metadata) {
     LOG2("copyFrameAndPostCopiedFrame");

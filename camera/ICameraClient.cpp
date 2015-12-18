@@ -21,10 +21,11 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <camera/CameraUtils.h>
-#include <camera/ICameraClient.h>
+#include <android/hardware/ICameraClient.h>
 #include <media/hardware/HardwareAPI.h>
 
 namespace android {
+namespace hardware {
 
 enum {
     NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
@@ -150,5 +151,5 @@ status_t BnCameraClient::onTransact(
 
 // ----------------------------------------------------------------------------
 
-}; // namespace android
-
+} // namespace hardware
+} // namespace android

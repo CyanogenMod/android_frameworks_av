@@ -32,7 +32,8 @@
 
 namespace android {
 
-status_t MediaRecorder::setCamera(const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy)
+status_t MediaRecorder::setCamera(const sp<hardware::ICamera>& camera,
+        const sp<ICameraRecordingProxy>& proxy)
 {
     ALOGV("setCamera(%p,%p)", camera.get(), proxy.get());
     if (mMediaRecorder == NULL) {

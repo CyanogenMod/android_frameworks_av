@@ -26,19 +26,17 @@
 #include <utils/List.h>
 #include <utils/Vector.h>
 
+#include <android/hardware/camera2/BnCameraDeviceCallbacks.h>
+#include <android/hardware/camera2/ICameraDeviceUser.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <camera/CaptureResult.h>
-#include <camera/camera2/ICameraDeviceCallbacks.h>
-#include <camera/camera2/ICameraDeviceUser.h>
 #include <camera/camera2/OutputConfiguration.h>
 #include <camera/camera2/CaptureRequest.h>
 
 #include <NdkCameraDevice.h>
 #include "ACameraMetadata.h"
-
-using namespace android;
 
 namespace android {
 
@@ -64,24 +62,26 @@ class CameraDevice final : public RefBase {
             /*out*/ACameraCaptureSession** session);
 
     // Callbacks from camera service
-    class ServiceCallback : public BnCameraDeviceCallbacks {
+    class ServiceCallback : public hardware::camera2::BnCameraDeviceCallbacks {
       public:
         ServiceCallback(CameraDevice* device) : mDevice(device) {}
-        void onDeviceError(CameraErrorCode errorCode,
+        binder::Status onDeviceError(int32_t errorCode,
                            const CaptureResultExtras& resultExtras) override;
-        void onDeviceIdle() override;
-        void onCaptureStarted(const CaptureResultExtras& resultExtras,
+        binder::Status onDeviceIdle() override;
+        binder::Status onCaptureStarted(const CaptureResultExtras& resultExtras,
                               int64_t timestamp) override;
-        void onResultReceived(const CameraMetadata& metadata,
+        binder::Status onResultReceived(const CameraMetadata& metadata,
                               const CaptureResultExtras& resultExtras) override;
-        void onPrepared(int streamId) override;
+        binder::Status onPrepared(int streamId) override;
       private:
         const wp<CameraDevice> mDevice;
     };
-    inline sp<ICameraDeviceCallbacks> getServiceCallback() { return mServiceCallback; };
+    inline sp<hardware::camera2::ICameraDeviceCallbacks> getServiceCallback() {
+        return mServiceCallback;
+    };
 
     // Camera device is only functional after remote being set
-    void setRemoteDevice(sp<ICameraDeviceUser> remote);
+    void setRemoteDevice(sp<hardware::camera2::ICameraDeviceUser> remote);
 
     inline ACameraDevice* getWrapper() const { return mWrapper; };
 
@@ -155,14 +155,14 @@ class CameraDevice final : public RefBase {
     bool mInError;
     camera_status_t mError;
     void onCaptureErrorLocked(
-            ICameraDeviceCallbacks::CameraErrorCode errorCode,
+            int32_t errorCode,
             const CaptureResultExtras& resultExtras);
 
     bool mIdle;
     // This will avoid a busy session being deleted before it's back to idle state
     sp<ACameraCaptureSession> mBusySession;
 
-    sp<ICameraDeviceUser> mRemote;
+    sp<hardware::camera2::ICameraDeviceUser> mRemote;
 
     // Looper thread to handle callback to app
     sp<ALooper> mCbLooper;
@@ -294,17 +294,17 @@ struct ACameraDevice {
     /***********************
      * Device interal APIs *
      ***********************/
-    inline sp<ICameraDeviceCallbacks> getServiceCallback() {
+    inline android::sp<android::hardware::camera2::ICameraDeviceCallbacks> getServiceCallback() {
         return mDevice->getServiceCallback();
     };
 
     // Camera device is only functional after remote being set
-    inline void setRemoteDevice(sp<ICameraDeviceUser> remote) {
+    inline void setRemoteDevice(android::sp<android::hardware::camera2::ICameraDeviceUser> remote) {
         mDevice->setRemoteDevice(remote);
     }
 
   private:
-    sp<CameraDevice> mDevice;
+    android::sp<android::CameraDevice> mDevice;
 };
 
 #endif // _ACAMERA_DEVICE_H
