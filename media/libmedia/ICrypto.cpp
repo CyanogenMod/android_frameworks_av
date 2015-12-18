@@ -98,7 +98,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
             bool secure,
             const uint8_t key[16],
             const uint8_t iv[16],
-            CryptoPlugin::Mode mode,
+            CryptoPlugin::Mode mode, const CryptoPlugin::Pattern &pattern,
             const sp<IMemory> &sharedBuffer, size_t offset,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
             void *dstPtr,
@@ -107,6 +107,8 @@ struct BpCrypto : public BpInterface<ICrypto> {
         data.writeInterfaceToken(ICrypto::getInterfaceDescriptor());
         data.writeInt32(secure);
         data.writeInt32(mode);
+        data.writeInt32(pattern.mEncryptBlocks);
+        data.writeInt32(pattern.mSkipBlocks);
 
         static const uint8_t kDummy[16] = { 0 };
 
@@ -276,6 +278,9 @@ status_t BnCrypto::onTransact(
 
             bool secure = data.readInt32() != 0;
             CryptoPlugin::Mode mode = (CryptoPlugin::Mode)data.readInt32();
+            CryptoPlugin::Pattern pattern;
+            pattern.mEncryptBlocks = data.readInt32();
+            pattern.mSkipBlocks = data.readInt32();
 
             uint8_t key[16];
             data.read(key, sizeof(key));
@@ -338,7 +343,7 @@ status_t BnCrypto::onTransact(
                     secure,
                     key,
                     iv,
-                    mode,
+                    mode, pattern,
                     sharedBuffer, offset,
                     subSamples, numSubSamples,
                     secure ? secureBufferId : dstPtr,

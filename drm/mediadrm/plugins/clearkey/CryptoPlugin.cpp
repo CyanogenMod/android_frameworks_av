@@ -33,7 +33,7 @@ using android::status_t;
 // decrypted data.  In theory, the output size can be larger than the input
 // size, but in practice this will never happen for AES-CTR.
 ssize_t CryptoPlugin::decrypt(bool secure, const KeyId keyId, const Iv iv,
-                              Mode mode, const void* srcPtr,
+                              Mode mode, const Pattern &pattern, const void* srcPtr,
                               const SubSample* subSamples, size_t numSubSamples,
                               void* dstPtr, AString* errorDetailMsg) {
     if (secure) {

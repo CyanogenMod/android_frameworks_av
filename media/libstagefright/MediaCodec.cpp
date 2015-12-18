@@ -688,6 +688,7 @@ status_t MediaCodec::queueSecureInputBuffer(
         const uint8_t key[16],
         const uint8_t iv[16],
         CryptoPlugin::Mode mode,
+        const CryptoPlugin::Pattern &pattern,
         int64_t presentationTimeUs,
         uint32_t flags,
         AString *errorDetailMsg) {
@@ -703,6 +704,8 @@ status_t MediaCodec::queueSecureInputBuffer(
     msg->setPointer("key", (void *)key);
     msg->setPointer("iv", (void *)iv);
     msg->setInt32("mode", mode);
+    msg->setInt32("encryptBlocks", pattern.mEncryptBlocks);
+    msg->setInt32("skipBlocks", pattern.mSkipBlocks);
     msg->setInt64("timeUs", presentationTimeUs);
     msg->setInt32("flags", flags);
     msg->setPointer("errorDetailMsg", errorDetailMsg);
@@ -2452,11 +2455,16 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         AString *errorDetailMsg;
         CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
 
+        CryptoPlugin::Pattern pattern;
+        CHECK(msg->findInt32("encryptBlocks", (int32_t *)&pattern.mEncryptBlocks));
+        CHECK(msg->findInt32("skipBlocks", (int32_t *)&pattern.mSkipBlocks));
+
         ssize_t result = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
                 key,
                 iv,
                 mode,
+                pattern,
                 info->mSharedEncryptedBuffer,
                 offset,
                 subSamples,

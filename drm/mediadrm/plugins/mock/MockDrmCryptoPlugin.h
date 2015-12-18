@@ -159,7 +159,7 @@ namespace android {
 
         ssize_t decrypt(bool secure,
             const uint8_t key[16], const uint8_t iv[16],
-            Mode mode, const void *srcPtr,
+            Mode mode, const Pattern &pattern, const void *srcPtr,
             const SubSample *subSamples, size_t numSubSamples,
             void *dstPtr, AString *errorDetailMsg);
     private:

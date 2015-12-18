@@ -792,15 +792,17 @@ namespace android {
 
     ssize_t
     MockCryptoPlugin::decrypt(bool secure, const uint8_t key[16], const uint8_t iv[16],
-                              Mode mode, const void *srcPtr, const SubSample *subSamples,
-                              size_t numSubSamples, void *dstPtr, AString * /* errorDetailMsg */)
+            Mode mode, const Pattern &pattern, const void *srcPtr,
+            const SubSample *subSamples, size_t numSubSamples,
+            void *dstPtr, AString * /* errorDetailMsg */)
     {
-        ALOGD("MockCryptoPlugin::decrypt(secure=%d, key=%s, iv=%s, mode=%d, src=%p, "
+        ALOGD("MockCryptoPlugin::decrypt(secure=%d, key=%s, iv=%s, mode=%d, "
+              "pattern:{encryptBlocks=%d, skipBlocks=%d} src=%p, "
               "subSamples=%s, dst=%p)",
               (int)secure,
               arrayToString(key, sizeof(key)).string(),
               arrayToString(iv, sizeof(iv)).string(),
-              (int)mode, srcPtr,
+              (int)mode, pattern.mEncryptBlocks, pattern.mSkipBlocks, srcPtr,
               subSamplesToString(subSamples, numSubSamples).string(),
               dstPtr);
         return OK;

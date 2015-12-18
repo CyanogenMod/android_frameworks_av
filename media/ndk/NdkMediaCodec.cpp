@@ -372,6 +372,7 @@ typedef struct AMediaCodecCryptoInfo {
         uint8_t key[16];
         uint8_t iv[16];
         cryptoinfo_mode_t mode;
+        cryptoinfo_pattern_t pattern;
         size_t *clearbytes;
         size_t *encryptedbytes;
 } AMediaCodecCryptoInfo;
@@ -391,6 +392,10 @@ media_status_t AMediaCodec_queueSecureInputBuffer(
         subSamples[i].mNumBytesOfEncryptedData = crypto->encryptedbytes[i];
     }
 
+    CryptoPlugin::Pattern pattern;
+    pattern.mEncryptBlocks = crypto->pattern.encryptBlocks;
+    pattern.mSkipBlocks = crypto->pattern.skipBlocks;
+
     AString errormsg;
     status_t err  = codec->mCodec->queueSecureInputBuffer(idx,
             offset,
@@ -398,7 +403,8 @@ media_status_t AMediaCodec_queueSecureInputBuffer(
             crypto->numsubsamples,
             crypto->key,
             crypto->iv,
-            (CryptoPlugin::Mode) crypto->mode,
+            (CryptoPlugin::Mode)crypto->mode,
+            pattern,
             time,
             flags,
             &errormsg);
@@ -410,6 +416,12 @@ media_status_t AMediaCodec_queueSecureInputBuffer(
 }
 
 
+EXPORT
+void AMediaCodecCryptoInfo_setPattern(AMediaCodecCryptoInfo *info,
+        cryptoinfo_pattern_t *pattern) {
+    info->pattern.encryptBlocks = pattern->encryptBlocks;
+    info->pattern.skipBlocks = pattern->skipBlocks;
+}
 
 EXPORT
 AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
@@ -431,6 +443,8 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
     memcpy(ret->key, key, 16);
     memcpy(ret->iv, iv, 16);
     ret->mode = mode;
+    ret->pattern.encryptBlocks = 0;
+    ret->pattern.skipBlocks = 0;
 
     // clearbytes and encryptedbytes point at the actual data, which follows
     ret->clearbytes = (size_t*) (ret + 1); // point immediately after the struct
