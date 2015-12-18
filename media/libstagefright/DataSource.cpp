@@ -48,6 +48,8 @@
 
 #include <cutils/properties.h>
 
+#include <private/android_filesystem_config.h>
+
 namespace android {
 
 bool DataSource::getUInt16(off64_t offset, uint16_t *x) {
@@ -173,7 +175,10 @@ void DataSource::RegisterDefaultSniffers() {
     RegisterSniffer_l(SniffMP3);
     RegisterSniffer_l(SniffAAC);
     RegisterSniffer_l(SniffMPEG2PS);
-    RegisterSniffer_l(SniffWVM);
+    if (getuid() == AID_MEDIA) {
+        // WVM only in the media server process
+        RegisterSniffer_l(SniffWVM);
+    }
     RegisterSniffer_l(SniffMidi);
 
     char value[PROPERTY_VALUE_MAX];

@@ -138,6 +138,17 @@ sp<IMediaExtractor> MediaExtractor::Create(
         // remote extractor
         ALOGV("get service manager");
         sp<IBinder> binder = defaultServiceManager()->getService(String16("media.extractor"));
+
+        // Check if it's WVM, since WVMExtractor needs to be created in the media server process,
+        // not the extractor process.
+        String8 mime8;
+        float confidence;
+        sp<AMessage> meta;
+        if (SniffWVM(source, &mime8, &confidence, &meta) &&
+                !strcasecmp(mime8, MEDIA_MIMETYPE_CONTAINER_WVM)) {
+            return new WVMExtractor(source);
+        }
+
         if (binder != 0) {
             sp<IMediaExtractorService> mediaExService(interface_cast<IMediaExtractorService>(binder));
             sp<IMediaExtractor> ex = mediaExService->makeExtractor(RemoteDataSource::wrap(source), mime);
@@ -213,7 +224,7 @@ sp<MediaExtractor> MediaExtractor::CreateFromService(
         ret = new MatroskaExtractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) {
         ret = new MPEG2TSExtractor(source);
-    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_WVM)) {
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_WVM) && getuid() == AID_MEDIA) {
         // Return now.  WVExtractor should not have the DrmFlag set in the block below.
         return new WVMExtractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC_ADTS)) {
