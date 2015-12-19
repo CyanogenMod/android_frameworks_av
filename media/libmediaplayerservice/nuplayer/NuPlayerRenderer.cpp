@@ -1071,6 +1071,7 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
         return;
     }
 
+    bool needRepostDrainVideoQueue = false;
     int64_t delayUs;
     int64_t nowUs = ALooper::GetNowUs();
     int64_t realTimeUs;
@@ -1091,8 +1092,14 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
             } else if (!mVideoSampleReceived) {
                 // Always render the first video frame.
                 realTimeUs = nowUs;
-            } else {
+            } else if (mAudioFirstAnchorTimeMediaUs < 0
+                || mMediaClock->getRealTimeFor(mediaTimeUs, &realTimeUs) == OK) {
                 realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
+            } else if (mediaTimeUs - mAudioFirstAnchorTimeMediaUs >= 0) {
+                needRepostDrainVideoQueue = true;
+                realTimeUs = nowUs;
+            } else {
+                realTimeUs = nowUs;
             }
         }
         if (!mHasAudio) {
@@ -1105,15 +1112,25 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
         // received after this buffer, repost in 10 msec. Otherwise repost
         // in 500 msec.
         delayUs = realTimeUs - nowUs;
+        int64_t postDelayUs = -1;
         if (delayUs > 500000) {
-            int64_t postDelayUs = 500000;
+            postDelayUs = 500000;
             if (mHasAudio && (mLastAudioBufferDrained - entry.mBufferOrdinal) <= 0) {
                 postDelayUs = 10000;
             }
+        } else if (needRepostDrainVideoQueue) {
+            // CHECK(mPlaybackRate > 0);
+            // CHECK(mAudioFirstAnchorTimeMediaUs >= 0);
+            // CHECK(mediaTimeUs - mAudioFirstAnchorTimeMediaUs >= 0);
+            postDelayUs = mediaTimeUs - mAudioFirstAnchorTimeMediaUs;
+            postDelayUs /= mPlaybackRate;
+        }
+
+        if (postDelayUs >= 0) {
             msg->setWhat(kWhatPostDrainVideoQueue);
             msg->post(postDelayUs);
             mVideoScheduler->restart();
-            ALOGI("possible video time jump of %dms, retrying in %dms",
+            ALOGI("possible video time jump of %dms or uninitialized media clock, retrying in %dms",
                     (int)(delayUs / 1000), (int)(postDelayUs / 1000));
             mDrainVideoQueuePending = true;
             return;
