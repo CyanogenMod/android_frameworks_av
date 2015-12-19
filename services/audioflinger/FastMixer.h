@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_FAST_MIXER_H
 #define ANDROID_AUDIO_FAST_MIXER_H
 
+#include <atomic>
 #include "FastThread.h"
 #include "StateQueue.h"
 #include "FastMixerState.h"
@@ -35,6 +36,8 @@ public:
     virtual ~FastMixer();
 
             FastMixerStateQueue* sq();
+
+    virtual void setMasterMono(bool mono) { mMasterMono.store(mono); /* memory_order_seq_cst */ }
 
 private:
             FastMixerStateQueue mSQ;
@@ -82,6 +85,8 @@ private:
     AudioTimestamp  mTimestamp;
     uint32_t        mNativeFramesWrittenButNotPresented;
 
+    // accessed without lock between multiple threads.
+    std::atomic_bool mMasterMono;
 };  // class FastMixer
 
 }   // namespace android
