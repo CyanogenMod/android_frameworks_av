@@ -92,6 +92,10 @@ private:
 
     MediaExtractor(const MediaExtractor &);
     MediaExtractor &operator=(const MediaExtractor &);
+
+    static sp<MediaExtractor> CreateExtractorInternal(
+            const sp<DataSource> &source, const char *mime,
+            const sp<AMessage> &meta, uint32_t flags, bool isDrm);
 };
 
 }  // namespace android
