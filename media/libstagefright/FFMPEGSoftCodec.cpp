@@ -223,37 +223,32 @@ const char* FFMPEGSoftCodec::overrideComponentName(
         }
     }
 
+    // Use FFMPEG for high-res formats which other decoders can't handle
+    int32_t bits = 16;
+    if (!isEncoder && meta->findInt32(kKeyBitsPerSample, &bits)) {
+        if (bits > 16) {
+            if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
+                componentName = "OMX.ffmpeg.aac.decoder";
+                ALOGD("Use FFMPEG for high-res AAC format");
+            } else if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC, strlen(MEDIA_MIMETYPE_AUDIO_FLAC))) {
+                componentName = "OMX.ffmpeg.flac.decoder";
+                ALOGD("Use FFMPEG for high-res FLAC format");
+            }
+        }
+    }
+
     return componentName;
 }
 
 void FFMPEGSoftCodec::overrideComponentName(
-        uint32_t /*quirks*/, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
+        uint32_t quirks, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
 
-    int32_t wmvVersion = 0;
-    if (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
-            msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
-        ALOGD("Found WMV version key %d", wmvVersion);
-        if (wmvVersion != 2) {
-            ALOGD("Use FFMPEG for unsupported WMV track");
-            componentName->setTo("OMX.ffmpeg.wmv.decoder");
-        }
-    }
-
-    int32_t encodeOptions = 0;
-    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
-            !msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
-        ALOGD("Use FFMPEG for unsupported WMA track");
-        componentName->setTo("OMX.ffmpeg.wma.decoder");
-    }
-
-    // Google's decoder doesn't support MAIN profile
-    int32_t aacProfile = 0;
-    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
-            msg->findInt32(getMsgKey(kKeyAACAOT), &aacProfile)) {
-        if ((aacProfile == OMX_AUDIO_AACObjectMain) || (aacProfile == OMX_AUDIO_AACObjectLTP)) {
-            ALOGD("Use FFMPEG for AAC Main/LTP profile");
-            componentName->setTo("OMX.ffmpeg.aac.decoder");
-        }
+    sp<MetaData> meta = new MetaData;
+    convertMessageToMetaData(msg, meta);
+    const char *updated = overrideComponentName(
+                quirks, meta, mime->c_str(), isEncoder);
+    if (updated != NULL) {
+        componentName->setTo(updated);
     }
 }
 
