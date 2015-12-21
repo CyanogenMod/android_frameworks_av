@@ -55,53 +55,9 @@ uint32_t MediaExtractor::flags() const {
 }
 
 // static
-sp<MediaExtractor> MediaExtractor::Create(
+sp<MediaExtractor> MediaExtractor::CreateExtractorInternal(
         const sp<DataSource> &source, const char *mime,
-        const uint32_t flags) {
-    sp<AMessage> meta;
-
-    bool secondPass = false;
-
-    String8 tmp;
-retry:
-    if (secondPass || mime == NULL) {
-        float confidence;
-        if (secondPass) {
-            confidence = 3.14f;
-        }
-        if (!source->sniff(&tmp, &confidence, &meta)) {
-            ALOGV("FAILED to autodetect media content.");
-
-            return NULL;
-        }
-
-        mime = tmp.string();
-        ALOGV("Autodetected media content as '%s' with confidence %.2f",
-             mime, confidence);
-    }
-
-    bool isDrm = false;
-    // DRM MIME type syntax is "drm+type+original" where
-    // type is "es_based" or "container_based" and
-    // original is the content's cleartext MIME type
-    if (!strncmp(mime, "drm+", 4)) {
-        const char *originalMime = strchr(mime+4, '+');
-        if (originalMime == NULL) {
-            // second + not found
-            return NULL;
-        }
-        ++originalMime;
-        if (!strncmp(mime, "drm+es_based+", 13)) {
-            // DRMExtractor sets container metadata kKeyIsDRM to 1
-            return new DRMExtractor(source, originalMime);
-        } else if (!strncmp(mime, "drm+container_based+", 20)) {
-            mime = originalMime;
-            isDrm = true;
-        } else {
-            return NULL;
-        }
-    }
-
+        const sp<AMessage> &meta, const uint32_t flags, bool isDrm) {
     sp<MediaExtractor> ret = NULL;
     AString extractorName;
     if ((ret = AVFactory::get()->createExtendedExtractor(source, mime, meta, flags)) != NULL) {
@@ -151,14 +107,78 @@ retry:
        }
     }
 
-    if (ret != NULL) {
+    return ret;
+}
 
-        if (!(!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4) &&
-                (source->flags() & DataSource::kIsCachingDataSource)) &&
-                    !isDrm && !secondPass && ( ret->countTracks() == 0 ||
-                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2) ) ) {
-            secondPass = true;
-            goto retry;
+// static
+sp<MediaExtractor> MediaExtractor::Create(
+        const sp<DataSource> &source, const char *mime,
+        const uint32_t flags) {
+    sp<AMessage> meta;
+
+    bool secondPass = false;
+
+    String8 tmp;
+retry:
+    if (secondPass || mime == NULL) {
+        float confidence;
+        if (secondPass) {
+            confidence = 3.14f;
+        }
+        if (!source->sniff(&tmp, &confidence, &meta)) {
+            ALOGV("FAILED to autodetect media content.");
+
+            return NULL;
+        }
+
+        mime = tmp.string();
+        ALOGV("Autodetected media content as '%s' with confidence %.2f",
+             mime, confidence);
+    }
+
+    bool isDrm = false;
+    // DRM MIME type syntax is "drm+type+original" where
+    // type is "es_based" or "container_based" and
+    // original is the content's cleartext MIME type
+    if (!strncmp(mime, "drm+", 4)) {
+        const char *originalMime = strchr(mime+4, '+');
+        if (originalMime == NULL) {
+            // second + not found
+            return NULL;
+        }
+        ++originalMime;
+        if (!strncmp(mime, "drm+es_based+", 13)) {
+            // DRMExtractor sets container metadata kKeyIsDRM to 1
+            return new DRMExtractor(source, originalMime);
+        } else if (!strncmp(mime, "drm+container_based+", 20)) {
+            mime = originalMime;
+            isDrm = true;
+        } else {
+            return NULL;
+        }
+    }
+
+    sp<MediaExtractor> ret = MediaExtractor::CreateExtractorInternal(source, mime,
+            meta, flags, isDrm);
+
+    bool isStreamingMPEG4 = (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_MPEG4) &&
+            (source->flags() & DataSource::kIsCachingDataSource));
+    if (ret != NULL) {
+        if (!isStreamingMPEG4 && !isDrm && !secondPass) {
+            if (ret->countTracks() == 0 ||
+                    (!strncasecmp("video/", mime, 6) && ret->countTracks() < 2)) {
+                secondPass = true;
+                goto retry;
+            } else {
+                // XXX: Workaround for CTS tests:
+                // android.media.cts.MediaMetadataRetrieverTest#testRetrieveFailsIfMediaDataSourceReturnsAnError
+                // android.media.cts.MediaMetadataRetrieverTest#testRetrieveFailsIfMediaDataSourceThrows
+                //
+                // The test assumes that extractors won't introspect the source until a getter that depends on
+                // metadata is called. Our method to fallback to ffmpeg implies that we introspect the source
+                // upon extractor creation, so recreate a clean extractor.
+                ret = MediaExtractor::CreateExtractorInternal(source, mime, meta, flags, isDrm);
+            }
         }
     }
 
