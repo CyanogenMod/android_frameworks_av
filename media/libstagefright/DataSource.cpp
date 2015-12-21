@@ -137,13 +137,6 @@ bool DataSource::gSniffersRegistered = false;
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
 
-    bool forceExtraSniffers = false;
-
-    if (*confidence == 3.14f) {
-       // Magic value, as set by MediaExtractor when a video container looks incomplete
-       forceExtraSniffers = true;
-    }
-
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
@@ -170,18 +163,16 @@ bool DataSource::sniff(
     }
 
     /* Only do the deeper sniffers if the results are null or in doubt */
-    if (mimeType->length() == 0 || *confidence < 0.21f || forceExtraSniffers) {
-        for (List<SnifferFunc>::iterator it = gExtraSniffers.begin();
-                it != gExtraSniffers.end(); ++it) {
-            String8 newMimeType;
-            float newConfidence;
-            sp<AMessage> newMeta;
-            if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
-                if (newConfidence > *confidence) {
-                    *mimeType = newMimeType;
-                    *confidence = newConfidence;
-                    *meta = newMeta;
-                }
+    for (List<SnifferFunc>::iterator it = gExtraSniffers.begin();
+            it != gExtraSniffers.end(); ++it) {
+        String8 newMimeType;
+        float newConfidence;
+        sp<AMessage> newMeta;
+        if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
+            if (newConfidence > *confidence) {
+                *mimeType = newMimeType;
+                *confidence = newConfidence;
+                *meta = newMeta;
             }
         }
     }
