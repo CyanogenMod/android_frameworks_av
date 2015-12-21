@@ -56,7 +56,6 @@ protected:
     sp<Renderer> mRenderer;
     size_t mAggregateBufferSizeBytes;
     int64_t mSkipRenderingUntilMediaTimeUs;
-    bool mPaused;
     bool mReachedEOS;
 
     // Used by feedDecoderInputData to aggregate small buffers into
