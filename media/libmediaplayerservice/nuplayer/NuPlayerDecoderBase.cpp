@@ -31,7 +31,6 @@ namespace android {
 NuPlayer::DecoderBase::DecoderBase(const sp<AMessage> &notify)
     :  mNotify(notify),
        mBufferGeneration(0),
-       mPaused(false),
        mStats(new AMessage),
        mRequestInputBuffersPending(false) {
     // Every decoder has its own looper because MediaCodec operations
@@ -82,13 +81,6 @@ void NuPlayer::DecoderBase::setRenderer(const sp<Renderer> &renderer) {
     sp<AMessage> msg = new AMessage(kWhatSetRenderer, this);
     msg->setObject("renderer", renderer);
     msg->post();
-}
-
-void NuPlayer::DecoderBase::pause() {
-    sp<AMessage> msg = new AMessage(kWhatPause, this);
-
-    sp<AMessage> response;
-    PostAndAwaitResponse(msg, &response);
 }
 
 status_t NuPlayer::DecoderBase::getInputBuffers(Vector<sp<ABuffer> > *buffers) const {
@@ -151,17 +143,6 @@ void NuPlayer::DecoderBase::onMessageReceived(const sp<AMessage> &msg) {
             sp<RefBase> obj;
             CHECK(msg->findObject("renderer", &obj));
             onSetRenderer(static_cast<Renderer *>(obj.get()));
-            break;
-        }
-
-        case kWhatPause:
-        {
-            sp<AReplyToken> replyID;
-            CHECK(msg->senderAwaitsResponse(&replyID));
-
-            mPaused = true;
-
-            (new AMessage)->postReply(replyID);
             break;
         }
 

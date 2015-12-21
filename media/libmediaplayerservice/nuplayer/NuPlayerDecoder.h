@@ -96,6 +96,7 @@ protected:
     bool mFormatChangePending;
     bool mTimeChangePending;
 
+    bool mPaused;
     bool mResumePending;
     AString mComponentName;
 
