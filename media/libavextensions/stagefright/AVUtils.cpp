@@ -387,59 +387,15 @@ bool AVUtils::HEVCMuxer::reassembleHEVCCSD(const AString &mime, sp<ABuffer> csd0
     if (!isVideoHEVC(mime.c_str())) {
         return false;
     }
-    uint32_t type;
-    const void *data;
-    size_t size;
-    if (meta->findData(kKeyHVCC, &type, &data, &size)) {
-        const uint8_t *ptr = (const uint8_t *)data;
+    void *csd = NULL;
+    size_t size = 0;
 
-        CHECK(size >= 7);
-        uint8_t profile = ptr[1] & 31;
-        uint8_t level = ptr[12];
-        ptr += 22;
-        size -= 22;
-
-
-        size_t numofArrays = (char)ptr[0];
-        ptr += 1;
-        size -= 1;
-        size_t j = 0, i = 0;
-
-        csd0->setRange(0, 0);
-
-        for (i = 0; i < numofArrays; i++) {
-            ptr += 1;
-            size -= 1;
-
-            //Num of nals
-            size_t numofNals = U16_AT(ptr);
-
-            ptr += 2;
-            size -= 2;
-
-            for (j = 0; j < numofNals; j++) {
-                CHECK(size >= 2);
-                size_t length = U16_AT(ptr);
-
-                ptr += 2;
-                size -= 2;
-
-                if (size < length) {
-                    return false;
-                }
-                status_t err = copyNALUToABuffer(&csd0, ptr, length);
-                if (err != OK) {
-                    return false;
-                }
-
-                ptr += length;
-                size -= length;
-            }
-        }
-        csd0->meta()->setInt32("csd", true);
-        csd0->meta()->setInt64("timeUs", 0);
+    if (makeHEVCCodecSpecificData(csd0->data(), csd0->size(), &csd, &size) == OK) {
+        meta->setData(kKeyHVCC, kTypeHVCC, csd, size);
+        free(csd);
         return true;
     }
+    ALOGE("Failed to reassemble HVCC data");
     return false;
 }
 
