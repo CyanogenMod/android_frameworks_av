@@ -42,7 +42,7 @@ class WVMExtractor;
 struct NuPlayer::GenericSource : public NuPlayer::Source {
     GenericSource(const sp<AMessage> &notify, bool uidValid, uid_t uid);
 
-    virtual status_t setDataSource(
+    status_t setDataSource(
             const sp<IMediaHTTPService> &httpService,
             const char *url,
             const KeyedVector<String8, String8> *headers);
