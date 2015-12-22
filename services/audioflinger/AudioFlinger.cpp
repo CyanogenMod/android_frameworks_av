@@ -185,8 +185,8 @@ AudioFlinger::AudioFlinger()
       mSystemReady(false)
 {
     getpid_cached = getpid();
-    char value[PROPERTY_VALUE_MAX];
-    bool doLog = (property_get("ro.test_harness", value, "0") > 0) && (atoi(value) == 1);
+    // disable media.log until the service is reenabled, see b/26306954
+    const bool doLog = false; // property_get_bool("ro.test_harness", false);
     if (doLog) {
         mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters",
                 MemoryHeapBase::READ_ONLY);
@@ -261,16 +261,17 @@ AudioFlinger::~AudioFlinger()
     }
 
     // Tell media.log service about any old writers that still need to be unregistered
-    sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
-    if (binder != 0) {
-        sp<IMediaLogService> mediaLogService(interface_cast<IMediaLogService>(binder));
-        for (size_t count = mUnregisteredWriters.size(); count > 0; count--) {
-            sp<IMemory> iMemory(mUnregisteredWriters.top()->getIMemory());
-            mUnregisteredWriters.pop();
-            mediaLogService->unregisterWriter(iMemory);
+    if (mLogMemoryDealer != 0) {
+        sp<IBinder> binder = defaultServiceManager()->getService(String16("media.log"));
+        if (binder != 0) {
+            sp<IMediaLogService> mediaLogService(interface_cast<IMediaLogService>(binder));
+            for (size_t count = mUnregisteredWriters.size(); count > 0; count--) {
+                sp<IMemory> iMemory(mUnregisteredWriters.top()->getIMemory());
+                mUnregisteredWriters.pop();
+                mediaLogService->unregisterWriter(iMemory);
+            }
         }
     }
-
 }
 
 static const char * const audio_interfaces[] = {
