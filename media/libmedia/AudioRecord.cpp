@@ -276,7 +276,8 @@ status_t AudioRecord::set(
     mActive = false;
     mUserData = user;
     // TODO: add audio hardware input latency here
-    if (mTransfer == TRANSFER_CALLBACK) {
+    if (mTransfer == TRANSFER_CALLBACK ||
+            mTransfer == TRANSFER_SYNC) {
         mLatency = (1000*mNotificationFramesAct) / sampleRate;
     } else {
         mLatency = (1000*mFrameCount) / sampleRate;
