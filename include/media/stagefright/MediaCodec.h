@@ -247,6 +247,7 @@ private:
     struct BufferInfo {
         uint32_t mBufferID;
         sp<ABuffer> mData;
+        sp<RefBase> mMemRef;
         sp<ABuffer> mEncryptedData;
         sp<IMemory> mSharedEncryptedBuffer;
         sp<AMessage> mNotify;
@@ -347,8 +348,8 @@ private:
     status_t init(const AString &name, bool nameIsType, bool encoder);
 
     void setState(State newState);
-    void returnBuffersToCodec();
-    void returnBuffersToCodecOnPort(int32_t portIndex);
+    void returnBuffersToCodec(bool isReclaim = false);
+    void returnBuffersToCodecOnPort(int32_t portIndex, bool isReclaim = false);
     size_t updateBuffers(int32_t portIndex, const sp<AMessage> &msg);
     status_t onQueueInputBuffer(const sp<AMessage> &msg);
     status_t onReleaseOutputBuffer(const sp<AMessage> &msg);

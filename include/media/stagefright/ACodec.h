@@ -68,15 +68,17 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
         sp<ABuffer> bufferAt(size_t index) const;
+        sp<RefBase> memRefAt(size_t index) const;
 
     private:
         friend struct ACodec;
 
         Vector<IOMX::buffer_id> mBufferIDs;
         Vector<sp<ABuffer> > mBuffers;
+        Vector<sp<RefBase> > mMemRefs;
 
         PortDescription();
-        void addBuffer(IOMX::buffer_id id, const sp<ABuffer> &buffer);
+        void addBuffer(IOMX::buffer_id id, const sp<ABuffer> &buffer, const sp<RefBase> &memRef);
 
         DISALLOW_EVIL_CONSTRUCTORS(PortDescription);
     };
@@ -170,6 +172,7 @@ private:
         unsigned mDequeuedAt;
 
         sp<ABuffer> mData;
+        sp<RefBase> mMemRef;
         sp<GraphicBuffer> mGraphicBuffer;
         int mFenceFd;
         FrameRenderTracker::Info *mRenderInfo;

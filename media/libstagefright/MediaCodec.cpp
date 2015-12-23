@@ -1324,6 +1324,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         info.mBufferID = portDesc->bufferIDAt(i);
                         info.mOwnedByClient = false;
                         info.mData = portDesc->bufferAt(i);
+                        info.mMemRef = portDesc->memRefAt(i);
 
                         if (portIndex == kPortIndexInput && mCrypto != NULL) {
                             sp<IMemory> mem = mDealer->allocate(info.mData->capacity());
@@ -1896,7 +1897,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             mCodec->initiateShutdown(
                     msg->what() == kWhatStop /* keepComponentAllocated */);
 
-            returnBuffersToCodec();
+            returnBuffersToCodec(reclaimed);
 
             if (mSoftRenderer != NULL && (mFlags & kFlagPushBlankBuffersOnShutdown)) {
                 pushBlankBuffersToNativeWindow(mSurface.get());
@@ -2299,12 +2300,12 @@ void MediaCodec::setState(State newState) {
     updateBatteryStat();
 }
 
-void MediaCodec::returnBuffersToCodec() {
-    returnBuffersToCodecOnPort(kPortIndexInput);
-    returnBuffersToCodecOnPort(kPortIndexOutput);
+void MediaCodec::returnBuffersToCodec(bool isReclaim) {
+    returnBuffersToCodecOnPort(kPortIndexInput, isReclaim);
+    returnBuffersToCodecOnPort(kPortIndexOutput, isReclaim);
 }
 
-void MediaCodec::returnBuffersToCodecOnPort(int32_t portIndex) {
+void MediaCodec::returnBuffersToCodecOnPort(int32_t portIndex, bool isReclaim) {
     CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
     Mutex::Autolock al(mBufferLock);
 
@@ -2316,7 +2317,13 @@ void MediaCodec::returnBuffersToCodecOnPort(int32_t portIndex) {
         if (info->mNotify != NULL) {
             sp<AMessage> msg = info->mNotify;
             info->mNotify = NULL;
-            info->mOwnedByClient = false;
+            if (isReclaim && info->mOwnedByClient) {
+                ALOGD("port %d buffer %zu still owned by client when codec is reclaimed",
+                        portIndex, i);
+            } else {
+                info->mMemRef = NULL;
+                info->mOwnedByClient = false;
+            }
 
             if (portIndex == kPortIndexInput) {
                 /* no error, just returning buffers */
