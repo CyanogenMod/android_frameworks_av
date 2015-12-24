@@ -445,10 +445,10 @@ void AudioMixer::deleteTrackName(int name)
     // delete the resampler
     delete track.resampler;
     track.resampler = NULL;
-    // delete the downmixer
-    mState.tracks[name].unprepareForDownmix();
     // delete the reformatter
     mState.tracks[name].unprepareForReformat();
+    // delete the downmixer
+    mState.tracks[name].unprepareForDownmix();
     // delete the timestretch provider
     delete track.mTimestretchBufferProvider;
     track.mTimestretchBufferProvider = NULL;
