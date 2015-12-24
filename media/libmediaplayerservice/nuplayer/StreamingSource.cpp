@@ -18,6 +18,8 @@
 #define LOG_TAG "StreamingSource"
 #include <utils/Log.h>
 
+#include <inttypes.h>
+
 #include "StreamingSource.h"
 
 #include "ATSParser.h"

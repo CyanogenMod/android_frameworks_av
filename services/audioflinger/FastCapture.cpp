@@ -25,6 +25,7 @@
 #include <media/AudioBufferProvider.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
+#include "AudioFlinger.h"
 #include "FastCapture.h"
 
 namespace android {
