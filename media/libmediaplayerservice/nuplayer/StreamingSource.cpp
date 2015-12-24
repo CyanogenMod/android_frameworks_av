@@ -18,6 +18,8 @@
 #define LOG_TAG "StreamingSource"
 #include <utils/Log.h>
 
+#include <inttypes.h>
+
 #include "StreamingSource.h"
 
 #include "ATSParser.h"
@@ -258,7 +260,7 @@ status_t NuPlayer::StreamingSource::dequeueAccessUnit(
     if (err == OK) {
         int64_t timeUs;
         CHECK((*accessUnit)->meta()->findInt64("timeUs", &timeUs));
-        ALOGV("dequeueAccessUnit timeUs=%lld us", timeUs);
+        ALOGV("dequeueAccessUnit timeUs=%" PRId64 " us", timeUs);
     }
 #endif
 
