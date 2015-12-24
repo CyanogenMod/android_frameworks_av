@@ -659,6 +659,13 @@ bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
         return false;
     }
 
+    // If object size 0 byte, the remote device can reply response packet
+    // without sending any data packets.
+    if (mData.getContainerType() == MTP_CONTAINER_TYPE_RESPONSE) {
+        mResponse.copyFrom(mData);
+        return mResponse.getResponseCode() == MTP_RESPONSE_OK;
+    }
+
     const uint32_t fullLength = mData.getContainerLength();
     if ((!expectedLength && fullLength < MTP_CONTAINER_HEADER_SIZE) ||
         (expectedLength && *expectedLength + MTP_CONTAINER_HEADER_SIZE != fullLength)) {
