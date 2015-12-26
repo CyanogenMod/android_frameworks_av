@@ -29,6 +29,7 @@
 
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
+#include "device3/Camera3BufferManager.h"
 
 /**
  * Function pointer types with C calling convention to
@@ -97,7 +98,8 @@ class Camera3Device :
     // stream, reconfiguring device, and unpausing.
     virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id,
+            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
@@ -719,6 +721,13 @@ class Camera3Device :
      * Tracking for idle detection
      */
     sp<camera3::StatusTracker> mStatusTracker;
+
+    /**
+     * Graphic buffer manager for output streams. Each device has a buffer manager, which is used
+     * by the output streams to get and return buffers if these streams are registered to this
+     * buffer manager.
+     */
+    sp<camera3::Camera3BufferManager> mBufferManager;
 
     /**
      * Thread for preparing streams

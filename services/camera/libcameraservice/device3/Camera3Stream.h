@@ -130,6 +130,11 @@ class Camera3Stream :
     int              getId() const;
 
     /**
+     * Get the output stream set id.
+     */
+    int              getStreamSetId() const;
+
+    /**
      * Get the stream's dimensions and format
      */
     uint32_t          getWidth() const;
@@ -350,6 +355,21 @@ class Camera3Stream :
 
   protected:
     const int mId;
+    /**
+     * Stream set id, used to indicate which group of this stream belongs to for buffer sharing
+     * across multiple streams.
+     *
+     * The default value is set to CAMERA3_STREAM_SET_ID_INVALID, which indicates that this stream
+     * doesn't intend to share buffers with any other streams, and this stream will fall back to
+     * the existing BufferQueue mechanism to manage the buffer allocations and buffer circulation.
+     * When a valid stream set id is set, this stream intends to use the Camera3BufferManager to
+     * manage the buffer allocations; the BufferQueue will only handle the buffer transaction
+     * between the producer and consumer. For this case, upon successfully registration, the streams
+     * with the same stream set id will potentially share the buffers allocated by
+     * Camera3BufferManager.
+     */
+    const int mSetId;
+
     const String8 mName;
     // Zero for formats with fixed buffer size for given dimensions.
     const size_t mMaxSize;
@@ -367,7 +387,8 @@ class Camera3Stream :
 
     Camera3Stream(int id, camera3_stream_type type,
             uint32_t width, uint32_t height, size_t maxSize, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+            int setId);
 
     /**
      * Interface to be implemented by derived classes

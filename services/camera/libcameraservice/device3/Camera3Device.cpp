@@ -167,6 +167,9 @@ status_t Camera3Device::initialize(CameraModule *module)
         return res;
     }
 
+    /** Create buffer manager */
+    mBufferManager = new Camera3BufferManager();
+
     bool aeLockAvailable = false;
     camera_metadata_ro_entry aeLockAvailableEntry;
     res = find_camera_metadata_ro_entry(info.static_camera_characteristics,
@@ -293,6 +296,7 @@ status_t Camera3Device::disconnect() {
 
         mRequestThread.clear();
         mStatusTracker.clear();
+        mBufferManager.clear();
 
         hal3Device = mHal3Device;
     }
@@ -501,6 +505,10 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
     for (size_t i = 0; i < mOutputStreams.size(); i++) {
         mOutputStreams[i]->dump(fd,args);
     }
+
+    lines = String8("    Camera3 Buffer Manager:\n");
+    write(fd, lines.string(), lines.size());
+    mBufferManager->dump(fd, args);
 
     lines = String8("    In-flight requests:\n");
     if (mInFlightMap.size() == 0) {
@@ -926,7 +934,7 @@ status_t Camera3Device::createZslStream(
 
 status_t Camera3Device::createStream(sp<Surface> consumer,
         uint32_t width, uint32_t height, int format, android_dataspace dataSpace,
-        camera3_stream_rotation_t rotation, int *id) {
+        camera3_stream_rotation_t rotation, int *id, int streamSetId) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
@@ -963,6 +971,11 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
     assert(mStatus != STATUS_ACTIVE);
 
     sp<Camera3OutputStream> newStream;
+    // Overwrite stream set id to invalid for HAL3.1 or lower, as buffer manager does support
+    // such devices.
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        streamSetId = CAMERA3_STREAM_SET_ID_INVALID;
+    }
     if (format == HAL_PIXEL_FORMAT_BLOB) {
         ssize_t blobBufferSize;
         if (dataSpace != HAL_DATASPACE_DEPTH) {
@@ -979,7 +992,7 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
             }
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, blobBufferSize, format, dataSpace, rotation);
+                width, height, blobBufferSize, format, dataSpace, rotation, streamSetId);
     } else if (format == HAL_PIXEL_FORMAT_RAW_OPAQUE) {
         ssize_t rawOpaqueBufferSize = getRawOpaqueBufferSize(width, height);
         if (rawOpaqueBufferSize <= 0) {
@@ -987,12 +1000,21 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
             return BAD_VALUE;
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, rawOpaqueBufferSize, format, dataSpace, rotation);
+                width, height, rawOpaqueBufferSize, format, dataSpace, rotation, streamSetId);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, format, dataSpace, rotation);
+                width, height, format, dataSpace, rotation, streamSetId);
     }
     newStream->setStatusTracker(mStatusTracker);
+
+    /**
+     * Camera3 Buffer manager is only supported by HAL3.2 onwards, as the older HALs requires
+     * buffers to be statically allocated for internal static buffer registration, while the
+     * buffers provided by buffer manager are really dynamically allocated.
+     */
+    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+        newStream->setBufferManager(mBufferManager);
+    }
 
     res = mOutputStreams.add(mNextStreamId, newStream);
     if (res < 0) {

@@ -47,13 +47,19 @@ const Camera3Stream* Camera3Stream::cast(const camera3_stream *stream) {
 Camera3Stream::Camera3Stream(int id,
         camera3_stream_type type,
         uint32_t width, uint32_t height, size_t maxSize, int format,
-        android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation, int setId) :
     camera3_stream(),
     mId(id),
+    mSetId(setId),
     mName(String8::format("Camera3Stream[%d]", id)),
     mMaxSize(maxSize),
     mState(STATE_CONSTRUCTED),
     mStatusId(StatusTracker::NO_STATUS_ID),
+    oldUsage(0),
+    oldMaxBuffers(0),
+    mStreamUnpreparable(false),
+    mPrepared(false),
+    mPreparedBufferIdx(0),
     mLastMaxCount(Camera3StreamInterface::ALLOCATE_PIPELINE_MAX) {
 
     camera3_stream::stream_type = type;
@@ -75,6 +81,10 @@ Camera3Stream::Camera3Stream(int id,
 
 int Camera3Stream::getId() const {
     return mId;
+}
+
+int Camera3Stream::getStreamSetId() const {
+    return mSetId;
 }
 
 uint32_t Camera3Stream::getWidth() const {

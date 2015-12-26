@@ -46,6 +46,7 @@ LOCAL_SRC_FILES:=               \
     device3/Camera3ZslStream.cpp \
     device3/Camera3DummyStream.cpp \
     device3/StatusTracker.cpp \
+    device3/Camera3BufferManager.cpp \
     gui/RingBufferConsumer.cpp \
     utils/CameraTraces.cpp \
     utils/AutoConditionLock.cpp

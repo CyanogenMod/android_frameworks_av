@@ -169,7 +169,7 @@ status_t Camera3InputStream::getInputBufferProducerLocked(
     if (producer == NULL) {
         return BAD_VALUE;
     } else if (mProducer == NULL) {
-        ALOGE("%s: No input stream is configured");
+        ALOGE("%s: No input stream is configured", __FUNCTION__);
         return INVALID_OPERATION;
     }
 
