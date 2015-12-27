@@ -32,11 +32,6 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
 
-#ifdef FLAC_OFFLOAD_ENABLED
-#include "QCMediaDefs.h"
-#include "QCMetaData.h"
-#endif
-
 #include <system/audio.h>
 
 namespace android {
@@ -553,12 +548,6 @@ status_t FLACParser::init()
             mTrackMetadata->setInt64(kKeyDuration,
                     (getTotalSamples() * 1000000LL) / getSampleRate());
             mTrackMetadata->setInt32(kKeyBitsPerSample, getBitsPerSample());
-#ifdef FLAC_OFFLOAD_ENABLED
-            mTrackMetadata->setInt32(kKeyMinBlkSize, getMinBlockSize());
-            mTrackMetadata->setInt32(kKeyMaxBlkSize, getMaxBlockSize());
-            mTrackMetadata->setInt32(kKeyMinFrmSize, getMinFrameSize());
-            mTrackMetadata->setInt32(kKeyMaxFrmSize, getMaxFrameSize());
-#endif
         }
     } else {
         ALOGE("missing STREAMINFO");
