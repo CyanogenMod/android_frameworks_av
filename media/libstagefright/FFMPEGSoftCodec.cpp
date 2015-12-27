@@ -74,6 +74,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWMVVersion           , "wmv-version"            , INT32},
    {kKeyPCMFormat            , "pcm-format"             , INT32},
    {kKeyDivXVersion          , "divx-version"           , INT32},
+   {kKeyThumbnailTime        , "thumbnail-time"         , INT64},
 };
 
 const char* FFMPEGSoftCodec::getMsgKey(int key) {
