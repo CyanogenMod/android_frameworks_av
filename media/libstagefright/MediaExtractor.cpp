@@ -117,10 +117,8 @@ retry:
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)
             || !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_WB)) {
         ret = new AMRExtractor(source);
-#ifndef FLAC_OFFLOAD_ENABLED
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
         ret = new FLACExtractor(source);
-#endif
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_WAV)) {
         ret = new WAVExtractor(source);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_CONTAINER_OGG)) {
