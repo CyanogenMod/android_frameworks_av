@@ -60,6 +60,7 @@ struct FFMPEGSoftCodec {
             sp<IOMX> OMXhandle, IOMX::node_id nodeID);
 
     static status_t setVideoFormat(
+            status_t status,
             const sp<AMessage> &msg, const char* mime,
             sp<IOMX> OMXhandle,IOMX::node_id nodeID,
             bool isEncoder, OMX_VIDEO_CODINGTYPE *compressionFormat,
