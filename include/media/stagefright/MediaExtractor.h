@@ -42,7 +42,7 @@ public:
 
     static sp<MediaExtractor> Create(
             const sp<DataSource> &source, const char *mime = NULL,
-            const uint32_t flags = 0);
+            const uint32_t flags = 0, const sp<AMessage> *meta = NULL);
 
     virtual size_t countTracks() = 0;
     virtual sp<MediaSource> getTrack(size_t index) = 0;
