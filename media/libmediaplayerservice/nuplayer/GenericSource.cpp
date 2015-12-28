@@ -141,14 +141,14 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
     sp<MediaExtractor> extractor;
     String8 mimeType;
     float confidence;
-    sp<AMessage> dummy;
+    sp<AMessage> meta;
     bool isWidevineStreaming = false;
 
     CHECK(mDataSource != NULL);
 
     if (mIsWidevine) {
         isWidevineStreaming = SniffWVM(
-                mDataSource, &mimeType, &confidence, &dummy);
+                mDataSource, &mimeType, &confidence, &meta);
         if (!isWidevineStreaming ||
                 strcasecmp(
                     mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
@@ -161,7 +161,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             Mutex::Autolock _l(mSourceLock);
             dataSource = mDataSource;
         }
-        if (!dataSource->sniff(&mimeType, &confidence, &dummy)) {
+        if (!dataSource->sniff(&mimeType, &confidence, &meta)) {
             return UNKNOWN_ERROR;
         }
         isWidevineStreaming = !strcasecmp(
@@ -186,7 +186,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
 #endif
         extractor = MediaExtractor::Create(mDataSource,
                 mimeType.isEmpty() ? NULL : mimeType.string(),
-                mIsStreaming ? 0 : flags);
+                mIsStreaming ? 0 : flags, &meta);
     }
 
     if (extractor == NULL) {
