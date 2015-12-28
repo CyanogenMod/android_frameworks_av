@@ -136,6 +136,7 @@ bool DataSource::gSniffersRegistered = false;
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
 
+
     *mimeType = "";
     *confidence = 0.0f;
     meta->clear();
@@ -147,11 +148,18 @@ bool DataSource::sniff(
         }
     }
 
+    String8 newMimeType;
+    if (mimeType != NULL) {
+        newMimeType.setTo(*mimeType);
+    }
+    float newConfidence = *confidence;
+
     for (List<SnifferFunc>::iterator it = gSniffers.begin();
          it != gSniffers.end(); ++it) {
-        String8 newMimeType;
-        float newConfidence;
-        sp<AMessage> newMeta;
+        int64_t sniffStart = ALooper::GetNowUs();
+        String8 newMimeType = *mimeType;
+        float newConfidence = *confidence;
+        sp<AMessage> newMeta = *meta;
         if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
                 *mimeType = newMimeType;
@@ -159,6 +167,9 @@ bool DataSource::sniff(
                 *meta = newMeta;
             }
         }
+        ALOGV("Sniffer (%p) completed in %.2f ms (mime=%s confidence=%.2f",
+                this, ((float)(ALooper::GetNowUs() - sniffStart) / 1000.0f),
+                mimeType == NULL ? NULL : (*mimeType).string(), *confidence);
     }
 
     return *confidence > 0.0;

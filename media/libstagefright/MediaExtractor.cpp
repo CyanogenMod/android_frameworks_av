@@ -63,6 +63,7 @@ sp<MediaExtractor> MediaExtractor::Create(
 
     String8 tmp;
     if (mime == NULL) {
+        int64_t sniffStart = ALooper::GetNowUs();
         float confidence;
         if (!source->sniff(&tmp, &confidence, &meta)) {
             ALOGV("FAILED to autodetect media content.");
@@ -71,8 +72,9 @@ sp<MediaExtractor> MediaExtractor::Create(
         }
 
         mime = tmp.string();
-        ALOGV("Autodetected media content as '%s' with confidence %.2f",
-             mime, confidence);
+        ALOGV("Autodetected media content as '%s' with confidence %.2f (%.2f ms)",
+                mime, confidence,
+                ((float)(ALooper::GetNowUs() - sniffStart) / 1000.0f));
     } else if (prevMeta != NULL) {
         meta = *prevMeta;
     }
