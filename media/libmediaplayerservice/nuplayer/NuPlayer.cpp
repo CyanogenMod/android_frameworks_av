@@ -1488,16 +1488,22 @@ void NuPlayer::postScanSources() {
 void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo) {
     // Note: This is called early in NuPlayer to determine whether offloading
     // is possible; otherwise the decoders call the renderer openAudioSink directly.
-
+    sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+    sp<AMessage> pcmFormat;
+    if (mOffloadDecodedPCM) {
+        sp<MetaData> pcm = AVNuUtils::get()->createPCMMetaFromSource(audioMeta);
+        audioMeta = pcm;
+        convertMetaDataToMessage(pcm, &pcmFormat);
+    }
     status_t err = mRenderer->openAudioSink(
-            format, true /* offloadOnly */, hasVideo, AUDIO_OUTPUT_FLAG_NONE, &mOffloadAudio, mSource->isStreaming());
+            mOffloadDecodedPCM ? pcmFormat : format,
+            true /* offloadOnly */, hasVideo, AUDIO_OUTPUT_FLAG_NONE,
+            &mOffloadAudio, mSource->isStreaming());
     if (err != OK) {
         // Any failure we turn off mOffloadAudio.
         mOffloadAudio = false;
         mOffloadDecodedPCM = false;
     } else if (mOffloadAudio) {
-        sp<MetaData> audioMeta =
-                mSource->getFormatMeta(true /* audio */);
         sendMetaDataToHal(mAudioSink, audioMeta);
     }
 }
