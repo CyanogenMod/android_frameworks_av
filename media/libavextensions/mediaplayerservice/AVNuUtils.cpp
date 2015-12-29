@@ -55,21 +55,11 @@
 namespace android {
 
 static bool is24bitPCMOffloadEnabled() {
-    char propPCMOfload[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.pcm.24bit.enable", propPCMOfload, "0");
-    if (!strncmp(propPCMOfload, "true", 4) || atoi(propPCMOfload))
-        return true;
-    else
-        return false;
+    return property_get_bool("audio.offload.pcm.24bit.enable", false);
 }
 
 static bool is16bitPCMOffloadEnabled() {
-    char propPCMOfload[PROPERTY_VALUE_MAX] = {0};
-    property_get("audio.offload.pcm.16bit.enable", propPCMOfload, "0");
-    if (!strncmp(propPCMOfload, "true", 4) || atoi(propPCMOfload))
-        return true;
-    else
-        return false;
+    return property_get_bool("audio.offload.pcm.16bit.enable", false);
 }
 
 sp<MetaData> AVNuUtils::createPCMMetaFromSource(const sp<MetaData> &sMeta) {

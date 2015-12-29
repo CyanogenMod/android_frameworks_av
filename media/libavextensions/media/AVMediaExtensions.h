@@ -47,18 +47,33 @@ struct AVMediaUtils {
     virtual bool AudioTrackIsPcmOffloaded(const audio_format_t format) {
         return audio_is_offload_pcm(format);
     }
-    virtual status_t AudioTrackGetPosition(AudioTrack* /*track*/,
-            uint32_t* /*position*/) {
-        return NO_INIT;
+
+    virtual status_t AudioTrackGetPosition(AudioTrack* track,
+            uint32_t* position) {
+        uint32_t tempPos = (track->mState == AudioTrack::STATE_STOPPED ||
+                 track->mState == AudioTrack::STATE_FLUSHED) ? 0 :
+                 track->updateAndGetPosition_l();
+        *position = (tempPos /
+                 (track->channelCount() * audio_bytes_per_sample(track->format())));
+        return NO_ERROR;
     }
 
-    virtual status_t AudioTrackGetTimestamp(AudioTrack* /*track*/,
-            AudioTimestamp* /*timestamp*/) {
-        return NO_INIT;
+    virtual status_t AudioTrackGetTimestamp(AudioTrack* track,
+            AudioTimestamp* timestamp) {
+        if (!AudioTrackIsPcmOffloaded(track->format())) {
+            return NO_INIT;
+        }
+        uint32_t tempPos = (track->mState == AudioTrack::STATE_STOPPED ||
+                 track->mState == AudioTrack::STATE_FLUSHED) ? 0 :
+                 track->updateAndGetPosition_l();
+        timestamp->mPosition = (tempPos / (track->channelCount() *
+                 audio_bytes_per_sample(track->format())));
+        clock_gettime(CLOCK_MONOTONIC, &timestamp->mTime);
+        return NO_ERROR;
     }
 
     virtual size_t AudioTrackGetOffloadFrameCount(size_t frameCount) {
-        return frameCount;
+        return frameCount * 2;
     }
 
     virtual bool AudioTrackIsTrackOffloaded(audio_io_handle_t /*output*/) {
