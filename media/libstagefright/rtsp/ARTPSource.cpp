@@ -116,8 +116,15 @@ bool ARTPSource::queuePacket(const sp<ABuffer> &buffer) {
     // to the highest sequence number (extended to 32 bits) received so far.
 
     uint32_t seq1 = seqNum | (mHighestSeqNumber & 0xffff0000);
-    uint32_t seq2 = seqNum | ((mHighestSeqNumber & 0xffff0000) + 0x10000);
-    uint32_t seq3 = seqNum | ((mHighestSeqNumber & 0xffff0000) - 0x10000);
+
+    // non-overflowing version of:
+    // uint32_t seq2 = seqNum | ((mHighestSeqNumber & 0xffff0000) + 0x10000);
+    uint32_t seq2 = seqNum | (((mHighestSeqNumber >> 16) + 1) << 16);
+
+    // non-underflowing version of:
+    // uint32_t seq2 = seqNum | ((mHighestSeqNumber & 0xffff0000) - 0x10000);
+    uint32_t seq3 = seqNum | ((((mHighestSeqNumber >> 16) | 0x10000) - 1) << 16);
+
     uint32_t diff1 = AbsDiff(seq1, mHighestSeqNumber);
     uint32_t diff2 = AbsDiff(seq2, mHighestSeqNumber);
     uint32_t diff3 = AbsDiff(seq3, mHighestSeqNumber);
