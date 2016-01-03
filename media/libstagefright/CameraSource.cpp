@@ -158,6 +158,10 @@ static int32_t getColorFormat(const char* colorFormat) {
         return OMX_COLOR_FormatAndroidOpaque;
     }
 
+    if (!strcmp(colorFormat, "YVU420SemiPlanar")) {
+        return OMX_QCOM_COLOR_FormatYVU420SemiPlanar;
+    }
+
     ALOGE("Uknown color format (%s), please add it to "
          "CameraSource::getColorFormat", colorFormat);
 
