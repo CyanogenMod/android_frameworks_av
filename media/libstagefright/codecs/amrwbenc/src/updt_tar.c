@@ -33,12 +33,13 @@ void Updt_tar(
          )
 {
     Word32 i;
-    Word32 L_tmp;
+    Word32 L_tmp, L_tmp2;
 
     for (i = 0; i < L; i++)
     {
         L_tmp = x[i] << 15;
-        L_tmp -= (y[i] * gain)<<1;
+        L_tmp2 = L_mult(y[i], gain);
+        L_tmp = L_sub(L_tmp, L_tmp2);
         x2[i] = extract_h(L_shl2(L_tmp, 1));
     }
 
