@@ -945,6 +945,31 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
             return NULL;
         }
     }
+
+    // If using QCOM extension (Camera 1 HAL) for slow motion recording
+    // mCaptureFpsEnable and mCaptureFps will not be set via setCaptureRate
+    // We need to query from AVUtil, in order to support slow motion audio recording
+    if (mVideoSourceNode != NULL) {
+        int hfrRatio =  AVUtils::get()->HFRUtils().getHFRRatio(mVideoSourceNode->getFormat());
+        if (hfrRatio != 1) {
+            // Upscale the sample rate for slow motion recording.
+            // Fail audio source creation if source sample rate is too high, as it could
+            // cause out-of-memory due to large input buffer size. And audio recording
+            // probably doesn't make sense in the scenario, since the slow-down factor
+            // is probably huge (eg. mSampleRate=48K, hfrRatio=240, mFrameRate=1).
+            const static int32_t SAMPLE_RATE_HZ_MAX = 192000;
+            sourceSampleRate =
+                    (mSampleRate * hfrRatio + mFrameRate / 2) / mFrameRate;
+            if (sourceSampleRate < mSampleRate || sourceSampleRate > SAMPLE_RATE_HZ_MAX) {
+                ALOGE("source sample rate out of range! "
+                        "(mSampleRate %d, hfrRatio %d, mFrameRate %d",
+                        mSampleRate, hfrRatio, mFrameRate);
+                return NULL;
+            }
+        }
+    }
+
+
     sp<AudioSource> audioSource = AVFactory::get()->createAudioSource(
                 mAudioSource,
                 mOpPackageName,
@@ -1586,11 +1611,13 @@ status_t StagefrightRecorder::setupVideoEncoder(
         }
     }
 
-    setupCustomVideoEncoderParams(cameraSource, format);
-
     format->setInt32("bitrate", mVideoBitRate);
     format->setInt32("frame-rate", mFrameRate);
     format->setInt32("i-frame-interval", mIFramesIntervalSec);
+
+    if (cameraSource != NULL) {
+        setupCustomVideoEncoderParams(cameraSource, format);
+    }
 
     if (mVideoTimeScale > 0) {
         format->setInt32("time-scale", mVideoTimeScale);
@@ -1636,6 +1663,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
         mGraphicBufferProducer = encoder->getGraphicBufferProducer();
     }
 
+    mVideoSourceNode = cameraSource;
     *source = encoder;
 
     return OK;
@@ -2008,4 +2036,13 @@ status_t StagefrightRecorder::dump(
     ::write(fd, result.string(), result.size());
     return OK;
 }
+
+void StagefrightRecorder::setupCustomVideoEncoderParams(sp<MediaSource> cameraSource,
+        sp<AMessage> &format) {
+
+    // Setup HFR if needed
+    AVUtils::get()->HFRUtils().initializeHFR(cameraSource->getFormat(), format,
+            mMaxFileDurationUs, mVideoEncoder);
+}
+
 }  // namespace android
