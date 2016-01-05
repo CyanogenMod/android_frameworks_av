@@ -1622,11 +1622,11 @@ status_t StagefrightRecorder::setupVideoEncoder(
         }
     }
 
-    setupCustomVideoEncoderParams(cameraSource, format);
-
     format->setInt32("bitrate", mVideoBitRate);
     format->setInt32("frame-rate", mFrameRate);
     format->setInt32("i-frame-interval", mIFramesIntervalSec);
+
+    setupCustomVideoEncoderParams(cameraSource, format);
 
     if (mVideoTimeScale > 0) {
         format->setInt32("time-scale", mVideoTimeScale);
@@ -2094,4 +2094,13 @@ status_t StagefrightRecorder::setSourcePause(bool pause) {
     }
     return err;
 }
+
+void StagefrightRecorder::setupCustomVideoEncoderParams(sp<MediaSource> cameraSource,
+        sp<AMessage> &format) {
+
+    // Setup HFR if needed
+    AVUtils::get()->HFRUtils().initializeHFR(cameraSource->getFormat(), format,
+            mMaxFileDurationUs, mVideoEncoder);
+}
+
 }  // namespace android

@@ -153,7 +153,7 @@ struct AVUtils {
             uint64_t /*eAacProfile*/);
 
     virtual void extractCustomCameraKeys(
-            const CameraParameters& /*params*/, sp<MetaData> &/*meta*/) {}
+            const CameraParameters& /*params*/, sp<MetaData> &/*meta*/);
     virtual void printFileName(int /*fd*/) {}
     virtual void addDecodingTimesFromBatch(MediaBuffer * /*buf*/,
             List<int64_t> &/*decodeTimeQueue*/) {}
@@ -226,12 +226,66 @@ struct AVUtils {
                 int nPFrames, int nBFrames, const sp<IOMX> OMXhandle,
                 IOMX::node_id nodeID);
 
+    /*
+     * This class is a placeholder for the set of methods used
+     * to enable HFR (High Frame Rate) Recording
+     *
+     * HFR is a slow-motion recording feature where framerate
+     * is increased at capture, but file is composed to play
+     * back at normal rate, giving a net result of slow-motion.
+     * If HFR factor = N
+     *   framerate (at capture and encoder) = N * actual value
+     *   bitrate = N * actual value
+     *      (as the encoder still gets actual timestamps)
+     *   timeStamps (at composition) = actual value
+     *   timeScale (at composition) = actual value / N
+     *      (when parser re-generates timestamps, they will be
+     *       up-scaled by factor N, which results in slow-motion)
+     *
+     * HSR is a high-framerate recording variant where timestamps
+     * are not meddled with, yielding a video mux'ed at captured
+     * fps
+     */
+    struct HFR {
+        // set kKeyHFR when 'video-hfr' paramater is enabled
+        // or set kKeyHSR when 'video-hsr' paramater is enabled
+        virtual void setHFRIfEnabled(
+                const CameraParameters& params, sp<MetaData> &meta);
+
+        // recalculate file-duration when HFR is enabled
+        virtual status_t initializeHFR(
+                const sp<MetaData> &meta, sp<AMessage> &format,
+                int64_t &maxFileDurationUs, video_encoder videoEncoder);
+
+        virtual void setHFRRatio(
+                sp<MetaData> &meta, const int32_t hfrRatio);
+
+        virtual int32_t getHFRRatio(
+                const sp<MetaData> &meta);
+
+        protected:
+        HFR() {};
+        virtual ~HFR() {};
+        friend struct AVUtils;
+
+        private:
+        // Query supported capabilities from target-specific profiles
+        virtual int32_t getHFRCapabilities(
+                video_encoder codec,
+                int& maxHFRWidth, int& maxHFRHeight, int& maxHFRFps,
+                int& maxBitrate);
+    };
+    virtual inline HFR& HFRUtils() {
+         return mHFR;
+    }
+
 private:
     HEVCMuxer mHEVCMuxer;
+    HFR mHFR;
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVUtils);
-};
 
+};
 }
 
 #endif // _AV_EXTENSIONS__H_

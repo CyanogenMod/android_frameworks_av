@@ -186,6 +186,9 @@ private:
     // To use 3gp4 box for clips with AMR audio
     bool mIsAudioAMR;
 
+    // HFR scale
+    uint32_t mHFRRatio;
+
     void lock();
     void unlock();
 
