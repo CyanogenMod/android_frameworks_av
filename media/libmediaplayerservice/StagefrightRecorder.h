@@ -87,6 +87,7 @@ protected:
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;
+    sp<MediaSource> mVideoSourceNode;
 
     audio_source_t mAudioSource;
     video_source mVideoSource;
@@ -160,8 +161,8 @@ protected:
     status_t setupCameraSource(sp<CameraSource> *cameraSource);
     status_t setupAudioEncoder(const sp<MediaWriter>& writer);
     status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaCodecSource> *source);
-    virtual void setupCustomVideoEncoderParams(sp<MediaSource> /*cameraSource*/,
-            sp<AMessage> &/*format*/) {}
+    virtual void setupCustomVideoEncoderParams(sp<MediaSource> cameraSource,
+            sp<AMessage> &format);
 
     // Encoding parameter handling utilities
     status_t setParameter(const String8 &key, const String8 &value);
