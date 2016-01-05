@@ -139,6 +139,8 @@ struct AVUtils {
     virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
             const sp<AMessage> &);
 
+    virtual bool canOffloadStream(const sp<MetaData> &meta);
+    virtual bool canOffloadPCM(const sp<MetaData> &meta);
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
 
     virtual int32_t getAudioMaxInputBufferSize(audio_format_t audioFormat,

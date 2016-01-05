@@ -69,7 +69,7 @@ sp<MetaData> AVNuUtils::createPCMMetaFromSource(const sp<MetaData> &sMeta) {
 
     int32_t bits = 16;
     sMeta->findInt32(kKeyBitsPerSample, &bits);
-    tPCMMeta->setInt32(kKeyBitsPerSample, bits > 24 ? 24 : bits);
+    tPCMMeta->setInt32(kKeyBitsPerSample, bits);
 
     if (sMeta == NULL) {
         ALOGW("no meta returning dummy meta");
