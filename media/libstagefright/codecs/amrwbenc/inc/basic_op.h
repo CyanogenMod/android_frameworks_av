@@ -607,7 +607,6 @@ static_vo Word32 L_add (Word32 L_var1, Word32 L_var2)
 |___________________________________________________________________________|
 */
 
-__attribute__((no_sanitize("integer")))
 static_vo Word32 L_sub (Word32 L_var1, Word32 L_var2)
 {
     Word32 L_var_out;
