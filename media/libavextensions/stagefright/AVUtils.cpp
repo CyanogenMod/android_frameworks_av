@@ -362,7 +362,27 @@ sp<MediaCodec> AVUtils::createCustomComponentByName(
 }
 
 bool AVUtils::canOffloadAPE(const sp<MetaData> &) {
-   return true;
+    return true;
+}
+
+bool AVUtils::canOffloadPCM(const sp<MetaData> &meta) {
+    const char *mime;
+
+    meta->findCString(kKeyMIMEType, &mime);
+
+    if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_RAW)) {
+        // only supports certain types of pcm offload
+        int32_t bitsPerSample = 16;
+        meta->findInt32(kKeyBitsPerSample, &bitsPerSample);
+        if (!((bitsPerSample == 16) || (bitsPerSample == 24))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool AVUtils::canOffloadStream(const sp<MetaData> &meta) {
+    return canOffloadAPE(meta) && canOffloadPCM(meta);
 }
 
 int32_t AVUtils::getAudioMaxInputBufferSize(audio_format_t, const sp<AMessage> &) {

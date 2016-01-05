@@ -115,7 +115,6 @@ struct AVFactory {
  * Common delegate to the classes in libstagefright
  */
 struct AVUtils {
-
     virtual status_t convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format);
     virtual DataSource::SnifferFunc getExtendedSniffer();
@@ -139,6 +138,8 @@ struct AVUtils {
     virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
             const sp<AMessage> &);
 
+    virtual bool canOffloadStream(const sp<MetaData> &meta);
+    virtual bool canOffloadPCM(const sp<MetaData> &meta);
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
 
     virtual int32_t getAudioMaxInputBufferSize(audio_format_t audioFormat,
