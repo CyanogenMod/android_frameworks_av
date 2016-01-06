@@ -975,6 +975,7 @@ void AVUtils::setIntraPeriod(
     return;
 }
 
+#ifdef QCOM_HARDWARE
 void AVUtils::HFR::setHFRIfEnabled(
         const CameraParameters& params,
         sp<MetaData> &meta) {
@@ -1093,6 +1094,32 @@ int32_t AVUtils::HFR::getHFRCapabilities(
     return (maxHFRWidth > 0) && (maxHFRHeight > 0) &&
             (maxHFRFps > 0) && (maxBitRate > 0) ? 1 : -1;
 }
+#else
+void AVUtils::HFR::setHFRIfEnabled(
+        const CameraParameters& /*params*/,
+        sp<MetaData> & /*meta*/) {}
+
+status_t AVUtils::HFR::initializeHFR(
+        const sp<MetaData> & /*meta*/, sp<AMessage> & /*format*/,
+        int64_t & /*maxFileDurationUs*/, video_encoder /*videoEncoder*/) {
+    return OK;
+}
+
+void AVUtils::HFR::setHFRRatio(
+        sp<MetaData> & /*meta*/, const int32_t /*hfrRatio*/) {}
+
+int32_t AVUtils::HFR::getHFRRatio(
+        const sp<MetaData> & /*meta */) {
+    return 1;
+}
+
+int32_t AVUtils::HFR::getHFRCapabilities(
+        video_encoder /*codec*/,
+        int& /*maxHFRWidth*/, int& /*maxHFRHeight*/, int& /*maxHFRFps*/,
+        int& /*maxBitRate*/) {
+    return -1;
+}
+#endif
 
 void AVUtils::extractCustomCameraKeys(
         const CameraParameters& params, sp<MetaData> &meta) {
