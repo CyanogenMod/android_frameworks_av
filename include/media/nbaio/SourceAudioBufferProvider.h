@@ -31,7 +31,7 @@ public:
     virtual ~SourceAudioBufferProvider();
 
     // AudioBufferProvider interface
-    virtual status_t getNextBuffer(Buffer *buffer, int64_t pts);
+    virtual status_t getNextBuffer(Buffer *buffer);
     virtual void     releaseBuffer(Buffer *buffer);
 
     // ExtendedAudioBufferProvider interface

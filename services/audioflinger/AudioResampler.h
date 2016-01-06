@@ -59,10 +59,6 @@ public:
     virtual void init() = 0;
     virtual void setSampleRate(int32_t inSampleRate);
     virtual void setVolume(float left, float right);
-    virtual void setLocalTimeFreq(uint64_t freq);
-
-    // set the PTS of the next buffer output by the resampler
-    virtual void setPTS(int64_t pts);
 
     // Resample int16_t samples from provider and accumulate into 'out'.
     // A mono provider delivers a sequence of samples.
@@ -103,8 +99,6 @@ protected:
     AudioResampler(const AudioResampler&);
     AudioResampler& operator=(const AudioResampler&);
 
-    int64_t calculateOutputPTS(int outputFrameIndex);
-
     const int32_t mChannelCount;
     const int32_t mSampleRate;
     int32_t mInSampleRate;
@@ -117,8 +111,6 @@ protected:
     size_t mInputIndex;
     int32_t mPhaseIncrement;
     uint32_t mPhaseFraction;
-    uint64_t mLocalTimeFreq;
-    int64_t mPTS;
 
     // returns the inFrameCount required to generate outFrameCount frames.
     //

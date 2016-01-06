@@ -301,8 +301,7 @@ size_t AudioResamplerSinc::resample(int32_t* out, size_t outFrameCount,
         // buffer is empty, fetch a new one
         while (mBuffer.frameCount == 0) {
             mBuffer.frameCount = inFrameCount;
-            provider->getNextBuffer(&mBuffer,
-                                    calculateOutputPTS(outputIndex / 2));
+            provider->getNextBuffer(&mBuffer);
             if (mBuffer.raw == NULL) {
                 goto resample_exit;
             }

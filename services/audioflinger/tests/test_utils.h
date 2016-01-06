@@ -112,7 +112,7 @@ public:
         mNextIdx = 0;
     }
 
-    virtual android::status_t getNextBuffer(Buffer* buffer, int64_t pts __unused = kInvalidPTS)
+    virtual android::status_t getNextBuffer(Buffer* buffer)
     {
         size_t requestedFrames = buffer->frameCount;
         if (requestedFrames > mNumFrames - mNextFrame) {

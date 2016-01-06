@@ -66,18 +66,6 @@ ssize_t AudioStreamOutSink::write(const void *buffer, size_t count)
     return ret;
 }
 
-status_t AudioStreamOutSink::getNextWriteTimestamp(int64_t *timestamp) {
-    ALOG_ASSERT(timestamp != NULL);
-
-    if (NULL == mStream)
-        return INVALID_OPERATION;
-
-    if (NULL == mStream->get_next_write_timestamp)
-        return INVALID_OPERATION;
-
-    return mStream->get_next_write_timestamp(mStream, timestamp);
-}
-
 status_t AudioStreamOutSink::getTimestamp(AudioTimestamp& timestamp)
 {
     if (mStream->get_presentation_position == NULL) {

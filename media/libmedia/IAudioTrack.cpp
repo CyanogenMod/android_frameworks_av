@@ -36,9 +36,6 @@ enum {
     RESERVED, // was MUTE
     PAUSE,
     ATTACH_AUX_EFFECT,
-    ALLOCATE_TIMED_BUFFER,
-    QUEUE_TIMED_BUFFER,
-    SET_MEDIA_TIME_TRANSFORM,
     SET_PARAMETERS,
     GET_TIMESTAMP,
     SIGNAL,
@@ -115,55 +112,6 @@ public:
         return status;
     }
 
-    virtual status_t allocateTimedBuffer(size_t size, sp<IMemory>* buffer) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
-        data.writeInt64(size);
-        status_t status = remote()->transact(ALLOCATE_TIMED_BUFFER,
-                                             data, &reply);
-        if (status == NO_ERROR) {
-            status = reply.readInt32();
-            if (status == NO_ERROR) {
-                *buffer = interface_cast<IMemory>(reply.readStrongBinder());
-                if (*buffer != 0 && (*buffer)->pointer() == NULL) {
-                    (*buffer).clear();
-                }
-            }
-        }
-        return status;
-    }
-
-    virtual status_t queueTimedBuffer(const sp<IMemory>& buffer,
-                                      int64_t pts) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
-        data.writeStrongBinder(IInterface::asBinder(buffer));
-        data.writeInt64(pts);
-        status_t status = remote()->transact(QUEUE_TIMED_BUFFER,
-                                             data, &reply);
-        if (status == NO_ERROR) {
-            status = reply.readInt32();
-        }
-        return status;
-    }
-
-    virtual status_t setMediaTimeTransform(const LinearTransform& xform,
-                                           int target) {
-        Parcel data, reply;
-        data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
-        data.writeInt64(xform.a_zero);
-        data.writeInt64(xform.b_zero);
-        data.writeInt32(xform.a_to_b_numer);
-        data.writeInt32(xform.a_to_b_denom);
-        data.writeInt32(target);
-        status_t status = remote()->transact(SET_MEDIA_TIME_TRANSFORM,
-                                             data, &reply);
-        if (status == NO_ERROR) {
-            status = reply.readInt32();
-        }
-        return status;
-    }
-
     virtual status_t setParameters(const String8& keyValuePairs) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioTrack::getInterfaceDescriptor());
@@ -233,35 +181,6 @@ status_t BnAudioTrack::onTransact(
         case ATTACH_AUX_EFFECT: {
             CHECK_INTERFACE(IAudioTrack, data, reply);
             reply->writeInt32(attachAuxEffect(data.readInt32()));
-            return NO_ERROR;
-        } break;
-        case ALLOCATE_TIMED_BUFFER: {
-            CHECK_INTERFACE(IAudioTrack, data, reply);
-            sp<IMemory> buffer;
-            status_t status = allocateTimedBuffer(data.readInt64(), &buffer);
-            reply->writeInt32(status);
-            if (status == NO_ERROR) {
-                reply->writeStrongBinder(IInterface::asBinder(buffer));
-            }
-            return NO_ERROR;
-        } break;
-        case QUEUE_TIMED_BUFFER: {
-            CHECK_INTERFACE(IAudioTrack, data, reply);
-            sp<IMemory> buffer = interface_cast<IMemory>(
-                data.readStrongBinder());
-            uint64_t pts = data.readInt64();
-            reply->writeInt32(queueTimedBuffer(buffer, pts));
-            return NO_ERROR;
-        } break;
-        case SET_MEDIA_TIME_TRANSFORM: {
-            CHECK_INTERFACE(IAudioTrack, data, reply);
-            LinearTransform xform;
-            xform.a_zero = data.readInt64();
-            xform.b_zero = data.readInt64();
-            xform.a_to_b_numer = data.readInt32();
-            xform.a_to_b_denom = data.readInt32();
-            int target = data.readInt32();
-            reply->writeInt32(setMediaTimeTransform(xform, target));
             return NO_ERROR;
         } break;
         case SET_PARAMETERS: {

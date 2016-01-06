@@ -64,7 +64,7 @@ size_t AudioStreamInSource::framesOverrun()
     return mFramesOverrun;
 }
 
-ssize_t AudioStreamInSource::read(void *buffer, size_t count, int64_t readPTS __unused)
+ssize_t AudioStreamInSource::read(void *buffer, size_t count)
 {
     if (CC_UNLIKELY(!Format_isValid(mFormat))) {
         return NEGOTIATE;

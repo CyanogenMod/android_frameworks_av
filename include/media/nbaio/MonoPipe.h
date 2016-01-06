@@ -18,7 +18,6 @@
 #define ANDROID_AUDIO_MONO_PIPE_H
 
 #include <time.h>
-#include <utils/LinearTransform.h>
 #include "NBAIO.h"
 #include <media/SingleStateQueue.h>
 
@@ -60,20 +59,6 @@ public:
     virtual ssize_t write(const void *buffer, size_t count);
     //virtual ssize_t writeVia(writeVia_t via, size_t total, void *user, size_t block);
 
-    // MonoPipe's implementation of getNextWriteTimestamp works in conjunction
-    // with MonoPipeReader.  Every time a MonoPipeReader reads from the pipe, it
-    // receives a "readPTS" indicating the point in time for which the reader
-    // would like to read data.  This "last read PTS" is offset by the amt of
-    // data the reader is currently mixing and then cached cached along with the
-    // updated read pointer.  This cached value is the local time for which the
-    // reader is going to request data next time it reads data (assuming we are
-    // in steady state and operating with no underflows).  Writers to the
-    // MonoPipe who would like to know when their next write operation will hit
-    // the speakers can call getNextWriteTimestamp which will return the value
-    // of the last read PTS plus the duration of the amt of data waiting to be
-    // read in the MonoPipe.
-    virtual status_t getNextWriteTimestamp(int64_t *timestamp);
-
             // average number of frames present in the pipe under normal conditions.
             // See throttling mechanism in MonoPipe::write()
             size_t  getAvgFrames() const { return mSetpoint; }
@@ -95,42 +80,20 @@ public:
             status_t getTimestamp(AudioTimestamp& timestamp);
 
 private:
-    // A pair of methods and a helper variable which allows the reader and the
-    // writer to update and observe the values of mFront and mNextRdPTS in an
-    // atomic lock-less fashion.
-    //
-    // :: Important ::
-    // Two assumptions must be true in order for this lock-less approach to
-    // function properly on all systems.  First, there may only be one updater
-    // thread in the system.  Second, the updater thread must be running at a
-    // strictly higher priority than the observer threads.  Currently, both of
-    // these assumptions are true.  The only updater is always a single
-    // FastMixer thread (which runs with SCHED_FIFO/RT priority while the only
-    // observer is always an AudioFlinger::PlaybackThread running with
-    // traditional (non-RT) audio priority.
-    void updateFrontAndNRPTS(int32_t newFront, int64_t newNextRdPTS);
-    void observeFrontAndNRPTS(int32_t *outFront, int64_t *outNextRdPTS);
-    volatile int32_t mUpdateSeq;
-
     const size_t    mReqFrames;     // as requested in constructor, unrounded
     const size_t    mMaxFrames;     // always a power of 2
     void * const    mBuffer;
     // mFront and mRear will never be separated by more than mMaxFrames.
     // 32-bit overflow is possible if the pipe is active for a long time, but if that happens it's
     // safe because we "&" with (mMaxFrames-1) at end of computations to calculate a buffer index.
-    volatile int32_t mFront;        // written by the reader with updateFrontAndNRPTS, observed by
-                                    // the writer with observeFrontAndNRPTS
+    volatile int32_t mFront;        // written by reader with android_atomic_release_store,
+                                    // read by writer with android_atomic_acquire_load
     volatile int32_t mRear;         // written by writer with android_atomic_release_store,
                                     // read by reader with android_atomic_acquire_load
-    volatile int64_t mNextRdPTS;    // written by the reader with updateFrontAndNRPTS, observed by
-                                    // the writer with observeFrontAndNRPTS
     bool            mWriteTsValid;  // whether mWriteTs is valid
     struct timespec mWriteTs;       // time that the previous write() completed
     size_t          mSetpoint;      // target value for pipe fill depth
     const bool      mWriteCanBlock; // whether write() should block if the pipe is full
-
-    int64_t offsetTimestampByAudioFrames(int64_t ts, size_t audFrames);
-    LinearTransform mSamplesToLocalTime;
 
     bool            mIsShutdown;    // whether shutdown(true) was called, no barriers are needed
 

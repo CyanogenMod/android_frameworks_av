@@ -163,7 +163,6 @@ status_t AudioTrack::getMinFrameCount(
 
 AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
-      mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -193,7 +192,6 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect)
     : mStatus(NO_INIT),
-      mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -223,7 +221,6 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect)
     : mStatus(NO_INIT),
-      mIsTimed(false),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -750,7 +747,7 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
     if (rate == mSampleRate) {
         return NO_ERROR;
     }
-    if (mIsTimed || isOffloadedOrDirect_l() || (mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
+    if (isOffloadedOrDirect_l() || (mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
         return INVALID_OPERATION;
     }
     if (mOutput == AUDIO_IO_HANDLE_NONE) {
@@ -777,10 +774,6 @@ status_t AudioTrack::setSampleRate(uint32_t rate)
 
 uint32_t AudioTrack::getSampleRate() const
 {
-    if (mIsTimed) {
-        return 0;
-    }
-
     AutoMutex lock(mLock);
 
     // sample rate can be updated during playback by the offloaded decoder so we need to
@@ -800,10 +793,6 @@ uint32_t AudioTrack::getSampleRate() const
 
 uint32_t AudioTrack::getOriginalSampleRate() const
 {
-    if (mIsTimed) {
-        return 0;
-    }
-
     return mOriginalSampleRate;
 }
 
@@ -813,7 +802,7 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     if (isAudioPlaybackRateEqual(playbackRate, mPlaybackRate)) {
         return NO_ERROR;
     }
-    if (mIsTimed || isOffloadedOrDirect_l()) {
+    if (isOffloadedOrDirect_l()) {
         return INVALID_OPERATION;
     }
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
@@ -877,7 +866,7 @@ ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
         return NO_INIT;
     }
     // Reject if timed track or compressed audio.
-    if (mIsTimed || !audio_is_linear_pcm(mFormat)) {
+    if (!audio_is_linear_pcm(mFormat)) {
         return INVALID_OPERATION;
     }
     // TODO also need to inform the server side (through mAudioTrack) that
@@ -888,7 +877,7 @@ ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
+    if (mSharedBuffer == 0 || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -991,7 +980,7 @@ status_t AudioTrack::getPositionUpdatePeriod(uint32_t *updatePeriod) const
 
 status_t AudioTrack::setPosition(uint32_t position)
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
+    if (mSharedBuffer == 0 || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
     if (position > mFrameCount) {
@@ -1056,7 +1045,7 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
 status_t AudioTrack::getBufferPosition(uint32_t *position)
 {
-    if (mSharedBuffer == 0 || mIsTimed) {
+    if (mSharedBuffer == 0) {
         return INVALID_OPERATION;
     }
     if (position == NULL) {
@@ -1070,7 +1059,7 @@ status_t AudioTrack::getBufferPosition(uint32_t *position)
 
 status_t AudioTrack::reload()
 {
-    if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
+    if (mSharedBuffer == 0 || isOffloadedOrDirect()) {
         return INVALID_OPERATION;
     }
 
@@ -1199,8 +1188,7 @@ status_t AudioTrack::createTrack_l()
         mSampleRate = mAfSampleRate;
         mOriginalSampleRate = mAfSampleRate;
     }
-    // Client decides whether the track is TIMED (see below), but can only express a preference
-    // for FAST.  Server will perform additional tests.
+    // Client can only express a preference for FAST.  Server will perform additional tests.
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         bool useCaseAllowed =
             // either of these use cases:
@@ -1284,9 +1272,6 @@ status_t AudioTrack::createTrack_l()
     }
 
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
-    if (mIsTimed) {
-        trackFlags |= IAudioFlinger::TRACK_TIMED;
-    }
 
     pid_t tid = -1;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
@@ -1626,7 +1611,7 @@ void AudioTrack::releaseBuffer(const Buffer* audioBuffer)
 
 ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
 {
-    if (mTransfer != TRANSFER_SYNC || mIsTimed) {
+    if (mTransfer != TRANSFER_SYNC) {
         return INVALID_OPERATION;
     }
 
@@ -1672,73 +1657,6 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
     }
 
     return written;
-}
-
-// -------------------------------------------------------------------------
-
-TimedAudioTrack::TimedAudioTrack() {
-    mIsTimed = true;
-}
-
-status_t TimedAudioTrack::allocateTimedBuffer(size_t size, sp<IMemory>* buffer)
-{
-    AutoMutex lock(mLock);
-    status_t result = UNKNOWN_ERROR;
-
-#if 1
-    // acquire a strong reference on the IMemory and IAudioTrack so that they cannot be destroyed
-    // while we are accessing the cblk
-    sp<IAudioTrack> audioTrack = mAudioTrack;
-    sp<IMemory> iMem = mCblkMemory;
-#endif
-
-    // If the track is not invalid already, try to allocate a buffer.  alloc
-    // fails indicating that the server is dead, flag the track as invalid so
-    // we can attempt to restore in just a bit.
-    audio_track_cblk_t* cblk = mCblk;
-    if (!(cblk->mFlags & CBLK_INVALID)) {
-        result = mAudioTrack->allocateTimedBuffer(size, buffer);
-        if (result == DEAD_OBJECT) {
-            android_atomic_or(CBLK_INVALID, &cblk->mFlags);
-        }
-    }
-
-    // If the track is invalid at this point, attempt to restore it. and try the
-    // allocation one more time.
-    if (cblk->mFlags & CBLK_INVALID) {
-        result = restoreTrack_l("allocateTimedBuffer");
-
-        if (result == NO_ERROR) {
-            result = mAudioTrack->allocateTimedBuffer(size, buffer);
-        }
-    }
-
-    return result;
-}
-
-status_t TimedAudioTrack::queueTimedBuffer(const sp<IMemory>& buffer,
-                                           int64_t pts)
-{
-    status_t status = mAudioTrack->queueTimedBuffer(buffer, pts);
-    {
-        AutoMutex lock(mLock);
-        audio_track_cblk_t* cblk = mCblk;
-        // restart track if it was disabled by audioflinger due to previous underrun
-        if (buffer->size() != 0 && status == NO_ERROR &&
-                (mState == STATE_ACTIVE) && (cblk->mFlags & CBLK_DISABLED)) {
-            android_atomic_and(~CBLK_DISABLED, &cblk->mFlags);
-            ALOGW("queueTimedBuffer() track %p disabled, restarting", this);
-            // FIXME ignoring status
-            mAudioTrack->start();
-        }
-    }
-    return status;
-}
-
-status_t TimedAudioTrack::setMediaTimeTransform(const LinearTransform& xform,
-                                                TargetTimeline target)
-{
-    return mAudioTrack->setMediaTimeTransform(xform, target);
 }
 
 // -------------------------------------------------------------------------

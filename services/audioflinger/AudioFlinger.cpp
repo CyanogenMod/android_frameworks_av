@@ -56,8 +56,6 @@
 
 #include <powermanager/PowerManager.h>
 
-#include <common_time/cc_helper.h>
-
 #include <media/IMediaLogService.h>
 
 #include <media/nbaio/Pipe.h>
@@ -1359,8 +1357,7 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::getEffectThread_l(int sessionId, 
 AudioFlinger::Client::Client(const sp<AudioFlinger>& audioFlinger, pid_t pid)
     :   RefBase(),
         mAudioFlinger(audioFlinger),
-        mPid(pid),
-        mTimedTrackCount(0)
+        mPid(pid)
 {
     size_t heapSize = kClientSharedHeapSizeBytes;
     // Increase heap size on non low ram devices to limit risk of reconnection failure for
@@ -1380,31 +1377,6 @@ AudioFlinger::Client::~Client()
 sp<MemoryDealer> AudioFlinger::Client::heap() const
 {
     return mMemoryDealer;
-}
-
-// Reserve one of the limited slots for a timed audio track associated
-// with this client
-bool AudioFlinger::Client::reserveTimedTrack()
-{
-    const int kMaxTimedTracksPerClient = 4;
-
-    Mutex::Autolock _l(mTimedTrackLock);
-
-    if (mTimedTrackCount >= kMaxTimedTracksPerClient) {
-        ALOGW("can not create timed track - pid %d has exceeded the limit",
-             mPid);
-        return false;
-    }
-
-    mTimedTrackCount++;
-    return true;
-}
-
-// Release a slot for a timed audio track
-void AudioFlinger::Client::releaseTimedTrack()
-{
-    Mutex::Autolock _l(mTimedTrackLock);
-    mTimedTrackCount--;
 }
 
 // ----------------------------------------------------------------------------
@@ -2979,8 +2951,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             void *buffer = malloc(TEE_SINK_READ * frameSize);
             for (;;) {
                 size_t count = TEE_SINK_READ;
-                ssize_t actual = teeSource->read(buffer, count,
-                        AudioBufferProvider::kInvalidPTS);
+                ssize_t actual = teeSource->read(buffer, count);
                 bool wasFirstRead = firstRead;
                 firstRead = false;
                 if (actual <= 0) {

@@ -307,7 +307,7 @@ int main(int argc, char* argv[]) {
                         (char *) auxAddr + i * auxFrameSize);
             }
         }
-        mixer->process(AudioBufferProvider::kInvalidPTS);
+        mixer->process();
     }
     outputFrames = i; // reset output frames to the data actually produced.
 

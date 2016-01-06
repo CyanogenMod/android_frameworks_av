@@ -53,9 +53,6 @@
 
 #include <powermanager/PowerManager.h>
 
-#include <common_time/cc_helper.h>
-#include <common_time/local_clock.h>
-
 #include "AudioFlinger.h"
 #include "AudioMixer.h"
 #include "BufferProviders.h"
@@ -1666,13 +1663,9 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     sp<Track> track;
     status_t lStatus;
 
-    bool isTimed = (*flags & IAudioFlinger::TRACK_TIMED) != 0;
-
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
-            // not timed
-            (!isTimed) &&
             // either of these use cases:
             (
               // use case 1: shared buffer with any frame count
@@ -1716,11 +1709,11 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
                 frameCount, mFrameCount);
       } else {
-        ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: isTimed=%d sharedBuffer=%p frameCount=%d "
+        ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer=%p frameCount=%d "
                 "mFrameCount=%d format=%#x mFormat=%#x isLinear=%d channelMask=%#x "
                 "sampleRate=%u mSampleRate=%u "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
-                isTimed, sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
+                sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
         *flags &= ~IAudioFlinger::TRACK_FAST;
@@ -1819,17 +1812,10 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             }
         }
 
-        if (!isTimed) {
-            track = new Track(this, client, streamType, sampleRate, format,
-                              channelMask, frameCount, NULL, sharedBuffer,
-                              sessionId, uid, *flags, TrackBase::TYPE_DEFAULT);
-        } else {
-            track = TimedTrack::create(this, client, streamType, sampleRate, format,
-                    channelMask, frameCount, sharedBuffer, sessionId, uid);
-        }
+        track = new Track(this, client, streamType, sampleRate, format,
+                          channelMask, frameCount, NULL, sharedBuffer,
+                          sessionId, uid, *flags, TrackBase::TYPE_DEFAULT);
 
-        // new Track always returns non-NULL,
-        // but TimedTrack::create() is a factory that could fail by returning NULL
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack_l() initCheck failed %d; no control block?", lStatus);
@@ -3640,22 +3626,8 @@ void AudioFlinger::PlaybackThread::onAddNewTrack_l()
 
 void AudioFlinger::MixerThread::threadLoop_mix()
 {
-    // obtain the presentation timestamp of the next output buffer
-    int64_t pts;
-    status_t status = INVALID_OPERATION;
-
-    if (mNormalSink != 0) {
-        status = mNormalSink->getNextWriteTimestamp(&pts);
-    } else {
-        status = mOutputSink->getNextWriteTimestamp(&pts);
-    }
-
-    if (status != NO_ERROR) {
-        pts = AudioBufferProvider::kInvalidPTS;
-    }
-
     // mix buffers...
-    mAudioMixer->process(pts);
+    mAudioMixer->process();
     mCurrentWriteLength = mSinkBufferSize;
     // increase sleep time progressively when application underrun condition clears.
     // Only increase sleep time if the mixer is ready for two consecutive times to avoid
@@ -5369,7 +5341,7 @@ void AudioFlinger::DuplicatingThread::threadLoop_mix()
 {
     // mix buffers...
     if (outputsReady(outputTracks)) {
-        mAudioMixer->process(AudioBufferProvider::kInvalidPTS);
+        mAudioMixer->process();
     } else {
         if (mMixerBufferValid) {
             memset(mMixerBuffer, 0, mMixerBufferSize);
@@ -5909,7 +5881,7 @@ reacquire_wakelock:
         if (mPipeSource != 0) {
             size_t framesToRead = mBufferSize / mFrameSize;
             framesRead = mPipeSource->read((uint8_t*)mRsmpInBuffer + rear * mFrameSize,
-                    framesToRead, AudioBufferProvider::kInvalidPTS);
+                    framesToRead);
             if (framesRead == 0) {
                 // since pipe is non-blocking, simulate blocking input
                 sleepUs = (framesToRead * 1000000LL) / mSampleRate;
@@ -6531,7 +6503,7 @@ void AudioFlinger::RecordThread::ResamplerBufferProvider::sync(
 
 // AudioBufferProvider interface
 status_t AudioFlinger::RecordThread::ResamplerBufferProvider::getNextBuffer(
-        AudioBufferProvider::Buffer* buffer, int64_t pts __unused)
+        AudioBufferProvider::Buffer* buffer)
 {
     sp<ThreadBase> threadBase = mRecordTrack->mThread.promote();
     if (threadBase == 0) {
@@ -6632,7 +6604,7 @@ size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
         AudioBufferProvider::Buffer buffer;
         for (size_t i = frames; i > 0; ) {
             buffer.frameCount = i;
-            status_t status = provider->getNextBuffer(&buffer, 0);
+            status_t status = provider->getNextBuffer(&buffer);
             if (status != OK || buffer.frameCount == 0) {
                 frames -= i; // cannot fill request.
                 break;

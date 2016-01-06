@@ -402,13 +402,8 @@ void FastMixer::onWork()
             ftDump->mFramesReady = framesReady;
         }
 
-        int64_t pts;
-        if (mOutputSink == NULL || (OK != mOutputSink->getNextWriteTimestamp(&pts))) {
-            pts = AudioBufferProvider::kInvalidPTS;
-        }
-
         // process() is CPU-bound
-        mMixer->process(pts);
+        mMixer->process();
         mMixerBufferState = MIXED;
     } else if (mMixerBufferState == MIXED) {
         mMixerBufferState = UNDEFINED;

@@ -83,8 +83,7 @@ protected:
                         Track& operator = (const Track&);
 
     // AudioBufferProvider interface
-    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                   int64_t pts = kInvalidPTS);
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
     // releaseBuffer() not overridden
 
     // ExtendedAudioBufferProvider interface
@@ -158,92 +157,6 @@ private:
 
 };  // end of Track
 
-class TimedTrack : public Track {
-  public:
-    static sp<TimedTrack> create(PlaybackThread *thread,
-                                 const sp<Client>& client,
-                                 audio_stream_type_t streamType,
-                                 uint32_t sampleRate,
-                                 audio_format_t format,
-                                 audio_channel_mask_t channelMask,
-                                 size_t frameCount,
-                                 const sp<IMemory>& sharedBuffer,
-                                 int sessionId,
-                                 int uid);
-    virtual ~TimedTrack();
-
-    class TimedBuffer {
-      public:
-        TimedBuffer();
-        TimedBuffer(const sp<IMemory>& buffer, int64_t pts);
-        const sp<IMemory>& buffer() const { return mBuffer; }
-        int64_t pts() const { return mPTS; }
-        uint32_t position() const { return mPosition; }
-        void setPosition(uint32_t pos) { mPosition = pos; }
-      private:
-        sp<IMemory> mBuffer;
-        int64_t     mPTS;
-        uint32_t    mPosition;
-    };
-
-    // Mixer facing methods.
-    virtual size_t framesReady() const;
-
-    // AudioBufferProvider interface
-    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                   int64_t pts);
-    virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
-
-    // Client/App facing methods.
-    status_t    allocateTimedBuffer(size_t size,
-                                    sp<IMemory>* buffer);
-    status_t    queueTimedBuffer(const sp<IMemory>& buffer,
-                                 int64_t pts);
-    status_t    setMediaTimeTransform(const LinearTransform& xform,
-                                      TimedAudioTrack::TargetTimeline target);
-
-  private:
-    TimedTrack(PlaybackThread *thread,
-               const sp<Client>& client,
-               audio_stream_type_t streamType,
-               uint32_t sampleRate,
-               audio_format_t format,
-               audio_channel_mask_t channelMask,
-               size_t frameCount,
-               const sp<IMemory>& sharedBuffer,
-               int sessionId,
-               int uid);
-
-    void timedYieldSamples_l(AudioBufferProvider::Buffer* buffer);
-    void timedYieldSilence_l(uint32_t numFrames,
-                             AudioBufferProvider::Buffer* buffer);
-    void trimTimedBufferQueue_l();
-    void trimTimedBufferQueueHead_l(const char* logTag);
-    void updateFramesPendingAfterTrim_l(const TimedBuffer& buf,
-                                        const char* logTag);
-
-    uint64_t            mLocalTimeFreq;
-    LinearTransform     mLocalTimeToSampleTransform;
-    LinearTransform     mMediaTimeToSampleTransform;
-    sp<MemoryDealer>    mTimedMemoryDealer;
-
-    Vector<TimedBuffer> mTimedBufferQueue;
-    bool                mQueueHeadInFlight;
-    bool                mTrimQueueHeadOnRelease;
-    uint32_t            mFramesPendingInQueue;
-
-    uint8_t*            mTimedSilenceBuffer;
-    uint32_t            mTimedSilenceBufferSize;
-    mutable Mutex       mTimedBufferQueueLock;
-    bool                mTimedAudioOutputOnTime;
-    CCHelper            mCCHelper;
-
-    Mutex               mMediaTimeTransformLock;
-    LinearTransform     mMediaTimeTransform;
-    bool                mMediaTimeTransformValid;
-    TimedAudioTrack::TargetTimeline mMediaTimeTransformTarget;
-};
-
 
 // playback track, used by DuplicatingThread
 class OutputTrack : public Track {
@@ -303,8 +216,7 @@ public:
     virtual             ~PatchTrack();
 
     // AudioBufferProvider interface
-    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                   int64_t pts);
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
     virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
 
     // PatchProxyBufferProvider interface

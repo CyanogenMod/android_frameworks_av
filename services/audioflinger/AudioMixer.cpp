@@ -36,8 +36,6 @@
 
 #include <audio_utils/primitives.h>
 #include <audio_utils/format.h>
-#include <common_time/local_clock.h>
-#include <common_time/cc_helper.h>
 
 #include "AudioMixerOps.h"
 #include "AudioMixer.h"
@@ -786,7 +784,6 @@ bool AudioMixer::track_t::setResampler(uint32_t trackSampleRate, uint32_t devSam
                         mMixerInFormat,
                         resamplerChannelCount,
                         devSampleRate, quality);
-                resampler->setLocalTimeFreq(sLocalTimeFreq);
             }
             return true;
         }
@@ -906,13 +903,13 @@ void AudioMixer::setBufferProvider(int name, AudioBufferProvider* bufferProvider
 }
 
 
-void AudioMixer::process(int64_t pts)
+void AudioMixer::process()
 {
-    mState.hook(&mState, pts);
+    mState.hook(&mState);
 }
 
 
-void AudioMixer::process__validate(state_t* state, int64_t pts)
+void AudioMixer::process__validate(state_t* state)
 {
     ALOGW_IF(!state->needsChanged,
         "in process__validate() but nothing's invalid");
@@ -1042,7 +1039,7 @@ void AudioMixer::process__validate(state_t* state, int64_t pts)
         countActiveTracks, state->enabledTracks,
         all16BitsStereoNoResample, resampling, volumeRamp);
 
-   state->hook(state, pts);
+   state->hook(state);
 
     // Now that the volume ramp has been done, set optimal state and
     // track hooks for subsequent mixer process
@@ -1367,7 +1364,7 @@ void AudioMixer::track__16BitsMono(track_t* t, int32_t* out, size_t frameCount,
 }
 
 // no-op case
-void AudioMixer::process__nop(state_t* state, int64_t pts)
+void AudioMixer::process__nop(state_t* state)
 {
     ALOGVV("process__nop\n");
     uint32_t e0 = state->enabledTracks;
@@ -1401,9 +1398,7 @@ void AudioMixer::process__nop(state_t* state, int64_t pts)
                 size_t outFrames = state->frameCount;
                 while (outFrames) {
                     t3.buffer.frameCount = outFrames;
-                    int64_t outputPTS = calculateOutputPTS(
-                        t3, pts, state->frameCount - outFrames);
-                    t3.bufferProvider->getNextBuffer(&t3.buffer, outputPTS);
+                    t3.bufferProvider->getNextBuffer(&t3.buffer);
                     if (t3.buffer.raw == NULL) break;
                     outFrames -= t3.buffer.frameCount;
                     t3.bufferProvider->releaseBuffer(&t3.buffer);
@@ -1414,7 +1409,7 @@ void AudioMixer::process__nop(state_t* state, int64_t pts)
 }
 
 // generic code without resampling
-void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
+void AudioMixer::process__genericNoResampling(state_t* state)
 {
     ALOGVV("process__genericNoResampling\n");
     int32_t outTemp[BLOCKSIZE * MAX_NUM_CHANNELS] __attribute__((aligned(32)));
@@ -1427,7 +1422,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
         e0 &= ~(1<<i);
         track_t& t = state->tracks[i];
         t.buffer.frameCount = state->frameCount;
-        t.bufferProvider->getNextBuffer(&t.buffer, pts);
+        t.bufferProvider->getNextBuffer(&t.buffer);
         t.frameCount = t.buffer.frameCount;
         t.in = t.buffer.raw;
     }
@@ -1486,9 +1481,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
                         t.bufferProvider->releaseBuffer(&t.buffer);
                         t.buffer.frameCount = (state->frameCount - numFrames) -
                                 (BLOCKSIZE - outFrames);
-                        int64_t outputPTS = calculateOutputPTS(
-                            t, pts, numFrames + (BLOCKSIZE - outFrames));
-                        t.bufferProvider->getNextBuffer(&t.buffer, outputPTS);
+                        t.bufferProvider->getNextBuffer(&t.buffer);
                         t.in = t.buffer.raw;
                         if (t.in == NULL) {
                             enabledTracks &= ~(1<<i);
@@ -1522,7 +1515,7 @@ void AudioMixer::process__genericNoResampling(state_t* state, int64_t pts)
 
 
 // generic code with resampling
-void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
+void AudioMixer::process__genericResampling(state_t* state)
 {
     ALOGVV("process__genericResampling\n");
     // this const just means that local variable outTemp doesn't change
@@ -1561,7 +1554,6 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
             // acquire/release the buffers because it's done by
             // the resampler.
             if (t.needs & NEEDS_RESAMPLE) {
-                t.resampler->setPTS(pts);
                 t.hook(&t, outTemp, numFrames, state->resampleTemp, aux);
             } else {
 
@@ -1569,8 +1561,7 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
 
                 while (outFrames < numFrames) {
                     t.buffer.frameCount = numFrames - outFrames;
-                    int64_t outputPTS = calculateOutputPTS(t, pts, outFrames);
-                    t.bufferProvider->getNextBuffer(&t.buffer, outputPTS);
+                    t.bufferProvider->getNextBuffer(&t.buffer);
                     t.in = t.buffer.raw;
                     // t.in == NULL can happen if the track was flushed just after having
                     // been enabled for mixing.
@@ -1592,8 +1583,7 @@ void AudioMixer::process__genericResampling(state_t* state, int64_t pts)
 }
 
 // one track, 16 bits stereo without resampling is the most common case
-void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
-                                                           int64_t pts)
+void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state)
 {
     ALOGVV("process__OneTrack16BitsStereoNoResampling\n");
     // This method is only called when state->enabledTracks has exactly
@@ -1615,8 +1605,7 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
     const uint32_t vrl = t.volumeRL;
     while (numFrames) {
         b.frameCount = numFrames;
-        int64_t outputPTS = calculateOutputPTS(t, pts, out - t.mainBuffer);
-        t.bufferProvider->getNextBuffer(&b, outputPTS);
+        t.bufferProvider->getNextBuffer(&b);
         const int16_t *in = b.i16;
 
         // in == NULL can happen if the track was flushed just after having
@@ -1677,24 +1666,10 @@ void AudioMixer::process__OneTrack16BitsStereoNoResampling(state_t* state,
     }
 }
 
-int64_t AudioMixer::calculateOutputPTS(const track_t& t, int64_t basePTS,
-                                       int outputFrameIndex)
-{
-    if (AudioBufferProvider::kInvalidPTS == basePTS) {
-        return AudioBufferProvider::kInvalidPTS;
-    }
-
-    return basePTS + ((outputFrameIndex * sLocalTimeFreq) / t.sampleRate);
-}
-
-/*static*/ uint64_t AudioMixer::sLocalTimeFreq;
 /*static*/ pthread_once_t AudioMixer::sOnceControl = PTHREAD_ONCE_INIT;
 
 /*static*/ void AudioMixer::sInitRoutine()
 {
-    LocalClock lc;
-    sLocalTimeFreq = lc.getLocalFreq(); // for the resampler
-
     DownmixerBufferProvider::init(); // for the downmixer
 }
 
@@ -1836,7 +1811,7 @@ void AudioMixer::volumeMix(TO *out, size_t outFrames,
  * TA: int32_t (Q4.27)
  */
 template <int MIXTYPE, typename TO, typename TI, typename TA>
-void AudioMixer::process_NoResampleOneTrack(state_t* state, int64_t pts)
+void AudioMixer::process_NoResampleOneTrack(state_t* state)
 {
     ALOGVV("process_NoResampleOneTrack\n");
     // CLZ is faster than CTZ on ARM, though really not sure if true after 31 - clz.
@@ -1852,8 +1827,7 @@ void AudioMixer::process_NoResampleOneTrack(state_t* state, int64_t pts)
         AudioBufferProvider::Buffer& b(t->buffer);
         // get input buffer
         b.frameCount = numFrames;
-        const int64_t outputPTS = calculateOutputPTS(*t, pts, state->frameCount - numFrames);
-        t->bufferProvider->getNextBuffer(&b, outputPTS);
+        t->bufferProvider->getNextBuffer(&b);
         const TI *in = reinterpret_cast<TI*>(b.raw);
 
         // in == NULL can happen if the track was flushed just after having

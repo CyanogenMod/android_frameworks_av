@@ -28,7 +28,6 @@ LOCAL_MODULE := libnbaio
 LOCAL_SHARED_LIBRARIES := \
     libaudioutils \
     libbinder \
-    libcommon_time_client \
     libcutils \
     libutils \
     liblog

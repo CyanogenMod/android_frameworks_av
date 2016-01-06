@@ -19,10 +19,8 @@
 #define LOG_TAG "MonoPipe"
 //#define LOG_NDEBUG 0
 
-#include <common_time/cc_helper.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
-#include <utils/LinearTransform.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <media/AudioBufferProvider.h>
@@ -32,26 +30,8 @@
 
 namespace android {
 
-static uint64_t cacheN; // output of CCHelper::getLocalFreq()
-static bool cacheValid; // whether cacheN is valid
-static pthread_once_t cacheOnceControl = PTHREAD_ONCE_INIT;
-
-static void cacheOnceInit()
-{
-    CCHelper tmpHelper;
-    status_t res;
-    if (OK != (res = tmpHelper.getLocalFreq(&cacheN))) {
-        ALOGE("Failed to fetch local time frequency when constructing a"
-              " MonoPipe (res = %d).  getNextWriteTimestamp calls will be"
-              " non-functional", res);
-        return;
-    }
-    cacheValid = true;
-}
-
 MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBlock) :
         NBAIO_Sink(format),
-        mUpdateSeq(0),
         mReqFrames(reqFrames),
         mMaxFrames(roundup(reqFrames)),
         mBuffer(malloc(mMaxFrames * Format_frameSize(format))),
@@ -66,36 +46,6 @@ MonoPipe::MonoPipe(size_t reqFrames, const NBAIO_Format& format, bool writeCanBl
         mTimestampMutator(&mTimestampShared),
         mTimestampObserver(&mTimestampShared)
 {
-    uint64_t N, D;
-
-    mNextRdPTS = AudioBufferProvider::kInvalidPTS;
-
-    mSamplesToLocalTime.a_zero = 0;
-    mSamplesToLocalTime.b_zero = 0;
-    mSamplesToLocalTime.a_to_b_numer = 0;
-    mSamplesToLocalTime.a_to_b_denom = 0;
-
-    D = Format_sampleRate(format);
-
-    (void) pthread_once(&cacheOnceControl, cacheOnceInit);
-    if (!cacheValid) {
-        // log has already been done
-        return;
-    }
-    N = cacheN;
-
-    LinearTransform::reduce(&N, &D);
-    static const uint64_t kSignedHiBitsMask   = ~(0x7FFFFFFFull);
-    static const uint64_t kUnsignedHiBitsMask = ~(0xFFFFFFFFull);
-    if ((N & kSignedHiBitsMask) || (D & kUnsignedHiBitsMask)) {
-        ALOGE("Cannot reduce sample rate to local clock frequency ratio to fit"
-              " in a 32/32 bit rational.  (max reduction is 0x%016" PRIx64 "/0x%016" PRIx64
-              ").  getNextWriteTimestamp calls will be non-functional", N, D);
-        return;
-    }
-
-    mSamplesToLocalTime.a_to_b_numer = static_cast<int32_t>(N);
-    mSamplesToLocalTime.a_to_b_denom = static_cast<uint32_t>(D);
 }
 
 MonoPipe::~MonoPipe()
@@ -221,104 +171,6 @@ ssize_t MonoPipe::write(const void *buffer, size_t count)
 void MonoPipe::setAvgFrames(size_t setpoint)
 {
     mSetpoint = setpoint;
-}
-
-status_t MonoPipe::getNextWriteTimestamp(int64_t *timestamp)
-{
-    int32_t front;
-
-    ALOG_ASSERT(NULL != timestamp);
-
-    if (0 == mSamplesToLocalTime.a_to_b_denom)
-        return UNKNOWN_ERROR;
-
-    observeFrontAndNRPTS(&front, timestamp);
-
-    if (AudioBufferProvider::kInvalidPTS != *timestamp) {
-        // If we have a valid read-pointer and next read timestamp pair, then
-        // use the current value of the write pointer to figure out how many
-        // frames are in the buffer, and offset the timestamp by that amt.  Then
-        // next time we write to the MonoPipe, the data will hit the speakers at
-        // the next read timestamp plus the current amount of data in the
-        // MonoPipe.
-        size_t pendingFrames = (mRear - front) & (mMaxFrames - 1);
-        *timestamp = offsetTimestampByAudioFrames(*timestamp, pendingFrames);
-    }
-
-    return OK;
-}
-
-void MonoPipe::updateFrontAndNRPTS(int32_t newFront, int64_t newNextRdPTS)
-{
-    // Set the MSB of the update sequence number to indicate that there is a
-    // multi-variable update in progress.  Use an atomic store with an "acquire"
-    // barrier to make sure that the next operations cannot be re-ordered and
-    // take place before the change to mUpdateSeq is commited..
-    int32_t tmp = mUpdateSeq | 0x80000000;
-    android_atomic_acquire_store(tmp, &mUpdateSeq);
-
-    // Update mFront and mNextRdPTS
-    mFront = newFront;
-    mNextRdPTS = newNextRdPTS;
-
-    // We are finished with the update.  Compute the next sequnce number (which
-    // should be the old sequence number, plus one, and with the MSB cleared)
-    // and then store it in mUpdateSeq using an atomic store with a "release"
-    // barrier so our update operations cannot be re-ordered past the update of
-    // the sequence number.
-    tmp = (tmp + 1) & 0x7FFFFFFF;
-    android_atomic_release_store(tmp, &mUpdateSeq);
-}
-
-void MonoPipe::observeFrontAndNRPTS(int32_t *outFront, int64_t *outNextRdPTS)
-{
-    // Perform an atomic observation of mFront and mNextRdPTS.  Basically,
-    // atomically observe the sequence number, then observer the variables, then
-    // atomically observe the sequence number again.  If the two observations of
-    // the sequence number match, and the update-in-progress bit was not set,
-    // then we know we have a successful atomic observation.  Otherwise, we loop
-    // around and try again.
-    //
-    // Note, it is very important that the observer be a lower priority thread
-    // than the updater.  If the updater is lower than the observer, or they are
-    // the same priority and running with SCHED_FIFO (implying that quantum
-    // based premption is disabled) then we run the risk of deadlock.
-    int32_t seqOne, seqTwo;
-
-    do {
-        seqOne        = android_atomic_acquire_load(&mUpdateSeq);
-        *outFront     = mFront;
-        *outNextRdPTS = mNextRdPTS;
-        seqTwo        = android_atomic_release_load(&mUpdateSeq);
-    } while ((seqOne != seqTwo) || (seqOne & 0x80000000));
-}
-
-int64_t MonoPipe::offsetTimestampByAudioFrames(int64_t ts, size_t audFrames)
-{
-    if (0 == mSamplesToLocalTime.a_to_b_denom)
-        return AudioBufferProvider::kInvalidPTS;
-
-    if (ts == AudioBufferProvider::kInvalidPTS)
-        return AudioBufferProvider::kInvalidPTS;
-
-    int64_t frame_lt_duration;
-    if (!mSamplesToLocalTime.doForwardTransform(audFrames,
-                                                &frame_lt_duration)) {
-        // This should never fail, but if there is a bug which is causing it
-        // to fail, this message would probably end up flooding the logs
-        // because the conversion would probably fail forever.  Log the
-        // error, but then zero out the ratio in the linear transform so
-        // that we don't try to do any conversions from now on.  This
-        // MonoPipe's getNextWriteTimestamp is now broken for good.
-        ALOGE("Overflow when attempting to convert %zu audio frames to"
-              " duration in local time.  getNextWriteTimestamp will fail from"
-              " now on.", audFrames);
-        mSamplesToLocalTime.a_to_b_numer = 0;
-        mSamplesToLocalTime.a_to_b_denom = 0;
-        return AudioBufferProvider::kInvalidPTS;
-    }
-
-    return ts + frame_lt_duration;
 }
 
 void MonoPipe::shutdown(bool newState)

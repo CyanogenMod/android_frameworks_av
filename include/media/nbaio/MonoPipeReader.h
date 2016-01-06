@@ -47,7 +47,7 @@ public:
 
     virtual ssize_t availableToRead();
 
-    virtual ssize_t read(void *buffer, size_t count, int64_t readPTS);
+    virtual ssize_t read(void *buffer, size_t count);
 
     virtual void    onTimestamp(const AudioTimestamp& timestamp);
 

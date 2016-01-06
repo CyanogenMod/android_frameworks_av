@@ -41,7 +41,6 @@ LOCAL_SHARED_LIBRARIES := \
     libaudioresampler \
     libaudiospdif \
     libaudioutils \
-    libcommon_time_client \
     libcutils \
     libutils \
     liblog \

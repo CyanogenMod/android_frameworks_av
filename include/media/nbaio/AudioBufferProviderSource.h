@@ -42,9 +42,8 @@ public:
     //virtual size_t framesOverrun();
     //virtual size_t overruns();
     virtual ssize_t availableToRead();
-    virtual ssize_t read(void *buffer, size_t count, int64_t readPTS);
-    virtual ssize_t readVia(readVia_t via, size_t total, void *user,
-                            int64_t readPTS, size_t block);
+    virtual ssize_t read(void *buffer, size_t count);
+    virtual ssize_t readVia(readVia_t via, size_t total, void *user, size_t block);
 
 private:
     AudioBufferProvider * const mProvider;

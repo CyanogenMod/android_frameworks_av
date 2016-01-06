@@ -61,8 +61,7 @@ private:
                         RecordTrack& operator = (const RecordTrack&);
 
     // AudioBufferProvider interface
-    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                   int64_t pts = kInvalidPTS);
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
     // releaseBuffer() not overridden
 
     bool                mOverflow;  // overflow on most recent attempt to fill client buffer
@@ -99,8 +98,7 @@ public:
     virtual             ~PatchRecord();
 
     // AudioBufferProvider interface
-    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer,
-                                   int64_t pts);
+    virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
     virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
 
     // PatchProxyBufferProvider interface

@@ -46,16 +46,14 @@ ssize_t AudioBufferProviderSource::availableToRead()
     return mBuffer.raw != NULL ? mBuffer.frameCount - mConsumed : 0;
 }
 
-ssize_t AudioBufferProviderSource::read(void *buffer,
-                                        size_t count,
-                                        int64_t readPTS)
+ssize_t AudioBufferProviderSource::read(void *buffer, size_t count)
 {
     if (CC_UNLIKELY(!mNegotiated)) {
         return NEGOTIATE;
     }
     if (CC_UNLIKELY(mBuffer.raw == NULL)) {
         mBuffer.frameCount = count;
-        status_t status = mProvider->getNextBuffer(&mBuffer, readPTS);
+        status_t status = mProvider->getNextBuffer(&mBuffer);
         if (status != OK) {
             return status == NOT_ENOUGH_DATA ? (ssize_t) WOULD_BLOCK : (ssize_t) status;
         }
@@ -81,8 +79,7 @@ ssize_t AudioBufferProviderSource::read(void *buffer,
     return count;
 }
 
-ssize_t AudioBufferProviderSource::readVia(readVia_t via, size_t total, void *user,
-                                           int64_t readPTS, size_t block)
+ssize_t AudioBufferProviderSource::readVia(readVia_t via, size_t total, void *user, size_t block)
 {
     if (CC_UNLIKELY(!mNegotiated)) {
         return NEGOTIATE;
@@ -102,7 +99,7 @@ ssize_t AudioBufferProviderSource::readVia(readVia_t via, size_t total, void *us
         // 1 <= count <= block
         if (CC_UNLIKELY(mBuffer.raw == NULL)) {
             mBuffer.frameCount = count;
-            status_t status = mProvider->getNextBuffer(&mBuffer, readPTS);
+            status_t status = mProvider->getNextBuffer(&mBuffer);
             if (CC_LIKELY(status == OK)) {
                 ALOG_ASSERT(mBuffer.raw != NULL && mBuffer.frameCount <= count);
                 // mConsumed is 0 either from constructor or after releaseBuffer()
@@ -120,8 +117,8 @@ ssize_t AudioBufferProviderSource::readVia(readVia_t via, size_t total, void *us
             count = available;
         }
         if (CC_LIKELY(count > 0)) {
-            char* readTgt = (char *) mBuffer.raw + (mConsumed * mFrameSize);
-            ssize_t ret = via(user, readTgt, count, readPTS);
+            ssize_t ret = via(user, (char *) mBuffer.raw + (mConsumed * mFrameSize), count);
+
             if (CC_UNLIKELY(ret <= 0)) {
                 if (CC_LIKELY(accumulator > 0)) {
                     return accumulator;

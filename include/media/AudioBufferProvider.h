@@ -40,12 +40,6 @@ public:
 
     virtual ~AudioBufferProvider() {}
 
-    // value representing an invalid presentation timestamp
-    static const int64_t kInvalidPTS = 0x7FFFFFFFFFFFFFFFLL;    // <stdint.h> is too painful
-
-    // pts is the local time when the next sample yielded by getNextBuffer
-    // will be rendered.
-    // Pass kInvalidPTS if the PTS is unknown or not applicable.
     // On entry:
     //  buffer              != NULL
     //  buffer->raw         unused
@@ -59,7 +53,7 @@ public:
     //  status              != NO_ERROR
     //  buffer->raw         NULL
     //  buffer->frameCount  0
-    virtual status_t getNextBuffer(Buffer* buffer, int64_t pts = kInvalidPTS) = 0;
+    virtual status_t getNextBuffer(Buffer* buffer) = 0;
 
     // Release (a portion of) the buffer previously obtained by getNextBuffer().
     // It is permissible to call releaseBuffer() multiple times per getNextBuffer().
