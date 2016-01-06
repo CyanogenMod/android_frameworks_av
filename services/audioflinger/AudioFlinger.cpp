@@ -1460,7 +1460,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
 
     const uid_t callingUid = IPCThreadState::self()->getCallingUid();
     if (!isTrustedCallingUid(callingUid)) {
-        ALOGW_IF(clientUid != callingUid,
+        ALOGW_IF((uid_t)clientUid != callingUid,
                 "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, clientUid);
         clientUid = callingUid;
     }
