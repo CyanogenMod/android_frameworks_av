@@ -36,10 +36,10 @@
 #include <media/mediarecorder.h>
 #include <media/IOMX.h>
 #include <media/AudioParameter.h>
+#include <media/stagefright/MetaData.h>
 
 namespace android {
 
-class MetaData;
 class MediaExtractor;
 class MPEG4Writer;
 struct ABuffer;
@@ -160,8 +160,14 @@ struct AVUtils {
 
     virtual bool useQCHWEncoder(const sp<AMessage> &, AString &) { return false; }
 
-    virtual bool canDeferRelease(const sp<MetaData> &/*meta*/) { return false; }
-    virtual void setDeferRelease(sp<MetaData> &/*meta*/) {}
+    virtual bool canDeferRelease(const sp<MetaData> &meta) {
+        int32_t deferRelease = false;
+        return meta->findInt32(kKeyCanDeferRelease, &deferRelease) && deferRelease;
+    }
+
+    virtual void setDeferRelease(sp<MetaData> &meta) {
+        meta->setInt32(kKeyCanDeferRelease, true);
+    }
 
     struct HEVCMuxer {
 
