@@ -642,6 +642,12 @@ status_t BnOMX::onTransact(
             sp<IOMXObserver> observer =
                 interface_cast<IOMXObserver>(data.readStrongBinder());
 
+            if (name == NULL || observer == NULL) {
+                ALOGE("b/26392700");
+                reply->writeInt32(INVALID_OPERATION);
+                return NO_ERROR;
+            }
+
             node_id node;
 
             status_t err = allocateNode(name, observer, &node);
@@ -787,6 +793,12 @@ status_t BnOMX::onTransact(
                 interface_cast<IMemory>(data.readStrongBinder());
             OMX_U32 allottedSize = data.readInt32();
 
+            if (params == NULL) {
+                ALOGE("b/26392700");
+                reply->writeInt32(INVALID_OPERATION);
+                return NO_ERROR;
+            }
+
             buffer_id buffer;
             status_t err = useBuffer(node, port_index, params, &buffer, allottedSize);
             reply->writeInt32(err);
@@ -886,8 +898,13 @@ status_t BnOMX::onTransact(
             sp<IGraphicBufferConsumer> bufferConsumer =
                     interface_cast<IGraphicBufferConsumer>(data.readStrongBinder());
 
-            MetadataBufferType type;
-            status_t err = setInputSurface(node, port_index, bufferConsumer, &type);
+            MetadataBufferType type = kMetadataBufferTypeInvalid;
+            status_t err = INVALID_OPERATION;
+            if (bufferConsumer == NULL) {
+                ALOGE("b/26392700");
+            } else {
+                err = setInputSurface(node, port_index, bufferConsumer, &type);
+            }
 
             reply->writeInt32(type);
             reply->writeInt32(err);
@@ -995,6 +1012,12 @@ status_t BnOMX::onTransact(
                 interface_cast<IMemory>(data.readStrongBinder());
             OMX_U32 allottedSize = data.readInt32();
 
+            if (params == NULL) {
+                ALOGE("b/26392700");
+                reply->writeInt32(INVALID_OPERATION);
+                return NO_ERROR;
+            }
+
             buffer_id buffer;
             status_t err = allocateBufferWithBackup(
                     node, port_index, params, &buffer, allottedSize);
@@ -1057,6 +1080,12 @@ status_t BnOMX::onTransact(
 
             node_id node = (node_id)data.readInt32();
             const char *parameter_name = data.readCString();
+
+            if (parameter_name == NULL) {
+                ALOGE("b/26392700");
+                reply->writeInt32(INVALID_OPERATION);
+                return NO_ERROR;
+            }
 
             OMX_INDEXTYPE index;
             status_t err = getExtensionIndex(node, parameter_name, &index);
