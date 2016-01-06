@@ -750,12 +750,19 @@ void NuPlayerDriver::notifyListener_l(
                     }
                 }
                 if (mLooping || mAutoLoop) {
-                    mPlayer->seekToAsync(0);
-                    if (mAudioSink != NULL) {
-                        // The renderer has stopped the sink at the end in order to play out
-                        // the last little bit of audio. If we're looping, we need to restart it.
-                        mAudioSink->start();
+                    if (mState == STATE_RUNNING) {
+                        mPlayer->seekToAsync(0);
+                        if (mAudioSink != NULL) {
+                            // The renderer has stopped the sink at the end in order to play out
+                            // the last little bit of audio. If we're looping, we need to restart it.
+                            mAudioSink->start();
+                        }
+                    } else {
+                        mPlayer->pause();
+                        mState = STATE_PAUSED;
+                        mAtEOS = true;
                     }
+
                     // don't send completion event when looping
                     return;
                 }
