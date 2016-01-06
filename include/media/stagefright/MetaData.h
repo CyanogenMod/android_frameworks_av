@@ -205,6 +205,10 @@ enum {
 
     kKeyPCMFormat         = 'pfmt',
     kKeyArbitraryMode     = 'ArbM',
+
+    // Indicate if it is OK to hold on to the MediaBuffer and not
+    // release it immediately
+    kKeyCanDeferRelease   = 'drel', // bool (int32_t)
 };
 
 enum {
