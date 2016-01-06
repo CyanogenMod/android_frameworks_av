@@ -29,12 +29,14 @@
 // from LOCAL_C_INCLUDES
 #include "IcuUtils.h"
 #include "MediaExtractorService.h"
+#include "minijail/minijail.h"
 
 using namespace android;
 
 int main(int argc __unused, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
+    MiniJail();
 
     InitializeIcuOrDie();
 
