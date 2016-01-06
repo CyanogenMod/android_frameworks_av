@@ -52,7 +52,9 @@ public:
     // implementation of GNWT (if any)
     virtual status_t getNextWriteTimestamp(int64_t *timestamp);
 
+#ifndef HAVE_PRE_KITKAT_AUDIO_BLOB
     virtual status_t getTimestamp(AudioTimestamp& timestamp);
+#endif
 
     // NBAIO_Sink end
 
