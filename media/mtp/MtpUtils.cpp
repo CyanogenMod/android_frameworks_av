@@ -19,8 +19,6 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <../private/bionic_time.h> /* TODO: switch this code to icu4c! */
-
 #include "MtpUtils.h"
 
 namespace android {
@@ -32,38 +30,40 @@ representation, YYYY shall be replaced by the year, MM replaced by the month (01
 DD replaced by the day (01-31), T is a constant character 'T' delimiting time from date,
 hh is replaced by the hour (00-23), mm is replaced by the minute (00-59), and ss by the
 second (00-59). The ".s" is optional, and represents tenths of a second.
+This is followed by a UTC offset given as "[+-]zzzz" or the literal "Z", meaning UTC.
 */
 
 bool parseDateTime(const char* dateTime, time_t& outSeconds) {
     int year, month, day, hour, minute, second;
-    struct tm tm;
-
     if (sscanf(dateTime, "%04d%02d%02dT%02d%02d%02d",
-            &year, &month, &day, &hour, &minute, &second) != 6)
+               &year, &month, &day, &hour, &minute, &second) != 6)
         return false;
-    const char* tail = dateTime + 15;
+
     // skip optional tenth of second
-    if (tail[0] == '.' && tail[1])
-        tail += 2;
-    //FIXME - support +/-hhmm
+    const char* tail = dateTime + 15;
+    if (tail[0] == '.' && tail[1]) tail += 2;
+
+    // FIXME: "Z" means UTC, but non-"Z" doesn't mean local time.
+    // It might be that you're in Asia/Seoul on vacation and your Android
+    // device has noticed this via the network, but your camera was set to
+    // America/Los_Angeles once when you bought it and doesn't know where
+    // it is right now, so the camera says "20160106T081700-0800" but we
+    // just ignore the "-0800" and assume local time which is actually "+0900".
+    // I think to support this (without switching to Java or using icu4c)
+    // you'd want to always use timegm(3) and then manually add/subtract
+    // the UTC offset parsed from the string (taking care of wrapping).
+    // mktime(3) ignores the tm_gmtoff field, so you can't let it do the work.
     bool useUTC = (tail[0] == 'Z');
 
-    // hack to compute timezone
-    time_t dummy;
-    localtime_r(&dummy, &tm);
-
+    struct tm tm = {};
     tm.tm_sec = second;
     tm.tm_min = minute;
     tm.tm_hour = hour;
     tm.tm_mday = day;
     tm.tm_mon = month - 1;  // mktime uses months in 0 - 11 range
     tm.tm_year = year - 1900;
-    tm.tm_wday = 0;
     tm.tm_isdst = -1;
-    if (useUTC)
-        outSeconds = mktime(&tm);
-    else
-        outSeconds = mktime_tz(&tm, tm.tm_zone);
+    outSeconds = useUTC ? timegm(&tm) : mktime(&tm);
 
     return true;
 }
@@ -73,7 +73,7 @@ void formatDateTime(time_t seconds, char* buffer, int bufferLength) {
 
     localtime_r(&seconds, &tm);
     snprintf(buffer, bufferLength, "%04d%02d%02dT%02d%02d%02d",
-        tm.tm_year + 1900, 
+        tm.tm_year + 1900,
         tm.tm_mon + 1, // localtime_r uses months in 0 - 11 range
         tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
 }
