@@ -53,12 +53,16 @@ static bool isMtpDevice(uint16_t vendor, uint16_t product) {
 
 namespace {
 
-bool writeToFd(void* data, int /* unused_offset */, int length, void* clientData) {
+bool writeToFd(void* data, uint32_t /* unused_offset */, uint32_t length, void* clientData) {
     const int fd = *static_cast<int*>(clientData);
-    return write(fd, data, length) == length;
+    const ssize_t result = write(fd, data, length);
+    if (result < 0) {
+        return false;
+    }
+    return static_cast<uint32_t>(result) == length;
 }
 
-}
+}  // namespace
 
 MtpDevice* MtpDevice::open(const char* deviceName, int fd) {
     struct usb_device *device = usb_device_new(deviceName, fd);
@@ -611,7 +615,7 @@ MtpProperty* MtpDevice::getObjectPropDesc(MtpObjectProperty code, MtpObjectForma
 
 bool MtpDevice::readObject(MtpObjectHandle handle,
                            ReadObjectCallback callback,
-                           size_t expectedLength,
+                           uint32_t expectedLength,
                            void* clientData) {
     return readObjectInternal(handle, callback, &expectedLength, clientData);
 }
@@ -643,7 +647,7 @@ bool MtpDevice::readObject(MtpObjectHandle handle, int fd) {
 
 bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
                                    ReadObjectCallback callback,
-                                   const size_t* expectedLength,
+                                   const uint32_t* expectedLength,
                                    void* clientData) {
     Mutex::Autolock autoLock(mMutex);
 
@@ -654,9 +658,21 @@ bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
         return false;
     }
 
+    return readData(callback, expectedLength, nullptr, clientData);
+}
+
+bool MtpDevice::readData(ReadObjectCallback callback,
+                            const uint32_t* expectedLength,
+                            uint32_t* writtenSize,
+                            void* clientData) {
     if (!mData.readDataHeader(mRequestIn1)) {
         ALOGE("Failed to read header.");
         return false;
+    }
+
+    if (mData.getContainerType() == MTP_CONTAINER_TYPE_RESPONSE) {
+        mResponse.copyFrom(mData);
+        return mResponse.getResponseCode() == MTP_RESPONSE_OK ? 0 : -1;
     }
 
     // If object size 0 byte, the remote device can reply response packet
@@ -667,13 +683,16 @@ bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
     }
 
     const uint32_t fullLength = mData.getContainerLength();
-    if ((!expectedLength && fullLength < MTP_CONTAINER_HEADER_SIZE) ||
-        (expectedLength && *expectedLength + MTP_CONTAINER_HEADER_SIZE != fullLength)) {
+    if (fullLength < MTP_CONTAINER_HEADER_SIZE) {
+        ALOGE("fullLength is too short: %d", fullLength);
+        return false;
+    }
+    const uint32_t length = fullLength - MTP_CONTAINER_HEADER_SIZE;
+    if (expectedLength && length != *expectedLength) {
         ALOGE("readObject error length: %d", fullLength);
         return false;
     }
 
-    const uint32_t length = fullLength - MTP_CONTAINER_HEADER_SIZE;
     uint32_t offset = 0;
     bool writingError = false;
 
@@ -718,8 +737,8 @@ bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
             // Queue up a read request.
             const size_t remaining = length - nextOffset;
             req = (req == mRequestIn1 ? mRequestIn2 : mRequestIn1);
-            req->buffer_length =
-                    remaining > MTP_BUFFER_SIZE ? static_cast<size_t>(MTP_BUFFER_SIZE) : remaining;
+            req->buffer_length = remaining > MTP_BUFFER_SIZE ?
+                    static_cast<size_t>(MTP_BUFFER_SIZE) : remaining;
             if (mData.readDataAsync(req) != 0) {
                 ALOGE("readDataAsync failed");
                 return false;
@@ -736,7 +755,30 @@ bool MtpDevice::readObjectInternal(MtpObjectHandle handle,
         offset = nextOffset;
     }
 
-    return readResponse() == MTP_RESPONSE_OK && !writingError;
+    if (writtenSize) {
+        *writtenSize = length;
+    }
+
+    return readResponse() == MTP_RESPONSE_OK;
+}
+
+bool MtpDevice::readPartialObject(MtpObjectHandle handle,
+                                  uint32_t offset,
+                                  uint32_t size,
+                                  uint32_t *writtenSize,
+                                  ReadObjectCallback callback,
+                                  void* clientData) {
+    Mutex::Autolock autoLock(mMutex);
+
+    mRequest.reset();
+    mRequest.setParameter(1, handle);
+    mRequest.setParameter(2, offset);
+    mRequest.setParameter(3, size);
+    if (!sendRequest(MTP_OPERATION_GET_PARTIAL_OBJECT)) {
+        ALOGE("Failed to send a read request.");
+        return false;
+    }
+    return readData(callback, NULL /* expected size */, writtenSize, clientData);
 }
 
 bool MtpDevice::sendRequest(MtpOperationCode operation) {
