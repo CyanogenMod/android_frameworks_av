@@ -27,7 +27,10 @@ using namespace android;
  */
 ACameraMetadata::ACameraMetadata(camera_metadata_t* buffer, ACAMERA_METADATA_TYPE type) :
         mData(buffer), mType(type) {
-    filterUnsupportedFeatures();
+    if (mType == ACM_CHARACTERISTICS) {
+        filterUnsupportedFeatures();
+    }
+    // TODO: filter request/result keys
 }
 
 bool

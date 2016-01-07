@@ -44,8 +44,8 @@ typedef void (*ACameraDevice_ErrorStateCallback)(void* context, ACameraDevice* d
 
 typedef struct ACameraDevice_StateCallbacks {
     void*                             context;
-    ACameraDevice_StateCallback       onDisconnected;
-    ACameraDevice_ErrorStateCallback  onError;
+    ACameraDevice_StateCallback       onDisconnected; // Device is unusable after this callback
+    ACameraDevice_ErrorStateCallback  onError;        // Device is unusable after this callback
 } ACameraDevice_stateCallbacks;
 
 /**
@@ -93,10 +93,17 @@ camera_status_t ACaptureSessionOutputContainer_add(
 camera_status_t ACaptureSessionOutputContainer_remove(
         ACaptureSessionOutputContainer*, const ACaptureSessionOutput*);
 
+/*
+ * Create a new capture session.
+ * If there is a preexisting session, the previous session will be closed automatically.
+ * However, app still needs to call ACameraCaptureSession_close on previous session.
+ * Otherwise the resources hold by previous session won't be freed
+ */
 camera_status_t ACameraDevice_createCaptureSession(
         ACameraDevice*,
         const ACaptureSessionOutputContainer*       outputs,
-        const ACameraCaptureSession_stateCallbacks* callbacks);
+        const ACameraCaptureSession_stateCallbacks* callbacks,
+        /*out*/ACameraCaptureSession** session);
 
 #ifdef __cplusplus
 } // extern "C"

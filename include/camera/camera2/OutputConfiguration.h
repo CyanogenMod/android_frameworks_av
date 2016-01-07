@@ -17,14 +17,13 @@
 #ifndef ANDROID_HARDWARE_CAMERA2_OUTPUTCONFIGURATION_H
 #define ANDROID_HARDWARE_CAMERA2_OUTPUTCONFIGURATION_H
 
-#include <utils/RefBase.h>
 #include <gui/IGraphicBufferProducer.h>
 
 namespace android {
 
 class Surface;
 
-class OutputConfiguration : public virtual RefBase {
+class OutputConfiguration {
 public:
 
     static const int INVALID_ROTATION;
@@ -43,6 +42,22 @@ public:
 
     OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation,
             int surfaceSetID = INVALID_SET_ID);
+
+    bool operator == (const OutputConfiguration& other) const {
+        return (mGbp == other.mGbp &&
+                mRotation == other.mRotation);
+    }
+    bool operator != (const OutputConfiguration& other) const {
+        return !(*this == other);
+    }
+    bool operator < (const OutputConfiguration& other) const {
+        if (*this == other) return false;
+        if (mGbp != other.mGbp) return mGbp < other.mGbp;
+        return mRotation < other.mRotation;
+    }
+    bool operator > (const OutputConfiguration& other) const {
+        return (*this != other && !(*this < other));
+    }
 
 private:
     sp<IGraphicBufferProducer> mGbp;

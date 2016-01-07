@@ -20,15 +20,16 @@ ifneq ($(TARGET_BUILD_PDK), true)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:=               \
-    NdkCameraManager.cpp        \
-    NdkCameraMetadata.cpp       \
-    NdkCameraDevice.cpp         \
-    NdkCaptureRequest.cpp       \
-    NdkCameraCaptureSession.cpp \
-    impl/ACameraManager.cpp     \
-    impl/ACameraMetadata.cpp    \
-    impl/ACameraDevice.cpp      \
+LOCAL_SRC_FILES:=                  \
+    NdkCameraManager.cpp           \
+    NdkCameraMetadata.cpp          \
+    NdkCameraDevice.cpp            \
+    NdkCaptureRequest.cpp          \
+    NdkCameraCaptureSession.cpp    \
+    impl/ACameraManager.cpp        \
+    impl/ACameraMetadata.cpp       \
+    impl/ACameraDevice.cpp         \
+    impl/ACameraCaptureSession.cpp
 
 LOCAL_MODULE:= libcamera2ndk
 
@@ -41,6 +42,7 @@ LOCAL_CFLAGS += -fvisibility=hidden -D EXPORT='__attribute__ ((visibility ("defa
 LOCAL_SHARED_LIBRARIES := \
     libbinder \
     liblog \
+    libgui \
     libutils \
     libandroid_runtime \
     libcamera_client \

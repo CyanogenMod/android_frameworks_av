@@ -58,6 +58,7 @@ CameraManagerGlobal::~CameraManagerGlobal() {
     Mutex::Autolock _l(mLock);
     if (mCameraService != nullptr) {
         IInterface::asBinder(mCameraService)->unlinkToDeath(mDeathNotifier);
+        mCameraService->removeListener(mCameraServiceListener);
     }
     mDeathNotifier.clear();
     if (mCbLooper != nullptr) {
@@ -96,7 +97,7 @@ sp<ICameraService> CameraManagerGlobal::getCameraService() {
             status_t ret = mCbLooper->start(
                     /*runOnCallingThread*/false,
                     /*canCallJava*/       true,
-                    PRIORITY_FOREGROUND);
+                    PRIORITY_DEFAULT);
             if (mHandler == nullptr) {
                 mHandler = new CallbackHandler();
             }
@@ -242,7 +243,7 @@ void CameraManagerGlobal::CameraServiceListener::onStatusChanged(
         Status status, int32_t cameraId) {
     sp<CameraManagerGlobal> cm = mCameraManager.promote();
     if (cm == nullptr) {
-        ALOGE("Cannot deliver status change. Camera service died");
+        ALOGE("Cannot deliver status change. Global camera manager died");
         return;
     }
     cm->onStatusChanged(status, cameraId);

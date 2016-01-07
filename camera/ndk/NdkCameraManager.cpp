@@ -43,7 +43,7 @@ camera_status_t ACameraManager_getCameraIdList(
         ACameraManager* manager, ACameraIdList** cameraIdList) {
     ATRACE_CALL();
     if (manager == nullptr || cameraIdList == nullptr) {
-        ALOGE("%s: invalid argument! manager 0x%p, cameraIdList 0x%p",
+        ALOGE("%s: invalid argument! manager %p, cameraIdList %p",
               __FUNCTION__, manager, cameraIdList);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -67,8 +67,8 @@ camera_status_t ACameraManager_registerAvailabilityCallback(
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
     if (callback->onCameraAvailable == nullptr || callback->onCameraUnavailable == nullptr) {
-        ALOGE("%s: invalid argument! callback 0x%p, "
-                "onCameraAvailable 0x%p, onCameraUnavailable 0x%p",
+        ALOGE("%s: invalid argument! callback %p, "
+                "onCameraAvailable %p, onCameraUnavailable %p",
                __FUNCTION__, callback,
                callback->onCameraAvailable, callback->onCameraUnavailable);
         return ACAMERA_ERROR_INVALID_PARAMETER;
@@ -86,8 +86,8 @@ camera_status_t ACameraManager_unregisterAvailabilityCallback(
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
     if (callback->onCameraAvailable == nullptr || callback->onCameraUnavailable == nullptr) {
-        ALOGE("%s: invalid argument! callback 0x%p, "
-                "onCameraAvailable 0x%p, onCameraUnavailable 0x%p",
+        ALOGE("%s: invalid argument! callback %p, "
+                "onCameraAvailable %p, onCameraUnavailable %p",
                __FUNCTION__, callback,
                callback->onCameraAvailable, callback->onCameraUnavailable);
         return ACAMERA_ERROR_INVALID_PARAMETER;
@@ -101,7 +101,7 @@ camera_status_t ACameraManager_getCameraCharacteristics(
         ACameraManager* mgr, const char* cameraId, ACameraMetadata** chars){
     ATRACE_CALL();
     if (mgr == nullptr || cameraId == nullptr || chars == nullptr) {
-        ALOGE("%s: invalid argument! mgr 0x%p cameraId 0x%p chars 0x%p",
+        ALOGE("%s: invalid argument! mgr %p cameraId %p chars %p",
                 __FUNCTION__, mgr, cameraId, chars);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -115,7 +115,7 @@ camera_status_t ACameraManager_openCamera(
         /*out*/ACameraDevice** device) {
     ATRACE_CALL();
     if (mgr == nullptr || cameraId == nullptr || callback == nullptr || device == nullptr) {
-        ALOGE("%s: invalid argument! mgr 0x%p cameraId 0x%p callback 0x%p device 0x%p",
+        ALOGE("%s: invalid argument! mgr %p cameraId %p callback %p device %p",
                 __FUNCTION__, mgr, cameraId, callback, device);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
