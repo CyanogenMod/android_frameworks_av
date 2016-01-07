@@ -157,6 +157,10 @@ status_t BnMediaCodecList::onTransact(
         {
             CHECK_INTERFACE(IMediaCodecList, data, reply);
             const char *type = data.readCString();
+            if (type == NULL) {
+                reply->writeInt32(NAME_NOT_FOUND);
+                return NO_ERROR;
+            }
             bool isEncoder = static_cast<bool>(data.readInt32());
             size_t startIndex = static_cast<size_t>(data.readInt32());
             ssize_t index = findCodecByType(type, isEncoder, startIndex);
@@ -172,6 +176,10 @@ status_t BnMediaCodecList::onTransact(
         {
             CHECK_INTERFACE(IMediaCodecList, data, reply);
             const char *name = data.readCString();
+            if (name == NULL) {
+                reply->writeInt32(NAME_NOT_FOUND);
+                return NO_ERROR;
+            }
             ssize_t index = findCodecByName(name);
             if (index > INT32_MAX || index < 0) {
                 index = NAME_NOT_FOUND;

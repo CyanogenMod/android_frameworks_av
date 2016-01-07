@@ -224,6 +224,11 @@ status_t BnMediaMetadataRetriever::onTransact(
 
             const char* srcUrl = data.readCString();
 
+            if (httpService == NULL || srcUrl == NULL) {
+                reply->writeInt32(BAD_VALUE);
+                return NO_ERROR;
+            }
+
             KeyedVector<String8, String8> headers;
             size_t numHeaders = (size_t) data.readInt64();
             for (size_t i = 0; i < numHeaders; ++i) {
@@ -250,7 +255,11 @@ status_t BnMediaMetadataRetriever::onTransact(
             CHECK_INTERFACE(IMediaMetadataRetriever, data, reply);
             sp<IDataSource> source =
                 interface_cast<IDataSource>(data.readStrongBinder());
-            reply->writeInt32(setDataSource(source));
+            if (source == NULL) {
+                reply->writeInt32(BAD_VALUE);
+            } else {
+                reply->writeInt32(setDataSource(source));
+            }
             return NO_ERROR;
         } break;
         case GET_FRAME_AT_TIME: {

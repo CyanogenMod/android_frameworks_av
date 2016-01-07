@@ -132,6 +132,9 @@ status_t BnResourceManagerService::onTransact(
             int64_t clientId = data.readInt64();
             sp<IResourceManagerClient> client(
                     interface_cast<IResourceManagerClient>(data.readStrongBinder()));
+            if (client == NULL) {
+                return NO_ERROR;
+            }
             Vector<MediaResource> resources;
             readFromParcel(data, &resources);
             addResource(pid, clientId, client, resources);

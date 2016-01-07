@@ -261,7 +261,11 @@ status_t BnCrypto::onTransact(
             CHECK_INTERFACE(ICrypto, data, reply);
 
             const char *mime = data.readCString();
-            reply->writeInt32(requiresSecureDecoderComponent(mime));
+            if (mime == NULL) {
+                reply->writeInt32(BAD_VALUE);
+            } else {
+                reply->writeInt32(requiresSecureDecoderComponent(mime));
+            }
 
             return OK;
         }
@@ -282,6 +286,10 @@ status_t BnCrypto::onTransact(
             size_t totalSize = data.readInt32();
             sp<IMemory> sharedBuffer =
                 interface_cast<IMemory>(data.readStrongBinder());
+            if (sharedBuffer == NULL) {
+                reply->writeInt32(BAD_VALUE);
+                return OK;
+            }
             int32_t offset = data.readInt32();
 
             int32_t numSubSamples = data.readInt32();

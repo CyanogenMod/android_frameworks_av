@@ -1246,7 +1246,10 @@ void MediaPlayerService::Client::notify(
             if (client->mAudioOutput != NULL)
                 client->mAudioOutput->switchToNextOutput();
             client->mNextClient->start();
-            client->mNextClient->mClient->notify(MEDIA_INFO, MEDIA_INFO_STARTED_AS_NEXT, 0, obj);
+            if (client->mNextClient->mClient != NULL) {
+                client->mNextClient->mClient->notify(
+                        MEDIA_INFO, MEDIA_INFO_STARTED_AS_NEXT, 0, obj);
+            }
         }
     }
 
