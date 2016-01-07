@@ -209,6 +209,8 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
                     mEOSStatus == INPUT_EOS_SEEN) {
                 return;
             }
+            // Continue as outQueue may be empty now.
+            continue;
         }
 
         BufferInfo *inInfo = *inQueue.begin();
@@ -220,15 +222,23 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
             EOSseen = true;
         }
 
-        if (inHeader->nFilledLen > 0 &&
-            vpx_codec_decode((vpx_codec_ctx_t *)mCtx,
-                              inHeader->pBuffer + inHeader->nOffset,
-                              inHeader->nFilledLen,
-                              &mTimeStamps[mTimeStampIdx], 0)) {
-            ALOGE("on2 decoder failed to decode frame.");
-            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
-            return;
+        if (inHeader->nFilledLen > 0) {
+            vpx_codec_err_t err = vpx_codec_decode(
+                    (vpx_codec_ctx_t *)mCtx, inHeader->pBuffer + inHeader->nOffset,
+                    inHeader->nFilledLen, &mTimeStamps[mTimeStampIdx], 0);
+            if (err == VPX_CODEC_OK) {
+                inInfo->mOwnedByUs = false;
+                inQueue.erase(inQueue.begin());
+                inInfo = NULL;
+                notifyEmptyBufferDone(inHeader);
+                inHeader = NULL;
+            } else {
+                ALOGE("on2 decoder failed to decode frame.");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                return;
+            }
         }
+
         mTimeStampIdx = (mTimeStampIdx + 1) % kNumBuffers;
 
         if (!outputBuffers(
@@ -240,12 +250,6 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
         if (portWillReset) {
             return;
         }
-
-        inInfo->mOwnedByUs = false;
-        inQueue.erase(inQueue.begin());
-        inInfo = NULL;
-        notifyEmptyBufferDone(inHeader);
-        inHeader = NULL;
     }
 }
 
