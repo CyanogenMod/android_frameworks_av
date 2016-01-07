@@ -624,7 +624,7 @@ private:
      */
             status_t    obtainBuffer(Buffer* audioBuffer, const struct timespec *requested,
                                      struct timespec *elapsed = NULL, size_t *nonContig = NULL);
-     friend struct ExtendedMediaUtils;
+     friend struct AVMediaUtils;
 public:
 
     /* Public API for TRANSFER_OBTAIN mode.

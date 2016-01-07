@@ -32,11 +32,6 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
 
-#ifdef ENABLE_AV_ENHANCEMENTS
-#include "QCMediaDefs.h"
-#include "QCMetaData.h"
-#endif
-
 #include <system/audio.h>
 
 namespace android {
@@ -93,8 +88,17 @@ public:
     }
 
     // stream properties
+    unsigned getMinBlockSize() const {
+        return mStreamInfo.min_blocksize;
+    }
     unsigned getMaxBlockSize() const {
         return mStreamInfo.max_blocksize;
+    }
+    unsigned getMinFrameSize() const {
+        return mStreamInfo.min_framesize;
+    }
+    unsigned getMaxFrameSize() const {
+        return mStreamInfo.max_framesize;
     }
     unsigned getSampleRate() const {
         return mStreamInfo.sample_rate;

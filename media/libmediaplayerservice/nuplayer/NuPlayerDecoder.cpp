@@ -73,7 +73,6 @@ NuPlayer::Decoder::Decoder(
       mIsSecure(false),
       mFormatChangePending(false),
       mTimeChangePending(false),
-      mPaused(true),
       mResumePending(false),
       mComponentName("decoder") {
     mCodecLooper = new ALooper;
@@ -608,14 +607,6 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
     reply->setSize("buffer-ix", index);
     reply->setInt32("generation", mBufferGeneration);
 
-    if ((flags & MediaCodec::BUFFER_FLAG_DATACORRUPT) &&
-            AVNuUtils::get()->dropCorruptFrame()) {
-        ALOGV("[%s] dropping corrupt buffer at time %lld as requested.",
-                     mComponentName.c_str(), (long long)timeUs);
-        reply->post();
-        return true;
-    }
-
     if (eos) {
         ALOGI("[%s] saw output EOS", mIsAudio ? "audio" : "video");
 
@@ -631,6 +622,12 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
         }
 
         mSkipRenderingUntilMediaTimeUs = -1;
+    } else if ((flags & MediaCodec::BUFFER_FLAG_DATACORRUPT) &&
+            AVNuUtils::get()->dropCorruptFrame()) {
+        ALOGV("[%s] dropping corrupt buffer at time %lld as requested.",
+                     mComponentName.c_str(), (long long)timeUs);
+        reply->post();
+        return true;
     }
 
     mNumFramesTotal += !mIsAudio;
@@ -674,8 +671,11 @@ void NuPlayer::Decoder::handleOutputFormatChange(const sp<AMessage> &format) {
             flags = AUDIO_OUTPUT_FLAG_NONE;
         }
 
-        mRenderer->openAudioSink(
+        status_t err = mRenderer->openAudioSink(
                 format, false /* offloadOnly */, hasVideo, flags, NULL /* isOffloaed */, mSource->isStreaming());
+        if (err != OK) {
+            handleError(err);
+        }
     }
 }
 

@@ -749,7 +749,6 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
 
     if (offset >= sb.st_size) {
         ALOGE("offset error");
-        ::close(fd);
         return UNKNOWN_ERROR;
     }
     if (offset + length > sb.st_size) {

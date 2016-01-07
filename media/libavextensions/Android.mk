@@ -17,12 +17,17 @@ LOCAL_C_INCLUDES:= \
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
 
+LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/mm-audio
+
 ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
        LOCAL_CFLAGS += -DENABLE_AV_ENHANCEMENTS
 endif
 
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
+       LOCAL_CFLAGS += -DFLAC_OFFLOAD_ENABLED
+endif
+
 LOCAL_MODULE:= libavextensions
-LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 
@@ -41,6 +46,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
+        $(TOP)/system/media/audio_utils/include \
         $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
@@ -50,7 +56,6 @@ ifeq ($(TARGET_ENABLE_QC_AV_ENHANCEMENTS),true)
 endif
 
 LOCAL_MODULE:= libavmediaextentions
-LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 
@@ -75,6 +80,7 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/native/include/media/openmax \
         $(TOP)/external/flac/include \
+        $(TOP)/system/media/audio_utils/include \
         $(TOP)/$(call project-path-for,qcom-media)/mm-core/inc
 
 LOCAL_CFLAGS += -Wno-multichar -Werror
@@ -88,7 +94,6 @@ ifeq ($(TARGET_BOARD_PLATFORM),msm8974)
 endif
 
 LOCAL_MODULE:= libavmediaserviceextensions
-LOCAL_CLANG := false
 
 LOCAL_MODULE_TAGS := optional
 

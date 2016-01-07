@@ -141,14 +141,14 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
     sp<MediaExtractor> extractor;
     String8 mimeType;
     float confidence;
-    sp<AMessage> dummy;
+    sp<AMessage> meta;
     bool isWidevineStreaming = false;
 
     CHECK(mDataSource != NULL);
 
     if (mIsWidevine) {
         isWidevineStreaming = SniffWVM(
-                mDataSource, &mimeType, &confidence, &dummy);
+                mDataSource, &mimeType, &confidence, &meta);
         if (!isWidevineStreaming ||
                 strcasecmp(
                     mimeType.string(), MEDIA_MIMETYPE_CONTAINER_WVM)) {
@@ -161,7 +161,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
             Mutex::Autolock _l(mSourceLock);
             dataSource = mDataSource;
         }
-        if (!dataSource->sniff(&mimeType, &confidence, &dummy)) {
+        if (!dataSource->sniff(&mimeType, &confidence, &meta)) {
             return UNKNOWN_ERROR;
         }
         isWidevineStreaming = !strcasecmp(
@@ -186,7 +186,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
 #endif
         extractor = MediaExtractor::Create(mDataSource,
                 mimeType.isEmpty() ? NULL : mimeType.string(),
-                mIsStreaming ? 0 : flags);
+                mIsStreaming ? 0 : flags, &meta);
     }
 
     if (extractor == NULL) {
@@ -361,7 +361,7 @@ void NuPlayer::GenericSource::prepareAsync() {
     if (mLooper == NULL) {
         mLooper = new ALooper;
         mLooper->setName("generic");
-        mLooper->start();
+        mLooper->start(false, false, PRIORITY_AUDIO);
 
         mLooper->registerHandler(this);
     }
@@ -496,10 +496,19 @@ void NuPlayer::GenericSource::finishPrepareAsync() {
 
 void NuPlayer::GenericSource::notifyPreparedAndCleanup(status_t err) {
     if (err != OK) {
-        Mutex::Autolock _l(mSourceLock);
-        mDataSource.clear();
-        mCachedSource.clear();
-        mHttpSource.clear();
+        {
+            sp<DataSource> dataSource = mDataSource;
+            sp<NuCachedSource2> cachedSource = mCachedSource;
+            sp<DataSource> httpSource = mHttpSource;
+            {
+                Mutex::Autolock _l(mDisconnectLock);
+                mDataSource.clear();
+                mDecryptHandle = NULL;
+                mDrmManagerClient = NULL;
+                mCachedSource.clear();
+                mHttpSource.clear();
+            }
+        }
         mBitrate = -1;
 
         cancelPollBuffering();
@@ -552,14 +561,13 @@ void NuPlayer::GenericSource::resume() {
 }
 
 void NuPlayer::GenericSource::disconnect() {
-
-    sp<DataSource> dataSource;
-    sp<DataSource> httpSource;
+    sp<DataSource> dataSource, httpSource;
     {
-        Mutex::Autolock _l(mSourceLock);
+        Mutex::Autolock _l(mDisconnectLock);
         dataSource = mDataSource;
         httpSource = mHttpSource;
     }
+
     if (dataSource != NULL) {
         // disconnect data source
         if (dataSource->flags() & DataSource::kIsCachingDataSource) {

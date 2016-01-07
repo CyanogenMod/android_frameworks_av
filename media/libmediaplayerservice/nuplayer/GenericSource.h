@@ -155,6 +155,7 @@ protected:
     int32_t mPrevBufferPercentage;
 
     mutable Mutex mReadBufferLock;
+    mutable Mutex mDisconnectLock;
 
     sp<ALooper> mLooper;
 

@@ -366,9 +366,9 @@ bool NuPlayerDriver::isPlaying() {
 }
 
 status_t NuPlayerDriver::setPlaybackSettings(const AudioPlaybackRate &rate) {
-    Mutex::Autolock autoLock(mLock);
     status_t err = mPlayer->setPlaybackSettings(rate);
     if (err == OK) {
+        Mutex::Autolock autoLock(mLock);
         if (rate.mSpeed == 0.f && mState == STATE_RUNNING) {
             mState = STATE_PAUSED;
             // try to update position
@@ -409,6 +409,9 @@ status_t NuPlayerDriver::seekTo(int msec) {
         {
             mAtEOS = false;
             mSeekInProgress = true;
+            if (mState == STATE_PAUSED) {
+               mStartupSeekTimeUs = seekTimeUs;
+            }
             // seeks can take a while, so we essentially paused
             notifyListener_l(MEDIA_PAUSED);
             mPlayer->seekToAsync(seekTimeUs, true /* needNotify */);

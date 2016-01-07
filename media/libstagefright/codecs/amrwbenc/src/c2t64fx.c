@@ -80,6 +80,9 @@ void ACELP_2t64_fx(
 
 	Isqrt_n(&s, &exp);
 	s = L_shl(s, add1(exp, 5));
+	if (s > INT_MAX - 0x8000) {
+		s = INT_MAX - 0x8000;
+	}
 	k_cn = vo_round(s);
 
 	/* set k_dn = 32..512 (ener_dn = 2^30..2^22) */

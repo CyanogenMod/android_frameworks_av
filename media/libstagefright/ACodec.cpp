@@ -55,6 +55,10 @@
 #include <OMX_IndexExt.h>
 #include <OMX_AsString.h>
 
+#ifdef USE_SAMSUNG_COLORFORMAT
+#include <sec_format.h>
+#endif
+
 #include "include/avc_utils.h"
 
 #include <stagefright/AVExtensions.h>
@@ -502,6 +506,8 @@ ACodec::ACodec()
       mSentFormat(false),
       mIsVideo(false),
       mIsEncoder(false),
+      mEncoderComponent(false),
+      mComponentAllocByName(false),
       mFatalError(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
@@ -913,12 +919,21 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
     usage |= kVideoGrallocUsage;
     *finalUsage = usage;
 
+#ifdef USE_SAMSUNG_COLORFORMAT
+    OMX_COLOR_FORMATTYPE eNativeColorFormat = def.format.video.eColorFormat;
+    setNativeWindowColorFormat(eNativeColorFormat);
+#endif
+
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
     return setNativeWindowSizeFormatAndUsage(
             nativeWindow,
             def.format.video.nFrameWidth,
             def.format.video.nFrameHeight,
+#ifdef USE_SAMSUNG_COLORFORMAT
+            eNativeColorFormat,
+#else
             def.format.video.eColorFormat,
+#endif
             mRotationDegrees,
             usage);
 }
@@ -1257,6 +1272,27 @@ void ACodec::dumpBuffers(OMX_U32 portIndex) {
                 _asString(info.mStatus), info.mStatus, info.mDequeuedAt);
     }
 }
+
+#ifdef USE_SAMSUNG_COLORFORMAT
+void ACodec::setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat)
+{
+    // In case of Samsung decoders, we set proper native color format for the Native Window
+    if (!strcasecmp(mComponentName.c_str(), "OMX.SEC.AVC.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.FP.AVC.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.SEC.MPEG4.Decoder")
+        || !strcasecmp(mComponentName.c_str(), "OMX.Exynos.AVC.Decoder")) {
+        switch (eNativeColorFormat) {
+            case OMX_COLOR_FormatYUV420SemiPlanar:
+                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_SP;
+                break;
+            case OMX_COLOR_FormatYUV420Planar:
+            default:
+                eNativeColorFormat = (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YCbCr_420_P;
+                break;
+        }
+    }
+}
+#endif
 
 status_t ACodec::cancelBufferToNativeWindow(BufferInfo *info) {
     CHECK_EQ((int)info->mStatus, (int)BufferInfo::OWNED_BY_US);
@@ -2029,6 +2065,7 @@ status_t ACodec::configureCodec(
             int32_t sbrMode;
             int32_t maxOutputChannelCount;
             int32_t pcmLimiterEnable;
+            int32_t bitsPerSample = 16;
             drcParams_t drc;
             if (!msg->findInt32("is-adts", &isADTS)) {
                 isADTS = 0;
@@ -2067,11 +2104,12 @@ status_t ACodec::configureCodec(
                 // value is unknown
                 drc.targetRefLevel = -1;
             }
+            msg->findInt32("bits-per-sample", &bitsPerSample);
 
             err = setupAACCodec(
                     encoder, numChannels, sampleRate, bitRate, aacProfile,
                     isADTS != 0, sbrMode, maxOutputChannelCount, drc,
-                    pcmLimiterEnable);
+                    pcmLimiterEnable, bitsPerSample);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AMR_NB)) {
         err = setupAMRCodec(encoder, false /* isWAMR */, bitRate);
@@ -2331,15 +2369,16 @@ status_t ACodec::setupAACCodec(
         bool encoder, int32_t numChannels, int32_t sampleRate,
         int32_t bitRate, int32_t aacProfile, bool isADTS, int32_t sbrMode,
         int32_t maxOutputChannelCount, const drcParams_t& drc,
-        int32_t pcmLimiterEnable) {
+        int32_t pcmLimiterEnable, int32_t bitsPerSample) {
     if (encoder && isADTS) {
         return -EINVAL;
     }
 
-    status_t err = setupRawAudioFormat(
+    status_t err = setupRawAudioFormatInternal(
             encoder ? kPortIndexInput : kPortIndexOutput,
             sampleRate,
-            numChannels);
+            numChannels,
+            bitsPerSample);
 
     if (err != OK) {
         return err;
@@ -2927,13 +2966,11 @@ status_t ACodec::setupVideoDecoder(
     OMX_VIDEO_CODINGTYPE compressionFormat;
     status_t err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
-    if (err != OK) {
-        err = FFMPEGSoftCodec::setVideoFormat(
+    err = FFMPEGSoftCodec::setVideoFormat(err,
                     msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat,
                     mComponentName.c_str());
-        if (err != OK) {
-            return err;
-        }
+    if (err != OK) {
+        return err;
     }
 
     err = setVideoPortFormatType(
@@ -3082,14 +3119,12 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
     OMX_VIDEO_CODINGTYPE compressionFormat;
     err = GetVideoCodingTypeFromMime(mime, &compressionFormat);
 
-    if (err != OK) {
-        err = FFMPEGSoftCodec::setVideoFormat(
+    err = FFMPEGSoftCodec::setVideoFormat(err,
                 msg, mime, mOMX, mNode, mIsEncoder, &compressionFormat,
                 mComponentName.c_str());
-        if (err != OK) {
-            ALOGE("Not a supported video mime type: %s", mime);
-            return err;
-        }
+    if (err != OK) {
+        ALOGE("Not a supported video mime type: %s", mime);
+        return err;
     }
 
     err = setVideoPortFormatType(
@@ -3742,7 +3777,7 @@ status_t ACodec::setupErrorCorrectionParameters() {
 
     errorCorrectionType.bEnableHEC = OMX_FALSE;
     errorCorrectionType.bEnableResync = OMX_TRUE;
-    errorCorrectionType.nResynchMarkerSpacing = 256;
+    errorCorrectionType.nResynchMarkerSpacing = 0;
     errorCorrectionType.bEnableDataPartitioning = OMX_FALSE;
     errorCorrectionType.bEnableRVLC = OMX_FALSE;
 
@@ -4530,16 +4565,13 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
                (mEncoderDelay || mEncoderPadding)) {
         int32_t channelCount;
         CHECK(notify->findInt32("channel-count", &channelCount));
-        size_t frameSize = channelCount * sizeof(int16_t);
         if (mSkipCutBuffer != NULL) {
             size_t prevbufsize = mSkipCutBuffer->size();
             if (prevbufsize != 0) {
                 ALOGW("Replacing SkipCutBuffer holding %zu bytes", prevbufsize);
             }
         }
-        mSkipCutBuffer = new SkipCutBuffer(
-                mEncoderDelay * frameSize,
-                mEncoderPadding * frameSize);
+        mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay, mEncoderPadding, channelCount);
     }
 
     getVQZIPInfo(notify);
@@ -5473,6 +5505,8 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mOMX.clear();
     mCodec->mQuirks = 0;
     mCodec->mFlags = 0;
+    mCodec->mEncoderComponent = 0;
+    mCodec->mComponentAllocByName = 0;
     mCodec->mInputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mOutputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mComponentName.clear();
@@ -5578,6 +5612,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         ssize_t index = matchingCodecs.add();
         OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);
         entry->mName = String8(componentName.c_str());
+        mCodec->mComponentAllocByName = true;
 
         if (!OMXCodec::findCodecQuirks(
                     componentName.c_str(), &entry->mQuirks)) {
@@ -5588,6 +5623,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
         if (!msg->findInt32("encoder", &encoder)) {
             encoder = false;
+        }
+
+        if (encoder == true) {
+            mCodec->mEncoderComponent = true;
         }
 
         OMXCodec::findMatchingCodecs(
@@ -5792,17 +5831,13 @@ bool ACodec::LoadedState::onConfigureComponent(
         ALOGE("[%s] configureCodec returning error %d",
               mCodec->mComponentName.c_str(), err);
 
-        int32_t encoder;
-        if (!msg->findInt32("encoder", &encoder)) {
-            encoder = false;
-        }
-
-        if (!encoder && !strncmp(mime.c_str(), "video/", strlen("video/"))) {
+        if (!mCodec->mEncoderComponent && !mCodec->mComponentAllocByName &&
+            !strncmp(mime.c_str(), "video/", strlen("video/"))) {
             Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
 
             OMXCodec::findMatchingCodecs(
                 mime.c_str(),
-                encoder, // createEncoder
+                false, // createEncoder
                 NULL,  // matchComponentName
                 0,     // flags
                 &matchingCodecs);
@@ -5844,8 +5879,7 @@ bool ACodec::LoadedState::onConfigureComponent(
 
             if (mCodec->mNode == 0) {
                 if (!mime.empty()) {
-                    ALOGE("Unable to instantiate a %scoder for type '%s' with err %#x.",
-                            encoder ? "en" : "de", mime.c_str(), err);
+                    ALOGE("Unable to instantiate a decoder for type '%s'", mime.c_str());
                 } else {
                     ALOGE("Unable to instantiate codec '%s' with err %#x.", componentName.c_str(), err);
                 }

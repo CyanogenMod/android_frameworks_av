@@ -1160,11 +1160,16 @@ public:
         }
 
     private:
+#ifdef LEGACY_ALSA_AUDIO
+        // internal convert function for format and channel mask.
+        void convert(void *dst, /*const*/ void *src, size_t frames);
+#else
         // format conversion when not using resampler
         void convertNoResampler(void *dst, const void *src, size_t frames);
 
         // format conversion when using resampler; modifies src in-place
         void convertResampler(void *dst, /*not-a-const*/ void *src, size_t frames);
+#endif
 
         // user provided information
         audio_channel_mask_t mSrcChannelMask;

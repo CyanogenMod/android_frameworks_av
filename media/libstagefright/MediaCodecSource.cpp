@@ -429,8 +429,13 @@ status_t MediaCodecSource::initEncoder() {
         return err;
     }
 
+    int32_t hfrRatio = 0;
+    mOutputFormat->findInt32("hfr-ratio", &hfrRatio);
+
     mEncoder->getOutputFormat(&mOutputFormat);
     convertMessageToMetaData(mOutputFormat, mMeta);
+
+    AVUtils::get()->HFRUtils().setHFRRatio(mMeta, hfrRatio);
 
     if (mFlags & FLAG_USE_SURFACE_INPUT) {
         CHECK(mIsVideo);

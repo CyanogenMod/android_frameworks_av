@@ -194,16 +194,16 @@ status_t WAVExtractor::init() {
             }
 
             mNumChannels = U16_LE_AT(&formatSpec[2]);
+
+            if (mNumChannels < 1 || mNumChannels > 8) {
+                ALOGE("Unsupported number of channels (%d)", mNumChannels);
+                return ERROR_UNSUPPORTED;
+            }
+
             if (mWaveFormat != WAVE_FORMAT_EXTENSIBLE) {
-                if (mNumChannels == 0) {
-                    return ERROR_UNSUPPORTED;
-                } else if (mNumChannels != 1 && mNumChannels != 2) {
+                if (mNumChannels != 1 && mNumChannels != 2) {
                     ALOGW("More than 2 channels (%d) in non-WAVE_EXT, unknown channel mask",
                             mNumChannels);
-                }
-            } else {
-                if (mNumChannels < 1 || mNumChannels > 8) {
-                    return ERROR_UNSUPPORTED;
                 }
             }
 

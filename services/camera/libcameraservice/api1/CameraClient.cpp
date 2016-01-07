@@ -443,7 +443,7 @@ status_t CameraClient::startRecordingMode() {
 
     // start recording mode
     enableMsgType(CAMERA_MSG_VIDEO_FRAME);
-    mCameraService->playSound(CameraService::SOUND_RECORDING);
+    mCameraService->playSound(CameraService::SOUND_RECORDING_START);
     result = mHardware->startRecording();
     if (result != NO_ERROR) {
         ALOGE("mHardware->startRecording() failed with status %d", result);
@@ -474,7 +474,7 @@ void CameraClient::stopRecording() {
 
     disableMsgType(CAMERA_MSG_VIDEO_FRAME);
     mHardware->stopRecording();
-    mCameraService->playSound(CameraService::SOUND_RECORDING);
+    mCameraService->playSound(CameraService::SOUND_RECORDING_STOP);
 
     mPreviewBuffer.clear();
 }
@@ -656,7 +656,7 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         }
         return OK;
     } else if (cmd == CAMERA_CMD_PLAY_RECORDING_SOUND) {
-        mCameraService->playSound(CameraService::SOUND_RECORDING);
+        mCameraService->playSound(CameraService::SOUND_RECORDING_START);
     } else if (cmd == CAMERA_CMD_SET_VIDEO_BUFFER_COUNT) {
         // Silently ignore this command
         return INVALID_OPERATION;

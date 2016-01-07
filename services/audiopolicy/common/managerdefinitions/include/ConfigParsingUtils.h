@@ -169,6 +169,7 @@ const StringToEnum sOutputFlagNameToEnumTable[] = {
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_TTS),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_RAW),
     STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_SYNC),
+    STRING_TO_ENUM(AUDIO_OUTPUT_FLAG_VOIP_RX),
 };
 
 const StringToEnum sInputFlagNameToEnumTable[] = {

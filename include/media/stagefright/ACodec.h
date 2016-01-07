@@ -243,6 +243,8 @@ protected:
     bool mSentFormat;
     bool mIsVideo;
     bool mIsEncoder;
+    bool mEncoderComponent;
+    bool mComponentAllocByName;
     bool mFatalError;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
@@ -291,6 +293,9 @@ protected:
     status_t submitOutputMetadataBuffer();
     void signalSubmitOutputMetadataBufferIfEOS_workaround();
     status_t allocateOutputBuffersFromNativeWindow();
+#ifdef USE_SAMSUNG_COLORFORMAT
+    void setNativeWindowColorFormat(OMX_COLOR_FORMATTYPE &eNativeColorFormat);
+#endif
     status_t cancelBufferToNativeWindow(BufferInfo *info);
     status_t freeOutputBuffersNotOwnedByComponent();
     BufferInfo *dequeueBufferFromNativeWindow();
@@ -345,7 +350,7 @@ protected:
             int32_t numChannels, int32_t sampleRate, int32_t bitRate,
             int32_t aacProfile, bool isADTS, int32_t sbrMode,
             int32_t maxOutputChannelCount, const drcParams_t& drc,
-            int32_t pcmLimiterEnable);
+            int32_t pcmLimiterEnable, int32_t bitsPerSample = 16);
 
     status_t setupAC3Codec(bool encoder, int32_t numChannels, int32_t sampleRate,
             int32_t bitsPerSample = 16);

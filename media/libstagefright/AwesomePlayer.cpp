@@ -344,6 +344,7 @@ status_t AwesomePlayer::setDataSource(
 
     reset_l();
 
+    fd = dup(fd);
     sp<DataSource> dataSource = new FileSource(fd, offset, length);
 
     status_t err = dataSource->initCheck();
@@ -1245,6 +1246,7 @@ void AwesomePlayer::initRenderer_l() {
     setVideoScalingMode_l(mVideoScalingMode);
     if (USE_SURFACE_ALLOC
             && !strncmp(component, "OMX.", 4)
+            && strncmp(component, "OMX.ffmpeg.", 11)
             && strncmp(component, "OMX.google.", 11)) {
         // Hardware decoders avoid the CPU color conversion by decoding
         // directly to ANativeBuffers, so we must use a renderer that

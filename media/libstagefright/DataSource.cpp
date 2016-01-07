@@ -131,18 +131,11 @@ status_t DataSource::getSize(off64_t *size) {
 
 Mutex DataSource::gSnifferMutex;
 List<DataSource::SnifferFunc> DataSource::gSniffers;
-List<DataSource::SnifferFunc> DataSource::gExtraSniffers;
 bool DataSource::gSniffersRegistered = false;
 
 bool DataSource::sniff(
         String8 *mimeType, float *confidence, sp<AMessage> *meta) {
 
-    bool forceExtraSniffers = false;
-
-    if (*confidence == 3.14f) {
-       // Magic value, as set by MediaExtractor when a video container looks incomplete
-       forceExtraSniffers = true;
-    }
 
     *mimeType = "";
     *confidence = 0.0f;
@@ -155,11 +148,18 @@ bool DataSource::sniff(
         }
     }
 
+    String8 newMimeType;
+    if (mimeType != NULL) {
+        newMimeType.setTo(*mimeType);
+    }
+    float newConfidence = *confidence;
+
     for (List<SnifferFunc>::iterator it = gSniffers.begin();
          it != gSniffers.end(); ++it) {
-        String8 newMimeType;
-        float newConfidence;
-        sp<AMessage> newMeta;
+        int64_t sniffStart = ALooper::GetNowUs();
+        String8 newMimeType = *mimeType;
+        float newConfidence = *confidence;
+        sp<AMessage> newMeta = *meta;
         if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
             if (newConfidence > *confidence) {
                 *mimeType = newMimeType;
@@ -167,23 +167,9 @@ bool DataSource::sniff(
                 *meta = newMeta;
             }
         }
-    }
-
-    /* Only do the deeper sniffers if the results are null or in doubt */
-    if (mimeType->length() == 0 || *confidence < 0.21f || forceExtraSniffers) {
-        for (List<SnifferFunc>::iterator it = gExtraSniffers.begin();
-                it != gExtraSniffers.end(); ++it) {
-            String8 newMimeType;
-            float newConfidence;
-            sp<AMessage> newMeta;
-            if ((*it)(this, &newMimeType, &newConfidence, &newMeta)) {
-                if (newConfidence > *confidence) {
-                    *mimeType = newMimeType;
-                    *confidence = newConfidence;
-                    *meta = newMeta;
-                }
-            }
-        }
+        ALOGV("Sniffer (%p) completed in %.2f ms (mime=%s confidence=%.2f",
+                this, ((float)(ALooper::GetNowUs() - sniffStart) / 1000.0f),
+                mimeType == NULL ? NULL : (*mimeType).string(), *confidence);
     }
 
     return *confidence > 0.0;
@@ -210,14 +196,7 @@ void DataSource::RegisterSnifferPlugin() {
         getExtractorPlugin(plugin);
     }
     if (plugin->sniff) {
-        for (List<SnifferFunc>::iterator it = gExtraSniffers.begin();
-             it != gExtraSniffers.end(); ++it) {
-            if (*it == plugin->sniff) {
-                return;
-            }
-        }
-
-        gExtraSniffers.push_back(plugin->sniff);
+        RegisterSniffer_l(plugin->sniff);
     }
 }
 
@@ -248,6 +227,7 @@ void DataSource::RegisterDefaultSniffers() {
             && (!strcmp(value, "1") || !strcasecmp(value, "true"))) {
         RegisterSniffer_l(SniffDRM);
     }
+
     gSniffersRegistered = true;
 }
 

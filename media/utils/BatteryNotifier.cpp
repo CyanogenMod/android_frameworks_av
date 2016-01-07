@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "BatteryNotifier"
+//#define LOG_NDEBUG 0
+
 #include "include/mediautils/BatteryNotifier.h"
 
 #include <binder/IServiceManager.h>

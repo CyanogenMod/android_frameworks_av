@@ -73,6 +73,8 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyWMAVersion           , "wma-version"            , INT32},  // int32_t
    {kKeyWMVVersion           , "wmv-version"            , INT32},
    {kKeyPCMFormat            , "pcm-format"             , INT32},
+   {kKeyDivXVersion          , "divx-version"           , INT32},
+   {kKeyThumbnailTime        , "thumbnail-time"         , INT64},
 };
 
 const char* FFMPEGSoftCodec::getMsgKey(int key) {
@@ -191,81 +193,124 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nStep = 0;
 }
 
-void FFMPEGSoftCodec::overrideComponentName(
-        uint32_t /*quirks*/, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
+const char* FFMPEGSoftCodec::overrideComponentName(
+        uint32_t /*quirks*/, const sp<MetaData> &meta, const char *mime, bool isEncoder) {
+    const char* componentName = NULL;
 
     int32_t wmvVersion = 0;
-    if (!strncasecmp(mime->c_str(), MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
-            msg->findInt32(getMsgKey(kKeyWMVVersion), &wmvVersion)) {
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_VIDEO_WMV, strlen(MEDIA_MIMETYPE_VIDEO_WMV)) &&
+            meta->findInt32(kKeyWMVVersion, &wmvVersion)) {
         ALOGD("Found WMV version key %d", wmvVersion);
-        if (wmvVersion == 1) {
+        if (wmvVersion != 2) {
             ALOGD("Use FFMPEG for unsupported WMV track");
-            componentName->setTo("OMX.ffmpeg.wmv.decoder");
+            componentName = "OMX.ffmpeg.wmv.decoder";
         }
     }
 
     int32_t encodeOptions = 0;
-    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
-            !msg->findInt32(getMsgKey(kKeyWMAEncodeOpt), &encodeOptions)) {
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_WMA, strlen(MEDIA_MIMETYPE_AUDIO_WMA)) &&
+            !meta->findInt32(kKeyWMAEncodeOpt, &encodeOptions)) {
         ALOGD("Use FFMPEG for unsupported WMA track");
-        componentName->setTo("OMX.ffmpeg.wma.decoder");
+        componentName = "OMX.ffmpeg.wma.decoder";
     }
 
     // Google's decoder doesn't support MAIN profile
     int32_t aacProfile = 0;
-    if (!isEncoder && !strncasecmp(mime->c_str(), MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
-            msg->findInt32(getMsgKey(kKeyAACAOT), &aacProfile)) {
-        if (aacProfile == OMX_AUDIO_AACObjectMain) {
-            ALOGD("Use FFMPEG for AAC MAIN profile");
-            componentName->setTo("OMX.ffmpeg.aac.decoder");
+    if (!isEncoder && !strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC)) &&
+            meta->findInt32(kKeyAACAOT, &aacProfile)) {
+        if ((aacProfile == OMX_AUDIO_AACObjectMain) || (aacProfile == OMX_AUDIO_AACObjectLTP)) {
+            ALOGD("Use FFMPEG for AAC Main/LTP profile");
+            componentName = "OMX.ffmpeg.aac.decoder";
         }
+    }
+
+    // Use FFMPEG for high-res formats which other decoders can't handle
+    int32_t bits = 16;
+    if (!isEncoder && meta->findInt32(kKeyBitsPerSample, &bits)) {
+        if (bits > 16) {
+            if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC, strlen(MEDIA_MIMETYPE_AUDIO_AAC))) {
+                componentName = "OMX.ffmpeg.aac.decoder";
+                ALOGD("Use FFMPEG for high-res AAC format");
+            } else if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC, strlen(MEDIA_MIMETYPE_AUDIO_FLAC))) {
+                componentName = "OMX.ffmpeg.flac.decoder";
+                ALOGD("Use FFMPEG for high-res FLAC format");
+            }
+        }
+    }
+
+    return componentName;
+}
+
+void FFMPEGSoftCodec::overrideComponentName(
+        uint32_t quirks, const sp<AMessage> &msg, AString* componentName, AString* mime, int32_t isEncoder) {
+
+    sp<MetaData> meta = new MetaData;
+    convertMessageToMetaData(msg, meta);
+    const char *updated = overrideComponentName(
+                quirks, meta, mime->c_str(), isEncoder);
+    if (updated != NULL) {
+        componentName->setTo(updated);
     }
 }
 
 status_t FFMPEGSoftCodec::setVideoFormat(
+        status_t status,
         const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
         IOMX::node_id nodeID, bool isEncoder,
         OMX_VIDEO_CODINGTYPE *compressionFormat,
         const char* componentName) {
     status_t err = OK;
 
-    if (isEncoder) {
-        ALOGE("Encoding not supported");
-        err = BAD_VALUE;
-    
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
-        if (strncmp(componentName, "OMX.ffmpeg.", 11) == 0) {
-            err = setWMVFormat(msg, OMXhandle, nodeID);
-            if (err != OK) {
-                ALOGE("setWMVFormat() failed (err = %d)", err);
+    //ALOGD("setVideoFormat: %s", msg->debugString(0).c_str());
+
+    /* status passed in is the result of the normal codec lookup */
+    if (status != OK) {
+
+        if (isEncoder) {
+            ALOGE("Encoding not supported");
+            err = BAD_VALUE;
+
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_WMV, mime)) {
+            if (strncmp(componentName, "OMX.ffmpeg.", 11) == 0) {
+                err = setWMVFormat(msg, OMXhandle, nodeID);
+                if (err != OK) {
+                    ALOGE("setWMVFormat() failed (err = %d)", err);
+                }
             }
-        }
-        *compressionFormat = OMX_VIDEO_CodingWMV;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_RV, mime)) {
-        err = setRVFormat(msg, OMXhandle, nodeID);
-        if (err != OK) {
-            ALOGE("setRVFormat() failed (err = %d)", err);
+            *compressionFormat = OMX_VIDEO_CodingWMV;
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_RV, mime)) {
+            err = setRVFormat(msg, OMXhandle, nodeID);
+            if (err != OK) {
+                ALOGE("setRVFormat() failed (err = %d)", err);
+            } else {
+                *compressionFormat = OMX_VIDEO_CodingRV;
+            }
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VC1, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingVC1;
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FLV1, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingFLV1;
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+#ifdef QCOM_HARDWARE
+        // compressionFormat will be override later
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
+#endif
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingHEVC;
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FFMPEG, mime)) {
+            ALOGV("Setting the OMX_VIDEO_PARAM_FFMPEGTYPE params");
+            err = setFFmpegVideoFormat(msg, OMXhandle, nodeID);
+            if (err != OK) {
+                ALOGE("setFFmpegVideoFormat() failed (err = %d)", err);
+            } else {
+                *compressionFormat = OMX_VIDEO_CodingAutoDetect;
+            }
         } else {
-            *compressionFormat = OMX_VIDEO_CodingRV;
+            err = BAD_TYPE;
         }
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_VC1, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingVC1;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FLV1, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingFLV1;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingDIVX;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
-        *compressionFormat = (OMX_VIDEO_CODINGTYPE)OMX_VIDEO_CodingHEVC;
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_FFMPEG, mime)) {
-        ALOGV("Setting the OMX_VIDEO_PARAM_FFMPEGTYPE params");
-        err = setFFmpegVideoFormat(msg, OMXhandle, nodeID);
-        if (err != OK) {
-            ALOGE("setFFmpegVideoFormat() failed (err = %d)", err);
-        } else {
-            *compressionFormat = OMX_VIDEO_CodingAutoDetect;
-        }
-    } else {
-        err = BAD_TYPE;
     }
 
 #ifdef QCOM_HARDWARE
@@ -274,8 +319,9 @@ status_t FFMPEGSoftCodec::setVideoFormat(
     // from the CAF L release. It was unfortunately moved to a proprietary
     // blob and an architecture which is hellish for OEMs who wish to
     // customize the platform.
-    if (err != BAD_TYPE && (strncmp(componentName, "OMX.qcom.", 9) == 0)) {
+    if (err == OK && (!strncmp(componentName, "OMX.qcom.", 9))) {
         status_t xerr = OK;
+
 
         int32_t mode = 0;
         OMX_QCOM_PARAM_PORTDEFINITIONTYPE portFmt;
@@ -295,15 +341,39 @@ status_t FFMPEGSoftCodec::setVideoFormat(
             ALOGW("Failed to set frame packing format on component");
         }
 
+        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+            // Override with QCOM specific compressionFormat
+            *compressionFormat = (OMX_VIDEO_CODINGTYPE)QOMX_VIDEO_CodingDivx;
+            setQCDIVXFormat(msg, mime, OMXhandle, nodeID, kPortIndexOutput);
+        }
+
         // Enable timestamp reordering for mpeg4 and vc1 codec types, the AVI file
         // type, and hevc content in the ts container
+        AString container;
+        const char * containerStr = NULL;
+        if (msg->findString("file-format", &container)) {
+            containerStr = container.c_str();
+        }
+
         bool tsReorder = false;
         const char* roleVC1 = "OMX.qcom.video.decoder.vc1";
         const char* roleMPEG4 = "OMX.qcom.video.decoder.mpeg4";
+        const char* roleHEVC = "OMX.qcom.video.decoder.hevc";
         if (!strncmp(componentName, roleVC1, strlen(roleVC1)) ||
                 !strncmp(componentName, roleMPEG4, strlen(roleMPEG4))) {
             // The codec requires timestamp reordering
             tsReorder = true;
+        } else if (containerStr != NULL) {
+            if (!strncmp(containerStr, MEDIA_MIMETYPE_CONTAINER_AVI,
+                    strlen(MEDIA_MIMETYPE_CONTAINER_AVI))) {
+                tsReorder = true;
+            } else if (!strncmp(containerStr, MEDIA_MIMETYPE_CONTAINER_MPEG2TS,
+                        strlen(MEDIA_MIMETYPE_CONTAINER_MPEG2TS)) ||
+                       !strncmp(componentName, roleHEVC, strlen(roleHEVC))) {
+                tsReorder = true;
+            }
         }
 
         if (tsReorder) {
@@ -318,6 +388,32 @@ status_t FFMPEGSoftCodec::setVideoFormat(
 
             if (xerr != OK) {
                 ALOGW("Failed to enable timestamp reordering");
+            }
+        }
+
+        // Enable Sync-frame decode mode for thumbnails
+        int32_t thumbnailMode = 0;
+        if (msg->findInt32("thumbnail-mode", &thumbnailMode) &&
+                thumbnailMode > 0) {
+            ALOGV("Enabling thumbnail mode.");
+            QOMX_ENABLETYPE enableType;
+            OMX_INDEXTYPE indexType;
+
+            status_t err = OMXhandle->getExtensionIndex(
+                    nodeID, OMX_QCOM_INDEX_PARAM_VIDEO_SYNCFRAMEDECODINGMODE,
+                    &indexType);
+            if (err != OK) {
+                ALOGW("Failed to get extension for SYNCFRAMEDECODINGMODE");
+            } else {
+
+                enableType.bEnable = OMX_TRUE;
+                err = OMXhandle->setParameter(nodeID,indexType,
+                           (void *)&enableType, sizeof(enableType));
+                if (err != OK) {
+                    ALOGW("Failed to get extension for SYNCFRAMEDECODINGMODE");
+                } else {
+                    ALOGI("Thumbnail mode enabled.");
+                }
             }
         }
 
@@ -343,6 +439,54 @@ status_t FFMPEGSoftCodec::setVideoFormat(
 #endif
     return err;
 }
+
+#ifdef QCOM_HARDWARE
+status_t FFMPEGSoftCodec::setQCDIVXFormat(
+        const sp<AMessage> &msg, const char* mime, sp<IOMX> OMXhandle,
+        IOMX::node_id nodeID, int port_index) {
+    status_t err = OK;
+    ALOGV("Setting the QOMX_VIDEO_PARAM_DIVXTYPE params ");
+    QOMX_VIDEO_PARAM_DIVXTYPE paramDivX;
+    InitOMXParams(&paramDivX);
+    paramDivX.nPortIndex = port_index;
+    int32_t DivxVersion = 0;
+    if (!msg->findInt32(getMsgKey(kKeyDivXVersion), &DivxVersion)) {
+        // Cannot find the key, the caller is skipping the container
+        // and use codec directly, let determine divx version from
+        // mime type
+        DivxVersion = kTypeDivXVer_4;
+        const char *v;
+        if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX, mime) ||
+                !strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX4, mime)) {
+            DivxVersion = kTypeDivXVer_4;
+            v = "4";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DIVX311, mime)) {
+            DivxVersion = kTypeDivXVer_3_11;
+            v = "3.11";
+        }
+        ALOGW("Divx version key missing, initializing the version to %s", v);
+    }
+    ALOGV("Divx Version Type %d", DivxVersion);
+
+    if (DivxVersion == kTypeDivXVer_4) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat4;
+    } else if (DivxVersion == kTypeDivXVer_5) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat5;
+    } else if (DivxVersion == kTypeDivXVer_6) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat6;
+    } else if (DivxVersion == kTypeDivXVer_3_11 ) {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormat311;
+    } else {
+        paramDivX.eFormat = QOMX_VIDEO_DIVXFormatUnused;
+    }
+    paramDivX.eProfile = (QOMX_VIDEO_DIVXPROFILETYPE)0;    //Not used for now.
+
+    err =  OMXhandle->setParameter(nodeID,
+            (OMX_INDEXTYPE)OMX_QcomIndexParamVideoDivx,
+            &paramDivX, sizeof(paramDivX));
+    return err;
+}
+#endif
 
 status_t FFMPEGSoftCodec::getVideoPortFormat(OMX_U32 portIndex, int coding,
         sp<AMessage> &notify, sp<IOMX> OMXHandle, IOMX::node_id nodeId) {

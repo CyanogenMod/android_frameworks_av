@@ -74,7 +74,7 @@ uint64_t hton64(uint64_t x) {
     return ((uint64_t)htonl(x & 0xffffffff) << 32) | htonl(x >> 32);
 }
 
-static status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_t length) {
+status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_t length) {
     if (((*buffer)->size() + 4 + length) > ((*buffer)->capacity() - (*buffer)->offset())) {
         sp<ABuffer> tmpBuffer = new (std::nothrow) ABuffer((*buffer)->size() + 4 + length + 1024);
         if (tmpBuffer.get() == NULL || tmpBuffer->base() == NULL) {
@@ -791,6 +791,9 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_AAC,         AUDIO_FORMAT_AAC },
     { MEDIA_MIMETYPE_AUDIO_VORBIS,      AUDIO_FORMAT_VORBIS },
     { MEDIA_MIMETYPE_AUDIO_OPUS,        AUDIO_FORMAT_OPUS},
+#ifdef FLAC_OFFLOAD_ENABLED
+    { MEDIA_MIMETYPE_AUDIO_FLAC,        AUDIO_FORMAT_FLAC},
+#endif
     { 0, AUDIO_FORMAT_INVALID }
 };
 
@@ -890,7 +893,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     info.sample_rate = srate;
 
     int32_t cmask = 0;
-    if (!meta->findInt32(kKeyChannelMask, &cmask)) {
+    if (!meta->findInt32(kKeyChannelMask, &cmask) || 0 == cmask) {
         ALOGV("track of type '%s' does not publish channel mask", mime);
 
         // Try a channel count instead

@@ -154,8 +154,8 @@ protected:
     status_t setupCameraSource(sp<CameraSource> *cameraSource);
     status_t setupAudioEncoder(const sp<MediaWriter>& writer);
     virtual status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaSource> *source);
-    virtual void setupCustomVideoEncoderParams(sp<MediaSource> /*cameraSource*/,
-            sp<AMessage> &/*format*/) {}
+    virtual void setupCustomVideoEncoderParams(sp<MediaSource> cameraSource,
+            sp<AMessage> &format);
     virtual bool setCustomVideoEncoderMime(const video_encoder videoEncoder, sp<AMessage> format);
 
     // Encoding parameter handling utilities
@@ -199,6 +199,7 @@ protected:
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);
 
+    status_t setupWAVERecording();
 public:
     virtual status_t setSourcePause(bool pause);
 };

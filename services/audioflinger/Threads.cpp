@@ -1165,7 +1165,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 
     // Reject any effect on mixer or duplicating multichannel sinks.
     // TODO: fix both format and multichannel issues with effects.
-    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount != FCC_2) {
+    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount > FCC_2) {
         ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) %s threads",
                 desc->name, mChannelCount, mType == MIXER ? "MIXER" : "DUPLICATING");
         lStatus = BAD_VALUE;
@@ -2185,6 +2185,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             kUseFastMixer == FastMixer_Dynamic)) {
         size_t minNormalFrameCount = (kMinNormalSinkBufferSizeMs * mSampleRate) / 1000;
         size_t maxNormalFrameCount = (kMaxNormalSinkBufferSizeMs * mSampleRate) / 1000;
+
         // round up minimum and round down maximum to nearest 16 frames to satisfy AudioMixer
         minNormalFrameCount = (minNormalFrameCount + 15) & ~15;
         maxNormalFrameCount = maxNormalFrameCount & ~15;
@@ -2200,19 +2201,6 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
             } else {
                 multiplier = (double) maxNormalFrameCount / (double) mFrameCount;
             }
-        } else {
-            // prefer an even multiplier, for compatibility with doubling of fast tracks due to HAL
-            // SRC (it would be unusual for the normal sink buffer size to not be a multiple of fast
-            // track, but we sometimes have to do this to satisfy the maximum frame count
-            // constraint)
-            // FIXME this rounding up should not be done if no HAL SRC
-            uint32_t truncMult = (uint32_t) multiplier;
-            if ((truncMult & 1)) {
-                if ((truncMult + 1) * mFrameCount <= maxNormalFrameCount) {
-                    ++truncMult;
-                }
-            }
-            multiplier = (double) truncMult;
         }
     }
     mNormalFrameCount = multiplier * mFrameCount;
@@ -2914,7 +2902,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             }
 
             // only process effects if we're going to write
-            if (mSleepTimeUs == 0 && mType != OFFLOAD) {
+            if (mSleepTimeUs == 0 && mType != OFFLOAD &&
+                !(mType == DIRECT && mIsDirectPcm)) {
                 for (size_t i = 0; i < effectChains.size(); i ++) {
                     effectChains[i]->process_l();
                 }
@@ -2924,7 +2913,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         // was read from audio track: process only updates effect state
         // and thus does have to be synchronized with audio writes but may have
         // to be called while waiting for async write callback
-        if (mType == OFFLOAD) {
+        if ((mType == OFFLOAD) || (mType == DIRECT && mIsDirectPcm)) {
             for (size_t i = 0; i < effectChains.size(); i ++) {
                 effectChains[i]->process_l();
             }
@@ -6586,7 +6575,11 @@ size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
                 break;
             }
             // format convert to destination buffer
+#ifdef LEGACY_ALSA_AUDIO
+            convert(dst, buffer.raw, buffer.frameCount);
+#else
             convertNoResampler(dst, buffer.raw, buffer.frameCount);
+#endif
 
             dst = (int8_t*)dst + buffer.frameCount * mDstFrameSize;
             i -= buffer.frameCount;
@@ -6606,7 +6599,11 @@ size_t AudioFlinger::RecordThread::RecordBufferConverter::convert(void *dst,
         memset(mBuf, 0, frames * mBufFrameSize);
         frames = mResampler->resample((int32_t*)mBuf, frames, provider);
         // format convert to destination buffer
+#ifdef LEGACY_ALSA_AUDIO
+        convert(dst, mBuf, frames);
+#else
         convertResampler(dst, mBuf, frames);
+#endif
     }
     return frames;
 }
@@ -6707,6 +6704,56 @@ status_t AudioFlinger::RecordThread::RecordBufferConverter::updateParameters(
     return NO_ERROR;
 }
 
+#ifdef LEGACY_ALSA_AUDIO
+void AudioFlinger::RecordThread::RecordBufferConverter::convert(
+        void *dst, /*const*/ void *src, size_t frames)
+{
+    // check if a memcpy will do
+    if (mResampler == NULL
+            && mSrcChannelCount == mDstChannelCount
+            && mSrcFormat == mDstFormat) {
+        memcpy(dst, src,
+                frames * mDstChannelCount * audio_bytes_per_sample(mDstFormat));
+        return;
+    }
+    // reallocate buffer if needed
+    if (mBufFrameSize != 0 && mBufFrames < frames) {
+        free(mBuf);
+        mBufFrames = frames;
+        (void)posix_memalign(&mBuf, 32, mBufFrames * mBufFrameSize);
+    }
+    // do processing
+    if (mResampler != NULL) {
+        // src channel count is always >= 2.
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        // ditherAndClamp() works as long as all buffers returned by
+        // activeTrack->getNextBuffer() are 32 bit aligned which should be always true.
+        if (mDstChannelCount == 1) {
+            // the resampler always outputs stereo samples.
+            // FIXME: this rewrites back into src
+            ditherAndClamp((int32_t *)src, (const int32_t *)src, frames);
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        } else {
+            ditherAndClamp((int32_t *)dstBuf, (const int32_t *)src, frames);
+        }
+    } else if (mSrcChannelCount != mDstChannelCount) {
+        void *dstBuf = mBuf != NULL ? mBuf : dst;
+        if (mSrcChannelCount == 1) {
+            upmix_to_stereo_i16_from_mono_i16((int16_t *)dstBuf, (const int16_t *)src,
+                    frames);
+        } else {
+            downmix_to_mono_i16_from_stereo_i16((int16_t *)dstBuf,
+                    (const int16_t *)src, frames);
+        }
+    }
+    if (mSrcFormat != mDstFormat) {
+        void *srcBuf = mBuf != NULL ? mBuf : src;
+        memcpy_by_audio_format(dst, mDstFormat, srcBuf, mSrcFormat,
+                frames * mDstChannelCount);
+    }
+}
+#else
 void AudioFlinger::RecordThread::RecordBufferConverter::convertNoResampler(
         void *dst, const void *src, size_t frames)
 {
@@ -6780,6 +6827,7 @@ void AudioFlinger::RecordThread::RecordBufferConverter::convertResampler(
     memcpy_by_audio_format(dst, mDstFormat, src, AUDIO_FORMAT_PCM_FLOAT,
             frames * mDstChannelCount);
 }
+#endif
 
 bool AudioFlinger::RecordThread::checkForNewParameter_l(const String8& keyValuePair,
                                                         status_t& status)
@@ -6962,6 +7010,7 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     mRsmpInFrames = mFrameCount * 7;
     mRsmpInFramesP2 = roundup(mRsmpInFrames);
     free(mRsmpInBuffer);
+    mRsmpInBuffer = NULL;
 
     // TODO optimize audio capture buffer sizes ...
     // Here we calculate the size of the sliding buffer used as a source
@@ -6971,7 +7020,9 @@ void AudioFlinger::RecordThread::readInputParameters_l()
     // The current value is higher than necessary.  However it should not add to latency.
 
     // Over-allocate beyond mRsmpInFramesP2 to permit a HAL read past end of buffer
-    (void)posix_memalign(&mRsmpInBuffer, 32, (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize);
+    size_t bufferSize = (mRsmpInFramesP2 + mFrameCount - 1) * mFrameSize;
+    (void)posix_memalign(&mRsmpInBuffer, 32, bufferSize);
+    memset(mRsmpInBuffer, 0, bufferSize); // if posix_memalign fails, will segv here.
 
     // AudioRecord mSampleRate and mChannelCount are constant due to AudioRecord API constraints.
     // But if thread's mSampleRate or mChannelCount changes, how will that affect active tracks?

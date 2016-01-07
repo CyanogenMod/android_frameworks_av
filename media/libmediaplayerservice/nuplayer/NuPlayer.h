@@ -86,11 +86,12 @@ protected:
     virtual ~NuPlayer();
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
-    virtual bool ifDecodedPCMOffload() {return false;}
-    virtual void setDecodedPcmOffload(bool /*decodePcmOffload*/) {}
-    virtual bool canOffloadDecodedPCMStream(const sp<MetaData> /*meta*/,
-            bool /*hasVideo*/, bool /*isStreaming*/, audio_stream_type_t /*streamType*/) {return false;}
+    virtual bool ifDecodedPCMOffload();
+    virtual void setDecodedPcmOffload(bool decodePcmOffload);
+    virtual bool canOffloadDecodedPCMStream(const sp<MetaData> meta,
+            bool hasVideo, bool isStreaming, audio_stream_type_t streamType);
     static bool IsHTTPLiveURL(const char *url);
+
 public:
     struct NuPlayerStreamListener;
     struct Source;
@@ -151,6 +152,7 @@ protected:
     sp<MediaPlayerBase::AudioSink> mAudioSink;
     sp<DecoderBase> mVideoDecoder;
     bool mOffloadAudio;
+    bool mOffloadDecodedPCM;
     sp<DecoderBase> mAudioDecoder;
     sp<CCDecoder> mCCDecoder;
     sp<Renderer> mRenderer;
@@ -280,8 +282,6 @@ protected:
     void sendTimedTextData(const sp<ABuffer> &buffer);
 
     void writeTrackInfo(Parcel* reply, const sp<AMessage> format) const;
-
-    void performTearDown(const sp<AMessage> &msg);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayer);
 };

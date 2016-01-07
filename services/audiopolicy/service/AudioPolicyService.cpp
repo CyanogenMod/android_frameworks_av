@@ -478,6 +478,19 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                             data->mVolume);
                     command->mStatus = AudioSystem::setVoiceVolume(data->mVolume);
                     }break;
+                case START_OUTPUT: {
+                    StartOutputData *data = (StartOutputData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing start output %d",
+                            data->mIO);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        command->mStatus = UNKNOWN_ERROR;
+                        break;
+                    }
+                    mLock.unlock();
+                    command->mStatus = svc->doStartOutput(data->mIO, data->mStream, data->mSession);
+                    mLock.lock();
+                    }break;
                 case STOP_OUTPUT: {
                     StopOutputData *data = (StopOutputData *)command->mParam.get();
                     ALOGV("AudioCommandThread() processing stop output %d",
@@ -712,6 +725,22 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
     command->mWaitStatus = true;
     ALOGV("AudioCommandThread() adding set voice volume volume %f", volume);
     return sendCommand(command, delayMs);
+}
+
+status_t AudioPolicyService::AudioCommandThread::startOutputCommand(audio_io_handle_t output,
+                                                                    audio_stream_type_t stream,
+                                                                    audio_session_t session)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = START_OUTPUT;
+    sp<StartOutputData> data = new StartOutputData();
+    data->mIO = output;
+    data->mStream = stream;
+    data->mSession = session;
+    command->mParam = data;
+    command->mWaitStatus = true;
+    ALOGV("AudioCommandThread() adding start output %d", output);
+    return sendCommand(command);
 }
 
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,

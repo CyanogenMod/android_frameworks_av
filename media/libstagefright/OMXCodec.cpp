@@ -155,7 +155,8 @@ static void InitOMXParams(T *params) {
 }
 
 static bool IsSoftwareCodec(const char *componentName) {
-    if (!strncmp("OMX.google.", componentName, 11)) {
+    if (!strncmp("OMX.google.", componentName, 11)
+        || !strncmp("OMX.ffmpeg.", componentName, 11)) {
         return true;
     }
 
@@ -1759,14 +1760,13 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         int32_t numchannels = 0;
         if (delay + padding) {
             if (mOutputFormat->findInt32(kKeyChannelCount, &numchannels)) {
-                size_t frameSize = numchannels * sizeof(int16_t);
                 if (mSkipCutBuffer != NULL) {
                     size_t prevbuffersize = mSkipCutBuffer->size();
                     if (prevbuffersize != 0) {
                         ALOGW("Replacing SkipCutBuffer holding %zu bytes", prevbuffersize);
                     }
                 }
-                mSkipCutBuffer = new SkipCutBuffer(delay * frameSize, padding * frameSize);
+                mSkipCutBuffer = new SkipCutBuffer(delay, padding, numchannels);
             }
         }
     }
@@ -2555,6 +2555,7 @@ void OMXCodec::onCmdComplete(OMX_COMMANDTYPE cmd, OMX_U32 data) {
 
                     // We implicitly resume pulling on our upstream source.
                     mPaused = false;
+                    mNoMoreOutputData = false;
 
                     drainInputBuffers();
                     fillOutputBuffers();
