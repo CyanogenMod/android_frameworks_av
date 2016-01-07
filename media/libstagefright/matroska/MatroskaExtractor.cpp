@@ -150,6 +150,7 @@ private:
 
     status_t advance();
 
+    status_t setWebmBlockCryptoInfo(MediaBuffer *mbuf);
     status_t readBlock();
     void clearPendingFrames();
 
@@ -511,6 +512,72 @@ void MatroskaSource::clearPendingFrames() {
     }
 }
 
+status_t MatroskaSource::setWebmBlockCryptoInfo(MediaBuffer *mbuf) {
+    if (mbuf->range_length() < 1 || mbuf->range_length() - 1 > INT32_MAX) {
+        // 1-byte signal
+        return ERROR_MALFORMED;
+    }
+
+    const uint8_t *data = (const uint8_t *)mbuf->data() + mbuf->range_offset();
+    bool blockEncrypted = data[0] & 0x1;
+    if (blockEncrypted && mbuf->range_length() < 9) {
+        // 1-byte signal + 8-byte IV
+        return ERROR_MALFORMED;
+    }
+
+    sp<MetaData> meta = mbuf->meta_data();
+    if (blockEncrypted) {
+        /*
+         *  0                   1                   2                   3
+         *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+         *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         *  |  Signal Byte  |                                               |
+         *  +-+-+-+-+-+-+-+-+             IV                                |
+         *  |                                                               |
+         *  |               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         *  |               |                                               |
+         *  |-+-+-+-+-+-+-+-+                                               |
+         *  :               Bytes 1..N of encrypted frame                   :
+         *  |                                                               |
+         *  |                                                               |
+         *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         */
+        int32_t plainSizes[] = { 0 };
+        int32_t encryptedSizes[] = { static_cast<int32_t>(mbuf->range_length() - 9) };
+        uint8_t ctrCounter[16] = { 0 };
+        uint32_t type;
+        const uint8_t *keyId;
+        size_t keyIdSize;
+        sp<MetaData> trackMeta = mExtractor->mTracks.itemAt(mTrackIndex).mMeta;
+        CHECK(trackMeta->findData(kKeyCryptoKey, &type, (const void **)&keyId, &keyIdSize));
+        meta->setData(kKeyCryptoKey, 0, keyId, keyIdSize);
+        memcpy(ctrCounter, data + 1, 8);
+        meta->setData(kKeyCryptoIV, 0, ctrCounter, 16);
+        meta->setData(kKeyPlainSizes, 0, plainSizes, sizeof(plainSizes));
+        meta->setData(kKeyEncryptedSizes, 0, encryptedSizes, sizeof(encryptedSizes));
+        mbuf->set_range(9, mbuf->range_length() - 9);
+    } else {
+        /*
+         *  0                   1                   2                   3
+         *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+         *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         *  |  Signal Byte  |                                               |
+         *  +-+-+-+-+-+-+-+-+                                               |
+         *  :               Bytes 1..N of unencrypted frame                 :
+         *  |                                                               |
+         *  |                                                               |
+         *  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+         */
+        int32_t plainSizes[] = { static_cast<int32_t>(mbuf->range_length() - 1) };
+        int32_t encryptedSizes[] = { 0 };
+        meta->setData(kKeyPlainSizes, 0, plainSizes, sizeof(plainSizes));
+        meta->setData(kKeyEncryptedSizes, 0, encryptedSizes, sizeof(encryptedSizes));
+        mbuf->set_range(1, mbuf->range_length() - 1);
+    }
+
+    return OK;
+}
+
 status_t MatroskaSource::readBlock() {
     CHECK(mPendingFrames.empty());
 
@@ -529,13 +596,19 @@ status_t MatroskaSource::readBlock() {
         mbuf->meta_data()->setInt64(kKeyTime, timeUs);
         mbuf->meta_data()->setInt32(kKeyIsSyncFrame, block->IsKey());
 
-        long n = frame.Read(mExtractor->mReader, (unsigned char *)mbuf->data());
-        if (n != 0) {
+        status_t err = frame.Read(mExtractor->mReader, static_cast<uint8_t *>(mbuf->data()));
+        if (err == OK
+                && mExtractor->mIsWebm
+                && mExtractor->mTracks.itemAt(mTrackIndex).mEncrypted) {
+            err = setWebmBlockCryptoInfo(mbuf);
+        }
+
+        if (err != OK) {
             mPendingFrames.clear();
 
             mBlockIter.advance();
             mbuf->release();
-            return ERROR_IO;
+            return err;
         }
 
         mPendingFrames.push_back(mbuf);
@@ -1055,6 +1128,18 @@ void MatroskaExtractor::addTracks() {
         trackInfo->mTrackNum = track->GetNumber();
         trackInfo->mMeta = meta;
         trackInfo->mExtractor = this;
+
+        trackInfo->mEncrypted = false;
+        for(size_t i = 0; i < track->GetContentEncodingCount() && !trackInfo->mEncrypted; i++) {
+            const mkvparser::ContentEncoding *encoding = track->GetContentEncodingByIndex(i);
+            for(size_t j = 0; j < encoding->GetEncryptionCount(); j++) {
+                const mkvparser::ContentEncoding::ContentEncryption *encryption;
+                encryption = encoding->GetEncryptionByIndex(j);
+                meta->setData(kKeyCryptoKey, 0, encryption->key_id, encryption->key_id_len);
+                trackInfo->mEncrypted = true;
+                break;
+            }
+        }
     }
 }
 
