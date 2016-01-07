@@ -220,6 +220,10 @@ status_t BnMediaPlayerService::onTransact(
             const String16 opPackageName = data.readString16();
             sp<IRemoteDisplayClient> client(
                     interface_cast<IRemoteDisplayClient>(data.readStrongBinder()));
+            if (client == NULL) {
+                reply->writeStrongBinder(NULL);
+                return NO_ERROR;
+            }
             String8 iface(data.readString8());
             sp<IRemoteDisplay> display(listenForRemoteDisplay(opPackageName, client, iface));
             reply->writeStrongBinder(IInterface::asBinder(display));

@@ -111,7 +111,11 @@ status_t BnStreamSource::onTransact(
                 sp<IMemory> mem =
                     interface_cast<IMemory>(data.readStrongBinder());
 
-                buffers.push(mem);
+                if (mem != NULL) {
+                    buffers.push(mem);
+                } else if (data.dataAvail() == 0) {
+                    break;
+                }
             }
             setBuffers(buffers);
             break;

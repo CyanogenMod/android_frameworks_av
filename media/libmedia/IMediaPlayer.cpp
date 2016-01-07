@@ -444,6 +444,10 @@ status_t BnMediaPlayer::onTransact(
             }
 
             const char* url = data.readCString();
+            if (httpService == NULL || url == NULL) {
+                reply->writeInt32(BAD_VALUE);
+                return NO_ERROR;
+            }
             KeyedVector<String8, String8> headers;
             int32_t numHeaders = data.readInt32();
             for (int i = 0; i < numHeaders; ++i) {
@@ -467,14 +471,22 @@ status_t BnMediaPlayer::onTransact(
             CHECK_INTERFACE(IMediaPlayer, data, reply);
             sp<IStreamSource> source =
                 interface_cast<IStreamSource>(data.readStrongBinder());
-            reply->writeInt32(setDataSource(source));
+            if (source == NULL) {
+                reply->writeInt32(BAD_VALUE);
+            } else {
+                reply->writeInt32(setDataSource(source));
+            }
             return NO_ERROR;
         }
         case SET_DATA_SOURCE_CALLBACK: {
             CHECK_INTERFACE(IMediaPlayer, data, reply);
             sp<IDataSource> source =
                 interface_cast<IDataSource>(data.readStrongBinder());
-            reply->writeInt32(setDataSource(source));
+            if (source == NULL) {
+                reply->writeInt32(BAD_VALUE);
+            } else {
+                reply->writeInt32(setDataSource(source));
+            }
             return NO_ERROR;
         }
         case SET_VIDEO_SURFACETEXTURE: {
