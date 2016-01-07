@@ -41,8 +41,6 @@
 #include "AudioMixer.h"
 #include "FastMixer.h"
 
-#define FCC_2                       2   // fixed channel count assumption
-
 namespace android {
 
 /*static*/ const FastMixerState FastMixer::sInitial;
