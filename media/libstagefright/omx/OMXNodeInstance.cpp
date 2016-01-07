@@ -192,8 +192,12 @@ OMXNodeInstance::OMXNodeInstance(
     : mOwner(owner),
       mNodeID(0),
       mHandle(NULL),
+#ifndef USE_LEGACY_MTK_AV_BLOB
       mObserver(observer),
       mBufferIDCount(0)
+#else
+      mObserver(observer)
+#endif
 {
     mName = ADebug::GetDebugName(name);
     DEBUG = ADebug::GetDebugLevelFromProperty(name, "debug.stagefright.omx-debug");
