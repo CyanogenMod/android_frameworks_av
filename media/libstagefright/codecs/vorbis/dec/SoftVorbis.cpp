@@ -56,7 +56,8 @@ SoftVorbis::SoftVorbis(
       mNumFramesLeftOnPage(-1),
       mSawInputEos(false),
       mSignalledOutputEos(false),
-      mOutputPortSettingsChange(NONE) {
+      mOutputPortSettingsChange(NONE),
+      mSignalledError(false) {
     initPorts();
     CHECK_EQ(initDecoder(), (status_t)OK);
 }
@@ -251,9 +252,20 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
         return;
     }
 
+    if (mSignalledError) {
+        return;
+    }
+
     if (portIndex == 0 && mInputBufferCount < 2) {
         BufferInfo *info = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *header = info->mHeader;
+
+        if (!header || !header->pBuffer) {
+            ALOGE("b/25727575 has happened. report error");
+            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+            mSignalledError = true;
+            return;
+        }
 
         const uint8_t *data = header->pBuffer + header->nOffset;
         size_t size = header->nFilledLen;

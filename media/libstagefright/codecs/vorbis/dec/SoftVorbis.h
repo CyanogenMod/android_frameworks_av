@@ -68,6 +68,8 @@ private:
         AWAITING_ENABLED
     } mOutputPortSettingsChange;
 
+    bool mSignalledError;
+
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
