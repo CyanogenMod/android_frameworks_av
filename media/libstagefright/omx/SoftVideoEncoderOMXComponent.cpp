@@ -23,6 +23,7 @@
 
 #include "include/SoftVideoEncoderOMXComponent.h"
 
+#include <hardware/gralloc.h>
 #include <media/hardware/HardwareAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -70,6 +71,7 @@ SoftVideoEncoderOMXComponent::SoftVideoEncoderOMXComponent(
       mBitrate(192000),
       mFramerate(30 << 16), // Q16 format
       mColorFormat(OMX_COLOR_FormatYUV420Planar),
+      mGrallocModule(NULL),
       mMinOutputBufferSize(384), // arbitrary, using one uncompressed macroblock
       mMinCompressionRatio(1),   // max output size is normally the input size
       mComponentRole(componentRole),
@@ -498,6 +500,13 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
         return NULL;
     }
 
+    if (mGrallocModule == NULL) {
+        CHECK_EQ(0, hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &mGrallocModule));
+    }
+
+    const gralloc_module_t *grmodule =
+        (const gralloc_module_t *)mGrallocModule;
+
     buffer_handle_t handle;
     int format;
     size_t srcStride;
@@ -555,21 +564,19 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
         return NULL;
     }
 
-    auto& mapper = GraphicBufferMapper::get();
-
     void *bits = NULL;
     struct android_ycbcr ycbcr;
     status_t res;
     if (format == HAL_PIXEL_FORMAT_YCbCr_420_888) {
-        res = mapper.lockYCbCr(
-                 handle,
+        res = grmodule->lock_ycbcr(
+                 grmodule, handle,
                  GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,
-                 Rect(width, height), &ycbcr);
+                 0, 0, width, height, &ycbcr);
     } else {
-        res = mapper.lock(
-                 handle,
+        res = grmodule->lock(
+                 grmodule, handle,
                  GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_NEVER,
-                 Rect(width, height), &bits);
+                 0, 0, width, height, &bits);
     }
     if (res != OK) {
         ALOGE("Unable to lock image buffer %p for access", handle);
@@ -613,7 +620,7 @@ const uint8_t *SoftVideoEncoderOMXComponent::extractGraphicBuffer(
             break;
     }
 
-    if (mapper.unlock(handle) != OK) {
+    if (grmodule->unlock(grmodule, handle) != OK) {
         ALOGE("Unable to unlock image buffer %p for access", handle);
     }
 
