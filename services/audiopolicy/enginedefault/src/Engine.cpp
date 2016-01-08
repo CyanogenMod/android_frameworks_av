@@ -662,6 +662,7 @@ audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) cons
         break;
 
     case AUDIO_SOURCE_VOICE_RECOGNITION:
+    case AUDIO_SOURCE_UNPROCESSED:
     case AUDIO_SOURCE_HOTWORD:
         if (mForceUse[AUDIO_POLICY_FORCE_FOR_RECORD] == AUDIO_POLICY_FORCE_BT_SCO &&
                 availableDeviceTypes & AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) {
