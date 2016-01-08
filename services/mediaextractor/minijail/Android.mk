@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 
-ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm arm64))
+ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm arm64 x86 x86_64))
 include $(CLEAR_VARS)
 LOCAL_MODULE := mediaextractor-seccomp.policy
 LOCAL_MODULE_CLASS := ETC
