@@ -34,8 +34,9 @@ public:
 
     virtual ~DeviceDescriptor() {}
 
+    virtual const String8 getTagName() const { return mTagName; }
+
     audio_devices_t type() const { return mDeviceType; }
-    const String8 getTagName() const { return mTagName; }
 
     bool equals(const sp<DeviceDescriptor>& other) const;
 
@@ -56,7 +57,7 @@ public:
     String8 mAddress;
 
 private:
-    String8 mTagName;
+    String8 mTagName; // Unique human readable identifier for a device port found in conf file.
     audio_devices_t     mDeviceType;
     audio_port_handle_t mId;
 

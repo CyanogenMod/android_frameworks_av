@@ -24,15 +24,6 @@
 
 namespace android {
 
-IOProfile::IOProfile(const String8 &name, audio_port_role_t role)
-    : AudioPort(name, AUDIO_PORT_TYPE_MIX, role)
-{
-}
-
-IOProfile::~IOProfile()
-{
-}
-
 // checks if the IO profile is compatible with specified parameters.
 // Sampling rate, format and channel mask must be specified in order to
 // get a valid a match

@@ -10,10 +10,12 @@ LOCAL_SRC_FILES:= \
     src/IOProfile.cpp \
     src/AudioPort.cpp \
     src/AudioProfile.cpp \
+    src/AudioRoute.cpp \
     src/AudioPolicyMix.cpp \
     src/AudioPatch.cpp \
     src/AudioInputDescriptor.cpp \
     src/AudioOutputDescriptor.cpp \
+    src/AudioCollections.cpp \
     src/EffectDescriptor.cpp \
     src/ConfigParsingUtils.cpp \
     src/SoundTriggerSession.cpp \
