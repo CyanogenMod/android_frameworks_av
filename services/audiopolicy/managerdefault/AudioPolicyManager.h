@@ -24,6 +24,7 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/SortedVector.h>
+#include <media/AudioParameter.h>
 #include <media/AudioPolicy.h>
 #include "AudioPolicyInterface.h"
 
@@ -230,6 +231,9 @@ public:
                                           audio_io_handle_t *handle,
                                           uid_t uid);
         virtual status_t stopAudioSource(audio_io_handle_t handle);
+
+        virtual status_t setMasterMono(bool mono);
+        virtual status_t getMasterMono(bool *mono);
 
         // Audio policy configuration file parsing (audio_policy.conf)
         // TODO candidates to be moved to ConfigParsingUtils
@@ -565,6 +569,7 @@ protected:
         bool mBeaconMuted;              // has STREAM_TTS been muted
         bool mTtsOutputAvailable;       // true if a dedicated output for TTS stream is available
 
+        bool mMasterMono;               // true if we wish to force all outputs to mono
         AudioPolicyMixCollection mPolicyMixes; // list of registered mixes
 
 #ifdef AUDIO_POLICY_TEST
@@ -644,6 +649,11 @@ private:
                                                           audio_policy_dev_state_t state,
                                                           const char *device_address,
                                                           const char *device_name);
+        void updateMono(audio_io_handle_t output) {
+            AudioParameter param;
+            param.addInt(String8(AUDIO_PARAMETER_MONO_OUTPUT), (int)mMasterMono);
+            mpClientInterface->setParameters(output, param.toString());
+        }
 };
 
 };

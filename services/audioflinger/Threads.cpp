@@ -36,6 +36,7 @@
 #include <hardware/audio.h>
 #include <audio_effects/effect_ns.h>
 #include <audio_effects/effect_aec.h>
+#include <audio_utils/conversion.h>
 #include <audio_utils/primitives.h>
 #include <audio_utils/format.h>
 #include <audio_utils/minifloat.h>
@@ -670,7 +671,19 @@ void AudioFlinger::ThreadBase::sendPrioConfigEvent_l(pid_t pid, pid_t tid, int32
 // sendSetParameterConfigEvent_l() must be called with ThreadBase::mLock held
 status_t AudioFlinger::ThreadBase::sendSetParameterConfigEvent_l(const String8& keyValuePair)
 {
-    sp<ConfigEvent> configEvent = (ConfigEvent *)new SetParameterConfigEvent(keyValuePair);
+    sp<ConfigEvent> configEvent;
+    AudioParameter param(keyValuePair);
+    int value;
+    if (param.getInt(String8(AUDIO_PARAMETER_MONO_OUTPUT), value) == NO_ERROR) {
+        setMasterMono_l(value != 0);
+        if (param.size() == 1) {
+            return NO_ERROR; // should be a solo parameter - we don't pass down
+        }
+        param.remove(String8(AUDIO_PARAMETER_MONO_OUTPUT));
+        configEvent = new SetParameterConfigEvent(param.toString());
+    } else {
+        configEvent = new SetParameterConfigEvent(keyValuePair);
+    }
     return sendConfigEvent_l(configEvent);
 }
 
@@ -2904,6 +2917,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 void *buffer = mEffectBufferValid ? mEffectBuffer : mSinkBuffer;
                 audio_format_t format = mEffectBufferValid ? mEffectBufferFormat : mFormat;
 
+                // mono blend occurs for mixer threads only (not direct or offloaded)
+                // and is handled here if we're going directly to the sink.
+                if (requireMonoBlend() && !mEffectBufferValid) {
+                    mono_blend(
+                            mMixerBuffer, mMixerBufferFormat, mChannelCount, mNormalFrameCount);
+                }
+
                 memcpy_by_audio_format(buffer, format, mMixerBuffer, mMixerBufferFormat,
                         mNormalFrameCount * mChannelCount);
             }
@@ -2939,6 +2959,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         // TODO use mSleepTimeUs == 0 as an additional condition.
         if (mEffectBufferValid) {
             //ALOGV("writing effect buffer to sink buffer format %#x", mFormat);
+
+            if (requireMonoBlend()) {
+                mono_blend(mEffectBuffer, mEffectBufferFormat, mChannelCount, mNormalFrameCount);
+            }
+
             memcpy_by_audio_format(mSinkBuffer, mFormat, mEffectBuffer, mEffectBufferFormat,
                     mNormalFrameCount * mChannelCount);
         }
@@ -3281,7 +3306,8 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     :   PlaybackThread(audioFlinger, output, id, device, type, systemReady),
         // mAudioMixer below
         // mFastMixer below
-        mFastMixerFutex(0)
+        mFastMixerFutex(0),
+        mMasterMono(false)
         // mOutputSink below
         // mPipeSink below
         // mNormalSink below
@@ -4405,6 +4431,7 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
     PlaybackThread::dumpInternals(fd, args);
     dprintf(fd, "  Thread throttle time (msecs): %u\n", mThreadThrottleTimeMs);
     dprintf(fd, "  AudioMixer tracks: 0x%08x\n", mAudioMixer->trackNames());
+    dprintf(fd, "  Master mono: %s\n", mMasterMono ? "on" : "off");
 
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
     // while we are dumping it.  It may be inconsistent, but it won't mutate!

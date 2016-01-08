@@ -1159,6 +1159,20 @@ status_t AudioSystem::stopAudioSource(audio_io_handle_t handle)
     return aps->stopAudioSource(handle);
 }
 
+status_t AudioSystem::setMasterMono(bool mono)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->setMasterMono(mono);
+}
+
+status_t AudioSystem::getMasterMono(bool *mono)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->getMasterMono(mono);
+}
+
 // ---------------------------------------------------------------------------
 
 int AudioSystem::AudioPolicyServiceClient::addAudioPortCallback(

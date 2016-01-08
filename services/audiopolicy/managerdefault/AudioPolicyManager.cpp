@@ -842,15 +842,15 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         goto non_direct_output;
     }
 
-    // Do not allow offloading if one non offloadable effect is enabled. This prevents from
-    // creating an offloaded track and tearing it down immediately after start when audioflinger
-    // detects there is an active non offloadable effect.
+    // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
+    // This prevents creating an offloaded track and tearing it down immediately after start
+    // when audioflinger detects there is an active non offloadable effect.
     // FIXME: We should check the audio session here but we do not have it in this context.
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
 
     if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
-            !mEffects.isNonOffloadableEffectEnabled()) {
+            !(mEffects.isNonOffloadableEffectEnabled() || mMasterMono)) {
         profile = getProfileForDirectOutput(device,
                                            samplingRate,
                                            format,
@@ -2088,6 +2088,8 @@ status_t AudioPolicyManager::dump(int fd)
     result.append(buffer);
     snprintf(buffer, SIZE, " TTS output %s\n", mTtsOutputAvailable ? "available" : "not available");
     result.append(buffer);
+    snprintf(buffer, SIZE, " Master mono: %s\n", mMasterMono ? "on" : "off");
+    result.append(buffer);
 
     write(fd, result.string(), result.size());
 
@@ -2114,6 +2116,10 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
      offloadInfo.format,
      offloadInfo.stream_type, offloadInfo.bit_rate, offloadInfo.duration_us,
      offloadInfo.has_video);
+
+    if (mMasterMono) {
+        return false; // no offloading if mono is set.
+    }
 
     // Check if offload has been disabled
     char propValue[PROPERTY_VALUE_MAX];
@@ -2878,6 +2884,44 @@ status_t AudioPolicyManager::stopAudioSource(audio_io_handle_t handle __unused)
     return status;
 }
 
+status_t AudioPolicyManager::setMasterMono(bool mono)
+{
+    if (mMasterMono == mono) {
+        return NO_ERROR;
+    }
+    mMasterMono = mono;
+    // if enabling mono we close all offloaded devices, which will invalidate the
+    // corresponding AudioTrack. The AudioTrack client/MediaPlayer is responsible
+    // for recreating the new AudioTrack as non-offloaded PCM.
+    //
+    // If disabling mono, we leave all tracks as is: we don't know which clients
+    // and tracks are able to be recreated as offloaded. The next "song" should
+    // play back offloaded.
+    if (mMasterMono) {
+        Vector<audio_io_handle_t> offloaded;
+        for (size_t i = 0; i < mOutputs.size(); ++i) {
+            sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
+            if (desc->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
+                offloaded.push(desc->mIoHandle);
+            }
+        }
+        for (size_t i = 0; i < offloaded.size(); ++i) {
+            closeOutput(offloaded[i]);
+        }
+    }
+    // update master mono for all remaining outputs
+    for (size_t i = 0; i < mOutputs.size(); ++i) {
+        updateMono(mOutputs.keyAt(i));
+    }
+    return NO_ERROR;
+}
+
+status_t AudioPolicyManager::getMasterMono(bool *mono)
+{
+    *mono = mMasterMono;
+    return NO_ERROR;
+}
+
 status_t AudioPolicyManager::disconnectAudioSource(const sp<AudioSourceDescriptor>& sourceDesc)
 {
     ALOGV("%s handle %d", __FUNCTION__, sourceDesc->getHandle());
@@ -2944,7 +2988,8 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     mBeaconMuteRefCount(0),
     mBeaconPlayingRefCount(0),
     mBeaconMuted(false),
-    mTtsOutputAvailable(false)
+    mTtsOutputAvailable(false),
+    mMasterMono(false)
 {
     audio_policy::EngineInstance *engineInstance = audio_policy::EngineInstance::getInstance();
     if (!engineInstance) {
@@ -3368,6 +3413,7 @@ void AudioPolicyManager::addOutput(audio_io_handle_t output, sp<SwAudioOutputDes
 {
     outputDesc->setIoHandle(output);
     mOutputs.add(output, outputDesc);
+    updateMono(output); // update mono status when adding to output list
     nextAudioPortGeneration();
 }
 

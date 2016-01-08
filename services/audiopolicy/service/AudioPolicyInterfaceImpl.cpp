@@ -560,7 +560,7 @@ bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
         ALOGV("mAudioPolicyManager == NULL");
         return false;
     }
-
+    Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->isOffloadSupported(info);
 }
 
@@ -698,6 +698,27 @@ status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
     }
 
     return mAudioPolicyManager->stopAudioSource(handle);
+}
+
+status_t AudioPolicyService::setMasterMono(bool mono)
+{
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+    if (!settingsAllowed()) {
+        return PERMISSION_DENIED;
+    }
+    Mutex::Autolock _l(mLock);
+    return mAudioPolicyManager->setMasterMono(mono);
+}
+
+status_t AudioPolicyService::getMasterMono(bool *mono)
+{
+    if (mAudioPolicyManager == NULL) {
+        return NO_INIT;
+    }
+    Mutex::Autolock _l(mLock);
+    return mAudioPolicyManager->getMasterMono(mono);
 }
 
 }; // namespace android

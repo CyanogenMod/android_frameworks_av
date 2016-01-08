@@ -202,6 +202,9 @@ public:
                                       audio_io_handle_t *handle);
     virtual status_t stopAudioSource(audio_io_handle_t handle);
 
+    virtual status_t setMasterMono(bool mono);
+    virtual status_t getMasterMono(bool *mono);
+
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   audio_session_t session);
