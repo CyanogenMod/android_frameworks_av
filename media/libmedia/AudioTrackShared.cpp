@@ -66,7 +66,9 @@ Proxy::Proxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t 
 
 ClientProxy::ClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
-    : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer), mEpoch(0)
+    : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer)
+    , mBufferSizeInFrames(frameCount)
+    , mEpoch(0)
 {
 }
 
@@ -151,6 +153,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
             front = cblk->u.mStreaming.mFront;
         }
+        // write to rear, read from front
         ssize_t filled = rear - front;
         // pipe should not be overfull
         if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
@@ -166,11 +169,17 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             cblk->u.mStreaming.mFront = rear;
             (void) android_atomic_or(CBLK_OVERRUN, &cblk->mFlags);
         }
-        // don't allow filling pipe beyond the nominal size
-        size_t avail = mIsOut ? mFrameCount - filled : filled;
-        if (avail > 0) {
+        // Don't allow filling pipe beyond the user settable size.
+        // The calculation for avail can go negative if the buffer size
+        // is suddenly dropped below the amount already in the buffer.
+        // So use a signed calculation to prevent a numeric overflow abort.
+        ssize_t adjustableSize = (ssize_t) mBufferSizeInFrames;
+        ssize_t avail =  (mIsOut) ? adjustableSize - filled : filled;
+        if (avail < 0) {
+            avail = 0;
+        } else if (avail > 0) {
             // 'avail' may be non-contiguous, so return only the first contiguous chunk
-            size_t part1;
+            ssize_t part1;
             if (mIsOut) {
                 rear &= mFrameCountP2 - 1;
                 part1 = mFrameCountP2 - rear;
@@ -181,10 +190,10 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             if (part1 > avail) {
                 part1 = avail;
             }
-            if (part1 > buffer->mFrameCount) {
+            if (part1 > (ssize_t) buffer->mFrameCount) {
                 part1 = buffer->mFrameCount;
             }
-            buffer->mFrameCount = part1;
+            buffer->mFrameCount = (size_t) part1;
             buffer->mRaw = part1 > 0 ?
                     &((char *) mBuffers)[(mIsOut ? rear : front) * mFrameSize] : NULL;
             buffer->mNonContig = avail - part1;
@@ -345,6 +354,20 @@ size_t ClientProxy::getMisalignment()
     audio_track_cblk_t* cblk = mCblk;
     return (mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront)) &
             (mFrameCountP2 - 1);
+}
+
+size_t ClientProxy::setBufferSizeInFrames(size_t size)
+{
+    // TODO set minimum to 2X the fast mixer buffer size.
+    size_t minimum = 128 * 2; // arbitrary
+    size_t maximum = frameCount();
+    if (size < minimum) {
+        size = minimum;
+    } else if (size > maximum) {
+        size = maximum;
+    }
+    mBufferSizeInFrames = size;
+    return size;
 }
 
 // ---------------------------------------------------------------------------

@@ -204,6 +204,8 @@ public:
         size_t  mNonContig;             // number of additional non-contiguous frames available
     };
 
+    size_t frameCount() const { return mFrameCount; }
+
 protected:
     // These refer to shared memory, and are virtual addresses with respect to the current process.
     // They may have different virtual addresses within the other process.
@@ -285,7 +287,7 @@ public:
         return mEpoch + mCblk->mServer;
     }
 
-    void             setEpoch(const Modulo<uint32_t> &epoch) {
+    void        setEpoch(const Modulo<uint32_t> &epoch) {
         mEpoch = epoch;
     }
 
@@ -304,6 +306,15 @@ public:
     Modulo<uint32_t> getEpoch() const {
         return mEpoch;
     }
+
+    size_t      getBufferSizeInFrames() const { return mBufferSizeInFrames; }
+    // See documentation for AudioTrack.setBufferSizeInFrames()
+    size_t      setBufferSizeInFrames(size_t requestedSize);
+
+protected:
+    // This is set by AudioTrack.setBufferSizeInFrames().
+    // A write will not fill the buffer above this limit.
+    size_t      mBufferSizeInFrames;      // effective size of the buffer
 
 private:
     Modulo<uint32_t> mEpoch;

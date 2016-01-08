@@ -320,6 +320,25 @@ public:
             uint32_t    channelCount() const { return mChannelCount; }
             size_t      frameCount() const  { return mFrameCount; }
 
+    /* Return effective size of audio buffer that an application writes to
+     * or a negative error if the track is uninitialized.
+     */
+            ssize_t     getBufferSizeInFrames();
+
+    /* Set the effective size of audio buffer that an application writes to.
+     * This is used to determine the amount of available room in the buffer,
+     * which determines when a write will block.
+     * This allows an application to raise and lower the audio latency.
+     * The requested size may be adjusted so that it is
+     * greater or equal to the absolute minimum and
+     * less than or equal to the getBufferCapacityInFrames().
+     * It may also be adjusted slightly for internal reasons.
+     *
+     * Return the final size or a negative error if the track is unitialized
+     * or does not support variable sizes.
+     */
+            ssize_t     setBufferSizeInFrames(size_t size);
+
     /* Return the static buffer specified in constructor or set(), or 0 for streaming mode */
             sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
@@ -817,8 +836,11 @@ protected:
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
     uint32_t                mOriginalSampleRate;
     AudioPlaybackRate       mPlaybackRate;
-    size_t                  mFrameCount;            // corresponds to current IAudioTrack, value is
-                                                    // reported back by AudioFlinger to the client
+
+    // Corresponds to current IAudioTrack, value is reported back by AudioFlinger to the client.
+    // This allocated buffer size is maintained by the proxy.
+    size_t                  mFrameCount;            // maximum size of buffer
+
     size_t                  mReqFrameCount;         // frame count to request the first or next time
                                                     // a new IAudioTrack is needed, non-decreasing
 

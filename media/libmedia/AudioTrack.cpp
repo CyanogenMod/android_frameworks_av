@@ -855,6 +855,31 @@ const AudioPlaybackRate& AudioTrack::getPlaybackRate() const
     return mPlaybackRate;
 }
 
+ssize_t AudioTrack::getBufferSizeInFrames()
+{
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE || mProxy.get() == 0) {
+        return NO_INIT;
+    }
+    return mProxy->getBufferSizeInFrames();
+}
+
+ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
+{
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE || mProxy.get() == 0) {
+        return NO_INIT;
+    }
+    // Reject if timed track or compressed audio.
+    if (mIsTimed || !audio_is_linear_pcm(mFormat)) {
+        return INVALID_OPERATION;
+    }
+    // TODO also need to inform the server side (through mAudioTrack) that
+    // the buffer count is reduced, otherwise the track may never start
+    // because the server thinks it is never filled.
+    return mProxy->setBufferSizeInFrames(bufferSizeInFrames);
+}
+
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)
 {
     if (mSharedBuffer == 0 || mIsTimed || isOffloadedOrDirect()) {
