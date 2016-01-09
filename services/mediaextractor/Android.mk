@@ -11,9 +11,7 @@ include $(BUILD_SHARED_LIBRARY)
 
 # service executable
 include $(CLEAR_VARS)
-ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm arm64))
-LOCAL_ADDITIONAL_DEPENDENCIES += mediaextractor-seccomp.policy
-endif
+LOCAL_REQUIRED_MODULES_arm := mediaextractor-seccomp.policy
 LOCAL_SRC_FILES := main_extractorservice.cpp minijail/minijail.cpp
 LOCAL_SHARED_LIBRARIES := libmedia libmediaextractorservice libbinder libutils liblog libicuuc libminijail
 LOCAL_STATIC_LIBRARIES := libicuandroid_utils
