@@ -4,7 +4,7 @@ ifeq ($(TARGET_ARCH), $(filter $(TARGET_ARCH), arm arm64))
 include $(CLEAR_VARS)
 LOCAL_MODULE := mediaextractor-seccomp.policy
 LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/seccomp_policy/
+LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/seccomp_policy
 
 # mediaextractor runs in 32-bit combatibility mode. For 64 bit architectures,
 # use the 32 bit policy
