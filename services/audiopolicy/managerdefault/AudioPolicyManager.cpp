@@ -670,7 +670,10 @@ sp<IOProfile> AudioPolicyManager::getProfileForDirectOutput(
             }
             // reject profiles not corresponding to a device currently available
             if ((mAvailableOutputDevices.types() & curProfile->mSupportedDevices.types()) == 0) {
-                continue;
+#ifdef HAVE_LG_SWIRRC
+                if (device != AUDIO_DEVICE_OUT_IRRC)
+#endif
+                   continue;
             }
             // if several profiles are compatible, give priority to one with offload capability
             if (profile != 0 && ((curProfile->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
@@ -763,8 +766,18 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     }
     mOutputRoutes.addRoute(session, *stream, SessionRoute::SOURCE_TYPE_NA, deviceDesc, uid);
 
+    audio_devices_t device;
+
+#ifdef HAVE_LG_SWIRRC
+    if ((flags & AUDIO_OUTPUT_FLAG_IRRC) != 0) {
+	device = AUDIO_DEVICE_OUT_IRRC;
+    } else {
+#endif
     routing_strategy strategy = (routing_strategy) getStrategyForAttr(&attributes);
-    audio_devices_t device = getDeviceForStrategy(strategy, false /*fromCache*/);
+    device = getDeviceForStrategy(strategy, false /*fromCache*/);
+#ifdef HAVE_LG_SWIRRC
+    }
+#endif
 
     if ((attributes.flags & AUDIO_FLAG_HW_AV_SYNC) != 0) {
         flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_HW_AV_SYNC);
