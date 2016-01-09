@@ -154,6 +154,18 @@ AMediaFormat* AMediaCodec_getOutputFormat(AMediaCodec*);
 media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool render);
 
 /**
+ * Dynamically sets the output surface of a codec.
+ *
+ *  This can only be used if the codec was configured with an output surface.  The
+ *  new output surface should have a compatible usage type to the original output surface.
+ *  E.g. codecs may not support switching from a SurfaceTexture (GPU readable) output
+ *  to ImageReader (software readable) output.
+ *
+ * For more details, see the Java documentation for MediaCodec.setOutputSurface.
+ */
+media_status_t AMediaCodec_setOutputSurface(AMediaCodec*, ANativeWindow* surface);
+
+/**
  * If you are done with a buffer, use this call to update its surface timestamp
  * and return it to the codec to render it on the output surface. If you
  * have not specified an output surface when configuring this video codec,
@@ -163,7 +175,6 @@ media_status_t AMediaCodec_releaseOutputBuffer(AMediaCodec*, size_t idx, bool re
  */
 media_status_t AMediaCodec_releaseOutputBufferAtTime(
         AMediaCodec *mData, size_t idx, int64_t timestampNs);
-
 
 typedef enum {
     AMEDIACODECRYPTOINFO_MODE_CLEAR = 0,

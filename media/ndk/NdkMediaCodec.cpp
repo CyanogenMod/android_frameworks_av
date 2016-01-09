@@ -359,6 +359,15 @@ media_status_t AMediaCodec_releaseOutputBufferAtTime(
     return translate_error(mData->mCodec->renderOutputBufferAndRelease(idx, timestampNs));
 }
 
+EXPORT
+media_status_t AMediaCodec_setOutputSurface(AMediaCodec *mData, ANativeWindow* window) {
+    sp<Surface> surface = NULL;
+    if (window != NULL) {
+        surface = (Surface*) window;
+    }
+    return translate_error(mData->mCodec->setSurface(surface));
+}
+
 //EXPORT
 media_status_t AMediaCodec_setNotificationCallback(AMediaCodec *mData, OnCodecEvent callback,
         void *userdata) {
