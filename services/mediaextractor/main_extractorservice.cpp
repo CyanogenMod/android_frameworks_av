@@ -36,7 +36,7 @@ using namespace android;
 int main(int argc __unused, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
-    MiniJail();
+    //MiniJail();
 
     InitializeIcuOrDie();
 
