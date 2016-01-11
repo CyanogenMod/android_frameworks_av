@@ -866,15 +866,19 @@ int MtpDevice::submitEventRequest() {
     return currentHandle;
 }
 
-int MtpDevice::reapEventRequest(int handle) {
+int MtpDevice::reapEventRequest(int handle, uint32_t (*parameters)[3]) {
     Mutex::Autolock autoLock(mEventMutex);
-    if (!mProcessingEvent || mCurrentEventHandle != handle) {
+    if (!mProcessingEvent || mCurrentEventHandle != handle || !parameters) {
         return -1;
     }
     mProcessingEvent = false;
     const int readSize = mEventPacket.readResponse(mRequestIntr->dev);
     const int result = mEventPacket.getEventCode();
-    return readSize == 0 ? 0 : result;
+    // MTP event has three parameters.
+    (*parameters)[0] = mEventPacket.getParameter(1);
+    (*parameters)[1] = mEventPacket.getParameter(2);
+    (*parameters)[2] = mEventPacket.getParameter(3);
+    return readSize != 0 ? result : 0;
 }
 
 void MtpDevice::discardEventRequest(int handle) {
