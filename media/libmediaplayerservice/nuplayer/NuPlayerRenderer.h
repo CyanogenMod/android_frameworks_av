@@ -179,6 +179,7 @@ private:
     int32_t mAudioRenderingStartGeneration;
     bool mRenderingDataDelivered;
 
+    int64_t mNextAudioClockUpdateTimeUs;
     // the media timestamp of last audio sample right before EOS.
     int64_t mLastAudioMediaTimeUs;
 

@@ -72,6 +72,8 @@ static const int64_t kOffloadPauseMaxUs = 10000000ll;
 // Maximum allowed delay from AudioSink, 1.5 seconds.
 static const int64_t kMaxAllowedAudioSinkDelayUs = 1500000ll;
 
+static const int64_t kMinimumAudioClockUpdatePeriodUs = 20 /* msec */ * 1000;
+
 // static
 const NuPlayer::Renderer::PcmInfo NuPlayer::Renderer::AUDIO_PCMINFO_INITIALIZER = {
         AUDIO_CHANNEL_NONE,
@@ -116,6 +118,7 @@ NuPlayer::Renderer::Renderer(
       mVideoRenderingStartGeneration(0),
       mAudioRenderingStartGeneration(0),
       mRenderingDataDelivered(false),
+      mNextAudioClockUpdateTimeUs(-1),
       mLastAudioMediaTimeUs(-1),
       mAudioOffloadPauseTimeoutGeneration(0),
       mAudioTornDown(false),
@@ -1039,12 +1042,20 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
     }
     setAudioFirstAnchorTimeIfNeeded_l(mediaTimeUs);
 
-    AudioTimestamp ts;
-    status_t res = mAudioSink->getTimestamp(ts);
+    // mNextAudioClockUpdateTimeUs is -1 if we're waiting for audio sink to start
+    if (mNextAudioClockUpdateTimeUs == -1) {
+        AudioTimestamp ts;
+        if (mAudioSink->getTimestamp(ts) == OK && ts.mPosition > 0) {
+            mNextAudioClockUpdateTimeUs = 0; // start our clock updates
+        }
+    }
     int64_t nowUs = ALooper::GetNowUs();
-    if (res == OK) {
-        int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
-        mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+    if (mNextAudioClockUpdateTimeUs >= 0) {
+        if (nowUs >= mNextAudioClockUpdateTimeUs) {
+            int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
+            mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+            mNextAudioClockUpdateTimeUs = nowUs + kMinimumAudioClockUpdatePeriodUs;
+        }
     } else {
         int64_t unused;
         if ((mMediaClock->getMediaTime(nowUs, &unused) != OK)
@@ -1478,6 +1489,7 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
             }
             mNumFramesWritten = 0;
         }
+        mNextAudioClockUpdateTimeUs = -1;
     } else {
         flushQueue(&mVideoQueue);
 
