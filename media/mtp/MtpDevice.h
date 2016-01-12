@@ -124,8 +124,9 @@ public:
     int                     submitEventRequest();
     // Waits for MTP event from the device and returns MTP event code. It blocks the current thread
     // until it receives an event from the device. |handle| should be a request handle returned
-    // by |submitEventRequest|. Returns 0 for cancellations. Returns -1 for errors.
-    int                     reapEventRequest(int handle);
+    // by |submitEventRequest|. The function writes event parameters to |parameters|. Returns 0 for
+    // cancellations. Returns -1 for errors.
+    int                     reapEventRequest(int handle, uint32_t (*parameters)[3]);
     // Cancels an event request. |handle| should be request handle returned by
     // |submitEventRequest|. If there is a thread blocked by |reapEventRequest| with the same
     // |handle|, the thread will resume.
