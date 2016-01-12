@@ -479,6 +479,12 @@ void CameraClient::stopRecording() {
 void CameraClient::releaseRecordingFrame(const sp<IMemory>& mem) {
     Mutex::Autolock lock(mLock);
     if (checkPidAndHardware() != NO_ERROR) return;
+    if (mem == nullptr) {
+        android_errorWriteWithInfoLog(CameraService::SN_EVENT_LOG_ID, "26164272",
+                IPCThreadState::self()->getCallingUid(), nullptr, 0);
+        return;
+    }
+
     mHardware->releaseRecordingFrame(mem);
 }
 
