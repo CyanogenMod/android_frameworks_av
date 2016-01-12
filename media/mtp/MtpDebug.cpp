@@ -101,6 +101,7 @@ static const CodeEntry sFormatCodes[] = {
     { "MTP_FORMAT_TIFF_IT",                         0x380E },
     { "MTP_FORMAT_JP2",                             0x380F },
     { "MTP_FORMAT_JPX",                             0x3810 },
+    { "MTP_FORMAT_DNG",                             0x3811 },
     { "MTP_FORMAT_UNDEFINED_FIRMWARE",              0xB802 },
     { "MTP_FORMAT_WINDOWS_IMAGE_FORMAT",            0xB881 },
     { "MTP_FORMAT_UNDEFINED_AUDIO",                 0xB900 },
