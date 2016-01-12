@@ -429,6 +429,9 @@ void SoftVorbis::onPortFlushCompleted(OMX_U32 portIndex) {
         // depend on fragments from the last one decoded.
 
         mNumFramesOutput = 0;
+        mSawInputEos = false;
+        mSignalledOutputEos = false;
+        mNumFramesLeftOnPage = -1;
         vorbis_dsp_restart(mState);
     }
 }
