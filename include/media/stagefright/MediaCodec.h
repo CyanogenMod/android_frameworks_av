@@ -119,6 +119,7 @@ struct MediaCodec : public AHandler {
             const uint8_t key[16],
             const uint8_t iv[16],
             CryptoPlugin::Mode mode,
+            const CryptoPlugin::Pattern &pattern,
             int64_t presentationTimeUs,
             uint32_t flags,
             AString *errorDetailMsg = NULL);

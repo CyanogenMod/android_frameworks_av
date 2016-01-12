@@ -170,6 +170,11 @@ typedef enum {
     AMEDIACODECRYPTOINFO_MODE_AES_CTR = 1
 } cryptoinfo_mode_t;
 
+typedef struct {
+    int32_t encryptBlocks;
+    int32_t skipBlocks;
+} cryptoinfo_pattern_t;
+
 /**
  * Create an AMediaCodecCryptoInfo from scratch. Use this if you need to use custom
  * crypto info, rather than one obtained from AMediaExtractor.
@@ -197,6 +202,13 @@ AMediaCodecCryptoInfo *AMediaCodecCryptoInfo_new(
  * obtained from AMediaExtractor
  */
 media_status_t AMediaCodecCryptoInfo_delete(AMediaCodecCryptoInfo*);
+
+/**
+ * Set the crypto pattern on an AMediaCryptoInfo object
+ */
+void AMediaCodecCryptoInfo_setPattern(
+        AMediaCodecCryptoInfo *info,
+        cryptoinfo_pattern_t *pattern);
 
 /**
  * The number of subsamples that make up the buffer's contents.

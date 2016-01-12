@@ -239,6 +239,7 @@ ssize_t Crypto::decrypt(
         const uint8_t key[16],
         const uint8_t iv[16],
         CryptoPlugin::Mode mode,
+        const CryptoPlugin::Pattern &pattern,
         const sp<IMemory> &sharedBuffer, size_t offset,
         const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
         void *dstPtr,
@@ -256,7 +257,7 @@ ssize_t Crypto::decrypt(
     const void *srcPtr = static_cast<uint8_t *>(sharedBuffer->pointer()) + offset;
 
     return mPlugin->decrypt(
-            secure, key, iv, mode, srcPtr, subSamples, numSubSamples, dstPtr,
+            secure, key, iv, mode, pattern, srcPtr, subSamples, numSubSamples, dstPtr,
             errorDetailMsg);
 }
 

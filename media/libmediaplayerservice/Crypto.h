@@ -54,6 +54,7 @@ struct Crypto : public BnCrypto {
             const uint8_t key[16],
             const uint8_t iv[16],
             CryptoPlugin::Mode mode,
+            const CryptoPlugin::Pattern &pattern,
             const sp<IMemory> &sharedBuffer, size_t offset,
             const CryptoPlugin::SubSample *subSamples, size_t numSubSamples,
             void *dstPtr,
