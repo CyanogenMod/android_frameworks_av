@@ -69,7 +69,7 @@ private:
     audio_port_handle_t           mId;
     // audio sessions attached to this input
     AudioSessionCollection        mSessions;
-    // Because a preemtible capture session can preempt another one, we end up in an endless loop
+    // Because a preemptible capture session can preempt another one, we end up in an endless loop
     // situation were each session is allowed to restart after being preempted,
     // thus preempting the other one which restarts and so on.
     // To avoid this situation, we store which audio session was preempted when

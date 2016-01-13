@@ -37,6 +37,7 @@ sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 dynamic_policy_callback AudioSystem::gDynPolicyCallback = NULL;
+record_config_callback  AudioSystem::gRecordConfigCallback = NULL;
 
 
 // establish binder interface to AudioFlinger service
@@ -652,6 +653,12 @@ status_t AudioSystem::AudioFlingerClient::removeAudioDeviceCallback(
     gDynPolicyCallback = cb;
 }
 
+/*static*/ void AudioSystem::setRecordConfigCallback(record_config_callback cb)
+{
+    Mutex::Autolock _l(gLock);
+    gRecordConfigCallback = cb;
+}
+
 // client singleton for AudioPolicyService binder interface
 // protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
@@ -1234,6 +1241,19 @@ void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
 
     if (cb != NULL) {
         cb(DYNAMIC_POLICY_EVENT_MIX_STATE_UPDATE, regId, state);
+    }
+}
+
+void AudioSystem::AudioPolicyServiceClient::onRecordingConfigurationUpdate(
+        int event, audio_session_t session, audio_source_t source) {
+    record_config_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        cb = gRecordConfigCallback;
+    }
+
+    if (cb != NULL) {
+        cb(event, session, source);
     }
 }
 

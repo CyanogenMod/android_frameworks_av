@@ -335,6 +335,9 @@ public:
     virtual audio_unique_id_t newAudioUniqueId() = 0;
 
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
+
+    virtual void onRecordingConfigurationUpdate(int event, audio_session_t session,
+                    audio_source_t source) = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
