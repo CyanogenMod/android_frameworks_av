@@ -40,7 +40,9 @@ namespace android {
 AudioPolicyEffects::AudioPolicyEffects()
 {
     // load automatic audio effect modules
-    if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
+    if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE2, R_OK) == 0) {
+        loadAudioEffectConfig(AUDIO_EFFECT_VENDOR_CONFIG_FILE2);
+    } else if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE, R_OK) == 0) {
         loadAudioEffectConfig(AUDIO_EFFECT_VENDOR_CONFIG_FILE);
     } else if (access(AUDIO_EFFECT_DEFAULT_CONFIG_FILE, R_OK) == 0) {
         loadAudioEffectConfig(AUDIO_EFFECT_DEFAULT_CONFIG_FILE);
