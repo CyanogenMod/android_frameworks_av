@@ -660,7 +660,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             // When mStarted is true, mSource must have been set.
             if (mSource == NULL || !mStarted || mSource->getFormat(false /* audio */) == NULL
                     // NOTE: mVideoDecoder's mSurface is always non-null
-                    || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)) {
+#ifndef CANNOT_SET_SURFACE_WITHOUT_A_FLUSH
+                    || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)
+#endif
+                ) {
                 performSetSurface(surface);
                 break;
             }
