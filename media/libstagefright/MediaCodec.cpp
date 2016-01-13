@@ -2388,6 +2388,7 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     // We allow the simpler queueInputBuffer API to be used even in
     // secure mode, by fabricating a single unencrypted subSample.
     CryptoPlugin::SubSample ss;
+    CryptoPlugin::Pattern pattern;
 
     if (msg->findSize("size", &size)) {
         if (mCrypto != NULL) {
@@ -2398,6 +2399,8 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
             numSubSamples = 1;
             key = NULL;
             iv = NULL;
+            pattern.mEncryptBlocks = 0;
+            pattern.mSkipBlocks = 0;
         }
     } else {
         if (mCrypto == NULL) {
@@ -2408,6 +2411,8 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         CHECK(msg->findSize("numSubSamples", &numSubSamples));
         CHECK(msg->findPointer("key", (void **)&key));
         CHECK(msg->findPointer("iv", (void **)&iv));
+        CHECK(msg->findInt32("encryptBlocks", (int32_t *)&pattern.mEncryptBlocks));
+        CHECK(msg->findInt32("skipBlocks", (int32_t *)&pattern.mSkipBlocks));
 
         int32_t tmp;
         CHECK(msg->findInt32("mode", &tmp));
@@ -2454,10 +2459,6 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
 
         AString *errorDetailMsg;
         CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
-
-        CryptoPlugin::Pattern pattern;
-        CHECK(msg->findInt32("encryptBlocks", (int32_t *)&pattern.mEncryptBlocks));
-        CHECK(msg->findInt32("skipBlocks", (int32_t *)&pattern.mSkipBlocks));
 
         ssize_t result = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
