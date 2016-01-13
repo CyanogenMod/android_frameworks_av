@@ -767,7 +767,8 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     // push blank buffers to previous window if requested
-    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown) {
+    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown ||
+        mFlags & kFlagPushBlankBuffersToNativeWindowOnSwitch) {
         pushBlankBuffersToNativeWindow(mNativeWindow.get());
     }
 
@@ -1982,6 +1983,12 @@ status_t ACodec::configureCodec(
             if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
                     && push != 0) {
                 mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
+            }
+
+            int32_t val;
+            if (msg->findInt32("push-blank-buffers-on-switch", &val)
+                    && val != 0) {
+                mFlags |= kFlagPushBlankBuffersToNativeWindowOnSwitch;
             }
         }
 
