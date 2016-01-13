@@ -18,7 +18,6 @@ LOCAL_SRC_FILES:=               \
     MetadataRetrieverClient.cpp \
     RemoteDisplay.cpp           \
     SharedLibrary.cpp           \
-    StagefrightPlayer.cpp       \
     StagefrightRecorder.cpp     \
     TestPlayerStub.cpp          \
 
@@ -45,6 +44,7 @@ LOCAL_SHARED_LIBRARIES :=       \
 LOCAL_STATIC_LIBRARIES :=       \
     libstagefright_nuplayer     \
     libstagefright_rtsp         \
+    libstagefright_timedtext    \
 
 LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/av/media/libstagefright/include               \

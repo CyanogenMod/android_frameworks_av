@@ -110,7 +110,8 @@ status_t NuMediaExtractor::setDataSource(
         // at the container mime type.
         // The cryptoPluginMode ensures that the extractor will actually
         // give us data in a call to MediaSource::read(), unlike its
-        // default mode that we use from AwesomePlayer.
+        // default mode that we used in AwesomePlayer.
+        // TODO: change default mode
         static_cast<WVMExtractor *>(mImpl.get())->setCryptoPluginMode(true);
     } else if (mImpl->getDrmFlag()) {
         // For all other drm content, we don't want to expose decrypted
