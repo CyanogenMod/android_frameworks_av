@@ -37,3 +37,4 @@ setpriority: 1
 sigaltstack: 1
 brk: 1
 sched_setscheduler: 1
+gettid: 1
