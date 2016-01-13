@@ -2,16 +2,16 @@
 **
 ** Copyright 2008, The Android Open Source Project
 **
-** Licensed under the Apache License, Version 2.0 (the "License"); 
-** you may not use this file except in compliance with the License. 
-** You may obtain a copy of the License at 
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
 **
-**     http://www.apache.org/licenses/LICENSE-2.0 
+**     http://www.apache.org/licenses/LICENSE-2.0
 **
-** Unless required by applicable law or agreed to in writing, software 
-** distributed under the License is distributed on an "AS IS" BASIS, 
-** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-** See the License for the specific language governing permissions and 
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
 ** limitations under the License.
 */
 
@@ -20,7 +20,9 @@
 #include <utils/Log.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <camera/CameraUtils.h>
 #include <camera/ICameraClient.h>
+#include <media/hardware/HardwareAPI.h>
 
 namespace android {
 
@@ -75,6 +77,13 @@ public:
         data.writeInt64(timestamp);
         data.writeInt32(msgType);
         data.writeStrongBinder(IInterface::asBinder(imageData));
+        // If imageData is metadata and it contains a native handle, write the native handle to
+        // parcel.
+        if (CameraUtils::isNativeHandleMetadata(imageData)) {
+            VideoNativeHandleMetadata *metadata =
+                    (VideoNativeHandleMetadata*)(imageData->pointer());
+            data.writeNativeHandle(metadata->pHandle);
+        }
         remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
@@ -118,6 +127,19 @@ status_t BnCameraClient::onTransact(
             nsecs_t timestamp = data.readInt64();
             int32_t msgType = data.readInt32();
             sp<IMemory> imageData = interface_cast<IMemory>(data.readStrongBinder());
+
+            // If the image data contains a native handle, read the native handle from the parcel
+            // and replace the native handle in the image data. (The native handle in image data is
+            // not serielized/deserialized so it's not valid in the process.)
+            if (CameraUtils::isNativeHandleMetadata(imageData)) {
+                VideoNativeHandleMetadata *metadata =
+                        (VideoNativeHandleMetadata*)(imageData->pointer());
+                metadata->pHandle = data.readNativeHandle();
+
+                // The native handle will be freed in
+                // BpCameraRecordingProxyListener::releaseRecordingFrame.
+            }
+
             dataCallbackTimestamp(timestamp, msgType, imageData);
             return NO_ERROR;
         } break;
