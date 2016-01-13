@@ -19,6 +19,7 @@
 #define LOG_TAG "ResourceManagerService"
 #include <utils/Log.h>
 
+#include <binder/IMediaResourceMonitor.h>
 #include <binder/IServiceManager.h>
 #include <dirent.h>
 #include <media/stagefright/ProcessInfo.h>
@@ -87,6 +88,18 @@ static ResourceInfo& getResourceInfoForEdit(
     info.client = client;
     infos.push_back(info);
     return infos.editItemAt(infos.size() - 1);
+}
+
+static void notifyResourceGranted(int pid, const Vector<MediaResource> &resources) {
+    static const char* const kServiceName = "media_resource_monitor";
+    sp<IBinder> binder = defaultServiceManager()->getService(String16(kServiceName));
+    if (binder != NULL) {
+        sp<IMediaResourceMonitor> service = interface_cast<IMediaResourceMonitor>(binder);
+        for (size_t i = 0; i < resources.size(); ++i) {
+            service->notifyResourceGranted(pid, String16(resources[i].mType),
+                    String16(resources[i].mSubType), resources[i].mValue);
+        }
+    }
 }
 
 status_t ResourceManagerService::dump(int fd, const Vector<String16>& /* args */) {
@@ -197,6 +210,7 @@ void ResourceManagerService::addResource(
     ResourceInfo& info = getResourceInfoForEdit(clientId, client, infos);
     // TODO: do the merge instead of append.
     info.resources.appendVector(resources);
+    notifyResourceGranted(pid, resources);
 }
 
 void ResourceManagerService::removeResource(int pid, int64_t clientId) {
