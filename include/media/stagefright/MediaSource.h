@@ -59,8 +59,9 @@ struct MediaSource : public BnMediaSource {
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
 
     // Causes this source to suspend pulling data from its upstream source
-    // until a subsequent read-with-seek. Currently only supported by
-    // OMXCodec.
+    // until a subsequent read-with-seek. This is currently not supported
+    // as such by any source. E.g. MediaCodecSource does not suspend its
+    // upstream source, and instead discard upstream data while paused.
     virtual status_t pause() {
         return ERROR_UNSUPPORTED;
     }

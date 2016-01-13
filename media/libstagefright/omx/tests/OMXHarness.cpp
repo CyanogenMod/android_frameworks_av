@@ -37,7 +37,7 @@
 #include <media/stagefright/MediaExtractor.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
-#include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/SimpleDecodingSource.h>
 
 #define DEFAULT_TIMEOUT         500000
 
@@ -576,9 +576,8 @@ status_t Harness::testSeek(
 
     CHECK_EQ(seekSource->start(), (status_t)OK);
 
-    sp<IMediaSource> codec = OMXCodec::Create(
-            mOMX, source->getFormat(), false /* createEncoder */,
-            source, componentName);
+    sp<IMediaSource> codec = SimpleDecodingSource::Create(
+            source, 0 /* flags */, NULL /* nativeWindow */, componentName);
 
     CHECK(codec != NULL);
 
