@@ -1589,6 +1589,7 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     dprintf(fd, "  Mixer buffer: %p\n", mMixerBuffer);
     dprintf(fd, "  Effect buffer: %p\n", mEffectBuffer);
     dprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
+    dprintf(fd, "  Standby delay ns=%lld\n", (long long)mStandbyDelayNs);
     AudioStreamOut *output = mOutput;
     audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
     String8 flagsAsString = outputFlagsToString(flags);
@@ -2513,7 +2514,8 @@ The derived values that are cached:
  - mSinkBufferSize from frame count * frame size
  - mActiveSleepTimeUs from activeSleepTimeUs()
  - mIdleSleepTimeUs from idleSleepTimeUs()
- - mStandbyDelayNs from mActiveSleepTimeUs (DIRECT only)
+ - mStandbyDelayNs from mActiveSleepTimeUs (DIRECT only) or forced to at least
+   kDefaultStandbyTimeInNsecs when connected to an A2DP device.
  - maxPeriod from frame count and sample rate (MIXER only)
 
 The parameters that affect these derived values are:
@@ -2532,6 +2534,15 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
     mSinkBufferSize = mNormalFrameCount * mFrameSize;
     mActiveSleepTimeUs = activeSleepTimeUs();
     mIdleSleepTimeUs = idleSleepTimeUs();
+
+    // make sure standby delay is not too short when connected to an A2DP sink to avoid
+    // truncating audio when going to standby.
+    mStandbyDelayNs = AudioFlinger::mStandbyTimeInNsecs;
+    if ((mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != 0) {
+        if (mStandbyDelayNs < kDefaultStandbyTimeInNsecs) {
+            mStandbyDelayNs = kDefaultStandbyTimeInNsecs;
+        }
+    }
 }
 
 void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
@@ -4248,6 +4259,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
                                                        status_t& status)
 {
     bool reconfig = false;
+    bool a2dpDeviceChanged = false;
 
     status = NO_ERROR;
 
@@ -4324,6 +4336,8 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         // forward device change to effects that have requested to be
         // aware of attached audio device.
         if (value != AUDIO_DEVICE_NONE) {
+            a2dpDeviceChanged =
+                    (mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != (value & AUDIO_DEVICE_OUT_ALL_A2DP);
             mOutDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(mOutDevice);
@@ -4367,7 +4381,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
     }
 
-    return reconfig;
+    return reconfig || a2dpDeviceChanged;
 }
 
 
@@ -4803,6 +4817,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
                                                               status_t& status)
 {
     bool reconfig = false;
+    bool a2dpDeviceChanged = false;
 
     status = NO_ERROR;
 
@@ -4812,6 +4827,8 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
         // forward device change to effects that have requested to be
         // aware of attached audio device.
         if (value != AUDIO_DEVICE_NONE) {
+            a2dpDeviceChanged =
+                    (mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != (value & AUDIO_DEVICE_OUT_ALL_A2DP);
             mOutDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(mOutDevice);
@@ -4844,7 +4861,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
         }
     }
 
-    return reconfig;
+    return reconfig || a2dpDeviceChanged;
 }
 
 uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const
