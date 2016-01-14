@@ -76,6 +76,11 @@ NuPlayer::RTSPSource::~RTSPSource() {
 }
 
 void NuPlayer::RTSPSource::prepareAsync() {
+    if (mIsSDP && mHTTPService == NULL) {
+        notifyPrepared(BAD_VALUE);
+        return;
+    }
+
     if (mLooper == NULL) {
         mLooper = new ALooper;
         mLooper->setName("rtsp");
