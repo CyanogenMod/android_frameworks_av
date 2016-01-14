@@ -31,6 +31,8 @@
 
 namespace android {
 
+class AudioPolicyService;
+
 // ----------------------------------------------------------------------------
 
 // AudioPolicyEffects class
@@ -44,7 +46,7 @@ public:
     // The constructor will parse audio_effects.conf
     // First it will look whether vendor specific file exists,
     // otherwise it will parse the system default file.
-	         AudioPolicyEffects();
+	         AudioPolicyEffects(AudioPolicyService *audioPolicyService);
     virtual ~AudioPolicyEffects();
 
     // NOTE: methods on AudioPolicyEffects should never be called with the AudioPolicyService
@@ -192,6 +194,8 @@ private:
     KeyedVector< audio_stream_type_t, EffectDescVector* > mOutputStreams;
     // Automatic output effects are unique for audiosession ID
     KeyedVector< int32_t, EffectVector* > mOutputSessions;
+
+    AudioPolicyService *mAudioPolicyService;
 };
 
 }; // namespace android
