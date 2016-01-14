@@ -787,8 +787,11 @@ status_t CameraDeviceClient::tearDown(int streamId) {
     return res;
 }
 
-
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
+    return BasicClient::dump(fd, args);
+}
+
+status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("CameraDeviceClient[%d] (%p) dump:\n",
             mCameraId,
