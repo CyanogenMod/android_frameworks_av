@@ -124,7 +124,7 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
 }
 
 template <typename TClientBase>
-status_t Camera2ClientBase<TClientBase>::dump(int fd,
+status_t Camera2ClientBase<TClientBase>::dumpClient(int fd,
                                               const Vector<String16>& args) {
     String8 result;
     result.appendFormat("Camera2ClientBase[%d] (%p) PID: %d, dump:\n",
