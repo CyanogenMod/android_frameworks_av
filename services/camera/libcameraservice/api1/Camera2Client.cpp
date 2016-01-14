@@ -158,6 +158,10 @@ Camera2Client::~Camera2Client() {
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
+    return BasicClient::dump(fd, args);
+}
+
+status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("Client2[%d] (%p) Client: %s PID: %d, dump:\n",
             mCameraId,
