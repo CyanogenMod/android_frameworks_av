@@ -444,7 +444,7 @@ status_t BnMediaPlayer::onTransact(
             }
 
             const char* url = data.readCString();
-            if (httpService == NULL || url == NULL) {
+            if (url == NULL) {
                 reply->writeInt32(BAD_VALUE);
                 return NO_ERROR;
             }
