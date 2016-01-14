@@ -229,6 +229,9 @@ public:
             void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
             void doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
 
+            void onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+                                                      audio_unique_id_t sessionId);
+
 private:
                         AudioPolicyService() ANDROID_API;
     virtual             ~AudioPolicyService();
@@ -508,6 +511,9 @@ private:
 
         virtual audio_unique_id_t newAudioUniqueId();
 
+        virtual void onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+                                                          audio_unique_id_t sessionId);
+
      private:
         AudioPolicyService *mAudioPolicyService;
     };
@@ -524,7 +530,8 @@ private:
                             void      onAudioPatchListUpdate();
                             void      onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
                             void      setAudioPortCallbacksEnabled(bool enabled);
-
+                            void      onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+                                                                           audio_unique_id_t sessionId);
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);
 

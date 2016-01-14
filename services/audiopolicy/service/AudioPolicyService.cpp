@@ -254,6 +254,15 @@ status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_co
     return mAudioCommandThread->setAudioPortConfigCommand(config, delayMs);
 }
 
+void AudioPolicyService::onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+                                                              audio_unique_id_t sessionId)
+{
+    Mutex::Autolock _l(mNotificationClientsLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onAudioEffectSessionCreatedForStream(stream, sessionId);
+    }
+}
+
 AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
                                                      const sp<IAudioPolicyServiceClient>& client,
                                                      uid_t uid)
@@ -286,6 +295,14 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 {
     if (mAudioPolicyServiceClient != 0 && mAudioPortCallbacksEnabled) {
         mAudioPolicyServiceClient->onAudioPatchListUpdate();
+    }
+}
+
+void AudioPolicyService::NotificationClient::onAudioEffectSessionCreatedForStream(
+        audio_stream_type_t stream, audio_unique_id_t sessionId)
+{
+    if (mAudioPolicyServiceClient != 0) {
+        mAudioPolicyServiceClient->onAudioEffectSessionCreatedForStream(stream, sessionId);
     }
 }
 

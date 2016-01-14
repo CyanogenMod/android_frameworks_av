@@ -1223,6 +1223,46 @@ void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
     }
 }
 
+int AudioSystem::AudioPolicyServiceClient::addAudioEffectSessionCallback(
+        const sp<AudioEffectSessionCallback>& callback)
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mAudioEffectSessionCallbacks.size(); i++) {
+        if (mAudioEffectSessionCallbacks[i] == callback) {
+            return -1;
+        }
+    }
+    mAudioEffectSessionCallbacks.add(callback);
+    return mAudioEffectSessionCallbacks.size();
+}
+
+int AudioSystem::AudioPolicyServiceClient::removeAudioEffectSessionCallback(
+        const sp<AudioEffectSessionCallback>& callback)
+{
+    Mutex::Autolock _l(mLock);
+    size_t i;
+    for (i = 0; i < mAudioEffectSessionCallbacks.size(); i++) {
+        if (mAudioEffectSessionCallbacks[i] == callback) {
+            break;
+        }
+    }
+    if (i == mAudioEffectSessionCallbacks.size()) {
+        return -1;
+    }
+    mAudioEffectSessionCallbacks.removeAt(i);
+    return mAudioEffectSessionCallbacks.size();
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioEffectSessionCreatedForStream(
+        audio_stream_type_t stream, audio_unique_id_t sessionId)
+{
+    ALOGV("AudioPolicyServiceClient::onAudioEffectSessionCreatedForStream(%d, %d)", stream, sessionId);
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mAudioEffectSessionCallbacks.size(); i++) {
+        mAudioEffectSessionCallbacks[i]->onAudioEffectSessionCreatedForStream(stream, sessionId);
+    }
+}
+
 void AudioSystem::AudioPolicyServiceClient::binderDied(const wp<IBinder>& who __unused)
 {
     {

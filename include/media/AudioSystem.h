@@ -332,7 +332,6 @@ public:
         virtual void onAudioPortListUpdate() = 0;
         virtual void onAudioPatchListUpdate() = 0;
         virtual void onServiceDied() = 0;
-
     };
 
     static status_t addAudioPortCallback(const sp<AudioPortCallback>& callback);
@@ -355,6 +354,19 @@ public:
                                               audio_io_handle_t audioIo);
 
     static audio_port_handle_t getDeviceIdForIo(audio_io_handle_t audioIo);
+
+    class AudioEffectSessionCallback : public RefBase
+    {
+    public:
+                AudioEffectSessionCallback() {}
+        virtual ~AudioEffectSessionCallback() {}
+
+        virtual void onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+                                                          audio_unique_id_t sessionId) = 0;
+    };
+
+    static status_t addAudioEffectSessionCallback(const sp<AudioEffectSessionCallback>& callback);
+    static status_t removeAudioEffectSessionCallback(const sp<AudioEffectSessionCallback>& callback);
 
 private:
 
@@ -411,6 +423,8 @@ private:
 
         int addAudioPortCallback(const sp<AudioPortCallback>& callback);
         int removeAudioPortCallback(const sp<AudioPortCallback>& callback);
+        int addAudioEffectSessionCallback(const sp<AudioEffectSessionCallback>& callback);
+        int removeAudioEffectSessionCallback(const sp<AudioEffectSessionCallback>& callback);
 
         // DeathRecipient
         virtual void binderDied(const wp<IBinder>& who);
@@ -419,10 +433,13 @@ private:
         virtual void onAudioPortListUpdate();
         virtual void onAudioPatchListUpdate();
         virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
+        virtual void onAudioEffectSessionCreatedForStream(audio_stream_type_t stream,
+				                                          audio_unique_id_t sessionId);
 
     private:
         Mutex                               mLock;
         Vector <sp <AudioPortCallback> >    mAudioPortCallbacks;
+        Vector <sp <AudioEffectSessionCallback> > mAudioEffectSessionCallbacks;
     };
 
     static const sp<AudioFlingerClient> getAudioFlingerClient();
