@@ -123,8 +123,10 @@ static void torch_mode_status_change(
 // should be ok for now.
 static CameraService *gCameraService;
 
-CameraService::CameraService() : mEventLog(DEFAULT_EVENT_LOG_LENGTH), mAllowedUsers(),
-        mSoundRef(0), mModule(0), mFlashlight(0) {
+CameraService::CameraService() :
+        mEventLog(DEFAULT_EVENT_LOG_LENGTH),
+        mSoundRef(0), mModule(nullptr),
+        mNumberOfCameras(0), mNumberOfNormalCameras(0) {
     ALOGI("CameraService started (pid=%d)", getpid());
     gCameraService = this;
 
@@ -151,8 +153,6 @@ void CameraService::onFirstRef()
     if (err < 0) {
         ALOGE("Could not load camera HAL module: %d (%s)", err, strerror(-err));
         logServiceError("Could not load camera HAL module", err);
-        mNumberOfCameras = 0;
-        mNumberOfNormalCameras = 0;
         return;
     }
 
@@ -163,7 +163,6 @@ void CameraService::onFirstRef()
             strerror(-err));
         logServiceError("Could not initialize camera HAL module", err);
 
-        mNumberOfCameras = 0;
         delete mModule;
         mModule = nullptr;
         return;
@@ -2311,6 +2310,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         result.appendFormat("Camera module name: %s\n", mModule->getModuleName());
         result.appendFormat("Camera module author: %s\n", mModule->getModuleAuthor());
         result.appendFormat("Number of camera devices: %d\n", mNumberOfCameras);
+        result.appendFormat("Number of normal camera devices: %d\n", mNumberOfNormalCameras);
         String8 activeClientString = mActiveClientManager.toString();
         result.appendFormat("Active Camera Clients:\n%s", activeClientString.string());
         result.appendFormat("Allowed users:\n%s\n", toString(mAllowedUsers).string());
