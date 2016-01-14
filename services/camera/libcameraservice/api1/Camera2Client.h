@@ -100,6 +100,8 @@ public:
 
     virtual status_t dump(int fd, const Vector<String16>& args);
 
+    virtual status_t dumpClient(int fd, const Vector<String16>& args);
+
     /**
      * Interface used by CameraDeviceBase
      */
