@@ -30,7 +30,8 @@ namespace android {
 enum {
     PORT_LIST_UPDATE = IBinder::FIRST_CALL_TRANSACTION,
     PATCH_LIST_UPDATE,
-    MIX_STATE_UPDATE
+    MIX_STATE_UPDATE,
+    OUTPUT_SESSION_EFFECTS_UPDATE
 };
 
 class BpAudioPolicyServiceClient : public BpInterface<IAudioPolicyServiceClient>
@@ -63,6 +64,17 @@ public:
         data.writeInt32(state);
         remote()->transact(MIX_STATE_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
+
+    void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
+                                      audio_unique_id_t sessionId, bool added)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
+        data.writeInt32(stream);
+        data.writeInt32(sessionId);
+        data.writeInt32(added ? 1 : 0);
+        remote()->transact(OUTPUT_SESSION_EFFECTS_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
+    }
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyServiceClient, "android.media.IAudioPolicyServiceClient");
@@ -88,6 +100,14 @@ status_t BnAudioPolicyServiceClient::onTransact(
             String8 regId = data.readString8();
             int32_t state = data.readInt32();
             onDynamicPolicyMixStateUpdate(regId, state);
+            return NO_ERROR;
+    }
+    case OUTPUT_SESSION_EFFECTS_UPDATE: {
+            CHECK_INTERFACE(IAudioPolicyServiceClient, data, reply);
+            audio_stream_type_t stream = static_cast<audio_stream_type_t>(data.readInt32());
+            audio_unique_id_t sessionId = static_cast<audio_unique_id_t>(data.readInt32());
+            bool added = data.readInt32() > 0;
+            onOutputSessionEffectsUpdate(stream, sessionId, added);
             return NO_ERROR;
     }
     default:

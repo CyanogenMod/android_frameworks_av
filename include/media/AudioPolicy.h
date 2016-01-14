@@ -42,6 +42,7 @@ namespace android {
 //   AudioSystem's implementation of the AudioPolicyClient interface
 // keep in sync with AudioSystem.java
 #define DYNAMIC_POLICY_EVENT_MIX_STATE_UPDATE 0
+#define AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE 10
 
 #define MIX_STATE_DISABLED -1
 #define MIX_STATE_IDLE 0

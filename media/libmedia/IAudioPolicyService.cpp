@@ -74,6 +74,7 @@ enum {
     START_AUDIO_SOURCE,
     STOP_AUDIO_SOURCE,
     SET_AUDIO_PORT_CALLBACK_ENABLED,
+    SET_EFFECT_SESSION_CALLBACK_ENABLED,
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -653,6 +654,18 @@ public:
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(enabled ? 1 : 0);
         remote()->transact(SET_AUDIO_PORT_CALLBACK_ENABLED, data, &reply);
+    }
+
+    virtual status_t setEffectSessionCallbacksEnabled(bool enabled)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(enabled ? 1 : 0);
+        status_t status = remote()->transact(SET_EFFECT_SESSION_CALLBACK_ENABLED, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+        return (status_t)reply.readInt32();
     }
 
     virtual status_t acquireSoundTriggerSession(audio_session_t *session,
@@ -1235,6 +1248,13 @@ status_t BnAudioPolicyService::onTransact(
         case SET_AUDIO_PORT_CALLBACK_ENABLED: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
             setAudioPortCallbacksEnabled(data.readInt32() == 1);
+            return NO_ERROR;
+        } break;
+
+        case SET_EFFECT_SESSION_CALLBACK_ENABLED: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            status_t status = setEffectSessionCallbacksEnabled(data.readInt32() == 1);
+            reply->writeInt32(status);
             return NO_ERROR;
         } break;
 
