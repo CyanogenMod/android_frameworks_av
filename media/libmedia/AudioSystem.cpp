@@ -37,7 +37,7 @@ sp<IAudioFlinger> AudioSystem::gAudioFlinger;
 sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 dynamic_policy_callback AudioSystem::gDynPolicyCallback = NULL;
-
+effect_session_callback AudioSystem::gEffectSessionCallback = NULL;
 
 // establish binder interface to AudioFlinger service
 const sp<IAudioFlinger> AudioSystem::get_audio_flinger()
@@ -652,6 +652,12 @@ status_t AudioSystem::AudioFlingerClient::removeAudioDeviceCallback(
     gDynPolicyCallback = cb;
 }
 
+/*static*/ void AudioSystem::setEffectSessionCallback(effect_session_callback cb)
+{
+    Mutex::Autolock _l(gLock);
+    gEffectSessionCallback = cb;
+}
+
 // client singleton for AudioPolicyService binder interface
 // protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
@@ -1220,6 +1226,21 @@ void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
 
     if (cb != NULL) {
         cb(DYNAMIC_POLICY_EVENT_MIX_STATE_UPDATE, regId, state);
+    }
+}
+
+void AudioSystem::AudioPolicyServiceClient::onAudioEffectSessionCreatedForStream(
+        audio_stream_type_t stream, audio_unique_id_t sessionId)
+{
+    ALOGV("AudioPolicyServiceClient::onAudioEffectSessionCreatedForStream(%d, %d)", stream, sessionId);
+    effect_session_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        cb = gEffectSessionCallback;
+    }
+
+    if (cb != NULL) {
+        cb(AUDIO_EFFECT_SESSION_CREATED, stream, sessionId);
     }
 }
 

@@ -15,7 +15,7 @@
  */
 
 #define LOG_TAG "AudioPolicyEffects"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,6 +28,7 @@
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 #include <cutils/config_utils.h>
+#include "AudioPolicyService.h"
 #include "AudioPolicyEffects.h"
 #include "ServiceUtilities.h"
 
@@ -37,7 +38,8 @@ namespace android {
 // AudioPolicyEffects Implementation
 // ----------------------------------------------------------------------------
 
-AudioPolicyEffects::AudioPolicyEffects()
+AudioPolicyEffects::AudioPolicyEffects(AudioPolicyService *audioPolicyService) :
+    mAudioPolicyService(audioPolicyService)
 {
     // load automatic audio effect modules
     if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE2, R_OK) == 0) {
@@ -244,6 +246,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     if (idx < 0) {
         procDesc = new EffectVector(audioSession);
         mOutputSessions.add(audioSession, procDesc);
+
+        mAudioPolicyService->onAudioEffectSessionCreatedForStream(stream, audioSession);
     } else {
         // EffectVector is existing and we just need to increase ref count
         procDesc = mOutputSessions.valueAt(idx);
