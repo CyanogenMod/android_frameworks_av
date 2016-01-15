@@ -67,12 +67,16 @@ LOCAL_SHARED_LIBRARIES := \
 
 ifeq ($(USE_CONFIGURABLE_AUDIO_POLICY), 1)
 
+ifneq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+$(error Configurable policy does not support legacy conf file)
+endif #ifneq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+
 LOCAL_REQUIRED_MODULES := \
     parameter-framework.policy \
     audio_policy_criteria.conf \
 
 LOCAL_C_INCLUDES += \
-    $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include \
+    $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include
 
 LOCAL_SHARED_LIBRARIES += libaudiopolicyengineconfigurable
 
@@ -85,11 +89,19 @@ endif
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
-    $(TOPDIR)frameworks/av/services/audiopolicy/utilities \
+    $(TOPDIR)frameworks/av/services/audiopolicy/utilities
 
 LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicycomponents
+
+ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
+LOCAL_STATIC_LIBRARIES += libxml2
+
+LOCAL_SHARED_LIBRARIES += libicuuc
+
+LOCAL_CFLAGS += -DUSE_XML_AUDIO_POLICY_CONF
+endif #ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 
 LOCAL_MODULE:= libaudiopolicymanagerdefault
 

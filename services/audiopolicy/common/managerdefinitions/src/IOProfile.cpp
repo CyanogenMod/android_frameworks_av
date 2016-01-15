@@ -111,7 +111,7 @@ void IOProfile::dump(int fd)
     snprintf(buffer, SIZE, "    - flags: 0x%04x\n", getFlags());
     result.append(buffer);
     write(fd, result.string(), result.size());
-    mSupportedDevices.dump(fd, String8("- Supported"), 2, false);
+    mSupportedDevices.dump(fd, String8("Supported"), 4, false);
 }
 
 void IOProfile::log()

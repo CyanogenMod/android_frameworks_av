@@ -149,6 +149,9 @@ static FormatTraits::Collection formatsFromString(const std::string &formats, co
 static audio_format_t formatFromString(const std::string &literalFormat)
 {
     audio_format_t format;
+    if (literalFormat.empty()) {
+        return gDynamicFormat;
+    }
     FormatConverter::fromString(literalFormat, format);
     return format;
 }

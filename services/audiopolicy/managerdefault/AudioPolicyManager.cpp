@@ -24,6 +24,8 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+#define AUDIO_POLICY_XML_CONFIG_FILE "/system/etc/audio_policy_configuration.xml"
+
 #include <inttypes.h>
 #include <math.h>
 
@@ -37,7 +39,11 @@
 #include <media/AudioPolicyHelper.h>
 #include <soundtrigger/SoundTrigger.h>
 #include "AudioPolicyManager.h"
+#ifdef USE_XML_AUDIO_POLICY_CONF
+#include <Serializer.h>
+#else
 #include <ConfigParsingUtils.h>
+#endif
 #include "TypeConverter.h"
 #include <policy.h>
 
@@ -3014,9 +3020,13 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     AudioPolicyConfig config(mHwModules, mAvailableOutputDevices, mAvailableInputDevices,
                              mDefaultOutputDevice, mSpeakerDrcEnabled);
 
+#ifdef USE_XML_AUDIO_POLICY_CONF
+    PolicySerializer serializer;
+    if (serializer.deserialize(AUDIO_POLICY_XML_CONFIG_FILE, config) != NO_ERROR) {
+#else
     if ((ConfigParsingUtils::loadConfig(AUDIO_POLICY_VENDOR_CONFIG_FILE, config) != NO_ERROR) &&
-        (ConfigParsingUtils::loadConfig(AUDIO_POLICY_CONFIG_FILE, config) != NO_ERROR)) {
-
+            (ConfigParsingUtils::loadConfig(AUDIO_POLICY_CONFIG_FILE, config) != NO_ERROR)) {
+#endif
         ALOGE("could not load audio policy configuration file, setting defaults");
         config.setDefault();
     }

@@ -308,6 +308,8 @@ void AudioPort::pickAudioProfile(uint32_t &samplingRate,
             }
         }
     }
+    ALOGV("%s Port[nm:%s] profile rate=%d, format=%d, channels=%d", __FUNCTION__, mName.string(),
+          samplingRate, channelMask, format);
 }
 
 status_t AudioPort::checkGain(const struct audio_gain_config *gainConfig, int index) const
@@ -324,7 +326,7 @@ void AudioPort::dump(int fd, int spaces, bool verbose) const
     char buffer[SIZE];
     String8 result;
 
-    if (mName.length() != 0) {
+    if (!mName.isEmpty()) {
         snprintf(buffer, SIZE, "%*s- name: %s\n", spaces, "", mName.string());
         result.append(buffer);
         write(fd, result.string(), result.size());
@@ -334,7 +336,8 @@ void AudioPort::dump(int fd, int spaces, bool verbose) const
 
         if (mGains.size() != 0) {
             snprintf(buffer, SIZE, "%*s- gains:\n", spaces, "");
-            write(fd, buffer, strlen(buffer) + 1);
+            result = buffer;
+            write(fd, result.string(), result.size());
             for (size_t i = 0; i < mGains.size(); i++) {
                 mGains[i]->dump(fd, spaces + 2, i);
             }

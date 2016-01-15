@@ -215,10 +215,10 @@ status_t DeviceVector::dump(int fd, const String8 &tag, int spaces, bool verbose
     const size_t SIZE = 256;
     char buffer[SIZE];
 
-    snprintf(buffer, SIZE, "%*s %s devices:\n", spaces, "", tag.string());
+    snprintf(buffer, SIZE, "%*s- %s devices:\n", spaces, "", tag.string());
     write(fd, buffer, strlen(buffer));
     for (size_t i = 0; i < size(); i++) {
-        itemAt(i)->dump(fd, spaces + 4, i, verbose);
+        itemAt(i)->dump(fd, spaces + 2, i, verbose);
     }
     return NO_ERROR;
 }

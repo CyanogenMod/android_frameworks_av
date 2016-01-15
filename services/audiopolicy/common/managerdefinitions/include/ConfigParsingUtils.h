@@ -40,7 +40,6 @@ public:
     static status_t loadConfig(const char *path, AudioPolicyConfig &config);
 
 private:
-    static uint32_t parseOutputFlagNames(const char *name);
     static void loadAudioPortGain(cnode *root, AudioPort &audioPort, int index);
     static void loadAudioPortGains(cnode *root, AudioPort &audioPort);
     static void loadDeviceDescriptorGains(cnode *root, sp<DeviceDescriptor> &deviceDesc);

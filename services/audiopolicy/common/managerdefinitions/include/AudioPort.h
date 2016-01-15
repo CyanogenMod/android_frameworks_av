@@ -51,7 +51,16 @@ public:
     void setGains(const AudioGainCollection &gains) { mGains = gains; }
     const AudioGainCollection &getGains() const { return mGains; }
 
-    void setFlags(uint32_t flags) { mFlags = flags; }
+    void setFlags(uint32_t flags)
+    {
+        //force direct flag if offload flag is set: offloading implies a direct output stream
+        // and all common behaviors are driven by checking only the direct flag
+        // this should normally be set appropriately in the policy configuration file
+        if (mRole == AUDIO_PORT_ROLE_SOURCE && (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+            flags |= AUDIO_OUTPUT_FLAG_DIRECT;
+        }
+        mFlags = flags;
+    }
     uint32_t getFlags() const { return mFlags; }
 
     virtual void attach(const sp<HwModule>& module);
