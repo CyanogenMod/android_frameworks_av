@@ -1949,6 +1949,14 @@ void CameraService::BasicClient::disconnect() {
     mClientPid = 0;
 }
 
+status_t CameraService::BasicClient::dump(int, const Vector<String16>&) {
+    // No dumping of clients directly over Binder,
+    // must go through CameraService::dump
+    android_errorWriteWithInfoLog(SN_EVENT_LOG_ID, "26265403",
+            IPCThreadState::self()->getCallingUid(), NULL, 0);
+    return OK;
+}
+
 String16 CameraService::BasicClient::getPackageName() const {
     return mClientPackageName;
 }
@@ -2404,7 +2412,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                     String8(client->getPackageName()).string());
             write(fd, result.string(), result.size());
 
-            client->dump(fd, args);
+            client->dumpClient(fd, args);
         }
 
         if (stateLocked) mCameraStatesLock.unlock();
