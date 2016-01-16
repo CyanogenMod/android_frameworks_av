@@ -597,7 +597,7 @@ void StaticAudioTrackClientProxy::getBufferPositionAndLoopCount(
 ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer),
-      mAvailToClient(0), mFlush(0)
+      mAvailToClient(0), mFlush(0), mReleased(0)
 {
 }
 
@@ -733,6 +733,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
     }
 
     cblk->mServer += stepCount;
+    mReleased += stepCount;
 
     size_t half = mFrameCount / 2;
     if (half == 0) {
@@ -1033,6 +1034,8 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     mFramesReadySafe = clampToSize(mFramesReady);
 
     cblk->mServer += stepCount;
+    mReleased += stepCount;
+
     // This may overflow, but client is not supposed to rely on it
     StaticAudioTrackPosLoop posLoop;
     posLoop.mBufferPosition = mState.mPosition;

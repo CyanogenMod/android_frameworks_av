@@ -1418,8 +1418,10 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         return;
     }
 
-    mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
-                                              mFrameSize, !isExternalTrack());
+    mAudioRecordServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
+            mFrameSize, !isExternalTrack());
+    mServerProxy = mAudioRecordServerProxy;
+
     mResamplerBufferProvider = new ResamplerBufferProvider(this);
 
     if (flags & IAudioFlinger::TRACK_FAST) {
@@ -1556,6 +1558,24 @@ void AudioFlinger::RecordThread::RecordTrack::clearSyncStartEvent()
     mFramesToDrop = 0;
 }
 
+void AudioFlinger::RecordThread::RecordTrack::updateTrackFrameInfo(
+        int64_t trackFramesReleased, int64_t sourceFramesRead,
+        uint32_t halSampleRate, const ExtendedTimestamp &timestamp)
+{
+    ExtendedTimestamp local = timestamp;
+
+    // Convert HAL frames to server-side track frames at track sample rate.
+    // We use trackFramesReleased and sourceFramesRead as an anchor point.
+    for (int i = ExtendedTimestamp::LOCATION_SERVER; i < ExtendedTimestamp::LOCATION_MAX; ++i) {
+        if (local.mTimeNs[i] != 0) {
+            const int64_t relativeServerFrames = local.mPosition[i] - sourceFramesRead;
+            const int64_t relativeTrackFrames = relativeServerFrames
+                    * mSampleRate / halSampleRate; // TODO: potential computation overflow
+            local.mPosition[i] = relativeTrackFrames + trackFramesReleased;
+        }
+    }
+    mAudioRecordServerProxy->setExtendedTimestamp(local);
+}
 
 AudioFlinger::RecordThread::PatchRecord::PatchRecord(RecordThread *recordThread,
                                                      uint32_t sampleRate,

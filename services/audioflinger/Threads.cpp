@@ -220,6 +220,94 @@ static void addBatteryData(uint32_t params) {
 }
 #endif
 
+// Track the CLOCK_BOOTTIME versus CLOCK_MONOTONIC timebase offset
+struct {
+    // call when you acquire a partial wakelock
+    void acquire(const sp<IBinder> &wakeLockToken) {
+        pthread_mutex_lock(&mLock);
+        if (wakeLockToken.get() == nullptr) {
+            adjustTimebaseOffset(&mBoottimeOffset, ExtendedTimestamp::TIMEBASE_BOOTTIME);
+        } else {
+            if (mCount == 0) {
+                adjustTimebaseOffset(&mBoottimeOffset, ExtendedTimestamp::TIMEBASE_BOOTTIME);
+            }
+            ++mCount;
+        }
+        pthread_mutex_unlock(&mLock);
+    }
+
+    // call when you release a partial wakelock.
+    void release(const sp<IBinder> &wakeLockToken) {
+        if (wakeLockToken.get() == nullptr) {
+            return;
+        }
+        pthread_mutex_lock(&mLock);
+        if (--mCount < 0) {
+            ALOGE("negative wakelock count");
+            mCount = 0;
+        }
+        pthread_mutex_unlock(&mLock);
+    }
+
+    // retrieves the boottime timebase offset from monotonic.
+    int64_t getBoottimeOffset() {
+        pthread_mutex_lock(&mLock);
+        int64_t boottimeOffset = mBoottimeOffset;
+        pthread_mutex_unlock(&mLock);
+        return boottimeOffset;
+    }
+
+    // Adjusts the timebase offset between TIMEBASE_MONOTONIC
+    // and the selected timebase.
+    // Currently only TIMEBASE_BOOTTIME is allowed.
+    //
+    // This only needs to be called upon acquiring the first partial wakelock
+    // after all other partial wakelocks are released.
+    //
+    // We do an empirical measurement of the offset rather than parsing
+    // /proc/timer_list since the latter is not a formal kernel ABI.
+    static void adjustTimebaseOffset(int64_t *offset, ExtendedTimestamp::Timebase timebase) {
+        int clockbase;
+        switch (timebase) {
+        case ExtendedTimestamp::TIMEBASE_BOOTTIME:
+            clockbase = SYSTEM_TIME_BOOTTIME;
+            break;
+        default:
+            LOG_ALWAYS_FATAL("invalid timebase %d", timebase);
+            break;
+        }
+        // try three times to get the clock offset, choose the one
+        // with the minimum gap in measurements.
+        const int tries = 3;
+        nsecs_t bestGap, measured;
+        for (int i = 0; i < tries; ++i) {
+            const nsecs_t tmono = systemTime(SYSTEM_TIME_MONOTONIC);
+            const nsecs_t tbase = systemTime(clockbase);
+            const nsecs_t tmono2 = systemTime(SYSTEM_TIME_MONOTONIC);
+            const nsecs_t gap = tmono2 - tmono;
+            if (i == 0 || gap < bestGap) {
+                bestGap = gap;
+                measured = tbase - ((tmono + tmono2) >> 1);
+            }
+        }
+
+        // to avoid micro-adjusting, we don't change the timebase
+        // unless it is significantly different.
+        //
+        // Assumption: It probably takes more than toleranceNs to
+        // suspend and resume the device.
+        static int64_t toleranceNs = 10000; // 10 us
+        if (llabs(*offset - measured) > toleranceNs) {
+            ALOGV("Adjusting timebase offset old: %lld  new: %lld",
+                    (long long)*offset, (long long)measured);
+            *offset = measured;
+        }
+    }
+
+    pthread_mutex_t mLock;
+    int32_t mCount;
+    int64_t mBoottimeOffset;
+} gBoottime = { PTHREAD_MUTEX_INITIALIZER, 0, 0 }; // static, so use POD initialization
 
 // ----------------------------------------------------------------------------
 //      CPU Stats
@@ -945,6 +1033,7 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         BatteryNotifier::getInstance().noteStartAudio();
         mNotifiedBatteryStart = true;
     }
+    gBoottime.acquire(mWakeLockToken);
 }
 
 void AudioFlinger::ThreadBase::releaseWakeLock()
@@ -955,6 +1044,7 @@ void AudioFlinger::ThreadBase::releaseWakeLock()
 
 void AudioFlinger::ThreadBase::releaseWakeLock_l()
 {
+    gBoottime.release(mWakeLockToken);
     if (mWakeLockToken != 0) {
         ALOGV("releaseWakeLock_l() %s", mThreadName);
         if (mPowerManager != 0) {
@@ -5685,6 +5775,9 @@ reacquire_wakelock:
         }
     }
 
+    mTimestamp.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_BOOTTIME] =
+            gBoottime.getBoottimeOffset();
+
     // used to request a deferred sleep, to be executed later while mutex is unlocked
     uint32_t sleepUs = 0;
 
@@ -5898,6 +5991,28 @@ reacquire_wakelock:
             }
         }
 
+        // Update server timestamp with server stats
+        // systemTime() is optional if the hardware supports timestamps.
+        mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] += framesRead;
+        mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
+
+        // Update server timestamp with kernel stats
+        if (mInput->stream->get_capture_position != nullptr) {
+            int64_t position, time;
+            int ret = mInput->stream->get_capture_position(mInput->stream, &position, &time);
+            if (ret == NO_ERROR) {
+                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = position;
+                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] = time;
+                // Note: In general record buffers should tend to be empty in
+                // a properly running pipeline.
+                //
+                // Also, it is not advantageous to call get_presentation_position during the read
+                // as the read obtains a lock, preventing the timestamp call from executing.
+            }
+        }
+        // Use this to track timestamp information
+        // ALOGD("%s", mTimestamp.toString().c_str());
+
         if (framesRead < 0 || (framesRead == 0 && mPipeSource == 0)) {
             ALOGE("read failed: framesRead=%d", framesRead);
             // Force input into standby so that it tries to recover at next read attempt
@@ -6026,6 +6141,11 @@ reacquire_wakelock:
                 break;
             }
 
+            // update frame information and push timestamp out
+            activeTrack->updateTrackFrameInfo(
+                    activeTrack->mAudioRecordServerProxy->framesReleased(),
+                    mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER],
+                    mSampleRate, mTimestamp);
         }
 
 unlock:
