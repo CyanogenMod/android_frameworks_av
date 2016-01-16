@@ -804,10 +804,25 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
 void AudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
 {
     audio_track_cblk_t* cblk = mCblk;
-    cblk->u.mStreaming.mUnderrunFrames += frameCount;
+    if (frameCount > 0) {
+        cblk->u.mStreaming.mUnderrunFrames += frameCount;
 
-    // FIXME also wake futex so that underrun is noticed more quickly
-    (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
+        if (!mUnderrunning) { // start of underrun?
+            mUnderrunCount++;
+            cblk->u.mStreaming.mUnderrunCount = mUnderrunCount;
+            mUnderrunning = true;
+            ALOGV("tallyUnderrunFrames(%3u) at uf = %u, bump mUnderrunCount = %u",
+                frameCount, cblk->u.mStreaming.mUnderrunFrames, mUnderrunCount);
+        }
+
+        // FIXME also wake futex so that underrun is noticed more quickly
+        (void) android_atomic_or(CBLK_UNDERRUN, &cblk->mFlags);
+    } else {
+        ALOGV_IF(mUnderrunning,
+            "tallyUnderrunFrames(%3u) at uf = %u, underrun finished",
+            frameCount, cblk->u.mStreaming.mUnderrunFrames);
+        mUnderrunning = false; // so we can detect the next edge
+    }
 }
 
 AudioPlaybackRate AudioTrackServerProxy::getPlaybackRate()
@@ -1033,7 +1048,7 @@ void StaticAudioTrackServerProxy::releaseBuffer(Buffer* buffer)
     buffer->mNonContig = 0;
 }
 
-void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount __unused)
+void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount)
 {
     // Unlike AudioTrackServerProxy::tallyUnderrunFrames() used for streaming tracks,
     // we don't have a location to count underrun frames.  The underrun frame counter
@@ -1041,7 +1056,9 @@ void StaticAudioTrackServerProxy::tallyUnderrunFrames(uint32_t frameCount __unus
     // possible for static buffer tracks other than at end of buffer, so this is not a loss.
 
     // FIXME also wake futex so that underrun is noticed more quickly
-    (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
+    if (frameCount > 0) {
+        (void) android_atomic_or(CBLK_UNDERRUN, &mCblk->mFlags);
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -498,6 +498,7 @@ status_t AudioTrack::set(
     mPreviousTimestampValid = false;
     mTimestampStartupGlitchReported = false;
     mRetrogradeMotionReported = false;
+    mUnderrunCountOffset = 0;
 
     return NO_ERROR;
 }
@@ -2150,6 +2151,9 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         return DEAD_OBJECT;
     }
 
+    // Save so we can return count since creation.
+    mUnderrunCountOffset = getUnderrunCount_l();
+
     // save the old static buffer position
     size_t bufferPosition = 0;
     int loopCount = 0;
@@ -2463,6 +2467,17 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
     result.append(buffer);
     ::write(fd, result.string(), result.size());
     return NO_ERROR;
+}
+
+uint32_t AudioTrack::getUnderrunCount() const
+{
+    AutoMutex lock(mLock);
+    return getUnderrunCount_l();
+}
+
+uint32_t AudioTrack::getUnderrunCount_l() const
+{
+    return mProxy->getUnderrunCount() + mUnderrunCountOffset;
 }
 
 uint32_t AudioTrack::getUnderrunFrames() const

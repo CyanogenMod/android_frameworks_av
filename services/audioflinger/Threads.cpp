@@ -3788,6 +3788,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     recentUnderruns > 0) {
                 // FIXME fast mixer will pull & mix partial buffers, but we count as a full underrun
                 track->mAudioTrackServerProxy->tallyUnderrunFrames(recentUnderruns * mFrameCount);
+            } else {
+                track->mAudioTrackServerProxy->tallyUnderrunFrames(0);
             }
 
             // This is similar to the state machine for normal tracks,
@@ -4157,7 +4159,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 ALOGV("track(%p) underrun,  framesReady(%zu) < framesDesired(%zd)",
                         track, framesReady, desiredFrames);
                 track->mAudioTrackServerProxy->tallyUnderrunFrames(desiredFrames);
+            } else {
+                track->mAudioTrackServerProxy->tallyUnderrunFrames(0);
             }
+
             // clear effect chain input buffer if an active track underruns to avoid sending
             // previous audio buffer again to effects
             chain = getEffectChain_l(track->sessionId());

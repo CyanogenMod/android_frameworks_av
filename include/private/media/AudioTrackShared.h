@@ -59,7 +59,8 @@ struct AudioTrackSharedStreaming {
     volatile int32_t mRear;     // written by producer (output: client, input: server)
     volatile int32_t mFlush;    // incremented by client to indicate a request to flush;
                                 // server notices and discards all data between mFront and mRear
-    volatile uint32_t mUnderrunFrames;  // server increments for each unavailable but desired frame
+    volatile uint32_t mUnderrunFrames; // server increments for each unavailable but desired frame
+    volatile uint32_t mUnderrunCount;  // server increments for each underrun occurrence
 };
 
 // Represents a single state of an AudioTrack that was created in static mode (shared memory buffer
@@ -173,8 +174,6 @@ private:
 public:
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
-
-                // Cache line boundary (32 bytes)
 
 public:
                 union {
@@ -358,6 +357,9 @@ public:
     virtual uint32_t    getUnderrunFrames() const {
         return mCblk->u.mStreaming.mUnderrunFrames;
     }
+    virtual uint32_t    getUnderrunCount() const {
+        return mCblk->u.mStreaming.mUnderrunCount;
+    }
 
     bool        clearStreamEndDone();   // and return previous value
 
@@ -482,7 +484,8 @@ public:
     AudioTrackServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
             size_t frameSize, bool clientInServer = false, uint32_t sampleRate = 0)
         : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer),
-          mPlaybackRateObserver(&cblk->mPlaybackRateQueue) {
+          mPlaybackRateObserver(&cblk->mPlaybackRateQueue),
+          mUnderrunCount(0), mUnderrunning(false) {
         mCblk->mSampleRate = sampleRate;
         mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
     }
@@ -525,6 +528,10 @@ public:
 private:
     AudioPlaybackRate             mPlaybackRate;  // last observed playback rate
     PlaybackRateQueue::Observer   mPlaybackRateObserver;
+
+    // The server keeps a copy here where it is safe from the client.
+    uint32_t                      mUnderrunCount; // echoed to mCblk
+    bool                          mUnderrunning;  // used to detect edge of underrun
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {

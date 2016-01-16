@@ -305,6 +305,11 @@ public:
      */
             uint32_t    latency() const     { return mLatency; }
 
+    /* Returns the number of application-level buffer underruns
+     * since the AudioTrack was created.
+     */
+            uint32_t    getUnderrunCount() const;
+
     /* getters, see constructors and set() */
 
             audio_stream_type_t streamType() const;
@@ -803,6 +808,8 @@ protected:
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from);
 
+            uint32_t    getUnderrunCount_l() const;
+
             bool     isOffloaded() const;
             bool     isDirect() const;
             bool     isOffloadedOrDirect() const;
@@ -933,6 +940,8 @@ protected:
     bool                    mTimestampStartupGlitchReported; // reduce log spam
     bool                    mRetrogradeMotionReported; // reduce log spam
     AudioTimestamp          mPreviousTimestamp;     // used to detect retrograde motion
+
+    uint32_t                mUnderrunCountOffset;   // updated when restoring tracks
 
     audio_output_flags_t    mFlags;
         // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.

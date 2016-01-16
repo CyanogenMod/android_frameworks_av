@@ -600,7 +600,10 @@ status_t AudioFlinger::PlaybackThread::Track::getNextBuffer(
     buffer->raw = buf.mRaw;
     if (buf.mFrameCount == 0) {
         mAudioTrackServerProxy->tallyUnderrunFrames(desiredFrames);
+    } else {
+        mAudioTrackServerProxy->tallyUnderrunFrames(0);
     }
+
     return status;
 }
 
