@@ -294,8 +294,15 @@ void ConfigParsingUtils::loadDevicesFromTag(const char *tag, DeviceVector &devic
         if (strlen(devTag) != 0) {
             audio_devices_t type;
             if (DeviceConverter::fromString(devTag, type)) {
-                sp<DeviceDescriptor> dev = new DeviceDescriptor(type);
-                devices.add(dev);
+                uint32_t inBit = type & AUDIO_DEVICE_BIT_IN;
+                type &= ~AUDIO_DEVICE_BIT_IN;
+                while (type) {
+                  audio_devices_t singleType =
+                        inBit | (1 << (31 - __builtin_clz(type)));
+                    type &= ~singleType;
+                    sp<DeviceDescriptor> dev = new DeviceDescriptor(singleType);
+                    devices.add(dev);
+                }
             } else {
                 sp<DeviceDescriptor> deviceDesc =
                         declaredDevices.getDeviceFromTagName(String8(devTag));
