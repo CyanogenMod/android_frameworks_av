@@ -67,6 +67,14 @@ public:
         API_INPUT_TELEPHONY_RX, // used for capture from telephony RX path
     } input_type_t;
 
+   enum {
+        API_INPUT_CONCURRENCY_NONE = 0,
+        API_INPUT_CONCURRENCY_CALL = (1 << 0),      // Concurrency with a call
+        API_INPUT_CONCURRENCY_CAPTURE = (1 << 1),   // Concurrency with another capture
+   };
+
+   typedef uint32_t concurrency_type__mask_t;
+
 public:
     virtual ~AudioPolicyInterface() {}
     //
@@ -140,7 +148,8 @@ public:
                                      input_type_t *inputType) = 0;
     // indicates to the audio policy manager that the input starts being used.
     virtual status_t startInput(audio_io_handle_t input,
-                                audio_session_t session) = 0;
+                                audio_session_t session,
+                                concurrency_type__mask_t *concurrency) = 0;
     // indicates to the audio policy manager that the input stops being used.
     virtual status_t stopInput(audio_io_handle_t input,
                                audio_session_t session) = 0;
