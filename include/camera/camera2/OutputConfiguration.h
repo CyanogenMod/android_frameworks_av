@@ -28,8 +28,10 @@ class OutputConfiguration : public virtual RefBase {
 public:
 
     static const int INVALID_ROTATION;
+    static const int INVALID_SET_ID;
     sp<IGraphicBufferProducer> getGraphicBufferProducer() const;
     int                        getRotation() const;
+    int                        getSurfaceSetID() const;
 
     /**
      * Keep impl up-to-date with OutputConfiguration.java in frameworks/base
@@ -39,12 +41,13 @@ public:
     // getRotation will be INVALID_ROTATION if error occurred
     OutputConfiguration(const Parcel& parcel);
 
-    OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation);
+    OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation,
+            int surfaceSetID = INVALID_SET_ID);
 
 private:
     sp<IGraphicBufferProducer> mGbp;
     int                        mRotation;
-
+    int                        mSurfaceSetID;
     // helper function
     static String16 readMaybeEmptyString16(const Parcel& parcel);
 };
