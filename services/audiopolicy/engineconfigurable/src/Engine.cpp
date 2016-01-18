@@ -106,10 +106,8 @@ void Engine::setObserver(AudioPolicyManagerObserver *observer)
 
 status_t Engine::initCheck()
 {
-    if (mPolicyParameterMgr != NULL && mPolicyParameterMgr->start() != NO_ERROR) {
+    if (mPolicyParameterMgr == NULL || mPolicyParameterMgr->start() != NO_ERROR) {
         ALOGE("%s: could not start Policy PFW", __FUNCTION__);
-        delete mPolicyParameterMgr;
-        mPolicyParameterMgr = NULL;
         return NO_INIT;
     }
     return (mApmObserver != NULL)? NO_ERROR : NO_INIT;

@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "APM::AudioPolicyEngine/PFWWrapper"
+//#define LOG_NDEBUG 0
 
 #include "ParameterManagerWrapper.h"
 #include "audio_policy_criteria_conf.h"
@@ -88,7 +89,6 @@ ParameterManagerWrapper::ParameterManagerWrapper()
               __FUNCTION__, gAudioPolicyCriteriaVendorConfFilePath,
               gAudioPolicyCriteriaConfFilePath);
     }
-    ALOGD("%s: ParameterManagerWrapper instantiated!", __FUNCTION__);
 }
 
 ParameterManagerWrapper::~ParameterManagerWrapper()
@@ -118,7 +118,7 @@ status_t ParameterManagerWrapper::start()
 void ParameterManagerWrapper::addCriterionType(const string &typeName, bool isInclusive)
 {
     ALOG_ASSERT(mPolicyCriterionTypes.find(typeName) == mPolicyCriterionTypes.end(),
-                      "CriterionType " << typeName << " already added");
+                      "CriterionType %s already added", typeName.c_str());
     ALOGD("%s: Adding new criterionType %s", __FUNCTION__, typeName.c_str());
 
     mPolicyCriterionTypes[typeName] = mPfwConnector->createSelectionCriterionType(isInclusive);
@@ -130,7 +130,7 @@ void ParameterManagerWrapper::addCriterionTypeValuePair(
     const string &literalValue)
 {
     ALOG_ASSERT(mPolicyCriterionTypes.find(typeName) != mPolicyCriterionTypes.end(),
-                      "CriterionType " << typeName.c_str() << "not found");
+                      "CriterionType %s not found", typeName.c_str());
     ALOGV("%s: Adding new value pair (%d,%s) for criterionType %s", __FUNCTION__,
           numericValue, literalValue.c_str(), typeName.c_str());
     ISelectionCriterionTypeInterface *criterionType = mPolicyCriterionTypes[typeName];
@@ -224,8 +224,8 @@ T *ParameterManagerWrapper::getElement(const string &name, std::map<string, T *>
 {
     parameterManagerElementSupported<T>();
     typename std::map<string, T *>::iterator it = elementsMap.find(name);
-    ALOG_ASSERT(it != elementsMap.end(), "Element " << name << " not found");
-    return it->second;
+    ALOG_ASSERT(it != elementsMap.end(), "Element %s not found", name.c_str());
+    return it != elementsMap.end() ? it->second : NULL;
 }
 
 template <typename T>
@@ -233,8 +233,8 @@ const T *ParameterManagerWrapper::getElement(const string &name, const std::map<
 {
     parameterManagerElementSupported<T>();
     typename std::map<string, T *>::const_iterator it = elementsMap.find(name);
-    ALOG_ASSERT(it != elementsMap.end(), "Element " << name << " not found");
-    return it->second;
+    ALOG_ASSERT(it != elementsMap.end(), "Element %s not found", name.c_str());
+    return it != elementsMap.end() ? it->second : NULL;
 }
 
 void ParameterManagerWrapper::loadCriteria(cnode *root)
@@ -254,8 +254,8 @@ void ParameterManagerWrapper::loadCriteria(cnode *root)
 void ParameterManagerWrapper::addCriterion(const string &name, const string &typeName,
                               const string &defaultLiteralValue)
 {
-    ALOG_ASSERT(mPolicyCriteria.find(criterionName) == mPolicyCriteria.end(),
-                "Route Criterion " << criterionName << " already added");
+    ALOG_ASSERT(mPolicyCriteria.find(name) == mPolicyCriteria.end(),
+                "Route Criterion %s already added", name.c_str());
 
     ISelectionCriterionTypeInterface *criterionType =
             getElement<ISelectionCriterionTypeInterface>(typeName, mPolicyCriterionTypes);
@@ -278,7 +278,7 @@ void ParameterManagerWrapper::loadCriterion(cnode *root)
     const char *criterionName = root->name;
 
     ALOG_ASSERT(mPolicyCriteria.find(criterionName) == mPolicyCriteria.end(),
-                      "Criterion " << criterionName << " already added");
+                      "Criterion %s already added", criterionName);
 
     string paramKeyName = "";
     string path = "";
@@ -335,7 +335,12 @@ bool ParameterManagerWrapper::isStarted()
 
 status_t ParameterManagerWrapper::setPhoneState(audio_mode_t mode)
 {
-    ISelectionCriterionInterface *criterion = mPolicyCriteria[gPhoneStateCriterionTag];
+    ISelectionCriterionInterface *criterion =
+            getElement<ISelectionCriterionInterface>(gPhoneStateCriterionTag, mPolicyCriteria);
+    if (criterion == NULL) {
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gPhoneStateCriterionTag.c_str());
+        return BAD_VALUE;
+    }
     if (!isValueValidForCriterion(criterion, static_cast<int>(mode))) {
         return BAD_VALUE;
     }
@@ -348,6 +353,10 @@ audio_mode_t ParameterManagerWrapper::getPhoneState() const
 {
     const ISelectionCriterionInterface *criterion =
             getElement<ISelectionCriterionInterface>(gPhoneStateCriterionTag, mPolicyCriteria);
+    if (criterion == NULL) {
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gPhoneStateCriterionTag.c_str());
+        return AUDIO_MODE_NORMAL;
+    }
     return static_cast<audio_mode_t>(criterion->getCriterionState());
 }
 
@@ -359,7 +368,12 @@ status_t ParameterManagerWrapper::setForceUse(audio_policy_force_use_t usage,
         return BAD_VALUE;
     }
 
-    ISelectionCriterionInterface *criterion = mPolicyCriteria[gForceUseCriterionTag[usage]];
+    ISelectionCriterionInterface *criterion =
+            getElement<ISelectionCriterionInterface>(gForceUseCriterionTag[usage], mPolicyCriteria);
+    if (criterion == NULL) {
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gForceUseCriterionTag[usage].c_str());
+        return BAD_VALUE;
+    }
     if (!isValueValidForCriterion(criterion, static_cast<int>(config))) {
         return BAD_VALUE;
     }
@@ -376,6 +390,10 @@ audio_policy_forced_cfg_t ParameterManagerWrapper::getForceUse(audio_policy_forc
     }
     const ISelectionCriterionInterface *criterion =
             getElement<ISelectionCriterionInterface>(gForceUseCriterionTag[usage], mPolicyCriteria);
+    if (criterion == NULL) {
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gForceUseCriterionTag[usage].c_str());
+        return AUDIO_POLICY_FORCE_NONE;
+    }
     return static_cast<audio_policy_forced_cfg_t>(criterion->getCriterionState());
 }
 
@@ -389,9 +407,10 @@ bool ParameterManagerWrapper::isValueValidForCriterion(ISelectionCriterionInterf
 
 status_t ParameterManagerWrapper::setAvailableInputDevices(audio_devices_t inputDevices)
 {
-    ISelectionCriterionInterface *criterion = mPolicyCriteria[gInputDeviceCriterionTag];
+    ISelectionCriterionInterface *criterion =
+            getElement<ISelectionCriterionInterface>(gInputDeviceCriterionTag, mPolicyCriteria);
     if (criterion == NULL) {
-        ALOGE("%s: no criterion found for input devices", __FUNCTION__);
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gInputDeviceCriterionTag.c_str());
         return DEAD_OBJECT;
     }
     criterion->setCriterionState(inputDevices & ~AUDIO_DEVICE_BIT_IN);
@@ -401,9 +420,10 @@ status_t ParameterManagerWrapper::setAvailableInputDevices(audio_devices_t input
 
 status_t ParameterManagerWrapper::setAvailableOutputDevices(audio_devices_t outputDevices)
 {
-    ISelectionCriterionInterface *criterion = mPolicyCriteria[gOutputDeviceCriterionTag];
+    ISelectionCriterionInterface *criterion =
+            getElement<ISelectionCriterionInterface>(gOutputDeviceCriterionTag, mPolicyCriteria);
     if (criterion == NULL) {
-        ALOGE("%s: no criterion found for output devices", __FUNCTION__);
+        ALOGE("%s: no criterion found for %s", __FUNCTION__, gOutputDeviceCriterionTag.c_str());
         return DEAD_OBJECT;
     }
     criterion->setCriterionState(outputDevices);
