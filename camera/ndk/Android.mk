@@ -35,7 +35,8 @@ LOCAL_MODULE:= libcamera2ndk
 
 LOCAL_C_INCLUDES := \
     system/media/camera/include \
-    frameworks/av/include/camera/ndk
+    frameworks/av/include/camera/ndk \
+    frameworks/av/include/ndk \
 
 LOCAL_CFLAGS += -fvisibility=hidden -D EXPORT='__attribute__ ((visibility ("default")))'
 
