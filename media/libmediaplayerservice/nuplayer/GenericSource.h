@@ -77,6 +77,8 @@ struct NuPlayer::GenericSource : public NuPlayer::Source {
 
     virtual bool isStreaming() const;
 
+    virtual void setOffloadAudio(bool offload);
+
 protected:
     virtual ~GenericSource();
 
@@ -109,6 +111,83 @@ private:
         size_t mIndex;
         sp<IMediaSource> mSource;
         sp<AnotherPacketSource> mPackets;
+    };
+
+    // Helper to monitor buffering status. The polling happens every second.
+    // When necessary, it will send out buffering events to the player.
+    struct BufferingMonitor : public AHandler {
+    public:
+        BufferingMonitor(const sp<AMessage> &notify);
+
+        // Set up state.
+        void prepare(const sp<NuCachedSource2> &cachedSource,
+                const sp<WVMExtractor> &wvmExtractor,
+                int64_t durationUs,
+                int64_t bitrate,
+                bool isStreaming);
+        // Stop and reset buffering monitor.
+        void stop();
+        // Cancel the current monitor task.
+        void cancelPollBuffering();
+        // Restart the monitor task.
+        void restartPollBuffering();
+        // Stop buffering task and send out corresponding events.
+        void stopBufferingIfNecessary();
+        // Make sure data source is getting data.
+        void ensureCacheIsFetching();
+        // Update media time of just extracted buffer from data source.
+        void updateQueuedTime(bool isAudio, int64_t timeUs);
+
+        // Set the offload mode.
+        void setOffloadAudio(bool offload);
+        // Update media time of last dequeued buffer which is sent to the decoder.
+        void updateDequeuedBufferTime(int64_t mediaUs);
+
+    protected:
+        virtual ~BufferingMonitor();
+        virtual void onMessageReceived(const sp<AMessage> &msg);
+
+    private:
+        enum {
+            kWhatPollBuffering,
+        };
+
+        sp<AMessage> mNotify;
+
+        sp<NuCachedSource2> mCachedSource;
+        sp<WVMExtractor> mWVMExtractor;
+        int64_t mDurationUs;
+        int64_t mBitrate;
+        bool mIsStreaming;
+
+        int64_t mAudioTimeUs;
+        int64_t mVideoTimeUs;
+        int32_t mPollBufferingGeneration;
+        bool mPrepareBuffering;
+        bool mBuffering;
+        int32_t mPrevBufferPercentage;
+
+        mutable Mutex mLock;
+
+        bool mOffloadAudio;
+        int64_t mFirstDequeuedBufferRealUs;
+        int64_t mFirstDequeuedBufferMediaUs;
+        int64_t mlastDequeuedBufferMediaUs;
+
+        void prepare_l(const sp<NuCachedSource2> &cachedSource,
+                const sp<WVMExtractor> &wvmExtractor,
+                int64_t durationUs,
+                int64_t bitrate,
+                bool isStreaming);
+        void cancelPollBuffering_l();
+        void notifyBufferingUpdate_l(int32_t percentage);
+        void startBufferingIfNecessary_l();
+        void stopBufferingIfNecessary_l();
+        void sendCacheStats_l();
+        void ensureCacheIsFetching_l();
+        int64_t getLastReadPosition_l();
+        void onPollBuffering_l();
+        void schedulePollBuffering_l();
     };
 
     Vector<sp<IMediaSource> > mSources;
@@ -147,17 +226,15 @@ private:
     bool mStarted;
     bool mStopRead;
     int64_t mBitrate;
-    int32_t mPollBufferingGeneration;
+    sp<BufferingMonitor> mBufferingMonitor;
     uint32_t mPendingReadBufferTypes;
-    bool mBuffering;
-    bool mPrepareBuffering;
-    int32_t mPrevBufferPercentage;
     sp<ABuffer> mGlobalTimedText;
 
     mutable Mutex mReadBufferLock;
     mutable Mutex mDisconnectLock;
 
     sp<ALooper> mLooper;
+    sp<ALooper> mBufferingMonitorLooper;
 
     void resetDataSource();
 
@@ -211,16 +288,6 @@ private:
 
     void queueDiscontinuityIfNeeded(
             bool seeking, bool formatChange, media_track_type trackType, Track *track);
-
-    void schedulePollBuffering();
-    void cancelPollBuffering();
-    void restartPollBuffering();
-    void onPollBuffering();
-    void notifyBufferingUpdate(int32_t percentage);
-    void startBufferingIfNecessary();
-    void stopBufferingIfNecessary();
-    void sendCacheStats();
-    void ensureCacheIsFetching();
 
     DISALLOW_EVIL_CONSTRUCTORS(GenericSource);
 };

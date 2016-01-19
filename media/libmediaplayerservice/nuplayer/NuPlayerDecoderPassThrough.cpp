@@ -223,6 +223,11 @@ status_t NuPlayer::DecoderPassThrough::fetchInputData(sp<AMessage> &reply) {
         status_t err = dequeueAccessUnit(&accessUnit);
 
         if (err == -EWOULDBLOCK) {
+            // Flush out the aggregate buffer to try to avoid underrun.
+            accessUnit = aggregateBuffer(NULL /* accessUnit */);
+            if (accessUnit != NULL) {
+                break;
+            }
             return err;
         } else if (err != OK) {
             if (err == INFO_DISCONTINUITY) {

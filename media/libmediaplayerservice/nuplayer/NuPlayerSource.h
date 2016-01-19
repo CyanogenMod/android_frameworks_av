@@ -122,6 +122,8 @@ struct NuPlayer::Source : public AHandler {
         return true;
     }
 
+    virtual void setOffloadAudio(bool /* offload */) {}
+
 protected:
     virtual ~Source() {}
 
