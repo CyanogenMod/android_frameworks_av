@@ -1572,7 +1572,7 @@ void NuPlayer::GenericSource::BufferingMonitor::prepare_l(
     mIsStreaming = isStreaming;
     mAudioTimeUs = 0;
     mVideoTimeUs = 0;
-    mPrepareBuffering = true;
+    mPrepareBuffering = (cachedSource != NULL || wvmExtractor != NULL);
     cancelPollBuffering_l();
     mOffloadAudio = false;
     mFirstDequeuedBufferRealUs = -1ll;
