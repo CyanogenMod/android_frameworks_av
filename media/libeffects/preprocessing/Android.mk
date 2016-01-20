@@ -12,7 +12,7 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_C_INCLUDES += \
     external/webrtc \
-    external/webrtc/webrtc/modules/interface \
+    external/webrtc/webrtc/modules/include \
     external/webrtc/webrtc/modules/audio_processing/include \
     $(call include-path-for, audio-effects)
 

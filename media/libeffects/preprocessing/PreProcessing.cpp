@@ -884,8 +884,8 @@ int Session_ReleaseEffect(preproc_session_t *session,
 int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
 {
     uint32_t sr;
-    uint32_t inCnl = audio_channel_count_from_out_mask(config->inputCfg.channels);
-    uint32_t outCnl = audio_channel_count_from_out_mask(config->outputCfg.channels);
+    uint32_t inCnl = audio_channel_count_from_in_mask(config->inputCfg.channels);
+    uint32_t outCnl = audio_channel_count_from_in_mask(config->outputCfg.channels);
 
     if (config->inputCfg.samplingRate != config->outputCfg.samplingRate ||
         config->inputCfg.format != config->outputCfg.format ||
@@ -919,10 +919,10 @@ int Session_SetConfig(preproc_session_t *session, effect_config_t *config)
     }
 
     const webrtc::ProcessingConfig processing_config = {
-      {{static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)},
-       {static_cast<int>(session->apmSamplingRate), static_cast<int>(outCnl)},
-       {static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)},
-       {static_cast<int>(session->apmSamplingRate), static_cast<int>(inCnl)}}};
+      {{static_cast<int>(session->apmSamplingRate), inCnl},
+       {static_cast<int>(session->apmSamplingRate), outCnl},
+       {static_cast<int>(session->apmSamplingRate), inCnl},
+       {static_cast<int>(session->apmSamplingRate), inCnl}}};
     status = session->apm->Initialize(processing_config);
     if (status < 0) {
         return -EINVAL;
@@ -1040,14 +1040,10 @@ int Session_SetReverseConfig(preproc_session_t *session, effect_config_t *config
     }
     uint32_t inCnl = audio_channel_count_from_out_mask(config->inputCfg.channels);
     const webrtc::ProcessingConfig processing_config = {
-       {{static_cast<int>(session->apmSamplingRate),
-         static_cast<int>(session->inChannelCount)},
-        {static_cast<int>(session->apmSamplingRate),
-         static_cast<int>(session->outChannelCount)},
-        {static_cast<int>(session->apmSamplingRate),
-         static_cast<int>(inCnl)},
-        {static_cast<int>(session->apmSamplingRate),
-         static_cast<int>(inCnl)}}};
+       {{static_cast<int>(session->apmSamplingRate), session->inChannelCount},
+        {static_cast<int>(session->apmSamplingRate), session->outChannelCount},
+        {static_cast<int>(session->apmSamplingRate), inCnl},
+        {static_cast<int>(session->apmSamplingRate), inCnl}}};
     int status = session->apm->Initialize(processing_config);
     if (status < 0) {
         return -EINVAL;
