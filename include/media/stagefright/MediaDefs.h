@@ -30,6 +30,7 @@ extern const char *MEDIA_MIMETYPE_VIDEO_MPEG4;
 extern const char *MEDIA_MIMETYPE_VIDEO_H263;
 extern const char *MEDIA_MIMETYPE_VIDEO_MPEG2;
 extern const char *MEDIA_MIMETYPE_VIDEO_RAW;
+extern const char *MEDIA_MIMETYPE_VIDEO_DOLBY_VISION;
 
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_NB;
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_WB;
