@@ -159,7 +159,16 @@ OMX_ERRORTYPE SoftRaw::internalSetParameter(
         }
 
         default:
-            return SimpleSoftOMXComponent::internalSetParameter(index, params);
+        {
+            OMX_ERRORTYPE err = SimpleSoftOMXComponent::internalSetParameter(
+                    index, params);
+            // In case inPort->mDef.nBufferSize changed, the output buffer size
+            // should match the input buffer size.
+            PortInfo *inPort = editPortInfo(0);
+            PortInfo *outPort = editPortInfo(1);
+            outPort->mDef.nBufferSize = inPort->mDef.nBufferSize;
+            return err;
+        }
     }
 }
 
