@@ -853,6 +853,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     if (type == kMetadataBufferTypeANWBuffer) {
                         ((VideoNativeMetadata *)mem->pointer())->nFenceFd = -1;
                     }
+                    info.mMemRef = mem;
                 }
 
                 mBuffers[portIndex].push(info);
@@ -873,8 +874,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
     for (size_t i = 0; i < mBuffers[portIndex].size(); ++i) {
         const BufferInfo &info = mBuffers[portIndex][i];
-
-        desc->addBuffer(info.mBufferID, info.mData);
+        desc->addBuffer(info.mBufferID, info.mData, info.mMemRef);
     }
 
     notify->setObject("portDesc", desc);
@@ -1134,7 +1134,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
         // we use useBuffer for metadata regardless of quirks
         err = mOMX->useBuffer(
                 mNode, kPortIndexOutput, mem, &info.mBufferID, mem->size());
-
+        info.mMemRef = mem;
         mBuffers[kPortIndexOutput].push(info);
 
         ALOGV("[%s] allocated meta buffer with ID %u (pointer = %p)",
@@ -4504,9 +4504,10 @@ status_t ACodec::requestIDRFrame() {
 }
 
 void ACodec::PortDescription::addBuffer(
-        IOMX::buffer_id id, const sp<ABuffer> &buffer) {
+        IOMX::buffer_id id, const sp<ABuffer> &buffer, const sp<RefBase> &memRef) {
     mBufferIDs.push_back(id);
     mBuffers.push_back(buffer);
+    mMemRefs.push_back(memRef);
 }
 
 size_t ACodec::PortDescription::countBuffers() {
@@ -4519,6 +4520,10 @@ IOMX::buffer_id ACodec::PortDescription::bufferIDAt(size_t index) const {
 
 sp<ABuffer> ACodec::PortDescription::bufferAt(size_t index) const {
     return mBuffers.itemAt(index);
+}
+
+sp<RefBase> ACodec::PortDescription::memRefAt(size_t index) const {
+    return mMemRefs.itemAt(index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
