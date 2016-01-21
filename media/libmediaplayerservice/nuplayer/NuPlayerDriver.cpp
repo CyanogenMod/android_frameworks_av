@@ -334,8 +334,8 @@ status_t NuPlayerDriver::pause() {
     // down for audio offload mode. If that happens, the NuPlayerRenderer will no longer know the
     // current position. So similar to seekTo, update |mPositionUs| to the pause position by calling
     // getCurrentPosition here.
-    int msec;
-    getCurrentPosition(&msec);
+    int unused;
+    getCurrentPosition(&unused);
 
     Mutex::Autolock autoLock(mLock);
 
@@ -364,11 +364,12 @@ bool NuPlayerDriver::isPlaying() {
 status_t NuPlayerDriver::setPlaybackSettings(const AudioPlaybackRate &rate) {
     status_t err = mPlayer->setPlaybackSettings(rate);
     if (err == OK) {
+        // try to update position
+        int unused;
+        getCurrentPosition(&unused);
         Mutex::Autolock autoLock(mLock);
         if (rate.mSpeed == 0.f && mState == STATE_RUNNING) {
             mState = STATE_PAUSED;
-            // try to update position
-            (void)mPlayer->getCurrentPosition(&mPositionUs);
             notifyListener_l(MEDIA_PAUSED);
         } else if (rate.mSpeed != 0.f && mState == STATE_PAUSED) {
             mState = STATE_RUNNING;
@@ -423,7 +424,7 @@ status_t NuPlayerDriver::getCurrentPosition(int *msec) {
     int64_t tempUs = 0;
     {
         Mutex::Autolock autoLock(mLock);
-        if (mSeekInProgress || mState == STATE_PAUSED) {
+        if (mSeekInProgress || (mState == STATE_PAUSED && !mAtEOS)) {
             tempUs = (mPositionUs <= 0) ? 0 : mPositionUs;
             *msec = (int)divRound(tempUs, (int64_t)(1000));
             return OK;
