@@ -338,6 +338,7 @@ sp<WebmElement> WebmElement::AudioTrackEntry(
 }
 
 sp<WebmElement> WebmElement::VideoTrackEntry(
+        const char *codec,
         uint64_t width,
         uint64_t height,
         uint64_t uid,
@@ -353,7 +354,7 @@ sp<WebmElement> WebmElement::VideoTrackEntry(
             uid,
             lacing,
             lang,
-            "V_VP8",
+            codec,
             kVideoType,
             trackEntryFields);
 

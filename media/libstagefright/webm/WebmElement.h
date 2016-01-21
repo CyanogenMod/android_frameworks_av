@@ -57,6 +57,7 @@ struct WebmElement : public LightRefBase<WebmElement> {
             const char *lang = "und");
 
     static sp<WebmElement> VideoTrackEntry(
+            const char *codec,
             uint64_t width,
             uint64_t height,
             uint64_t uid = 0,
