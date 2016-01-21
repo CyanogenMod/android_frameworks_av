@@ -725,7 +725,7 @@ void NuPlayer::RTSPSource::startBufferingIfNecessary() {
         mBuffering = true;
 
         sp<AMessage> notify = dupNotify();
-        notify->setInt32("what", kWhatBufferingStart);
+        notify->setInt32("what", kWhatPauseOnBufferingStart);
         notify->post();
     }
 }
@@ -741,7 +741,7 @@ bool NuPlayer::RTSPSource::stopBufferingIfNecessary() {
         mBuffering = false;
 
         sp<AMessage> notify = dupNotify();
-        notify->setInt32("what", kWhatBufferingEnd);
+        notify->setInt32("what", kWhatResumeOnBufferingEnd);
         notify->post();
     }
 
