@@ -118,6 +118,12 @@ public:
                                               uint32_t *writtenSize,
                                               ReadObjectCallback callback,
                                               void* clientData);
+    bool                    readPartialObject64(MtpObjectHandle handle,
+                                                uint64_t offset,
+                                                uint32_t size,
+                                                uint32_t *writtenSize,
+                                                ReadObjectCallback callback,
+                                                void* clientData);
     // Starts a request to read MTP event from MTP device. It returns a request handle that
     // can be used for blocking read or cancel. If other thread has already been processing an
     // event returns -1.
