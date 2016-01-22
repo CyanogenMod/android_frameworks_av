@@ -461,6 +461,13 @@ status_t convertMetaDataToMessage(
         msg->setBuffer("csd-2", buffer);
     }
 
+    // TODO expose "crypto-key"/kKeyCryptoKey through public api
+    if (meta->findData(kKeyCryptoKey, &type, &data, &size)) {
+        sp<ABuffer> buffer = new (std::nothrow) ABuffer(size);
+        msg->setBuffer("crypto-key", buffer);
+        memcpy(buffer->data(), data, size);
+    }
+
     *format = msg;
 
     return OK;

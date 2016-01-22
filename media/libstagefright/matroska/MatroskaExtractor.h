@@ -55,6 +55,7 @@ private:
 
     struct TrackInfo {
         unsigned long mTrackNum;
+        bool mEncrypted;
         sp<MetaData> mMeta;
         const MatroskaExtractor *mExtractor;
         Vector<const mkvparser::CuePoint*> mCuePoints;

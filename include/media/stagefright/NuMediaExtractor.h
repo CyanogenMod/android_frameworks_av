@@ -114,6 +114,7 @@ private:
 
     bool getTotalBitrate(int64_t *bitRate) const;
     void updateDurationAndBitrate();
+    status_t appendVorbisNumPageSamples(TrackInfo *info, const sp<ABuffer> &buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuMediaExtractor);
 };

@@ -449,6 +449,59 @@ status_t NuMediaExtractor::advance() {
     return OK;
 }
 
+status_t NuMediaExtractor::appendVorbisNumPageSamples(TrackInfo *info, const sp<ABuffer> &buffer) {
+    int32_t numPageSamples;
+    if (!info->mSample->meta_data()->findInt32(
+            kKeyValidSamples, &numPageSamples)) {
+        numPageSamples = -1;
+    }
+
+    memcpy((uint8_t *)buffer->data() + info->mSample->range_length(),
+           &numPageSamples,
+           sizeof(numPageSamples));
+
+    uint32_t type;
+    const void *data;
+    size_t size, size2;
+    if (info->mSample->meta_data()->findData(kKeyEncryptedSizes, &type, &data, &size)) {
+        // Signal numPageSamples (a plain int32_t) is appended at the end,
+        // i.e. sizeof(numPageSamples) plain bytes + 0 encrypted bytes
+        if (SIZE_MAX - size < sizeof(int32_t)) {
+            return -ENOMEM;
+        }
+
+        size_t newSize = size + sizeof(int32_t);
+        sp<ABuffer> abuf = new ABuffer(newSize);
+        uint8_t *adata = static_cast<uint8_t *>(abuf->data());
+        if (adata == NULL) {
+            return -ENOMEM;
+        }
+
+        // append 0 to encrypted sizes
+        int32_t zero = 0;
+        memcpy(adata, data, size);
+        memcpy(adata + size, &zero, sizeof(zero));
+        info->mSample->meta_data()->setData(kKeyEncryptedSizes, type, adata, newSize);
+
+        if (info->mSample->meta_data()->findData(kKeyPlainSizes, &type, &data, &size2)) {
+            if (size2 != size) {
+                return ERROR_MALFORMED;
+            }
+            memcpy(adata, data, size);
+        } else {
+            // if sample meta data does not include plain size array, assume filled with zeros,
+            // i.e. entire buffer is encrypted
+            memset(adata, 0, size);
+        }
+        // append sizeof(numPageSamples) to plain sizes.
+        int32_t int32Size = sizeof(numPageSamples);
+        memcpy(adata + size, &int32Size, sizeof(int32Size));
+        info->mSample->meta_data()->setData(kKeyPlainSizes, type, adata, newSize);
+    }
+
+    return OK;
+}
+
 status_t NuMediaExtractor::readSampleData(const sp<ABuffer> &buffer) {
     Mutex::Autolock autoLock(mLock);
 
@@ -478,21 +531,16 @@ status_t NuMediaExtractor::readSampleData(const sp<ABuffer> &buffer) {
 
     memcpy((uint8_t *)buffer->data(), src, info->mSample->range_length());
 
+    status_t err = OK;
     if (info->mTrackFlags & kIsVorbis) {
-        int32_t numPageSamples;
-        if (!info->mSample->meta_data()->findInt32(
-                    kKeyValidSamples, &numPageSamples)) {
-            numPageSamples = -1;
-        }
-
-        memcpy((uint8_t *)buffer->data() + info->mSample->range_length(),
-               &numPageSamples,
-               sizeof(numPageSamples));
+        err = appendVorbisNumPageSamples(info, buffer);
     }
 
-    buffer->setRange(0, sampleSize);
+    if (err == OK) {
+        buffer->setRange(0, sampleSize);
+    }
 
-    return OK;
+    return err;
 }
 
 status_t NuMediaExtractor::getSampleTrackIndex(size_t *trackIndex) {
