@@ -448,7 +448,7 @@ status_t AVUtils::HEVCMuxer::makeHEVCCodecSpecificData(
     List<HEVCParamSet> picParamSets;
 
     if ((*codecSpecificDataSize = parseHEVCCodecSpecificData(data, size,
-                                   vidParamSets, seqParamSets, picParamSets)) <= 0) {
+                                   vidParamSets, seqParamSets, picParamSets)) == 0) {
         ALOGE("cannot parser codec specific data, bailing out");
         return ERROR_MALFORMED;
     }
@@ -885,12 +885,12 @@ size_t AVUtils::HEVCMuxer::parseHEVCCodecSpecificData(
             }
         } else {
             ALOGE("Only VPS, SPS and PPS Nal units are expected");
-            return ERROR_MALFORMED;
+            return 0;
         }
 
         if (nextStartCode == NULL) {
             ALOGE("Next start code is NULL");
-            return ERROR_MALFORMED;
+            return 0;
         }
 
         // Move on to find the next parameter set
