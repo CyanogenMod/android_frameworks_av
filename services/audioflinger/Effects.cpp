@@ -1466,13 +1466,13 @@ void AudioFlinger::EffectChain::process_l()
     }
 
     size_t size = mEffects.size();
-    for (size_t i = 0; i < size; i++) {
-        mEffects[i]->updateState();
-    }
     if (doProcess) {
         for (size_t i = 0; i < size; i++) {
             mEffects[i]->process();
         }
+    }
+    for (size_t i = 0; i < size; i++) {
+        mEffects[i]->updateState();
     }
 }
 
