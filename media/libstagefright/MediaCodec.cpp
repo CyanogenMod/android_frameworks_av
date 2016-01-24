@@ -2494,11 +2494,18 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         AString *errorDetailMsg;
         CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
 
-        // TODO: use different decrypt based on native handle or not
-        // use native handle if we have it; otherwise, use opaque handle
-        void *dst_pointer = (void *)info->mNativeHandle.get() ? : info->mData->base();
+        void *dst_pointer = info->mData->base();
+        ICrypto::DestinationType dst_type = ICrypto::kDestinationTypeOpaqueHandle;
+
+        if (info->mNativeHandle != NULL) {
+            dst_pointer = (void *)info->mNativeHandle.get();
+            dst_type = ICrypto::kDestinationTypeNativeHandle;
+        } else if ((mFlags & kFlagIsSecure) == 0) {
+            dst_type = ICrypto::kDestinationTypeVmPointer;
+        }
+
         ssize_t result = mCrypto->decrypt(
-                (mFlags & kFlagIsSecure) != 0,
+                dst_type,
                 key,
                 iv,
                 mode,

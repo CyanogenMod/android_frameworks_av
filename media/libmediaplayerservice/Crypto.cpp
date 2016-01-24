@@ -235,7 +235,7 @@ bool Crypto::requiresSecureDecoderComponent(const char *mime) const {
 }
 
 ssize_t Crypto::decrypt(
-        bool secure,
+        DestinationType dstType,
         const uint8_t key[16],
         const uint8_t iv[16],
         CryptoPlugin::Mode mode,
@@ -257,7 +257,8 @@ ssize_t Crypto::decrypt(
     const void *srcPtr = static_cast<uint8_t *>(sharedBuffer->pointer()) + offset;
 
     return mPlugin->decrypt(
-            secure, key, iv, mode, pattern, srcPtr, subSamples, numSubSamples, dstPtr,
+            dstType != kDestinationTypeVmPointer,
+            key, iv, mode, pattern, srcPtr, subSamples, numSubSamples, dstPtr,
             errorDetailMsg);
 }
 
