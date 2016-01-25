@@ -38,7 +38,7 @@ Camera3DummyStream::~Camera3DummyStream() {
 
 status_t Camera3DummyStream::getBufferLocked(camera3_stream_buffer *buffer) {
     ATRACE_CALL();
-    ALOGE("%s: Stream %d: Dummy stream cannot produce buffers!", mId);
+    ALOGE("%s: Stream %d: Dummy stream cannot produce buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
 }
 
@@ -46,7 +46,7 @@ status_t Camera3DummyStream::returnBufferLocked(
         const camera3_stream_buffer &buffer,
         nsecs_t timestamp) {
     ATRACE_CALL();
-    ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", mId);
+    ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
 }
 
@@ -57,7 +57,7 @@ status_t Camera3DummyStream::returnBufferCheckedLocked(
             /*out*/
             sp<Fence> *releaseFenceOut) {
     ATRACE_CALL();
-    ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", mId);
+    ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
 }
 

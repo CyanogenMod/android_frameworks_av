@@ -31,6 +31,7 @@
 #include "camera/CaptureResult.h"
 #include "common/CameraModule.h"
 #include "gui/IGraphicBufferProducer.h"
+#include "device3/Camera3StreamInterface.h"
 
 namespace android {
 
@@ -108,7 +109,8 @@ class CameraDeviceBase : public virtual RefBase {
      */
     virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id) = 0;
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id,
+            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID) = 0;
 
     /**
      * Create an input stream of width, height, and format.

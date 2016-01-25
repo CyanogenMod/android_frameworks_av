@@ -26,6 +26,20 @@ namespace android {
 
 namespace camera3 {
 
+enum {
+    /**
+     * This stream set ID indicates that the set ID is invalid, and this stream doesn't intend to
+     * share buffers with any other stream. It is illegal to register this kind of stream to
+     * Camera3BufferManager.
+     */
+    CAMERA3_STREAM_SET_ID_INVALID = -1,
+
+    /**
+     * Invalid output stream ID.
+     */
+    CAMERA3_STREAM_ID_INVALID = -1,
+};
+
 class StatusTracker;
 
 /**
@@ -43,6 +57,11 @@ class Camera3StreamInterface : public virtual RefBase {
      * Get the stream's ID
      */
     virtual int      getId() const = 0;
+
+    /**
+     * Get the output stream set id.
+     */
+    virtual int      getStreamSetId() const = 0;
 
     /**
      * Get the stream's dimensions and format

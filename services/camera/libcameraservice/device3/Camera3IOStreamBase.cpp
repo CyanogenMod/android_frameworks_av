@@ -31,9 +31,9 @@ namespace camera3 {
 
 Camera3IOStreamBase::Camera3IOStreamBase(int id, camera3_stream_type_t type,
         uint32_t width, uint32_t height, size_t maxSize, int format,
-        android_dataspace dataSpace, camera3_stream_rotation_t rotation) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation, int setId) :
         Camera3Stream(id, type,
-                width, height, maxSize, format, dataSpace, rotation),
+                width, height, maxSize, format, dataSpace, rotation, setId),
         mTotalBufferCount(0),
         mHandoutTotalBufferCount(0),
         mHandoutOutputBufferCount(0),

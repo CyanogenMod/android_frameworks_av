@@ -18,15 +18,53 @@
 #define ANDROID_SERVERS_CAMERA3_OUTPUT_STREAM_H
 
 #include <utils/RefBase.h>
+#include <gui/IProducerListener.h>
 #include <gui/Surface.h>
 
 #include "Camera3Stream.h"
 #include "Camera3IOStreamBase.h"
 #include "Camera3OutputStreamInterface.h"
+#include "Camera3BufferManager.h"
 
 namespace android {
 
 namespace camera3 {
+
+class Camera3BufferManager;
+
+/**
+ * Stream info structure that holds the necessary stream info for buffer manager to use for
+ * buffer allocation and management.
+ */
+struct StreamInfo {
+    int streamId;
+    int streamSetId;
+    uint32_t width;
+    uint32_t height;
+    uint32_t format;
+    android_dataspace dataSpace;
+    uint32_t combinedUsage;
+    size_t totalBufferCount;
+    bool isConfigured;
+    StreamInfo(int id = CAMERA3_STREAM_ID_INVALID,
+            int setId = CAMERA3_STREAM_SET_ID_INVALID,
+            uint32_t w = 0,
+            uint32_t h = 0,
+            uint32_t fmt = 0,
+            android_dataspace ds = HAL_DATASPACE_UNKNOWN,
+            uint32_t usage = 0,
+            size_t bufferCount = 0,
+            bool configured = false) :
+                streamId(id),
+                streamSetId(setId),
+                width(w),
+                height(h),
+                format(fmt),
+                dataSpace(ds),
+                combinedUsage(usage),
+                totalBufferCount(bufferCount),
+                isConfigured(configured){}
+};
 
 /**
  * A class for managing a single stream of output data from the camera device.
@@ -37,18 +75,24 @@ class Camera3OutputStream :
   public:
     /**
      * Set up a stream for formats that have 2 dimensions, such as RAW and YUV.
+     * A valid stream set id needs to be set to support buffer sharing between multiple
+     * streams.
      */
     Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+            int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
     /**
      * Set up a stream for formats that have a variable buffer size for the same
      * dimensions, such as compressed JPEG.
+     * A valid stream set id needs to be set to support buffer sharing between multiple
+     * streams.
      */
     Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, size_t maxSize, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+            int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
     virtual ~Camera3OutputStream();
 
@@ -69,10 +113,32 @@ class Camera3OutputStream :
      */
     bool isVideoStream() const;
 
+    class BufferReleasedListener : public BnProducerListener {
+        public:
+          BufferReleasedListener(wp<Camera3OutputStream> parent) : mParent(parent) {}
+
+          /**
+          * Implementation of IProducerListener, used to notify this stream that the consumer
+          * has returned a buffer and it is ready to return to Camera3BufferManager for reuse.
+          */
+          virtual void onBufferReleased();
+
+        private:
+          wp<Camera3OutputStream> mParent;
+    };
+
+    /**
+     * Set the graphic buffer manager to get/return the stream buffers.
+     *
+     * It is only legal to call this method when stream is in STATE_CONSTRUCTED state.
+     */
+    status_t setBufferManager(sp<Camera3BufferManager> bufferManager);
+
   protected:
     Camera3OutputStream(int id, camera3_stream_type_t type,
             uint32_t width, uint32_t height, int format,
-            android_dataspace dataSpace, camera3_stream_rotation_t rotation);
+            android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+            int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
     /**
      * Note that we release the lock briefly in this function
@@ -97,6 +163,22 @@ class Camera3OutputStream :
     // Name of Surface consumer
     String8           mConsumerName;
 
+    /**
+     * GraphicBuffer manager this stream is registered to. Used to replace the buffer
+     * allocation/deallocation role of BufferQueue.
+     */
+    sp<Camera3BufferManager> mBufferManager;
+
+    /**
+     * Buffer released listener, used to notify the buffer manager that a buffer is released
+     * from consumer side.
+     */
+    sp<BufferReleasedListener> mBufferReleasedListener;
+
+    /**
+     * Flag indicating if the buffer manager is used to allocate the stream buffers
+     */
+    bool mUseBufferManager;
     /**
      * Internal Camera3Stream interface
      */
