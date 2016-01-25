@@ -461,7 +461,7 @@ status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfi
     res = mDevice->createStream(surface, width, height, format, dataSpace,
                                 static_cast<camera3_stream_rotation_t>
                                         (outputConfiguration.getRotation()),
-                                &streamId);
+                                &streamId, outputConfiguration.getSurfaceSetID());
 
     if (res == OK) {
         mStreamMap.add(binder, streamId);
