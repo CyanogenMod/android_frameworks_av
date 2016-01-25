@@ -53,7 +53,6 @@ public:
     {
         if (mVolumeCurves != nullptr) {
             *mVolumeCurves = volumes;
-            mVolumeCurves->setDefaultCurves();
         }
     }
 

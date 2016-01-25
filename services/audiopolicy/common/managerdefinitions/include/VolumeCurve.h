@@ -150,8 +150,8 @@ class VolumeCurvesCollection : public KeyedVector<audio_stream_type_t, VolumeCur
 public:
     VolumeCurvesCollection()
     {
-        // Create an empty collection of curves even for CNT stream (used for default curves)
-        for (ssize_t i = 0 ; i <= AUDIO_STREAM_CNT; i++) {
+        // Create an empty collection of curves
+        for (ssize_t i = 0 ; i < AUDIO_STREAM_CNT; i++) {
             audio_stream_type_t stream = static_cast<audio_stream_type_t>(i);
             KeyedVector::add(stream, VolumeCurvesForStream());
         }
@@ -217,25 +217,6 @@ public:
     {
         ALOG_ASSERT(indexOfKey(stream) >= 0, "Invalid stream type for Volume Curve");
         return valueFor(stream);
-    }
-    void setDefaultCurves()
-    {
-        for (size_t i = 0 ; i < AUDIO_STREAM_CNT; i++) {
-            audio_stream_type_t stream = static_cast<audio_stream_type_t>(i);
-            ALOG_ASSERT(indexOfKey(stream) >= 0, "No Default volume table found!");
-
-            VolumeCurvesForStream &curvesForStream = editValueAt(stream);
-            // Sanity check on All device categories
-            for (int i = 0; i < DEVICE_CATEGORY_CNT; i++) {
-                device_category cat = (device_category)i;
-                if (curvesForStream.getCurvesFor(cat) == 0) {
-                    ALOG_ASSERT(valueAt(AUDIO_STREAM_CNT).getCurvesFor(cat) != 0,
-                                "No Default volume table found for device category %d", cat);
-                    ALOGW("Switching to default table for stream %d category %d", stream, cat);
-                    curvesForStream.add(valueAt(AUDIO_STREAM_CNT).getCurvesFor(cat));
-                }
-            }
-        }
     }
 };
 
