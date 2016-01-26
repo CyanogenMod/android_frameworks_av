@@ -1014,8 +1014,8 @@ void search_ixiy(
             {
                 ps2 = add1(ps1, dn[y]);
 
-                alp2 = alp1 + ((*p1++)<<13);
-                alp2 = alp2 + ((*p2++)<<14);
+                alp2 = L_add(alp1, ((*p1++)<<13));
+                alp2 = L_add(alp2, ((*p2++)<<14));
                 alp_16 = extract_h(alp2);
                 sq = vo_mult(ps2, ps2);
                 s = vo_L_mult(alpk, sq) - ((sqk * alp_16)<<1);
