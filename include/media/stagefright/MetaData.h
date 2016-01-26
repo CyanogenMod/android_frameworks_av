@@ -188,6 +188,19 @@ enum {
 
     // Size of NALU length in mkv/mp4
     kKeyNalLengthSize     = 'nals', // int32_t
+
+    // HDR related
+    kKeyMinLuminance     = 'minL', // int32_t, min luminance of the content in cd/m2.
+    kKeyMaxLuminance     = 'maxL', // int32_t, max luminance of the content in cd/m2.
+
+    // color aspects
+    kKeyColorRange       = 'cRng', // int32_t, color range, value defined by ColorAspects.Range
+    kKeyColorPrimaries   = 'cPrm', // int32_t,
+                                   // color Primaries, value defined by ColorAspects.Primaries
+    kKeyTransferFunction = 'tFun', // int32_t,
+                                   // transfer Function, value defined by ColorAspects.Transfer.
+    kKeyColorMatrix      = 'cMtx', // int32_t,
+                                   // color Matrix, value defined by ColorAspects.MatrixCoeffs.
 };
 
 enum {

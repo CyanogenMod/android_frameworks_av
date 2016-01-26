@@ -27,6 +27,7 @@
 #include <arpa/inet.h>
 #include <cutils/properties.h>
 #include <media/openmax/OMX_Audio.h>
+#include <media/stagefright/CodecBase.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
@@ -88,6 +89,49 @@ static status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_
     memcpy((*buffer)->data() + (*buffer)->size() + 4, ptr, length);
     (*buffer)->setRange((*buffer)->offset(), (*buffer)->size() + 4 + length);
     return OK;
+}
+
+static void convertMetaDataToMessageInt32(
+        const sp<MetaData> &meta, sp<AMessage> &msg, uint32_t key, const char *name) {
+    int32_t value;
+    if (meta->findInt32(key, &value)) {
+        msg->setInt32(name, value);
+    }
+}
+
+static void convertMetaDataToMessageColorAspects(const sp<MetaData> &meta, sp<AMessage> &msg) {
+    // 0 values are unspecified
+    int32_t range = 0;
+    int32_t primaries = 0;
+    int32_t transferFunction = 0;
+    int32_t colorMatrix = 0;
+    meta->findInt32(kKeyColorRange, &range);
+    meta->findInt32(kKeyColorPrimaries, &primaries);
+    meta->findInt32(kKeyTransferFunction, &transferFunction);
+    meta->findInt32(kKeyColorMatrix, &colorMatrix);
+    ColorAspects colorAspects;
+    memset(&colorAspects, 0, sizeof(colorAspects));
+    colorAspects.mRange = (ColorAspects::Range)range;
+    colorAspects.mPrimaries = (ColorAspects::Primaries)primaries;
+    colorAspects.mTransfer = (ColorAspects::Transfer)transferFunction;
+    colorAspects.mMatrixCoeffs = (ColorAspects::MatrixCoeffs)colorMatrix;
+
+    int32_t rangeMsg, standardMsg, transferMsg;
+    if (CodecBase::convertCodecColorAspectsToPlatformAspects(
+            colorAspects, &rangeMsg, &standardMsg, &transferMsg) != OK) {
+        return;
+    }
+
+    // save specified values to msg
+    if (rangeMsg != 0) {
+        msg->setInt32("color-range", rangeMsg);
+    }
+    if (standardMsg != 0) {
+        msg->setInt32("color-standard", standardMsg);
+    }
+    if (transferMsg != 0) {
+        msg->setInt32("color-transfer", transferMsg);
+    }
 }
 
 status_t convertMetaDataToMessage(
@@ -158,6 +202,10 @@ status_t convertMetaDataToMessage(
         if (meta->findInt32(kKeyRotation, &rotationDegrees)) {
             msg->setInt32("rotation-degrees", rotationDegrees);
         }
+
+        convertMetaDataToMessageInt32(meta, msg, kKeyMinLuminance, "min-luminance");
+        convertMetaDataToMessageInt32(meta, msg, kKeyMaxLuminance, "max-luminance");
+        convertMetaDataToMessageColorAspects(meta, msg);
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
         if (!meta->findInt32(kKeyChannelCount, &numChannels)
@@ -626,6 +674,43 @@ static size_t reassembleHVCC(const sp<ABuffer> &csd0, uint8_t *hvcc, size_t hvcc
     return size;
 }
 
+static void convertMessageToMetaDataInt32(
+        const sp<AMessage> &msg, sp<MetaData> &meta, uint32_t key, const char *name) {
+    int32_t value;
+    if (msg->findInt32(name, &value)) {
+        meta->setInt32(key, value);
+    }
+}
+
+static void convertMessageToMetaDataColorAspects(const sp<AMessage> &msg, sp<MetaData> &meta) {
+    // 0 values are unspecified
+    int32_t range = 0, standard = 0, transfer = 0;
+    (void)msg->findInt32("color-range", &range);
+    (void)msg->findInt32("color-standard", &standard);
+    (void)msg->findInt32("color-transfer", &transfer);
+
+    ColorAspects colorAspects;
+    memset(&colorAspects, 0, sizeof(colorAspects));
+    if (CodecBase::convertPlatformColorAspectsToCodecAspects(
+            range, standard, transfer, colorAspects) != OK) {
+        return;
+    }
+
+    // save specified values to meta
+    if (colorAspects.mRange != 0) {
+        meta->setInt32(kKeyColorRange, colorAspects.mRange);
+    }
+    if (colorAspects.mPrimaries != 0) {
+        meta->setInt32(kKeyColorPrimaries, colorAspects.mPrimaries);
+    }
+    if (colorAspects.mTransfer != 0) {
+        meta->setInt32(kKeyTransferFunction, colorAspects.mTransfer);
+    }
+    if (colorAspects.mMatrixCoeffs != 0) {
+        meta->setInt32(kKeyColorMatrix, colorAspects.mMatrixCoeffs);
+    }
+}
+
 void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     AString mime;
     if (msg->findString("mime", &mime)) {
@@ -679,6 +764,10 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         if (msg->findInt32("rotation-degrees", &rotationDegrees)) {
             meta->setInt32(kKeyRotation, rotationDegrees);
         }
+
+        convertMessageToMetaDataInt32(msg, meta, kKeyMinLuminance, "min-luminance");
+        convertMessageToMetaDataInt32(msg, meta, kKeyMaxLuminance, "max-luminance");
+        convertMessageToMetaDataColorAspects(msg, meta);
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
         if (msg->findInt32("channel-count", &numChannels)) {
