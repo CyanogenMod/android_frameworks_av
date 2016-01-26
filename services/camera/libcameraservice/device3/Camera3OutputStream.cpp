@@ -40,6 +40,7 @@ Camera3OutputStream::Camera3OutputStream(int id,
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true),
+        mTimestampBuffer(true),
         mUseBufferManager(false) {
 
     if (mConsumer == NULL) {
@@ -61,6 +62,7 @@ Camera3OutputStream::Camera3OutputStream(int id,
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true),
+        mTimestampBuffer(true),
         mUseBufferManager(false) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB && format != HAL_PIXEL_FORMAT_RAW_OPAQUE) {
@@ -228,11 +230,17 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
             mTraceFirstBuffer = false;
         }
 
-        res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
-        if (res != OK) {
-            ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
-                  __FUNCTION__, mId, strerror(-res), res);
-            return res;
+        /* Certain consumers (such as AudioSource or HardwareComposer) use
+         * MONOTONIC time, causing time misalignment if camera timestamp is
+         * in BOOTTIME. Avoid setting timestamp, and let BufferQueue generate it
+         * instead. */
+        if (mTimestampBuffer) {
+            res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
+            if (res != OK) {
+                ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
+                      __FUNCTION__, mId, strerror(-res), res);
+                return res;
+            }
         }
 
         res = currentConsumer->queueBuffer(currentConsumer.get(),
@@ -385,6 +393,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
     mLastTimestamp = 0;
+    mTimestampBuffer = !(isConsumedByHWComposer() | isVideoStream());
 
     res = native_window_set_buffer_count(mConsumer.get(),
             mTotalBufferCount);
@@ -566,6 +575,18 @@ void Camera3OutputStream::BufferReleasedListener::onBufferReleased() {
        stream->mState = STATE_ERROR;
     }
 }
+
+bool Camera3OutputStream::isConsumedByHWComposer() const {
+    uint32_t usage = 0;
+    status_t res = getEndpointUsage(&usage);
+    if (res != OK) {
+        ALOGE("%s: getting end point usage failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return false;
+    }
+
+    return (usage & GRALLOC_USAGE_HW_COMPOSER) != 0;
+}
+
 }; // namespace camera3
 
 }; // namespace android
