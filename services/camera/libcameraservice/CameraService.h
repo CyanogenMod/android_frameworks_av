@@ -244,13 +244,13 @@ public:
         bool                            mDestructionStarted;
 
         // these are initialized in the constructor.
-        sp<CameraService>               mCameraService;  // immutable after constructor
-        int                             mCameraId;       // immutable after constructor
-        int                             mCameraFacing;   // immutable after constructor
-        const String16                  mClientPackageName;
+        sp<CameraService>               mCameraService;     // immutable after constructor
+        int                             mCameraId;          // immutable after constructor
+        int                             mCameraFacing;      // immutable after constructor
+        String16                        mClientPackageName; // immutable after constructor
         pid_t                           mClientPid;
-        uid_t                           mClientUid;      // immutable after constructor
-        pid_t                           mServicePid;     // immutable after constructor
+        uid_t                           mClientUid;         // immutable after constructor
+        pid_t                           mServicePid;        // immutable after constructor
         bool                            mDisconnected;
 
         // - The app-side Binder interface to receive callbacks from us

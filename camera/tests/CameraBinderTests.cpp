@@ -243,16 +243,36 @@ public:
 
 };
 
+namespace {
+    Mutex                     gLock;
+    class DeathNotifier : public IBinder::DeathRecipient
+    {
+    public:
+        DeathNotifier() {}
+
+        virtual void binderDied(const wp<IBinder>& /*who*/) {
+            ALOGV("binderDied");
+            Mutex::Autolock _l(gLock);
+            ALOGW("Camera service died!");
+        }
+    };
+    sp<DeathNotifier>         gDeathNotifier;
+}; // anonymous namespace
+
 // Exercise basic binder calls for the camera service
 TEST(CameraServiceBinderTest, CheckBinderCameraService) {
     ProcessState::self()->startThreadPool();
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.camera"));
     ASSERT_NOT_NULL(binder);
+    if (gDeathNotifier == NULL) {
+        gDeathNotifier = new DeathNotifier();
+    }
+    binder->linkToDeath(gDeathNotifier);
     sp<ICameraService> service = interface_cast<ICameraService>(binder);
 
 
-    int32_t numCameras = service->getNumberOfCameras();
+    int32_t numCameras = service->getNumberOfCameras(ICameraService::CAMERA_TYPE_ALL);
     EXPECT_LE(0, numCameras);
 
     // Check listener binder calls
