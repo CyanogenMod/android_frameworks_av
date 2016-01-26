@@ -34,6 +34,7 @@ domainGroup: DeviceForStrategy
 
 			conf: BluetoothA2dp
 				ForceUseForMedia IsNot ForceNoBtA2dp
+				ForceUseForCommunication IsNot ForceBtSco
 				AvailableOutputDevices Includes BluetoothA2dp
 
 				component: /Policy/policy/strategies/media/selected_output_devices/mask
@@ -53,6 +54,7 @@ domainGroup: DeviceForStrategy
 
 			conf: BluetoothA2dpHeadphone
 				ForceUseForMedia IsNot ForceNoBtA2dp
+				ForceUseForCommunication IsNot ForceBtSco
 				AvailableOutputDevices Includes BluetoothA2dpHeadphones
 
 				component: /Policy/policy/strategies/media/selected_output_devices/mask
@@ -72,6 +74,7 @@ domainGroup: DeviceForStrategy
 
 			conf: BluetoothA2dpSpeaker
 				ForceUseForMedia IsNot ForceNoBtA2dp
+				ForceUseForCommunication IsNot ForceBtSco
 				AvailableOutputDevices Includes BluetoothA2dpSpeaker
 
 				component: /Policy/policy/strategies/media/selected_output_devices/mask
@@ -263,6 +266,7 @@ domainGroup: DeviceForStrategy
 				# If hdmi system audio mode is on, remove speaker out of output list.
 				#
 				ForceUseForHdmiSystemAudio IsNot ForceHdmiSystemEnforced
+				ForceUseForCommunication IsNot ForceBtSco
 
 				component: /Policy/policy/strategies/media/selected_output_devices/mask
 					speaker = 1

@@ -52,18 +52,21 @@
       <Configuration Name="BluetoothA2dp">
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceBtSco"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dp"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dpHeadphone">
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceBtSco"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dpHeadphones"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dpSpeaker">
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceBtSco"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dpSpeaker"/>
         </CompoundRule>
       </Configuration>
@@ -119,6 +122,7 @@
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Speaker"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForHdmiSystemAudio" MatchesWhen="IsNot" Value="ForceHdmiSystemEnforced"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceBtSco"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="Default">
@@ -902,10 +906,7 @@
           <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
           <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
-          <CompoundRule Type="Any">
-            <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceBtSco"/>
-            <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceNone"/>
-          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceNone"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dpHeadphones">
@@ -914,10 +915,7 @@
           <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
           <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
-          <CompoundRule Type="Any">
-            <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceBtSco"/>
-            <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceNone"/>
-          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceNone"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dpSpeaker">
@@ -1314,10 +1312,10 @@
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_headphones">
-          <BitParameter Name="bluetooth_a2dp_headphones">1</BitParameter>
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_speaker">
-          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+          <BitParameter Name="bluetooth_a2dp_speaker">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/hdmi">
           <BitParameter Name="hdmi">0</BitParameter>
@@ -1924,7 +1922,7 @@
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/speaker">
-          <BitParameter Name="speaker">0</BitParameter>
+          <BitParameter Name="speaker">1</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -8197,6 +8195,22 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/communication"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ambient"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/hdmi"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/telephony_rx"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/back_mic"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/remote_submix"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/anlg_dock_headset"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/dgtl_dock_headset"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/usb_accessory"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/fm_tuner"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/tv_tuner"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/line"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/spdif"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bluetooth_a2dp"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/ambient"/>
@@ -8733,6 +8747,54 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in">
+          <BitParameter Name="in">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/communication">
+          <BitParameter Name="communication">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ambient">
+          <BitParameter Name="ambient">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/telephony_rx">
+          <BitParameter Name="telephony_rx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/back_mic">
+          <BitParameter Name="back_mic">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/anlg_dock_headset">
+          <BitParameter Name="anlg_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/fm_tuner">
+          <BitParameter Name="fm_tuner">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/tv_tuner">
+          <BitParameter Name="tv_tuner">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/spdif">
+          <BitParameter Name="spdif">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/loopback">
+          <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8893,7 +8955,7 @@
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/wired_headset">
-          <BitParameter Name="wired_headset">1</BitParameter>
+          <BitParameter Name="wired_headset">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/usb_device">
           <BitParameter Name="usb_device">0</BitParameter>
@@ -9439,7 +9501,7 @@
           <BitParameter Name="usb_device">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/builtin_mic">
-          <BitParameter Name="builtin_mic">0</BitParameter>
+          <BitParameter Name="builtin_mic">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/back_mic">
           <BitParameter Name="back_mic">0</BitParameter>

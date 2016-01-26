@@ -186,6 +186,23 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+			component: /Policy/policy/input_sources/unprocessed/applicable_input_device/mask
+				in = 1
+				communication = 0
+				ambient = 0
+				hdmi = 0
+				telephony_rx = 0
+				back_mic = 0
+				remote_submix = 0
+				anlg_dock_headset = 0
+				dgtl_dock_headset = 0
+				usb_accessory = 0
+				fm_tuner = 0
+				tv_tuner = 0
+				line = 0
+				spdif = 0
+				bluetooth_a2dp = 0
+				loopback = 0
 			component: /Policy/policy/input_sources/fm_tuner/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -239,7 +256,7 @@ supDomain: DeviceForInputSource
 					bluetooth_sco_headset = 1
 				component: mic/applicable_input_device/mask/
 					bluetooth_a2dp = 0
-					wired_headset = 1
+					wired_headset = 0
 					usb_device = 0
 					builtin_mic = 0
 					bluetooth_sco_headset = 1
@@ -484,11 +501,14 @@ supDomain: DeviceForInputSource
 				back_mic = 1
 
 		conf: Default
+			#
+			# Fallback on the default input device which can be builtin mic for example
+			#
 			component: /Policy/policy/input_sources/voice_communication/applicable_input_device/mask
 				bluetooth_sco_headset = 0
 				wired_headset = 0
 				usb_device = 0
-				builtin_mic = 0
+				builtin_mic = 1
 				back_mic = 0
 
 	domain: RemoteSubmix

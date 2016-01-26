@@ -92,9 +92,7 @@ supDomain: DeviceForStrategy
 				TelephonyMode IsNot InCall
 				TelephonyMode IsNot InCommunication
 				ForceUseForMedia IsNot ForceNoBtA2dp
-				ANY
-					ForceUseForCommunication Is ForceBtSco
-					ForceUseForCommunication Is ForceNone
+				ForceUseForCommunication Is ForceNone
 
 				component: /Policy/policy/strategies/phone/selected_output_devices/mask
 					earpiece = 0
@@ -124,9 +122,7 @@ supDomain: DeviceForStrategy
 				TelephonyMode IsNot InCall
 				TelephonyMode IsNot InCommunication
 				ForceUseForMedia IsNot ForceNoBtA2dp
-				ANY
-					ForceUseForCommunication Is ForceBtSco
-					ForceUseForCommunication Is ForceNone
+				ForceUseForCommunication Is ForceNone
 
 				component: /Policy/policy/strategies/phone/selected_output_devices/mask
 					earpiece = 0
@@ -166,8 +162,8 @@ supDomain: DeviceForStrategy
 					bluetooth_sco_headset = 0
 					bluetooth_sco_carkit = 0
 					bluetooth_a2dp = 0
-					bluetooth_a2dp_headphones = 1
-					bluetooth_a2dp_speaker = 0
+					bluetooth_a2dp_headphones = 0
+					bluetooth_a2dp_speaker = 1
 					hdmi = 0
 					angl_dock_headset = 0
 					dgtl_dock_headset = 0
@@ -463,6 +459,9 @@ supDomain: DeviceForStrategy
 					speaker = 1
 
 			conf: Default
+				#
+				# Fallback on default output device which can be speaker for example
+				#
 				component: /Policy/policy/strategies/phone/selected_output_devices/mask
 					earpiece = 0
 					wired_headset = 0
@@ -480,6 +479,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					speaker = 0
+					speaker = 1
 
 

@@ -120,6 +120,8 @@
                                                   Mapping="Amend1:VoiceCommunication,Identifier:7"/>
             <Component Name="remote_submix" Type="InputSource"
                                             Mapping="Amend1:RemoteSubmix,Identifier:8"/>
+            <Component Name="unprocessed" Type="InputSource"
+                                            Mapping="Amend1:Unprocessed,Identifier:9"/>
             <Component Name="fm_tuner" Type="InputSource" Mapping="Amend1:FmTuner,Identifier:1998"/>
             <Component Name="hotword" Type="InputSource" Mapping="Amend1:Hotword,Identifier:1999"/>
         </ComponentType>
