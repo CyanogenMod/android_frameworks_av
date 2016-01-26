@@ -100,7 +100,9 @@ status_t convertMetaDataToMessage(
     }
 
     const char *mime;
-    CHECK(meta->findCString(kKeyMIMEType, &mime));
+    if (!meta->findCString(kKeyMIMEType, &mime)) {
+        return BAD_VALUE;
+    }
 
     sp<AMessage> msg = new AMessage;
     msg->setString("mime", mime);
@@ -122,8 +124,10 @@ status_t convertMetaDataToMessage(
 
     if (!strncasecmp("video/", mime, 6)) {
         int32_t width, height;
-        CHECK(meta->findInt32(kKeyWidth, &width));
-        CHECK(meta->findInt32(kKeyHeight, &height));
+        if (!meta->findInt32(kKeyWidth, &width)
+                || !meta->findInt32(kKeyHeight, &height)) {
+            return BAD_VALUE;
+        }
 
         msg->setInt32("width", width);
         msg->setInt32("height", height);
@@ -155,8 +159,10 @@ status_t convertMetaDataToMessage(
         }
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
-        CHECK(meta->findInt32(kKeyChannelCount, &numChannels));
-        CHECK(meta->findInt32(kKeySampleRate, &sampleRate));
+        if (!meta->findInt32(kKeyChannelCount, &numChannels)
+                || !meta->findInt32(kKeySampleRate, &sampleRate)) {
+            return BAD_VALUE;
+        }
 
         msg->setInt32("channel-count", numChannels);
         msg->setInt32("sample-rate", sampleRate);
@@ -379,7 +385,9 @@ status_t convertMetaDataToMessage(
 
     } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
         ESDS esds((const char *)data, size);
-        CHECK_EQ(esds.InitCheck(), (status_t)OK);
+        if (esds.InitCheck() != (status_t)OK) {
+            return BAD_VALUE;
+        }
 
         const void *codec_specific_data;
         size_t codec_specific_data_size;
