@@ -197,17 +197,11 @@ const VolumeCurvePoint *Gains::sVolumeProfiles[AUDIO_STREAM_CNT]
 };
 
 //static
-float Gains::volIndexToDb(device_category deviceCategory,
-                          const StreamDescriptor& streamDesc,
-                          int indexInUi)
+float Gains::volIndexToDb(const VolumeCurvePoint *curve, int indexMin, int indexMax, int indexInUi)
 {
-    const VolumeCurvePoint *curve = streamDesc.getVolumeCurvePoint(deviceCategory);
-
     // the volume index in the UI is relative to the min and max volume indices for this stream type
-    int nbSteps = 1 + curve[Volume::VOLMAX].mIndex -
-            curve[Volume::VOLMIN].mIndex;
-    int volIdx = (nbSteps * (indexInUi - streamDesc.getVolumeIndexMin())) /
-            (streamDesc.getVolumeIndexMax() - streamDesc.getVolumeIndexMin());
+    int nbSteps = 1 + curve[Volume::VOLMAX].mIndex - curve[Volume::VOLMIN].mIndex;
+    int volIdx = (nbSteps * (indexInUi - indexMin)) / (indexMax - indexMin);
 
     // find what part of the curve this index volume belongs to, or if it's out of bounds
     int segment = 0;
@@ -240,16 +234,5 @@ float Gains::volIndexToDb(device_category deviceCategory,
 
     return decibels;
 }
-
-
-//static
-float Gains::volIndexToAmpl(device_category deviceCategory,
-                            const StreamDescriptor& streamDesc,
-                            int indexInUi)
-{
-    return Volume::DbToAmpl(volIndexToDb(deviceCategory, streamDesc, indexInUi));
-}
-
-
 
 }; // namespace android

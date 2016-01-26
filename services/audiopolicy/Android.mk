@@ -24,7 +24,7 @@ LOCAL_C_INCLUDES := \
     $(call include-path-for, audio-utils) \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
-    $(TOPDIR)frameworks/av/services/audiopolicy/utilities \
+    $(TOPDIR)frameworks/av/services/audiopolicy/utilities
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -56,8 +56,7 @@ ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
 
 include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES:= \
-    managerdefault/AudioPolicyManager.cpp \
+LOCAL_SRC_FILES:= managerdefault/AudioPolicyManager.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \
@@ -75,8 +74,7 @@ LOCAL_REQUIRED_MODULES := \
     parameter-framework.policy \
     audio_policy_criteria.conf \
 
-LOCAL_C_INCLUDES += \
-    $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include
+LOCAL_C_INCLUDES += $(TOPDIR)frameworks/av/services/audiopolicy/engineconfigurable/include
 
 LOCAL_SHARED_LIBRARIES += libaudiopolicyengineconfigurable
 
@@ -84,7 +82,7 @@ else
 
 LOCAL_SHARED_LIBRARIES += libaudiopolicyenginedefault
 
-endif
+endif # ifeq ($(USE_CONFIGURABLE_AUDIO_POLICY), 1)
 
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
@@ -122,7 +120,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
-    $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface \
+    $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface
 
 LOCAL_MODULE:= libaudiopolicymanager
 

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <IVolumeCurvesCollection.h>
 #include <AudioGain.h>
 #include <AudioPort.h>
 #include <AudioPatch.h>
@@ -25,7 +26,6 @@
 #include <AudioOutputDescriptor.h>
 #include <AudioPolicyMix.h>
 #include <SoundTriggerSession.h>
-#include <StreamDescriptor.h>
 
 namespace android {
 
@@ -51,7 +51,7 @@ public:
 
     virtual const DeviceVector &getAvailableInputDevices() const = 0;
 
-    virtual StreamDescriptorCollection &getStreamDescriptors() = 0;
+    virtual IVolumeCurvesCollection &getVolumeCurves() = 0;
 
     virtual const sp<DeviceDescriptor> &getDefaultOutputDevice() const = 0;
 

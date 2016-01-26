@@ -18,7 +18,6 @@
 
 #include "Element.h"
 #include "EngineDefinition.h"
-#include <Volume.h>
 #include <RoutingStrategy.h>
 #include <map>
 
@@ -32,17 +31,10 @@ namespace audio_policy
 template <>
 class Element<audio_stream_type_t>
 {
-private:
-    typedef std::map<device_category, VolumeCurvePoints> VolumeProfiles;
-    typedef VolumeProfiles::iterator VolumeProfileIterator;
-    typedef VolumeProfiles::const_iterator VolumeProfileConstIterator;
-
 public:
     Element(const std::string &name)
         : mName(name),
-          mApplicableStrategy(STRATEGY_MEDIA),
-          mIndexMin(0),
-          mIndexMax(1)
+          mApplicableStrategy(STRATEGY_MEDIA)
     {}
     ~Element() {}
 
@@ -79,12 +71,6 @@ public:
     template <typename Property>
     status_t set(Property property);
 
-    status_t setVolumeProfile(device_category category, const VolumeCurvePoints &points);
-
-    float volIndexToDb(device_category deviceCategory, int indexInUi);
-
-    status_t initVolume(int indexMin, int indexMax);
-
 private:
     /* Copy facilities are put private to disable copy. */
     Element(const Element &object);
@@ -95,16 +81,7 @@ private:
 
     routing_strategy mApplicableStrategy; /**< Applicable strategy for this stream. */
 
-    /**
-     * Collection of volume profiles indexed by the stream type.
-     * Volume is the only reason why the stream profile was not removed from policy when introducing
-     * attributes.
-     */
-    VolumeProfiles mVolumeProfiles;
-
-    int mIndexMin;
-
-    int mIndexMax;
+    audio_stream_type_t mVolumeProfile; /**< Volume Profile followed by this stream. */
 };
 
 typedef Element<audio_stream_type_t> Stream;

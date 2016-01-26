@@ -133,37 +133,6 @@ public:
     virtual status_t setDeviceConnectionState(const android::sp<android::DeviceDescriptor> devDesc,
                                               audio_policy_dev_state_t state) = 0;
 
-    /**
-     * Translate a volume index given by the UI to an amplification value in dB for a stream type
-     * and a device category.
-     *
-     * @param[in] deviceCategory for which the conversion is requested.
-     * @param[in] stream type for which the conversion is requested.
-     * @param[in] indexInUi index received from the UI to be translated.
-     *
-     * @return amplification value in dB matching the UI index for this given device and stream.
-     */
-    virtual float volIndexToDb(device_category deviceCategory, audio_stream_type_t stream,
-                                 int indexInUi) = 0;
-
-    /**
-     * Initialize the min / max index of volume applicable for a given stream type. These indexes
-     * will be used upon conversion of UI index to volume amplification.
-     *
-     * @param[in] stream type for which the indexes need to be set
-     * @param[in] indexMin Minimum index allowed for this stream.
-     * @param[in] indexMax Maximum index allowed for this stream.
-     */
-    virtual status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax) = 0;
-
-    /**
-     * Initialize volume curves for each strategy and device category
-     *
-     * @param[in] isSpeakerDrcEnabled true on devices that use DRC on the DEVICE_CATEGORY_SPEAKER
-                  path to boost soft sounds, used to adjust volume curves accordingly
-     */
-    virtual void initializeVolumeCurves(bool isSpeakerDrcEnabled) = 0;
-
 protected:
     virtual ~AudioPolicyManagerInterface() {}
 };

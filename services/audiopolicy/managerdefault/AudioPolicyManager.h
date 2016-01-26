@@ -33,7 +33,6 @@
 #include <AudioGain.h>
 #include <AudioPort.h>
 #include <AudioPatch.h>
-#include <ConfigParsingUtils.h>
 #include <DeviceDescriptor.h>
 #include <IOProfile.h>
 #include <HwModule.h>
@@ -42,8 +41,8 @@
 #include <AudioPolicyMix.h>
 #include <EffectDescriptor.h>
 #include <SoundTriggerSession.h>
-#include <StreamDescriptor.h>
 #include <SessionRoute.h>
+#include <VolumeCurve.h>
 
 namespace android {
 
@@ -272,10 +271,7 @@ protected:
         {
             return mAvailableInputDevices;
         }
-        virtual StreamDescriptorCollection &getStreamDescriptors()
-        {
-            return mStreams;
-        }
+        virtual IVolumeCurvesCollection &getVolumeCurves() { return *mVolumeCurves; }
         virtual const sp<DeviceDescriptor> &getDefaultOutputDevice() const
         {
             return mDefaultOutputDevice;
@@ -531,7 +527,8 @@ protected:
         SessionRouteMap mOutputRoutes = SessionRouteMap(SessionRouteMap::MAPTYPE_OUTPUT);
         SessionRouteMap mInputRoutes = SessionRouteMap(SessionRouteMap::MAPTYPE_INPUT);
 
-        StreamDescriptorCollection mStreams; // stream descriptors for volume control
+        IVolumeCurvesCollection *mVolumeCurves; // Volume Curves per use case and device category
+
         bool    mLimitRingtoneVolume;        // limit ringtone volume to music volume if headset connected
         audio_devices_t mDeviceForStrategy[NUM_STRATEGIES];
         float   mLastVoiceVolume;            // last voice volume value sent to audio HAL
@@ -539,9 +536,6 @@ protected:
         EffectDescriptorCollection mEffects;  // list of registered audio effects
         bool    mA2dpSuspended;  // true if A2DP output is suspended
         sp<DeviceDescriptor> mDefaultOutputDevice; // output device selected by default at boot time
-        bool mSpeakerDrcEnabled;// true on devices that use DRC on the DEVICE_CATEGORY_SPEAKER path
-                                // to boost soft sounds, used to adjust volume curves accordingly
-
         HwModuleCollection mHwModules;
 
         volatile int32_t mAudioPortGeneration;

@@ -60,13 +60,14 @@ static status_t deserializeCollection(_xmlDoc *doc, const _xmlNode *cur,
             root = root->next;
             continue;
         }
-        if (!xmlStrcmp(root->name, (const xmlChar *)Trait::collectionTag)) {
-            root = root->xmlChildrenNode;
+        const xmlNode *child = root;
+        if (!xmlStrcmp(child->name, (const xmlChar *)Trait::collectionTag)) {
+            child = child->xmlChildrenNode;
         }
-        while (root != NULL) {
-            if (!xmlStrcmp(root->name, (const xmlChar *)Trait::tag)) {
+        while (child != NULL) {
+            if (!xmlStrcmp(child->name, (const xmlChar *)Trait::tag)) {
                 typename Trait::PtrElement element;
-                status_t status = Trait::deserialize(doc, root, element, serializingContext);
+                status_t status = Trait::deserialize(doc, child, element, serializingContext);
                 if (status != NO_ERROR) {
                     return status;
                 }
@@ -75,12 +76,14 @@ static status_t deserializeCollection(_xmlDoc *doc, const _xmlNode *cur,
                           Trait::collectionTag);
                 }
             }
-            root = root->next;
+            child = child->next;
         }
-        return NO_ERROR;
+        if (!xmlStrcmp(root->name, (const xmlChar *)Trait::tag)) {
+            return NO_ERROR;
+        }
+        root = root->next;
     }
-    ALOGV("%s: No %s collection found", __FUNCTION__, Trait::collectionTag);
-    return BAD_VALUE;
+    return NO_ERROR;
 }
 
 const char *const AudioGainTraits::tag = "gain";
@@ -513,7 +516,8 @@ status_t VolumeTraits::deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElemen
               deviceCategoryLiteral.c_str());
         return BAD_VALUE;
     }
-    CurvePoints points;
+    element = new Element(deviceCategory, streamType);
+
     const xmlNode *child = root->xmlChildrenNode;
     while (child != NULL) {
         if (!xmlStrcmp(child->name, (const xmlChar *)volumePointTag)) {
@@ -529,15 +533,11 @@ status_t VolumeTraits::deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElemen
                       (const char*)pointDefinition);
                 return BAD_VALUE;
             }
-            points.add(std::make_pair(point[0], point[1]));
+            element->add(CurvePoint(point[0], point[1]));
             xmlFree(pointDefinition);
         }
         child = child->next;
     }
-    element = new Element();
-    element->setDeviceCategory(deviceCategory);
-    element->setStreamType(streamType);
-    element->setCurvePoints(points);
     return NO_ERROR;
 }
 
@@ -592,7 +592,8 @@ status_t PolicySerializer::deserialize(const char *configFile, AudioPolicyConfig
 
     // deserialize volume section
     VolumeTraits::Collection volumes;
-    deserializeCollection<VolumeTraits>(doc, cur, volumes, NULL);
+    deserializeCollection<VolumeTraits>(doc, cur, volumes, &config);
+    config.setVolumes(volumes);
 
     // Global Configuration
     GlobalConfigTraits::deserialize(cur, config);

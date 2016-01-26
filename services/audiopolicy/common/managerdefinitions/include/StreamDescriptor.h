@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <Volume.h>
+#include "IVolumeCurvesCollection.h"
 #include <utils/KeyedVector.h>
 #include <utils/StrongPointer.h>
 #include <utils/SortedVector.h>
@@ -58,28 +58,43 @@ private:
 /**
  * stream descriptors collection for volume control
  */
-class StreamDescriptorCollection : public DefaultKeyedVector<audio_stream_type_t, StreamDescriptor>
+class StreamDescriptorCollection : public DefaultKeyedVector<audio_stream_type_t, StreamDescriptor>,
+                                   public IVolumeCurvesCollection
 {
 public:
     StreamDescriptorCollection();
 
-    void clearCurrentVolumeIndex(audio_stream_type_t stream);
-    void addCurrentVolumeIndex(audio_stream_type_t stream, audio_devices_t device, int index);
+    virtual void clearCurrentVolumeIndex(audio_stream_type_t stream);
+    virtual void addCurrentVolumeIndex(audio_stream_type_t stream, audio_devices_t device,
+                                       int index);
+    virtual bool canBeMuted(audio_stream_type_t stream);
+    virtual int getVolumeIndexMin(audio_stream_type_t stream) const
+    {
+        return valueFor(stream).getVolumeIndexMin();
+    }
+    virtual int getVolumeIndex(audio_stream_type_t stream, audio_devices_t device)
+    {
+        return valueFor(stream).getVolumeIndex(device);
+    }
+    virtual int getVolumeIndexMax(audio_stream_type_t stream) const
+    {
+        return valueFor(stream).getVolumeIndexMax();
+    }
+    virtual float volIndexToDb(audio_stream_type_t stream, device_category device,
+                               int indexInUi) const;
+    virtual status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
+    virtual void initializeVolumeCurves(bool isSpeakerDrcEnabled);
+    virtual void switchVolumeCurve(audio_stream_type_t streamSrc, audio_stream_type_t streamDst);
 
-    bool canBeMuted(audio_stream_type_t stream);
+    virtual status_t dump(int fd) const;
 
-    status_t dump(int fd) const;
-
-    void setVolumeCurvePoint(audio_stream_type_t stream,
-                             device_category deviceCategory,
+private:
+    void setVolumeCurvePoint(audio_stream_type_t stream, device_category deviceCategory,
                              const VolumeCurvePoint *point);
-
     const VolumeCurvePoint *getVolumeCurvePoint(audio_stream_type_t stream,
                                                 device_category deviceCategory) const;
-
     void setVolumeIndexMin(audio_stream_type_t stream,int volIndexMin);
     void setVolumeIndexMax(audio_stream_type_t stream,int volIndexMax);
-
 };
 
 }; // namespace android

@@ -25,6 +25,7 @@
 #endif
 
 #include "StreamDescriptor.h"
+#include "Gains.h"
 #include <utils/Log.h>
 #include <utils/String8.h>
 
@@ -141,6 +142,65 @@ void StreamDescriptorCollection::setVolumeIndexMin(audio_stream_type_t stream,in
 void StreamDescriptorCollection::setVolumeIndexMax(audio_stream_type_t stream,int volIndexMax)
 {
     return editValueAt(stream).setVolumeIndexMax(volIndexMax);
+}
+
+float StreamDescriptorCollection::volIndexToDb(audio_stream_type_t stream, device_category category,
+                                               int indexInUi) const
+{
+    const StreamDescriptor &streamDesc = valueAt(stream);
+    return Gains::volIndexToDb(streamDesc.getVolumeCurvePoint(category),
+                               streamDesc.getVolumeIndexMin(), streamDesc.getVolumeIndexMax(),
+                               indexInUi);
+}
+
+status_t StreamDescriptorCollection::initStreamVolume(audio_stream_type_t stream,
+                                                      int indexMin, int indexMax)
+{
+    ALOGV("initStreamVolume() stream %d, min %d, max %d", stream , indexMin, indexMax);
+    if (indexMin < 0 || indexMin >= indexMax) {
+        ALOGW("initStreamVolume() invalid index limits for stream %d, min %d, max %d",
+              stream , indexMin, indexMax);
+        return BAD_VALUE;
+    }
+    setVolumeIndexMin(stream, indexMin);
+    setVolumeIndexMax(stream, indexMax);
+    return NO_ERROR;
+}
+
+void StreamDescriptorCollection::initializeVolumeCurves(bool isSpeakerDrcEnabled)
+{
+    for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
+        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
+            setVolumeCurvePoint(static_cast<audio_stream_type_t>(i),
+                                static_cast<device_category>(j),
+                                Gains::sVolumeProfiles[i][j]);
+        }
+    }
+
+    // Check availability of DRC on speaker path: if available, override some of the speaker curves
+    if (isSpeakerDrcEnabled) {
+        setVolumeCurvePoint(AUDIO_STREAM_SYSTEM, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sDefaultSystemVolumeCurveDrc);
+        setVolumeCurvePoint(AUDIO_STREAM_RING, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sSpeakerSonificationVolumeCurveDrc);
+        setVolumeCurvePoint(AUDIO_STREAM_ALARM, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sSpeakerSonificationVolumeCurveDrc);
+        setVolumeCurvePoint(AUDIO_STREAM_NOTIFICATION, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sSpeakerSonificationVolumeCurveDrc);
+        setVolumeCurvePoint(AUDIO_STREAM_MUSIC, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sSpeakerMediaVolumeCurveDrc);
+        setVolumeCurvePoint(AUDIO_STREAM_ACCESSIBILITY, DEVICE_CATEGORY_SPEAKER,
+                            Gains::sSpeakerMediaVolumeCurveDrc);
+    }
+}
+
+void StreamDescriptorCollection::switchVolumeCurve(audio_stream_type_t streamSrc,
+                                                   audio_stream_type_t streamDst)
+{
+    for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
+        setVolumeCurvePoint(streamDst, static_cast<device_category>(j),
+                            Gains::sVolumeProfiles[streamSrc][j]);
+    }
 }
 
 status_t StreamDescriptorCollection::dump(int fd) const

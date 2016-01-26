@@ -88,20 +88,6 @@ private:
         {
             return mPolicyEngine->setDeviceConnectionState(devDesc, state);
         }
-        virtual status_t initStreamVolume(audio_stream_type_t stream,
-                                                   int indexMin, int indexMax)
-        {
-            return mPolicyEngine->initStreamVolume(stream, indexMin, indexMax);
-        }
-
-        virtual void initializeVolumeCurves(bool /*isSpeakerDrcEnabled*/) {}
-
-        virtual float volIndexToDb(device_category deviceCategory,
-                                   audio_stream_type_t stream,
-                                   int indexInUi)
-        {
-            return mPolicyEngine->volIndexToDb(deviceCategory, stream, indexInUi);
-        }
 
     private:
         Engine *mPolicyEngine;
@@ -141,11 +127,7 @@ private:
                                                                                            stream);
         }
         virtual bool setVolumeProfileForStream(const audio_stream_type_t &stream,
-                                               device_category deviceCategory,
-                                               const VolumeCurvePoints &points)
-        {
-            return mPolicyEngine->setVolumeProfileForStream(stream, deviceCategory, points);
-        }
+                                               const audio_stream_type_t &volumeProfile);
 
         virtual bool setStrategyForUsage(const audio_usage_t &usage, routing_strategy strategy)
         {
@@ -181,9 +163,6 @@ private:
     audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage) const;
     status_t setDeviceConnectionState(const sp<DeviceDescriptor> devDesc,
                                       audio_policy_dev_state_t state);
-    float volIndexToDb(device_category category, audio_stream_type_t stream, int indexInUi);
-    status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
-
     StrategyCollection mStrategyCollection; /**< Strategies indexed by their enum id. */
     StreamCollection mStreamCollection; /**< Streams indexed by their enum id.  */
     UsageCollection mUsageCollection; /**< Usages indexed by their enum id. */

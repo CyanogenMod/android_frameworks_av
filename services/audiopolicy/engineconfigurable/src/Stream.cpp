@@ -62,91 +62,22 @@ routing_strategy Element<audio_stream_type_t>::get<routing_strategy>() const
     return mApplicableStrategy;
 }
 
-status_t Element<audio_stream_type_t>::setVolumeProfile(device_category category,
-                                                        const VolumeCurvePoints &points)
+template <>
+status_t Element<audio_stream_type_t>::set<audio_stream_type_t>(audio_stream_type_t volumeProfile)
 {
-    ALOGD("%s: adding volume profile for %s for device category %d, points nb =%zu", __FUNCTION__,
-          getName().c_str(), category, points.size());
-    mVolumeProfiles[category] = points;
-
-    for (size_t i = 0; i < points.size(); i++) {
-        ALOGV("%s: %s cat=%d curve index =%zu Index=%d dBAttenuation=%f",
-              __FUNCTION__, getName().c_str(), category, i, points[i].mIndex,
-             points[i].mDBAttenuation);
-    }
-    return NO_ERROR;
-}
-
-status_t Element<audio_stream_type_t>::initVolume(int indexMin, int indexMax)
-{
-    ALOGV("initStreamVolume() stream %s, min %d, max %d", getName().c_str(), indexMin, indexMax);
-    if (indexMin < 0 || indexMin >= indexMax) {
-        ALOGW("initStreamVolume() invalid index limits for stream %s, min %d, max %d",
-              getName().c_str(), indexMin, indexMax);
+    if (volumeProfile >= AUDIO_STREAM_CNT) {
         return BAD_VALUE;
     }
-    mIndexMin = indexMin;
-    mIndexMax = indexMax;
-
+    mVolumeProfile = volumeProfile;
+    ALOGD("%s: 0x%X for Stream %s", __FUNCTION__, mVolumeProfile, getName().c_str());
     return NO_ERROR;
 }
 
-float Element<audio_stream_type_t>::volIndexToDb(device_category deviceCategory, int indexInUi)
+template <>
+audio_stream_type_t Element<audio_stream_type_t>::get<audio_stream_type_t>() const
 {
-    VolumeProfileConstIterator it = mVolumeProfiles.find(deviceCategory);
-    if (it == mVolumeProfiles.end()) {
-        ALOGE("%s: device category %d not found for stream %s", __FUNCTION__, deviceCategory,
-              getName().c_str());
-        return 0.0f;
-    }
-    const VolumeCurvePoints curve = mVolumeProfiles[deviceCategory];
-    if (curve.size() != Volume::VOLCNT) {
-        ALOGE("%s: invalid profile for category %d and for stream %s", __FUNCTION__, deviceCategory,
-              getName().c_str());
-        return 0.0f;
-    }
-
-    // the volume index in the UI is relative to the min and max volume indices for this stream type
-    int nbSteps = 1 + curve[Volume::VOLMAX].mIndex -
-            curve[Volume::VOLMIN].mIndex;
-
-    if (mIndexMax - mIndexMin == 0) {
-        ALOGE("%s: Invalid volume indexes Min=Max=%d", __FUNCTION__, mIndexMin);
-        return 0.0f;
-    }
-    int volIdx = (nbSteps * (indexInUi - mIndexMin)) /
-            (mIndexMax - mIndexMin);
-
-    // find what part of the curve this index volume belongs to, or if it's out of bounds
-    int segment = 0;
-    if (volIdx < curve[Volume::VOLMIN].mIndex) {         // out of bounds
-        return VOLUME_MIN_DB;
-    } else if (volIdx < curve[Volume::VOLKNEE1].mIndex) {
-        segment = 0;
-    } else if (volIdx < curve[Volume::VOLKNEE2].mIndex) {
-        segment = 1;
-    } else if (volIdx <= curve[Volume::VOLMAX].mIndex) {
-        segment = 2;
-    } else {                                                               // out of bounds
-        return 0.0f;
-    }
-
-    // linear interpolation in the attenuation table in dB
-    float decibels = curve[segment].mDBAttenuation +
-            ((float)(volIdx - curve[segment].mIndex)) *
-                ( (curve[segment+1].mDBAttenuation -
-                        curve[segment].mDBAttenuation) /
-                    ((float)(curve[segment+1].mIndex -
-                            curve[segment].mIndex)) );
-
-    ALOGV("VOLUME vol index=[%d %d %d], dB=[%.1f %.1f %.1f]",
-            curve[segment].mIndex, volIdx,
-            curve[segment+1].mIndex,
-            curve[segment].mDBAttenuation,
-            decibels,
-            curve[segment+1].mDBAttenuation);
-
-    return decibels;
+    ALOGV("%s: 0x%X for Stream %s", __FUNCTION__, mVolumeProfile, getName().c_str());
+    return mVolumeProfile;
 }
 
 } // namespace audio_policy

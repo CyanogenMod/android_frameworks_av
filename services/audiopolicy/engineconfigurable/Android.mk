@@ -42,10 +42,7 @@ LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicypfwwrapper \
     libaudiopolicycomponents \
-
-ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
-LOCAL_STATIC_LIBRARIES += libxml2
-endif
+    libxml2
 
 LOCAL_SHARED_LIBRARIES := \
     libcutils \

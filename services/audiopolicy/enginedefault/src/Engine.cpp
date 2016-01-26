@@ -25,7 +25,6 @@
 #endif
 
 #include "Engine.h"
-#include "Gains.h"
 #include <AudioPolicyManagerObserver.h>
 #include <AudioPort.h>
 #include <IOProfile.h>
@@ -63,56 +62,6 @@ status_t Engine::initCheck()
     return (mApmObserver != NULL) ?  NO_ERROR : NO_INIT;
 }
 
-float Engine::volIndexToDb(device_category category, audio_stream_type_t streamType, int indexInUi)
-{
-    const StreamDescriptor &streamDesc = mApmObserver->getStreamDescriptors().valueAt(streamType);
-    return Gains::volIndexToDb(category, streamDesc, indexInUi);
-}
-
-
-status_t Engine::initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax)
-{
-    ALOGV("initStreamVolume() stream %d, min %d, max %d", stream , indexMin, indexMax);
-    if (indexMin < 0 || indexMin >= indexMax) {
-        ALOGW("initStreamVolume() invalid index limits for stream %d, min %d, max %d",
-              stream , indexMin, indexMax);
-        return BAD_VALUE;
-    }
-    mApmObserver->getStreamDescriptors().setVolumeIndexMin(stream, indexMin);
-    mApmObserver->getStreamDescriptors().setVolumeIndexMax(stream, indexMax);
-    return NO_ERROR;
-}
-
-void Engine::initializeVolumeCurves(bool isSpeakerDrcEnabled)
-{
-    StreamDescriptorCollection &streams = mApmObserver->getStreamDescriptors();
-
-    for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
-        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
-            streams.setVolumeCurvePoint(static_cast<audio_stream_type_t>(i),
-                                         static_cast<device_category>(j),
-                                         Gains::sVolumeProfiles[i][j]);
-        }
-    }
-
-    // Check availability of DRC on speaker path: if available, override some of the speaker curves
-    if (isSpeakerDrcEnabled) {
-        streams.setVolumeCurvePoint(AUDIO_STREAM_SYSTEM, DEVICE_CATEGORY_SPEAKER,
-                Gains::sDefaultSystemVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_RING, DEVICE_CATEGORY_SPEAKER,
-                Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_ALARM, DEVICE_CATEGORY_SPEAKER,
-                Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_NOTIFICATION, DEVICE_CATEGORY_SPEAKER,
-                Gains::sSpeakerSonificationVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_MUSIC, DEVICE_CATEGORY_SPEAKER,
-                Gains::sSpeakerMediaVolumeCurveDrc);
-        streams.setVolumeCurvePoint(AUDIO_STREAM_ACCESSIBILITY, DEVICE_CATEGORY_SPEAKER,
-                Gains::sSpeakerMediaVolumeCurveDrc);
-    }
-}
-
-
 status_t Engine::setPhoneState(audio_mode_t state)
 {
     ALOGV("setPhoneState() state %d", state);
@@ -130,20 +79,14 @@ status_t Engine::setPhoneState(audio_mode_t state)
     // store previous phone state for management of sonification strategy below
     int oldState = mPhoneState;
     mPhoneState = state;
-    StreamDescriptorCollection &streams = mApmObserver->getStreamDescriptors();
-    // are we entering or starting a call
+
     if (!is_state_in_call(oldState) && is_state_in_call(state)) {
         ALOGV("  Entering call in setPhoneState()");
-        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
-            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<device_category>(j),
-                                         Gains::sVolumeProfiles[AUDIO_STREAM_VOICE_CALL][j]);
-        }
+        mApmObserver->getVolumeCurves().switchVolumeCurve(AUDIO_STREAM_VOICE_CALL,
+                                                          AUDIO_STREAM_DTMF);
     } else if (is_state_in_call(oldState) && !is_state_in_call(state)) {
         ALOGV("  Exiting call in setPhoneState()");
-        for (int j = 0; j < DEVICE_CATEGORY_CNT; j++) {
-            streams.setVolumeCurvePoint(AUDIO_STREAM_DTMF, static_cast<device_category>(j),
-                                         Gains::sVolumeProfiles[AUDIO_STREAM_DTMF][j]);
-        }
+        mApmObserver->getVolumeCurves().restoreOriginVolumeCurve(AUDIO_STREAM_DTMF);
     }
     return NO_ERROR;
 }

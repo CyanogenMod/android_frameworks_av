@@ -18,7 +18,6 @@
 
 
 #include "AudioPolicyManagerInterface.h"
-#include "Gains.h"
 #include <AudioGain.h>
 #include <policy.h>
 
@@ -93,19 +92,6 @@ private:
         {
             return NO_ERROR;
         }
-        virtual status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax)
-        {
-            return mPolicyEngine->initStreamVolume(stream, indexMin, indexMax);
-        }
-        virtual void initializeVolumeCurves(bool isSpeakerDrcEnabled)
-        {
-            return mPolicyEngine->initializeVolumeCurves(isSpeakerDrcEnabled);
-        }
-        virtual float volIndexToDb(device_category deviceCategory,
-                                   audio_stream_type_t stream, int indexInUi)
-        {
-            return mPolicyEngine->volIndexToDb(deviceCategory, stream, indexInUi);
-        }
     private:
         Engine *mPolicyEngine;
     } mManagerInterface;
@@ -140,11 +126,6 @@ private:
     routing_strategy getStrategyForUsage(audio_usage_t usage);
     audio_devices_t getDeviceForStrategy(routing_strategy strategy) const;
     audio_devices_t getDeviceForInputSource(audio_source_t inputSource) const;
-
-    float volIndexToDb(device_category category, audio_stream_type_t stream, int indexInUi);
-    status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
-    void initializeVolumeCurves(bool isSpeakerDrcEnabled);
-
     audio_mode_t mPhoneState;  /**< current phone state. */
 
     /** current forced use configuration. */

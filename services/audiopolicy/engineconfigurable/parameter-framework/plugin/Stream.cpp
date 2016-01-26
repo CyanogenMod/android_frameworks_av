@@ -24,15 +24,10 @@ using android::routing_strategy;
 Stream::Stream(const string &mappingValue,
                    CInstanceConfigurableElement *instanceConfigurableElement,
                    const CMappingContext &context)
-    : CFormattedSubsystemObject(instanceConfigurableElement,
-                                mappingValue,
-                                MappingKeyAmend1,
-                                (MappingKeyAmendEnd - MappingKeyAmend1 + 1),
-                                context),
+    : CSubsystemObject(instanceConfigurableElement),
       mPolicySubsystem(static_cast<const PolicySubsystem *>(
                            instanceConfigurableElement->getBelongingSubsystem())),
-      mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface()),
-      mApplicableStrategy(mDefaultApplicableStrategy)
+      mPolicyPluginInterface(mPolicySubsystem->getPolicyPluginInterface())
 {
     mId = static_cast<audio_stream_type_t>(context.getItemAsInteger(MappingKeyIdentifier));
 
@@ -40,17 +35,17 @@ Stream::Stream(const string &mappingValue,
     mPolicyPluginInterface->addStream(getFormattedMappingValue(), mId);
 }
 
-bool Stream::receiveFromHW(string & /*error*/)
-{
-    blackboardWrite(&mApplicableStrategy, sizeof(mApplicableStrategy));
-    return true;
-}
-
 bool Stream::sendToHW(string & /*error*/)
 {
-    uint32_t applicableStrategy;
-    blackboardRead(&applicableStrategy, sizeof(applicableStrategy));
-    mApplicableStrategy = applicableStrategy;
-    return mPolicyPluginInterface->setStrategyForStream(mId,
-                                              static_cast<routing_strategy>(mApplicableStrategy));
+    Applicable params;
+    blackboardRead(&params, sizeof(params));
+
+    mPolicyPluginInterface->setStrategyForStream(mId,
+                                                 static_cast<routing_strategy>(params.strategy));
+
+    mPolicyPluginInterface->setVolumeProfileForStream(mId,
+                                                      static_cast<audio_stream_type_t>(params.volumeProfile));
+
+    return true;
+
 }

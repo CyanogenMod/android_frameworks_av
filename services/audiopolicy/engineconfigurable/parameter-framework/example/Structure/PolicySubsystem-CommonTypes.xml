@@ -6,8 +6,6 @@
     profile. It must match with the output device enum parameter.
     -->
      <!--#################### GLOBAL COMPONENTS BEGIN ####################-->
-     <!-- Common Types defintion -->
-     <xi:include href="PolicySubsystem-Volume.xml"/>
 
      <!--#################### GLOBAL COMPONENTS END ####################-->
 
@@ -142,10 +140,28 @@
 
     <!--#################### STREAM COMMON TYPES BEGIN ####################-->
 
+    <ComponentType Name="VolumeProfileType">
+        <EnumParameter Name="volume_profile" Size="32">
+            <ValuePair Literal="voice_call" Numerical="0"/>
+            <ValuePair Literal="system" Numerical="1"/>
+            <ValuePair Literal="ring" Numerical="2"/>
+            <ValuePair Literal="music" Numerical="3"/>
+            <ValuePair Literal="alarm" Numerical="4"/>
+            <ValuePair Literal="notification" Numerical="5"/>
+            <ValuePair Literal="bluetooth_sco" Numerical="6"/>
+            <ValuePair Literal="enforced_audible" Numerical="7"/>
+            <ValuePair Literal="dtmf" Numerical="8"/>
+            <ValuePair Literal="tts" Numerical="9"/>
+            <ValuePair Literal="accessibility" Numerical="10"/>
+            <ValuePair Literal="rerouting" Numerical="11"/>
+            <ValuePair Literal="patch" Numerical="12"/>
+        </EnumParameter>
+    </ComponentType>
+
     <ComponentType Name="Stream">
-        <Component Name="applicable_strategy" Type="Strategy" Mapping="Stream:'%1'"/>
-        <Component Name="volume_profiles" Type="VolumeCurvesCategories"
-                   Description="A volume profile is refered by the stream type."/>
+        <Component Name="applicable_strategy" Type="Strategy"/>
+        <Component Name="applicable_volume_profile" Type="VolumeProfileType"
+                   Description="Volume profile followed by a given stream type."/>
     </ComponentType>
 
     <!--#################### STREAM COMMON TYPES END ####################-->

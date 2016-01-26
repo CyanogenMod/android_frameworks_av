@@ -61,14 +61,6 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/parameter-framework/Structure/Policy
 LOCAL_SRC_FILES := Structure/$(LOCAL_MODULE)
 include $(BUILD_PREBUILT)
 
-include $(CLEAR_VARS)
-LOCAL_MODULE := PolicySubsystem-Volume.xml
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT_ETC)/parameter-framework/Structure/Policy
-LOCAL_SRC_FILES := Structure/$(LOCAL_MODULE)
-include $(BUILD_PREBUILT)
-
 ######### Policy PFW Settings #########
 include $(CLEAR_VARS)
 LOCAL_MODULE := parameter-framework.policy
