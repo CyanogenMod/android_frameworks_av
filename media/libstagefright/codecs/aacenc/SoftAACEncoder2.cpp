@@ -20,9 +20,11 @@
 
 #include "SoftAACEncoder2.h"
 #include <OMX_AudioExt.h>
+#include <OMX_IndexExt.h>
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/hexdump.h>
+#include <utils/misc.h>
 
 namespace android {
 
@@ -34,6 +36,14 @@ static void InitOMXParams(T *params) {
     params->nVersion.s.nRevision = 0;
     params->nVersion.s.nStep = 0;
 }
+
+static const OMX_U32 kSupportedProfiles[] = {
+    OMX_AUDIO_AACObjectLC,
+    OMX_AUDIO_AACObjectHE,
+    OMX_AUDIO_AACObjectHE_PS,
+    OMX_AUDIO_AACObjectLD,
+    OMX_AUDIO_AACObjectELD,
+};
 
 SoftAACEncoder2::SoftAACEncoder2(
         const char *name,
@@ -117,7 +127,7 @@ status_t SoftAACEncoder2::initEncoder() {
 
 OMX_ERRORTYPE SoftAACEncoder2::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
-    switch (index) {
+    switch ((OMX_U32) index) {
         case OMX_IndexParamAudioPortFormat:
         {
             OMX_AUDIO_PARAM_PORTFORMATTYPE *formatParams =
@@ -216,6 +226,25 @@ OMX_ERRORTYPE SoftAACEncoder2::internalGetParameter(
 
             pcmParams->nChannels = mNumChannels;
             pcmParams->nSamplingRate = mSampleRate;
+
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexParamAudioProfileQuerySupported:
+        {
+            OMX_AUDIO_PARAM_ANDROID_PROFILETYPE *profileParams =
+                (OMX_AUDIO_PARAM_ANDROID_PROFILETYPE *)params;
+
+            if (profileParams->nPortIndex != 1) {
+                return OMX_ErrorUndefined;
+            }
+
+            if (profileParams->nProfileIndex >= NELEM(kSupportedProfiles)) {
+                return OMX_ErrorNoMore;
+            }
+
+            profileParams->eProfile =
+                kSupportedProfiles[profileParams->nProfileIndex];
 
             return OMX_ErrorNone;
         }

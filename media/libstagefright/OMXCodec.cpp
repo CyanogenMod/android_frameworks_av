@@ -4330,7 +4330,6 @@ status_t QueryCodec(
     caps->mFlags = 0;
     caps->mComponentName = componentName;
 
-    // NOTE: OMX does not provide a way to query AAC profile support
     if (isVideo) {
         OMX_VIDEO_PARAM_PROFILELEVELTYPE param;
         InitOMXParams(&param);
@@ -4383,6 +4382,33 @@ status_t QueryCodec(
                 }
             }
             caps->mColorFormats.push(portFormat.eColorFormat);
+        }
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
+        // More audio codecs if they have profiles.
+        OMX_AUDIO_PARAM_ANDROID_PROFILETYPE param;
+        InitOMXParams(&param);
+        param.nPortIndex = isEncoder ? 1 : 0;
+        for (param.nProfileIndex = 0;; ++param.nProfileIndex) {
+            err = omx->getParameter(
+                    node, (OMX_INDEXTYPE)OMX_IndexParamAudioProfileQuerySupported,
+                    &param, sizeof(param));
+
+            if (err != OK) {
+                break;
+            }
+
+            CodecProfileLevel profileLevel;
+            profileLevel.mProfile = param.eProfile;
+            // For audio, level is ignored.
+            profileLevel.mLevel = 0;
+
+            caps->mProfileLevels.push(profileLevel);
+        }
+
+        // NOTE: Without Android extensions, OMX does not provide a way to query
+        // AAC profile support
+        if (param.nProfileIndex == 0) {
+            ALOGW("component %s doesn't support profile query.", componentName);
         }
     }
 
