@@ -362,11 +362,12 @@ status_t Camera3BufferManager::removeBuffersFromBufferListLocked(BufferList& buf
     while (i != bufferList.end()) {
         ssize_t idx = i->indexOfKey(streamId);
         if (idx != NAME_NOT_FOUND) {
+            ALOGV("%s: Remove a buffer for stream %d, free buffer total count: %zu",
+                    __FUNCTION__, streamId, bufferList.size());
             i->removeItem(streamId);
             if (i->isEmpty()) {
                 i = bufferList.erase(i);
             }
-            break;
         } else {
             i++;
         }
