@@ -17,6 +17,7 @@
 #define _ACAMERA_METADATA_H
 
 #include <sys/types.h>
+#include <utils/RefBase.h>
 #include <camera/CameraMetadata.h>
 
 #include "NdkCameraMetadata.h"
@@ -27,7 +28,7 @@ using namespace android;
  * ACameraMetadata opaque struct definition
  * Leave outside of android namespace because it's NDK struct
  */
-struct ACameraMetadata {
+struct ACameraMetadata : public RefBase {
   public:
     typedef enum {
         ACM_CHARACTERISTICS, // Read only
@@ -50,7 +51,6 @@ struct ACameraMetadata {
     camera_status_t update(uint32_t tag, uint32_t count, const int64_t* data);
     camera_status_t update(uint32_t tag, uint32_t count, const ACameraMetadata_rational* data);
 
-  private:
     bool isNdkSupportedCapability(const int32_t capability);
     inline bool isVendorTag(const uint32_t tag);
     bool isCaptureRequestTag(const uint32_t tag);

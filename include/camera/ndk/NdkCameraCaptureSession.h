@@ -39,27 +39,32 @@ typedef void (*ACameraCaptureSession_stateCallback)(void* context, ACameraCaptur
 
 typedef struct ACameraCaptureSession_stateCallbacks {
     void*                               context;
-    ACameraCaptureSession_stateCallback onConfigured;
-    ACameraCaptureSession_stateCallback onConfigureFailed;
-    ACameraCaptureSession_stateCallback onClosed;
+    ACameraCaptureSession_stateCallback onClosed; // session is unusable after this callback
     ACameraCaptureSession_stateCallback onReady;
     ACameraCaptureSession_stateCallback onActive;
 } ACameraCaptureSession_stateCallbacks;
 
+enum {
+    CAPTURE_FAILURE_REASON_FLUSHED = 0,
+    CAPTURE_FAILURE_REASON_ERROR
+};
+
 typedef struct ACameraCaptureFailure {
-    uint32_t frameNumber;
-    int      reason;
-    int      sequenceId;
-    int      wasImageCaptured;
+    int64_t frameNumber;
+    int     reason;
+    int     sequenceId;
+    bool    wasImageCaptured;
 } ACameraCaptureFailure;
 
+/* Note that the ACaptureRequest* in the callback will be different to what app has submitted,
+   but the contents will still be the same as what app submitted */
 typedef void (*ACameraCaptureSession_captureCallback_start)(
         void* context, ACameraCaptureSession* session,
-        ACaptureRequest* request, long timestamp);
+        const ACaptureRequest* request, int64_t timestamp);
 
 typedef void (*ACameraCaptureSession_captureCallback_result)(
         void* context, ACameraCaptureSession* session,
-        ACaptureRequest* request, ACameraMetadata* result);
+        ACaptureRequest* request, const ACameraMetadata* result);
 
 typedef void (*ACameraCaptureSession_captureCallback_failed)(
         void* context, ACameraCaptureSession* session,
@@ -67,22 +72,30 @@ typedef void (*ACameraCaptureSession_captureCallback_failed)(
 
 typedef void (*ACameraCaptureSession_captureCallback_sequenceEnd)(
         void* context, ACameraCaptureSession* session,
-        int sequenceId, long frameNumber);
+        int sequenceId, int64_t frameNumber);
+
+typedef void (*ACameraCaptureSession_captureCallback_sequenceAbort)(
+        void* context, ACameraCaptureSession* session,
+        int sequenceId);
 
 typedef struct ACameraCaptureSession_captureCallbacks {
     void*                                             context;
-    ACameraCaptureSession_captureCallback_start       onCaptureStarted;
-    ACameraCaptureSession_captureCallback_result      onCaptureProgressed;
-    ACameraCaptureSession_captureCallback_result      onCaptureCompleted;
-    ACameraCaptureSession_captureCallback_failed      onCaptureFailed;
-    ACameraCaptureSession_captureCallback_sequenceEnd onCaptureSequenceCompleted;
-    ACameraCaptureSession_captureCallback_sequenceEnd onCaptureSequenceAborted;
+    ACameraCaptureSession_captureCallback_start         onCaptureStarted;
+    ACameraCaptureSession_captureCallback_result        onCaptureProgressed;
+    ACameraCaptureSession_captureCallback_result        onCaptureCompleted;
+    ACameraCaptureSession_captureCallback_failed        onCaptureFailed;
+    ACameraCaptureSession_captureCallback_sequenceEnd   onCaptureSequenceCompleted;
+    ACameraCaptureSession_captureCallback_sequenceAbort onCaptureSequenceAborted;
 } ACameraCaptureSession_captureCallbacks;
+
+enum {
+    CAPTURE_SEQUENCE_ID_NONE = -1
+};
 
 /*
  * Close capture session
  */
-camera_status_t ACameraCaptureSession_close(ACameraCaptureSession*);
+void ACameraCaptureSession_close(ACameraCaptureSession*);
 
 struct ACameraDevice;
 typedef struct ACameraDevice ACameraDevice;
@@ -98,14 +111,16 @@ camera_status_t ACameraCaptureSession_getDevice(
  */
 camera_status_t ACameraCaptureSession_capture(
         ACameraCaptureSession*, /*optional*/ACameraCaptureSession_captureCallbacks*,
-        int numRequests, const ACaptureRequest* requests);
+        int numRequests, ACaptureRequest** requests,
+        /*optional*/int* captureSequenceId);
 
 /**
  * Send repeating capture request(s)
  */
 camera_status_t ACameraCaptureSession_setRepeatingRequest(
         ACameraCaptureSession*, /*optional*/ACameraCaptureSession_captureCallbacks*,
-        int numRequests, const ACaptureRequest* requests);
+        int numRequests, ACaptureRequest** requests,
+        /*optional*/int* captureSequenceId);
 
 /**
  * Stop repeating capture request(s)

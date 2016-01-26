@@ -22,7 +22,7 @@
 #include <utils/Trace.h>
 
 #include <NdkCameraDevice.h>
-#include "impl/ACameraDevice.h"
+#include "impl/ACameraCaptureSession.h"
 
 using namespace android;
 
@@ -54,7 +54,7 @@ camera_status_t ACameraDevice_createCaptureRequest(
         ACaptureRequest** request) {
     ATRACE_CALL();
     if (device == nullptr || request == nullptr) {
-        ALOGE("%s: invalid argument! device 0x%p request 0x%p",
+        ALOGE("%s: invalid argument! device %p request %p",
                 __FUNCTION__, device, request);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -73,53 +73,89 @@ camera_status_t ACameraDevice_createCaptureRequest(
     return device->createCaptureRequest(templateId, request);
 }
 
-struct ACaptureSessionOutputContainer;
-
-struct ACaptureSessionOutput;
-
 EXPORT
-camera_status_t ACaptureSessionOutputContainer_create(/*out*/ACaptureSessionOutputContainer**) {
+camera_status_t ACaptureSessionOutputContainer_create(
+        /*out*/ACaptureSessionOutputContainer** out) {
     ATRACE_CALL();
+    if (out == nullptr) {
+        ALOGE("%s: Error: out null", __FUNCTION__);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    *out = new ACaptureSessionOutputContainer();
     return ACAMERA_OK;
 }
 
 EXPORT
-void ACaptureSessionOutputContainer_free(ACaptureSessionOutputContainer*) {
+void ACaptureSessionOutputContainer_free(ACaptureSessionOutputContainer* container) {
     ATRACE_CALL();
+    if (container != nullptr) {
+        delete container;
+    }
     return;
 }
 
 EXPORT
-camera_status_t ACaptureSessionOutput_create(ANativeWindow*, /*out*/ACaptureSessionOutput**) {
+camera_status_t ACaptureSessionOutput_create(
+        ANativeWindow* window, /*out*/ACaptureSessionOutput** out) {
     ATRACE_CALL();
+    if (window == nullptr || out == nullptr) {
+        ALOGE("%s: Error: bad argument. window %p, out %p",
+                __FUNCTION__, window, out);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    *out = new ACaptureSessionOutput(window);
     return ACAMERA_OK;
 }
 
 EXPORT
-void ACaptureSessionOutput_free(ACaptureSessionOutput*) {
+void ACaptureSessionOutput_free(ACaptureSessionOutput* output) {
     ATRACE_CALL();
+    if (output != nullptr) {
+        delete output;
+    }
     return;
 }
 
 EXPORT
 camera_status_t ACaptureSessionOutputContainer_add(
-        ACaptureSessionOutputContainer*, const ACaptureSessionOutput*) {
+        ACaptureSessionOutputContainer* container, const ACaptureSessionOutput* output) {
     ATRACE_CALL();
+    if (container == nullptr || output == nullptr) {
+        ALOGE("%s: Error: invalid input: container %p, output %p",
+                __FUNCTION__, container, output);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    auto pair = container->mOutputs.insert(*output);
+    if (!pair.second) {
+        ALOGW("%s: output %p already exists!", __FUNCTION__, output);
+    }
     return ACAMERA_OK;
 }
 
 EXPORT
 camera_status_t ACaptureSessionOutputContainer_remove(
-        ACaptureSessionOutputContainer*, const ACaptureSessionOutput*) {
+        ACaptureSessionOutputContainer* container, const ACaptureSessionOutput* output) {
     ATRACE_CALL();
+    if (container == nullptr || output == nullptr) {
+        ALOGE("%s: Error: invalid input: container %p, output %p",
+                __FUNCTION__, container, output);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    container->mOutputs.erase(*output);
     return ACAMERA_OK;
 }
 
 EXPORT
 camera_status_t ACameraDevice_createCaptureSession(
-        ACameraDevice*,
+        ACameraDevice* device,
         const ACaptureSessionOutputContainer*       outputs,
-        const ACameraCaptureSession_stateCallbacks* callbacks) {
+        const ACameraCaptureSession_stateCallbacks* callbacks,
+        /*out*/ACameraCaptureSession** session) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (device == nullptr || outputs == nullptr || callbacks == nullptr || session == nullptr) {
+        ALOGE("%s: Error: invalid input: device %p, outputs %p, callbacks %p, session %p",
+                __FUNCTION__, device, outputs, callbacks, session);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    return device->createCaptureSession(outputs, callbacks, session);
 }

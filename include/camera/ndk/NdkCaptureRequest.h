@@ -42,11 +42,12 @@ typedef struct ACameraOutputTarget ACameraOutputTarget;
 
 typedef struct ACaptureRequest ACaptureRequest;
 
-camera_status_t ACameraOutputTarget_create(ANativeWindow*);
+camera_status_t ACameraOutputTarget_create(ANativeWindow* window, ACameraOutputTarget** out);
 void ACameraOutputTarget_free(ACameraOutputTarget*);
 
 camera_status_t ACaptureRequest_addTarget(ACaptureRequest*, const ACameraOutputTarget*);
 camera_status_t ACaptureRequest_removeTarget(ACaptureRequest*, const ACameraOutputTarget*);
+//TODO: do we need API to query added targets?
 
 /*
  * Get a metadata entry

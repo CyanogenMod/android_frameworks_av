@@ -31,7 +31,7 @@ camera_status_t ACameraMetadata_getConstEntry(
         const ACameraMetadata* acm, uint32_t tag, ACameraMetadata_const_entry* entry) {
     ATRACE_CALL();
     if (acm == nullptr || entry == nullptr) {
-        ALOGE("%s: invalid argument! metadata 0x%p, tag 0x%x, entry 0x%p",
+        ALOGE("%s: invalid argument! metadata %p, tag 0x%x, entry %p",
                __FUNCTION__, acm, tag, entry);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }

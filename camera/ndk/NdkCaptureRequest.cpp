@@ -51,13 +51,13 @@ camera_status_t ACaptureRequest_addTarget(
         ACaptureRequest* req, const ACameraOutputTarget* target) {
     ATRACE_CALL();
     if (req == nullptr || req->targets == nullptr || target == nullptr) {
-        ALOGE("%s: Error: invalid input: req 0x%p, req-targets 0x%p, target 0x%p",
+        ALOGE("%s: Error: invalid input: req %p, req-targets %p, target %p",
                 __FUNCTION__, req, req->targets, target);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
     auto pair = req->targets->mOutputs.insert(*target);
     if (!pair.second) {
-        ALOGW("%s: target 0x%p already exists!", __FUNCTION__, target);
+        ALOGW("%s: target %p already exists!", __FUNCTION__, target);
     }
     return ACAMERA_OK;
 }
@@ -67,7 +67,7 @@ camera_status_t ACaptureRequest_removeTarget(
         ACaptureRequest* req, const ACameraOutputTarget* target) {
     ATRACE_CALL();
     if (req == nullptr || req->targets == nullptr || target == nullptr) {
-        ALOGE("%s: Error: invalid input: req 0x%p, req-targets 0x%p, target 0x%p",
+        ALOGE("%s: Error: invalid input: req %p, req-targets %p, target %p",
                 __FUNCTION__, req, req->targets, target);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }

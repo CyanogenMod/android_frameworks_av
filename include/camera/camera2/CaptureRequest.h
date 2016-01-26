@@ -25,7 +25,7 @@ namespace android {
 
 class Surface;
 
-struct CaptureRequest : public virtual RefBase {
+struct CaptureRequest : public RefBase {
 public:
 
     CameraMetadata          mMetadata;

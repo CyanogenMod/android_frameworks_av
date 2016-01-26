@@ -24,43 +24,101 @@
 #include <utils/Trace.h>
 
 #include "NdkCameraDevice.h"
+#include <NdkCaptureRequest.h>
+#include <NdkCameraCaptureSession.h>
+#include "impl/ACameraCaptureSession.h"
 
 using namespace android;
 
 EXPORT
-camera_status_t ACameraCaptureSession_close(ACameraCaptureSession*) {
+void ACameraCaptureSession_close(ACameraCaptureSession* session) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (session != nullptr) {
+        session->closeByApp();
+    }
+    return;
 }
 
 EXPORT
 camera_status_t ACameraCaptureSession_getDevice(
-        ACameraCaptureSession*, ACameraDevice **device) {
+        ACameraCaptureSession* session, ACameraDevice **device) {
     ATRACE_CALL();
-    // Make sure don't do return garbage if device has been closed
+    if (session == nullptr || device == nullptr) {
+        ALOGE("%s: Error: invalid input: session %p, device %p",
+                __FUNCTION__, session, device);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+
+    if (session->isClosed()) {
+        ALOGE("%s: session %p is already closed", __FUNCTION__, session);
+        *device = nullptr;
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+
+    *device = session->getDevice();
+    if (*device == nullptr) {
+        // Should not reach here
+        ALOGE("%s: unknown failure: device is null", __FUNCTION__);
+        return ACAMERA_ERROR_UNKNOWN;
+    }
     return ACAMERA_OK;
 }
 
 EXPORT
 camera_status_t ACameraCaptureSession_capture(
-        ACameraCaptureSession*, /*optional*/ACameraCaptureSession_captureCallbacks*,
-        int numRequests, const ACaptureRequest* requests) {
+        ACameraCaptureSession* session, /*optional*/ACameraCaptureSession_captureCallbacks* cbs,
+        int numRequests, ACaptureRequest** requests,
+        /*optional*/int* captureSequenceId) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (session == nullptr || requests == nullptr || numRequests < 1) {
+        ALOGE("%s: Error: invalid input: session %p, numRequest %d, requests %p",
+                __FUNCTION__, session, numRequests, requests);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+
+    if (session->isClosed()) {
+        ALOGE("%s: session %p is already closed", __FUNCTION__, session);
+        *captureSequenceId = CAPTURE_SEQUENCE_ID_NONE;
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+
+    return session->capture(cbs, numRequests, requests, captureSequenceId);
 }
 
 EXPORT
 camera_status_t ACameraCaptureSession_setRepeatingRequest(
-        ACameraCaptureSession*, /*optional*/ACameraCaptureSession_captureCallbacks*,
-        int numRequests, const ACaptureRequest* requests) {
+        ACameraCaptureSession* session, /*optional*/ACameraCaptureSession_captureCallbacks* cbs,
+        int numRequests, ACaptureRequest** requests,
+        /*optional*/int* captureSequenceId) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (session == nullptr || requests == nullptr || numRequests < 1) {
+        ALOGE("%s: Error: invalid input: session %p, numRequest %d, requests %p",
+                __FUNCTION__, session, numRequests, requests);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+
+    if (session->isClosed()) {
+        ALOGE("%s: session %p is already closed", __FUNCTION__, session);
+        *captureSequenceId = CAPTURE_SEQUENCE_ID_NONE;
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+
+    return session->setRepeatingRequest(cbs, numRequests, requests, captureSequenceId);
 }
 
 EXPORT
-camera_status_t ACameraCaptureSession_stopRepeating(ACameraCaptureSession*) {
+camera_status_t ACameraCaptureSession_stopRepeating(ACameraCaptureSession* session) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (session == nullptr) {
+        ALOGE("%s: Error: session is null", __FUNCTION__);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+
+    if (session->isClosed()) {
+        ALOGE("%s: session %p is already closed", __FUNCTION__, session);
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+    return session->stopRepeating();
 }
 
 EXPORT
