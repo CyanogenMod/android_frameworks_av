@@ -19,6 +19,8 @@
 
 #include "ACameraMetadata.h"
 #include <utils/Vector.h>
+#include <system/graphics.h>
+#include "NdkImage.h"
 
 using namespace android;
 
@@ -29,6 +31,7 @@ ACameraMetadata::ACameraMetadata(camera_metadata_t* buffer, ACAMERA_METADATA_TYP
         mData(buffer), mType(type) {
     if (mType == ACM_CHARACTERISTICS) {
         filterUnsupportedFeatures();
+        filterStreamConfigurations();
     }
     // TODO: filter request/result keys
 }
@@ -60,7 +63,7 @@ void
 ACameraMetadata::filterUnsupportedFeatures() {
     // Hide unsupported capabilities (reprocessing)
     camera_metadata_entry entry = mData.find(ANDROID_REQUEST_AVAILABLE_CAPABILITIES);
-    if (entry.count == 0 || entry.type != ACAMERA_TYPE_BYTE) {
+    if (entry.count == 0 || entry.type != TYPE_BYTE) {
         ALOGE("%s: malformed available capability key! count %zu, type %d",
                 __FUNCTION__, entry.count, entry.type);
         return;
@@ -75,7 +78,73 @@ ACameraMetadata::filterUnsupportedFeatures() {
         }
     }
     mData.update(ANDROID_REQUEST_AVAILABLE_CAPABILITIES, capabilities);
-    // TODO: Hide unsupported streams (input/bidirectional streams)
+}
+
+
+void
+ACameraMetadata::filterStreamConfigurations() {
+    const int STREAM_CONFIGURATION_SIZE = 4;
+    const int STREAM_FORMAT_OFFSET = 0;
+    const int STREAM_WIDTH_OFFSET = 1;
+    const int STREAM_HEIGHT_OFFSET = 2;
+    const int STREAM_IS_INPUT_OFFSET = 3;
+    camera_metadata_entry entry = mData.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+    if (entry.count == 0 || entry.count % 4 || entry.type != TYPE_INT32) {
+        ALOGE("%s: malformed available stream configuration key! count %zu, type %d",
+                __FUNCTION__, entry.count, entry.type);
+        return;
+    }
+
+    Vector<int32_t> filteredStreamConfigs;
+    filteredStreamConfigs.setCapacity(entry.count);
+
+    for (size_t i=0; i < entry.count; i += STREAM_CONFIGURATION_SIZE) {
+        int32_t format = entry.data.i32[i + STREAM_FORMAT_OFFSET];
+        int32_t width = entry.data.i32[i + STREAM_WIDTH_OFFSET];
+        int32_t height = entry.data.i32[i + STREAM_HEIGHT_OFFSET];
+        int32_t isInput = entry.data.i32[i + STREAM_IS_INPUT_OFFSET];
+        if (isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT) {
+            // Hide input streams
+            continue;
+        }
+        // Translate HAL formats to NDK format
+        if (format == HAL_PIXEL_FORMAT_BLOB) {
+            format = AIMAGE_FORMAT_JPEG;
+        }
+        filteredStreamConfigs.push_back(format);
+        filteredStreamConfigs.push_back(width);
+        filteredStreamConfigs.push_back(height);
+        filteredStreamConfigs.push_back(isInput);
+    }
+
+    mData.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, filteredStreamConfigs);
+
+    entry = mData.find(ANDROID_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS);
+    Vector<int32_t> filteredDepthStreamConfigs;
+    filteredDepthStreamConfigs.setCapacity(entry.count);
+
+    for (size_t i=0; i < entry.count; i += STREAM_CONFIGURATION_SIZE) {
+        int32_t format = entry.data.i32[i + STREAM_FORMAT_OFFSET];
+        int32_t width = entry.data.i32[i + STREAM_WIDTH_OFFSET];
+        int32_t height = entry.data.i32[i + STREAM_HEIGHT_OFFSET];
+        int32_t isInput = entry.data.i32[i + STREAM_IS_INPUT_OFFSET];
+        if (isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_INPUT) {
+            // Hide input streams
+            continue;
+        }
+        // Translate HAL formats to NDK format
+        if (format == HAL_PIXEL_FORMAT_BLOB) {
+            format = AIMAGE_FORMAT_DEPTH_POINT_CLOUD;
+        } else if (format == HAL_PIXEL_FORMAT_Y16) {
+            format = AIMAGE_FORMAT_DEPTH16;
+        }
+
+        filteredDepthStreamConfigs.push_back(format);
+        filteredDepthStreamConfigs.push_back(width);
+        filteredDepthStreamConfigs.push_back(height);
+        filteredDepthStreamConfigs.push_back(isInput);
+    }
+    mData.update(ANDROID_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS, filteredDepthStreamConfigs);
 }
 
 bool

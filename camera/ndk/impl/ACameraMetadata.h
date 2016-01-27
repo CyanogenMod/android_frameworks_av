@@ -55,6 +55,7 @@ struct ACameraMetadata : public RefBase {
     inline bool isVendorTag(const uint32_t tag);
     bool isCaptureRequestTag(const uint32_t tag);
     void filterUnsupportedFeatures(); // Hide features not yet supported by NDK
+    void filterStreamConfigurations(); // Hide input streams, translate hal format to NDK formats
 
     template<typename INTERNAL_T, typename NDK_T>
     camera_status_t updateImpl(uint32_t tag, uint32_t count, const NDK_T* data) {

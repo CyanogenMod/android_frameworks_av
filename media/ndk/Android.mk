@@ -27,13 +27,16 @@ LOCAL_SRC_FILES:=                                       \
                   NdkMediaFormat.cpp                    \
                   NdkMediaMuxer.cpp                     \
                   NdkMediaDrm.cpp                       \
+                  NdkImage.cpp                          \
+                  NdkImageReader.cpp                    \
 
 LOCAL_MODULE:= libmediandk
 
 LOCAL_C_INCLUDES := \
     bionic/libc/private \
     frameworks/base/core/jni \
-    frameworks/av/include/ndk
+    frameworks/av/include/ndk \
+    system/media/camera/include
 
 LOCAL_CFLAGS += -fvisibility=hidden -D EXPORT='__attribute__ ((visibility ("default")))'
 
@@ -46,6 +49,8 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     libandroid_runtime \
     libbinder \
+    libgui \
+    libui \
 
 include $(BUILD_SHARED_LIBRARY)
 
