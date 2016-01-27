@@ -217,7 +217,6 @@ public:
     virtual sp<IMediaPlayer>    create(const sp<IMediaPlayerClient>& client, int audioSessionId);
 
     virtual sp<IMediaCodecList> getCodecList() const;
-    virtual sp<IOMX>            getOMX();
     virtual sp<ICrypto>         makeCrypto();
     virtual sp<IDrm>            makeDrm();
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule);
@@ -408,7 +407,6 @@ private:
                 SortedVector< wp<Client> >  mClients;
                 SortedVector< wp<MediaRecorderClient> > mMediaRecorderClients;
                 int32_t                     mNextConnId;
-                sp<IOMX>                    mOMX;
                 sp<ICrypto>                 mCrypto;
 };
 

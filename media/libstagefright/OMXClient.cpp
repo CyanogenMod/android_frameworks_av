@@ -24,7 +24,7 @@
 #include <utils/Log.h>
 
 #include <binder/IServiceManager.h>
-#include <media/IMediaPlayerService.h>
+#include <media/IMediaCodecService.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/OMXClient.h>
 #include <utils/KeyedVector.h>
@@ -158,7 +158,7 @@ private:
     const sp<IOMX> &getOMX(node_id node) const;
     const sp<IOMX> &getOMX_l(node_id node) const;
 
-    static bool CanLiveLocally(const char *name);
+    static bool ShouldRunInCodecProcess(const char *name);
 
     DISALLOW_EVIL_CONSTRUCTORS(MuxOMX);
 };
@@ -181,14 +181,16 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 }
 
 // static
-bool MuxOMX::CanLiveLocally(const char *name) {
+bool MuxOMX::ShouldRunInCodecProcess(const char *name) {
+    // all decoders plus google encoders can go in the codec process
+    if (strcasestr(name, "decoder") || !strncasecmp(name, "OMX.google.", 11)) {
+        return true;
+    }
+    // for non-google encoders, run in codec process if the caller is 64 bit
 #ifdef __LP64__
-    (void)name; // disable unused parameter warning
-    // 64 bit processes always run OMX remote on MediaServer
-    return false;
+    return true;
 #else
-    // 32 bit processes run only OMX.google.* components locally
-    return !strncasecmp(name, "OMX.google.", 11);
+    return false;
 #endif
 }
 
@@ -221,13 +223,13 @@ status_t MuxOMX::allocateNode(
 
     sp<IOMX> omx;
 
-    if (CanLiveLocally(name)) {
+    if (ShouldRunInCodecProcess(name)) {
+        omx = mRemoteOMX;
+    } else {
         if (mLocalOMX == NULL) {
             mLocalOMX = new OMX;
         }
         omx = mLocalOMX;
-    } else {
-        omx = mRemoteOMX;
     }
 
     status_t err = omx->allocateNode(name, observer, node);
@@ -419,11 +421,11 @@ OMXClient::OMXClient() {
 
 status_t OMXClient::connect() {
     sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> binder = sm->getService(String16("media.player"));
-    sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
+    sp<IBinder> binder = sm->getService(String16("media.codec"));
+    sp<IMediaCodecService> service = interface_cast<IMediaCodecService>(binder);
 
     if (service.get() == NULL) {
-        ALOGE("Cannot obtain IMediaPlayerService");
+        ALOGE("Cannot obtain IMediaCodecService");
         return NO_INIT;
     }
 

@@ -1,0 +1,5 @@
+service mediacodec /system/bin/mediacodec
+    class main
+    user mediacodec
+    group camera drmrpc mediadrm
+    ioprio rt 4
