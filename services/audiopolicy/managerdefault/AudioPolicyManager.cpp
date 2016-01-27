@@ -3472,7 +3472,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
 
     if (audio_device_is_digital(device)) {
         // erase all current sample rates, formats and channel masks
-        devDesc->clearCapabilities();
+        devDesc->clearAudioProfiles();
     }
 
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
@@ -3717,7 +3717,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
 
     if (audio_device_is_digital(device)) {
         // erase all current sample rates, formats and channel masks
-        devDesc->clearCapabilities();
+        devDesc->clearAudioProfiles();
     }
 
     if (state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
@@ -5135,8 +5135,10 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
     }
     const FormatVector &supportedFormats = profiles.getSupportedFormats();
 
-    for(size_t formatIndex = 0; formatIndex < supportedFormats.size(); formatIndex++) {
+    for (size_t formatIndex = 0; formatIndex < supportedFormats.size(); formatIndex++) {
         audio_format_t format = supportedFormats[formatIndex];
+        ChannelsVector channelMasks;
+        SampleRateVector samplingRates;
         AudioParameter requestedParameters;
         requestedParameters.addInt(String8(AUDIO_PARAMETER_STREAM_FORMAT), format);
 
@@ -5147,7 +5149,7 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
             ALOGV("%s: supported sampling rates %s", __FUNCTION__, reply.string());
             value = strpbrk((char *)reply.string(), "=");
             if (value != NULL) {
-                profiles.setSampleRatesFor(samplingRatesFromString(value + 1), format);
+                samplingRates = samplingRatesFromString(value + 1);
             }
         }
         if (profiles.hasDynamicChannelsFor(format)) {
@@ -5157,9 +5159,10 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
             ALOGV("%s: supported channel masks %s", __FUNCTION__, reply.string());
             value = strpbrk((char *)reply.string(), "=");
             if (value != NULL) {
-                profiles.setChannelsFor(channelMasksFromString(value + 1), format);
+                channelMasks = channelMasksFromString(value + 1);
             }
         }
+        profiles.addProfileFromHal(new AudioProfile(format, channelMasks, samplingRates));
     }
 }
 
