@@ -49,6 +49,8 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_foundation \
     libcutils \
 
+LOCAL_CLANG := true
+
 include $(BUILD_SHARED_LIBRARY)
 
 endif
