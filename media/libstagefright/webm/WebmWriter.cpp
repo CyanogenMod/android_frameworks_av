@@ -83,9 +83,25 @@ WebmWriter::WebmWriter(int fd)
 // static
 sp<WebmElement> WebmWriter::videoTrack(const sp<MetaData>& md) {
     int32_t width, height;
+    const char *mimeType;
     CHECK(md->findInt32(kKeyWidth, &width));
     CHECK(md->findInt32(kKeyHeight, &height));
-    return WebmElement::VideoTrackEntry(width, height);
+    CHECK(md->findCString(kKeyMIMEType, &mimeType));
+    const char *codec;
+    if (!strncasecmp(
+            mimeType,
+            MEDIA_MIMETYPE_VIDEO_VP8,
+            strlen(MEDIA_MIMETYPE_VIDEO_VP8))) {
+        codec = "V_VP8";
+    } else if (!strncasecmp(
+            mimeType,
+            MEDIA_MIMETYPE_VIDEO_VP9,
+            strlen(MEDIA_MIMETYPE_VIDEO_VP9))) {
+        codec = "V_VP9";
+    } else {
+        CHECK(!"Unsupported codec");
+    }
+    return WebmElement::VideoTrackEntry(codec, width, height);
 }
 
 // static
@@ -348,15 +364,18 @@ status_t WebmWriter::addSource(const sp<IMediaSource> &source) {
     const char *mime;
     source->getFormat()->findCString(kKeyMIMEType, &mime);
     const char *vp8 = MEDIA_MIMETYPE_VIDEO_VP8;
+    const char *vp9 = MEDIA_MIMETYPE_VIDEO_VP9;
     const char *vorbis = MEDIA_MIMETYPE_AUDIO_VORBIS;
 
     size_t streamIndex;
-    if (!strncasecmp(mime, vp8, strlen(vp8))) {
+    if (!strncasecmp(mime, vp8, strlen(vp8)) ||
+        !strncasecmp(mime, vp9, strlen(vp9))) {
         streamIndex = kVideoIndex;
     } else if (!strncasecmp(mime, vorbis, strlen(vorbis))) {
         streamIndex = kAudioIndex;
     } else {
-        ALOGE("Track (%s) other than %s or %s is not supported", mime, vp8, vorbis);
+        ALOGE("Track (%s) other than %s, %s or %s is not supported",
+              mime, vp8, vp9, vorbis);
         return ERROR_UNSUPPORTED;
     }
 
