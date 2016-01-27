@@ -71,7 +71,6 @@ public:
     virtual void toAudioPort(struct audio_port *port) const;
 
     virtual void importAudioPort(const sp<AudioPort> port);
-    void clearCapabilities() { mProfiles.clearProfiles(); }
 
     void addAudioProfile(const sp<AudioProfile> &profile) { mProfiles.add(profile); }
 

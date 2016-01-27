@@ -258,7 +258,6 @@ public:
         if (dynamicFormatProfile == 0) {
             return;
         }
-        clearProfiles();
         for (size_t i = 0; i < formats.size(); i++) {
             sp<AudioProfile> profile = new AudioProfile(formats[i],
                                                         dynamicFormatProfile->getChannels(),
@@ -270,6 +269,33 @@ public:
         }
     }
 
+    void clearProfiles()
+    {
+        for (size_t i = size(); i != 0; ) {
+            sp<AudioProfile> profile = itemAt(--i);
+            if (profile->isDynamicFormat() && profile->hasValidFormat()) {
+                removeAt(i);
+                continue;
+            }
+            profile->clear();
+        }
+    }
+
+    void dump(int fd, int spaces) const
+    {
+        const size_t SIZE = 256;
+        char buffer[SIZE];
+
+        snprintf(buffer, SIZE, "%*s- Profiles:\n", spaces, "");
+        write(fd, buffer, strlen(buffer));
+        for (size_t i = 0; i < size(); i++) {
+            snprintf(buffer, SIZE, "%*sProfile %zu:", spaces + 4, "", i);
+            write(fd, buffer, strlen(buffer));
+            itemAt(i)->dump(fd, spaces + 8);
+        }
+    }
+
+private:
     void setSampleRatesFor(const SampleRateVector &sampleRates, audio_format_t format)
     {
         for (size_t i = 0; i < size(); i++) {
@@ -308,33 +334,6 @@ public:
         }
     }
 
-    void clearProfiles()
-    {
-        for (size_t i = size(); i != 0; ) {
-            sp<AudioProfile> profile = itemAt(--i);
-            if (profile->isDynamicFormat() && profile->hasValidFormat()) {
-                removeAt(i);
-                continue;
-            }
-            profile->clear();
-        }
-    }
-
-    void dump(int fd, int spaces) const
-    {
-        const size_t SIZE = 256;
-        char buffer[SIZE];
-
-        snprintf(buffer, SIZE, "%*s- Profiles:\n", spaces, "");
-        write(fd, buffer, strlen(buffer));
-        for (size_t i = 0; i < size(); i++) {
-            snprintf(buffer, SIZE, "%*sProfile %zu:", spaces + 4, "", i);
-            write(fd, buffer, strlen(buffer));
-            itemAt(i)->dump(fd, spaces + 8);
-        }
-    }
-
-private:
     sp<AudioProfile> getProfileFor(audio_format_t format) const
     {
         for (size_t i = 0; i < size(); i++) {
