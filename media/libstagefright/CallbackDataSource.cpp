@@ -95,6 +95,10 @@ status_t CallbackDataSource::getSize(off64_t *size) {
     return OK;
 }
 
+uint32_t CallbackDataSource::flags() {
+    return mIDataSource->getFlags();
+}
+
 TinyCacheSource::TinyCacheSource(const sp<DataSource>& source)
     : mSource(source), mCachedOffset(0), mCachedSize(0) {
 }

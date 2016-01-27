@@ -41,6 +41,9 @@ public:
     // This should be called before deleting |this|. The other methods may
     // return errors if they're called after calling close().
     virtual void close() = 0;
+    // Get the flags of the source.
+    // Refer to DataSource:Flags for the definition of the flags.
+    virtual uint32_t getFlags() = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IDataSource);

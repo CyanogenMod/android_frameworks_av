@@ -86,6 +86,7 @@ public:
     virtual ssize_t readAt(off64_t offset, size_t size);
     virtual status_t getSize(off64_t* size);
     virtual void close();
+    virtual uint32_t getFlags();
 
 private:
     sp<IMemory> mMemory;
@@ -121,6 +122,9 @@ status_t RemoteDataSource::getSize(off64_t* size) {
 }
 void RemoteDataSource::close() {
     mSource = NULL;
+}
+uint32_t RemoteDataSource::getFlags() {
+    return mSource->flags();
 }
 
 // static
