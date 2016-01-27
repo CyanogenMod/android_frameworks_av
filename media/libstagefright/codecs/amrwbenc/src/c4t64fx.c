@@ -257,7 +257,7 @@ void ACELP_4t64_fx(
 #endif
 
     Isqrt_n(&s, &exp);
-    k_dn = (L_shl(s, (exp + 5 + 3)) + 0x8000) >> 16;    /* k_dn = 256..4096 */
+    k_dn = voround(L_shl(s, (exp + 5 + 3)));    /* k_dn = 256..4096 */
     k_dn = vo_mult_r(alp, k_dn);              /* alp in Q12 */
 
     /* mix normalized cn[] and dn[] */
@@ -1005,7 +1005,7 @@ void search_ixiy(
     for (x = track_x; x < L_SUBFR; x += STEP)
     {
         ps1 = *ps + dn[x];
-        alp1 = alp0 + ((*p0++)<<13);
+        alp1 = L_add(alp0, ((*p0++)<<13));
 
         if (dn2[x] < thres_ix)
         {
@@ -1018,7 +1018,7 @@ void search_ixiy(
                 alp2 = alp2 + ((*p2++)<<14);
                 alp_16 = extract_h(alp2);
                 sq = vo_mult(ps2, ps2);
-                s = vo_L_mult(alpk, sq) - ((sqk * alp_16)<<1);
+                s = L_sub(vo_L_mult(alpk, sq), L_mult(sqk, alp_16));
 
                 if (s > 0)
                 {

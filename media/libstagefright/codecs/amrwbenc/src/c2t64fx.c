@@ -93,7 +93,7 @@ void ACELP_2t64_fx(
 #endif
 
     Isqrt_n(&s, &exp);
-    k_dn = vo_round(L_shl(s, (exp + 8)));    /* k_dn = 256..4096 */
+    k_dn = voround(L_shl(s, (exp + 8)));    /* k_dn = 256..4096 */
     k_dn = vo_mult_r(alp, k_dn);              /* alp in Q12 */
 
     /* mix normalized cn[] and dn[] */
