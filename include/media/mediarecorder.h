@@ -95,6 +95,7 @@ enum video_encoder {
     VIDEO_ENCODER_H264 = 2,
     VIDEO_ENCODER_MPEG_4_SP = 3,
     VIDEO_ENCODER_VP8 = 4,
+    VIDEO_ENCODER_HEVC = 5,
 
     VIDEO_ENCODER_LIST_END // must be the last - used to validate the video encoder type
 };
