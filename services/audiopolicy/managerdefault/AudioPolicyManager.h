@@ -235,10 +235,6 @@ public:
         virtual status_t setMasterMono(bool mono);
         virtual status_t getMasterMono(bool *mono);
 
-        // Audio policy configuration file parsing (audio_policy.conf)
-        // TODO candidates to be moved to ConfigParsingUtils
-                void defaultAudioPolicyConfig(void);
-
         // return the strategy corresponding to a given stream type
         routing_strategy getStrategy(audio_stream_type_t stream) const;
 

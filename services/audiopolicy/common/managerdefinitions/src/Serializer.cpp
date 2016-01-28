@@ -50,18 +50,25 @@ const uint32_t PolicySerializer::gMinor = 0;
 static const char *const gReferenceElementName = "reference";
 static const char *const gReferenceAttributeName = "name";
 
+template <class Trait>
 static void getReference(const _xmlNode *root, const _xmlNode *&refNode, const string &refName)
 {
-    const _xmlNode *cur = root->xmlChildrenNode;
-    while (cur != NULL) {
-        if ((!xmlStrcmp(cur->name, (const xmlChar *)gReferenceElementName))) {
-            string name = getXmlAttribute(cur, gReferenceAttributeName);
-              if (refName == name) {
-                  refNode = cur;
-                  return;
-              }
+    const _xmlNode *col = root;
+    while (col != NULL) {
+        if (!xmlStrcmp(col->name, (const xmlChar *)Trait::collectionTag)) {
+            const xmlNode *cur = col->children;
+            while (cur != NULL) {
+                if ((!xmlStrcmp(cur->name, (const xmlChar *)gReferenceElementName))) {
+                    string name = getXmlAttribute(cur, gReferenceAttributeName);
+                    if (refName == name) {
+                        refNode = cur;
+                        return;
+                    }
+                }
+                cur = cur->next;
+            }
         }
-        cur = cur->next;
+        col = col->next;
     }
     return;
 }
@@ -538,7 +545,7 @@ status_t VolumeTraits::deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElemen
     string referenceName = getXmlAttribute(root, Attributes::reference);
     const _xmlNode *ref = NULL;
     if (!referenceName.empty()) {
-        getReference(root->parent, ref, referenceName);
+        getReference<VolumeTraits>(root->parent, ref, referenceName);
         if (ref == NULL) {
             ALOGE("%s: No reference Ptr found for %s", __FUNCTION__, referenceName.c_str());
             return BAD_VALUE;

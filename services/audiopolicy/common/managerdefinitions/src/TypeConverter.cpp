@@ -220,8 +220,6 @@ const StreamTypeConverter::Table StreamTypeConverter::mTable[] = {
     MAKE_STRING_FROM_ENUM(AUDIO_STREAM_ACCESSIBILITY),
     MAKE_STRING_FROM_ENUM(AUDIO_STREAM_REROUTING),
     MAKE_STRING_FROM_ENUM(AUDIO_STREAM_PATCH),
-
-    MAKE_STRING_FROM_ENUM(AUDIO_STREAM_CNT) // Required to manage default volume tables
 };
 
 template<>
