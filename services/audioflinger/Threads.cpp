@@ -2917,8 +2917,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 // mono blend occurs for mixer threads only (not direct or offloaded)
                 // and is handled here if we're going directly to the sink.
                 if (requireMonoBlend() && !mEffectBufferValid) {
-                    mono_blend(
-                            mMixerBuffer, mMixerBufferFormat, mChannelCount, mNormalFrameCount);
+                    mono_blend(mMixerBuffer, mMixerBufferFormat, mChannelCount, mNormalFrameCount,
+                               true /*limit*/);
                 }
 
                 memcpy_by_audio_format(buffer, format, mMixerBuffer, mMixerBufferFormat,
@@ -2958,7 +2958,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             //ALOGV("writing effect buffer to sink buffer format %#x", mFormat);
 
             if (requireMonoBlend()) {
-                mono_blend(mEffectBuffer, mEffectBufferFormat, mChannelCount, mNormalFrameCount);
+                mono_blend(mEffectBuffer, mEffectBufferFormat, mChannelCount, mNormalFrameCount,
+                           true /*limit*/);
             }
 
             memcpy_by_audio_format(mSinkBuffer, mFormat, mEffectBuffer, mEffectBufferFormat,

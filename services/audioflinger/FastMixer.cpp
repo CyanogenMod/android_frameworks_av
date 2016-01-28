@@ -416,7 +416,7 @@ void FastMixer::onWork()
         }
 
         if (mMasterMono.load()) {  // memory_order_seq_cst
-            mono_blend(mMixerBuffer, mMixerBufferFormat, Format_channelCount(mFormat), frameCount);
+            mono_blend(mMixerBuffer, mMixerBufferFormat, Format_channelCount(mFormat), frameCount, true /*limit*/);
         }
         // prepare the buffer used to write to sink
         void *buffer = mSinkBuffer != NULL ? mSinkBuffer : mMixerBuffer;

@@ -927,6 +927,8 @@ protected:
                                }
                            }
                 // the FastMixer performs mono blend if it exists.
+                // Blending with limiter is not idempotent,
+                // and blending without limiter is idempotent but inefficient to do twice.
     virtual     bool       requireMonoBlend() { return mMasterMono.load() && !hasFastMixer(); }
 };
 
