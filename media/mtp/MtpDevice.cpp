@@ -778,7 +778,27 @@ bool MtpDevice::readPartialObject(MtpObjectHandle handle,
         ALOGE("Failed to send a read request.");
         return false;
     }
-    return readData(callback, NULL /* expected size */, writtenSize, clientData);
+    return readData(callback, nullptr /* expected size */, writtenSize, clientData);
+}
+
+bool MtpDevice::readPartialObject64(MtpObjectHandle handle,
+                                    uint64_t offset,
+                                    uint32_t size,
+                                    uint32_t *writtenSize,
+                                    ReadObjectCallback callback,
+                                    void* clientData) {
+    Mutex::Autolock autoLock(mMutex);
+
+    mRequest.reset();
+    mRequest.setParameter(1, handle);
+    mRequest.setParameter(2, 0xffffffff & offset);
+    mRequest.setParameter(3, 0xffffffff & (offset >> 32));
+    mRequest.setParameter(4, size);
+    if (!sendRequest(MTP_OPERATION_GET_PARTIAL_OBJECT_64)) {
+        ALOGE("Failed to send a read request.");
+        return false;
+    }
+    return readData(callback, nullptr /* expected size */, writtenSize, clientData);
 }
 
 bool MtpDevice::sendRequest(MtpOperationCode operation) {
