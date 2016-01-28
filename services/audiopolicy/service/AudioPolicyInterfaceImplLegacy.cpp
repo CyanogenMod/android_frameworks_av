@@ -306,7 +306,7 @@ status_t AudioPolicyService::stopInput(audio_io_handle_t input,
 }
 
 void AudioPolicyService::releaseInput(audio_io_handle_t input,
-                                      audio_session_t session)
+                                      audio_session_t session __unused)
 {
     if (mpAudioPolicy == NULL) {
         return;
@@ -320,7 +320,7 @@ void AudioPolicyService::releaseInput(audio_io_handle_t input,
     }
     if (audioPolicyEffects != 0) {
         // release audio processors from the input
-        status_t status = audioPolicyEffects->releaseInputEffects(input, session);
+        status_t status = audioPolicyEffects->releaseInputEffects(input);
         if(status != NO_ERROR) {
             ALOGW("Failed to release effects on input %d", input);
         }

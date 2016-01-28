@@ -30,9 +30,9 @@ static const audio_format_t gDynamicFormat = AUDIO_FORMAT_DEFAULT;
 
 /**
  * A device mask for all audio input devices that are considered "virtual" when evaluating
- * active inputs in getActiveInputs()
+ * active inputs in getActiveInput()
  */
-#define APM_AUDIO_IN_DEVICE_VIRTUAL_ALL  (AUDIO_DEVICE_IN_REMOTE_SUBMIX)
+#define APM_AUDIO_IN_DEVICE_VIRTUAL_ALL  (AUDIO_DEVICE_IN_REMOTE_SUBMIX|AUDIO_DEVICE_IN_FM_TUNER)
 
 
 /**
@@ -87,42 +87,4 @@ static inline bool device_distinguishes_on_address(audio_devices_t device)
             ((~AUDIO_DEVICE_BIT_IN & device & APM_AUDIO_DEVICE_IN_MATCH_ADDRESS_ALL) != 0)) ||
            (((device & AUDIO_DEVICE_BIT_IN) == 0) &&
             ((device & APM_AUDIO_DEVICE_OUT_MATCH_ADDRESS_ALL) != 0));
-}
-
-/**
- * Returns the priority of a given audio source for capture. The priority is used when more than one
- * capture session is active on a given input stream to determine which session drives routing and
- * effect configuration.
- *
- * @param[in] inputSource to consider. Valid sources are:
- * - AUDIO_SOURCE_VOICE_COMMUNICATION
- * - AUDIO_SOURCE_CAMCORDER
- * - AUDIO_SOURCE_MIC
- * - AUDIO_SOURCE_FM_TUNER
- * - AUDIO_SOURCE_VOICE_RECOGNITION
- * - AUDIO_SOURCE_HOTWORD
- *
- * @return the corresponding input source priority or 0 if priority is irrelevant for this source.
- *      This happens when the specified source cannot share a given input stream (e.g remote submix)
- *      The higher the value, the higher the priority.
- */
-static inline int32_t source_priority(audio_source_t inputSource)
-{
-    switch (inputSource) {
-    case AUDIO_SOURCE_VOICE_COMMUNICATION:
-        return 6;
-    case AUDIO_SOURCE_CAMCORDER:
-        return 5;
-    case AUDIO_SOURCE_MIC:
-        return 4;
-    case AUDIO_SOURCE_FM_TUNER:
-        return 3;
-    case AUDIO_SOURCE_VOICE_RECOGNITION:
-        return 2;
-    case AUDIO_SOURCE_HOTWORD:
-        return 1;
-    default:
-        break;
-    }
-    return 0;
 }

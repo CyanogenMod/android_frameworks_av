@@ -159,10 +159,6 @@ public:
     virtual void toAudioPortConfig(struct audio_port_config *dstConfig,
                                    const struct audio_port_config *srcConfig = NULL) const = 0;
     virtual sp<AudioPort> getAudioPort() const = 0;
-    virtual bool hasSameHwModuleAs(const sp<AudioPortConfig>& other) const {
-        return (other != 0) &&
-                (other->getAudioPort()->getModuleHandle() == getAudioPort()->getModuleHandle());
-    }
     uint32_t mSamplingRate;
     audio_format_t mFormat;
     audio_channel_mask_t mChannelMask;
