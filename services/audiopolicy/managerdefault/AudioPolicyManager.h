@@ -139,8 +139,7 @@ public:
 
         // indicates to the audio policy manager that the input starts being used.
         virtual status_t startInput(audio_io_handle_t input,
-                                    audio_session_t session,
-                                    concurrency_type__mask_t *concurrency);
+                                    audio_session_t session);
 
         // indicates to the audio policy manager that the input stops being used.
         virtual status_t stopInput(audio_io_handle_t input,
@@ -410,7 +409,7 @@ protected:
         void updateDevicesAndOutputs();
 
         // selects the most appropriate device on input for current state
-        audio_devices_t getNewInputDevice(const sp<AudioInputDescriptor>& inputDesc);
+        audio_devices_t getNewInputDevice(audio_io_handle_t input);
 
         virtual uint32_t getMaxEffectsCpuLoad()
         {
@@ -510,8 +509,6 @@ protected:
 
         void clearAudioSources(uid_t uid);
 
-        bool isConcurentCaptureAllowed(const sp<AudioInputDescriptor>& inputDesc,
-                const sp<AudioSession>& audioSession);
 
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface

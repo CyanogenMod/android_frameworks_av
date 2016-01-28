@@ -87,7 +87,6 @@ public:
     AudioSessionCollection getActiveSessions() const;
     bool hasActiveSession() const;
     bool isSourceActive(audio_source_t source) const;
-    audio_source_t getHighestPrioritySource(bool activeOnly) const;
 
     status_t dump(int fd, int spaces) const;
 };

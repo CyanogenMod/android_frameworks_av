@@ -132,12 +132,6 @@ bool AudioInputDescriptor::isSourceActive(audio_source_t source) const
     return mSessions.isSourceActive(source);
 }
 
-audio_source_t AudioInputDescriptor::getHighestPrioritySource(bool activeOnly) const
-{
-
-    return mSessions.getHighestPrioritySource(activeOnly);
-}
-
 bool AudioInputDescriptor::isSoundTrigger() const {
     // sound trigger and non sound trigger sessions are not mixed
     // on a given input
@@ -149,13 +143,9 @@ sp<AudioSession> AudioInputDescriptor::getAudioSession(
     return mSessions.valueFor(session);
 }
 
-AudioSessionCollection AudioInputDescriptor::getAudioSessions(bool activeOnly) const
+AudioSessionCollection AudioInputDescriptor::getActiveAudioSessions() const
 {
-    if (activeOnly) {
-        return mSessions.getActiveSessions();
-    } else {
-        return mSessions;
-    }
+    return mSessions.getActiveSessions();
 }
 
 status_t AudioInputDescriptor::addAudioSession(audio_session_t session,
@@ -226,19 +216,17 @@ uint32_t AudioInputCollection::activeInputsCount() const
     return count;
 }
 
-Vector<sp <AudioInputDescriptor> > AudioInputCollection::getActiveInputs(bool ignoreVirtualInputs)
+audio_io_handle_t AudioInputCollection::getActiveInput(bool ignoreVirtualInputs)
 {
-    Vector<sp <AudioInputDescriptor> > activeInputs;
-
     for (size_t i = 0; i < size(); i++) {
         const sp<AudioInputDescriptor>  inputDescriptor = valueAt(i);
         if ((inputDescriptor->isActive())
                 && (!ignoreVirtualInputs ||
                     !is_virtual_input_device(inputDescriptor->mDevice))) {
-            activeInputs.add(inputDescriptor);
+            return keyAt(i);
         }
     }
-    return activeInputs;
+    return 0;
 }
 
 audio_devices_t AudioInputCollection::getSupportedDevices(audio_io_handle_t handle) const
