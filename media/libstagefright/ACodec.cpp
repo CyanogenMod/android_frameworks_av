@@ -3847,7 +3847,7 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
         fmt != OMX_COLOR_FormatYUV420PackedPlanar &&
         fmt != OMX_COLOR_FormatYUV420SemiPlanar &&
         fmt != OMX_COLOR_FormatYUV420PackedSemiPlanar &&
-        fmt != HAL_PIXEL_FORMAT_YV12) {
+        fmt != (OMX_COLOR_FORMATTYPE)HAL_PIXEL_FORMAT_YV12) {
         ALOGW("do not know color format 0x%x = %d", fmt, fmt);
         return false;
     }
