@@ -57,11 +57,11 @@ AudioPolicyEffects::~AudioPolicyEffects()
     }
     mInputSources.clear();
 
-    for (i = 0; i < mInputSessions.size(); i++) {
-        mInputSessions.valueAt(i)->mEffects.clear();
-        delete mInputSessions.valueAt(i);
+    for (i = 0; i < mInputs.size(); i++) {
+        mInputs.valueAt(i)->mEffects.clear();
+        delete mInputs.valueAt(i);
     }
-    mInputSessions.clear();
+    mInputs.clear();
 
     // release audio output processing resources
     for (i = 0; i < mOutputStreams.size(); i++) {
@@ -79,7 +79,7 @@ AudioPolicyEffects::~AudioPolicyEffects()
 
 status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
                              audio_source_t inputSource,
-                             audio_session_t audioSession)
+                             int audioSession)
 {
     status_t status = NO_ERROR;
 
@@ -93,19 +93,19 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
         ALOGV("addInputEffects(): no processing needs to be attached to this source");
         return status;
     }
-    ssize_t idx = mInputSessions.indexOfKey(audioSession);
-    EffectVector *sessionDesc;
+    ssize_t idx = mInputs.indexOfKey(input);
+    EffectVector *inputDesc;
     if (idx < 0) {
-        sessionDesc = new EffectVector(audioSession);
-        mInputSessions.add(audioSession, sessionDesc);
+        inputDesc = new EffectVector(audioSession);
+        mInputs.add(input, inputDesc);
     } else {
         // EffectVector is existing and we just need to increase ref count
-        sessionDesc = mInputSessions.valueAt(idx);
+        inputDesc = mInputs.valueAt(idx);
     }
-    sessionDesc->mRefCount++;
+    inputDesc->mRefCount++;
 
-    ALOGV("addInputEffects(): input: %d, refCount: %d", input, sessionDesc->mRefCount);
-    if (sessionDesc->mRefCount == 1) {
+    ALOGV("addInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
+    if (inputDesc->mRefCount == 1) {
         Vector <EffectDesc *> effects = mInputSources.valueAt(index)->mEffects;
         for (size_t i = 0; i < effects.size(); i++) {
             EffectDesc *effect = effects[i];
@@ -123,37 +123,36 @@ status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
             }
             ALOGV("addInputEffects(): added Fx %s on source: %d",
                   effect->mName, (int32_t)aliasSource);
-            sessionDesc->mEffects.add(fx);
+            inputDesc->mEffects.add(fx);
         }
-        sessionDesc->setProcessorEnabled(true);
+        inputDesc->setProcessorEnabled(true);
     }
     return status;
 }
 
 
-status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input,
-                                                 audio_session_t audioSession)
+status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
 {
     status_t status = NO_ERROR;
 
     Mutex::Autolock _l(mLock);
-    ssize_t index = mInputSessions.indexOfKey(audioSession);
+    ssize_t index = mInputs.indexOfKey(input);
     if (index < 0) {
         return status;
     }
-    EffectVector *sessionDesc = mInputSessions.valueAt(index);
-    sessionDesc->mRefCount--;
-    ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, sessionDesc->mRefCount);
-    if (sessionDesc->mRefCount == 0) {
-        sessionDesc->setProcessorEnabled(false);
-        delete sessionDesc;
-        mInputSessions.removeItemsAt(index);
+    EffectVector *inputDesc = mInputs.valueAt(index);
+    inputDesc->mRefCount--;
+    ALOGV("releaseInputEffects(): input: %d, refCount: %d", input, inputDesc->mRefCount);
+    if (inputDesc->mRefCount == 0) {
+        inputDesc->setProcessorEnabled(false);
+        delete inputDesc;
+        mInputs.removeItemsAt(index);
         ALOGV("releaseInputEffects(): all effects released");
     }
     return status;
 }
 
-status_t AudioPolicyEffects::queryDefaultInputEffects(audio_session_t audioSession,
+status_t AudioPolicyEffects::queryDefaultInputEffects(int audioSession,
                                                       effect_descriptor_t *descriptors,
                                                       uint32_t *count)
 {
@@ -161,16 +160,16 @@ status_t AudioPolicyEffects::queryDefaultInputEffects(audio_session_t audioSessi
 
     Mutex::Autolock _l(mLock);
     size_t index;
-    for (index = 0; index < mInputSessions.size(); index++) {
-        if (mInputSessions.valueAt(index)->mSessionId == audioSession) {
+    for (index = 0; index < mInputs.size(); index++) {
+        if (mInputs.valueAt(index)->mSessionId == audioSession) {
             break;
         }
     }
-    if (index == mInputSessions.size()) {
+    if (index == mInputs.size()) {
         *count = 0;
         return BAD_VALUE;
     }
-    Vector< sp<AudioEffect> > effects = mInputSessions.valueAt(index)->mEffects;
+    Vector< sp<AudioEffect> > effects = mInputs.valueAt(index)->mEffects;
 
     for (size_t i = 0; i < effects.size(); i++) {
         effect_descriptor_t desc = effects[i]->descriptor();
@@ -186,7 +185,7 @@ status_t AudioPolicyEffects::queryDefaultInputEffects(audio_session_t audioSessi
 }
 
 
-status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(audio_session_t audioSession,
+status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(int audioSession,
                          effect_descriptor_t *descriptors,
                          uint32_t *count)
 {
@@ -221,7 +220,7 @@ status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(audio_session_t au
 
 status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
-                         audio_session_t audioSession)
+                         int audioSession)
 {
     status_t status = NO_ERROR;
 
@@ -276,7 +275,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
-                         audio_session_t audioSession)
+                         int audioSession)
 {
     status_t status = NO_ERROR;
     (void) output; // argument not used for now

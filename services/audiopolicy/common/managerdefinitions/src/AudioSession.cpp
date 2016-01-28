@@ -18,7 +18,6 @@
 //#define LOG_NDEBUG 0
 
 #include <AudioPolicyInterface.h>
-#include "policy.h"
 #include "AudioSession.h"
 #include "AudioGain.h"
 #include "TypeConverter.h"
@@ -208,24 +207,6 @@ bool AudioSessionCollection::isSourceActive(audio_source_t source) const
     return false;
 }
 
-audio_source_t AudioSessionCollection::getHighestPrioritySource(bool activeOnly) const
-{
-    audio_source_t source = AUDIO_SOURCE_DEFAULT;
-    int32_t priority = -1;
-
-    for (size_t i = 0; i < size(); i++) {
-        const sp<AudioSession>  audioSession = valueAt(i);
-        if (activeOnly && audioSession->activeCount() == 0) {
-            continue;
-        }
-        int32_t curPriority = source_priority(audioSession->inputSource());
-        if (curPriority > priority) {
-            priority = curPriority;
-            source = audioSession->inputSource();
-        }
-    }
-    return source;
-}
 
 status_t AudioSessionCollection::dump(int fd, int spaces) const
 {
