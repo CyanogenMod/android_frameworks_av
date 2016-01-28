@@ -455,7 +455,7 @@ status_t AudioTrack::set(
         mClientPid = pid;
     }
     mAuxEffectId = 0;
-    mFlags = flags;
+    mOrigFlags = mFlags = flags;
     mCbf = cbf;
 
     if (cbf != NULL) {
@@ -1153,6 +1153,9 @@ status_t AudioTrack::createTrack_l()
     audio_stream_type_t streamType = mStreamType;
     audio_attributes_t *attr = (mStreamType == AUDIO_STREAM_DEFAULT) ? &mAttributes : NULL;
 
+    // mFlags (not mOrigFlags) is modified depending on whether fast request is accepted.
+    // After fast request is denied, we will request again if IAudioTrack is re-created.
+
     status_t status;
     status = AudioSystem::getOutputForAttr(attr, &output,
                                            (audio_session_t)mSessionId, &streamType, mClientUid,
@@ -1211,7 +1214,6 @@ status_t AudioTrack::createTrack_l()
             ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d, "
                 "track %u Hz, output %u Hz",
                 mTransfer, mSampleRate, mAfSampleRate);
-            // once denied, do not request again if IAudioTrack is re-created
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
         }
     }
@@ -1353,29 +1355,8 @@ status_t AudioTrack::createTrack_l()
                 mAwaitBoost = true;
             }
         } else {
-            ALOGV("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
-            // once denied, do not request again if IAudioTrack is re-created
+            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
-        }
-    }
-    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-        if (trackFlags & IAudioFlinger::TRACK_OFFLOAD) {
-            ALOGV("AUDIO_OUTPUT_FLAG_OFFLOAD successful");
-        } else {
-            ALOGW("AUDIO_OUTPUT_FLAG_OFFLOAD denied by server");
-            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
-            // FIXME This is a warning, not an error, so don't return error status
-            //return NO_INIT;
-        }
-    }
-    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
-        if (trackFlags & IAudioFlinger::TRACK_DIRECT) {
-            ALOGV("AUDIO_OUTPUT_FLAG_DIRECT successful");
-        } else {
-            ALOGW("AUDIO_OUTPUT_FLAG_DIRECT denied by server");
-            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_DIRECT);
-            // FIXME This is a warning, not an error, so don't return error status
-            //return NO_INIT;
         }
     }
 
@@ -2088,6 +2069,8 @@ status_t AudioTrack::restoreTrack_l(const char *from)
     if (mStaticProxy != 0) {
         mStaticProxy->getBufferPositionAndLoopCount(&bufferPosition, &loopCount);
     }
+
+    mFlags = mOrigFlags;
 
     // If a new IAudioTrack is successfully created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.

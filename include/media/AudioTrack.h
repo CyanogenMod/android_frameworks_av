@@ -949,9 +949,11 @@ protected:
 
     uint32_t                mUnderrunCountOffset;   // updated when restoring tracks
 
-    audio_output_flags_t    mFlags;
-        // const after set(), except for bits AUDIO_OUTPUT_FLAG_FAST and AUDIO_OUTPUT_FLAG_OFFLOAD.
-        // mLock must be held to read or write those bits reliably.
+    audio_output_flags_t    mFlags;                 // same as mOrigFlags, except for bits that may
+                                                    // be denied by client or server, such as
+                                                    // AUDIO_OUTPUT_FLAG_FAST.  mLock must be
+                                                    // held to read or write those bits reliably.
+    audio_output_flags_t    mOrigFlags;             // as specified in constructor or set(), const
 
     bool                    mDoNotReconnect;
 
