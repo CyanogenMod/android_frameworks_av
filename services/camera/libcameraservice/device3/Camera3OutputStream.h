@@ -112,6 +112,10 @@ class Camera3OutputStream :
      * Return if this output stream is for video encoding.
      */
     bool isVideoStream() const;
+    /**
+     * Return if this output stream is consumed by hardware composer.
+     */
+    bool isConsumedByHWComposer() const;
 
     class BufferReleasedListener : public BnProducerListener {
         public:
@@ -162,6 +166,9 @@ class Camera3OutputStream :
 
     // Name of Surface consumer
     String8           mConsumerName;
+
+    // Whether to timestamp the output buffer
+    bool mTimestampBuffer;
 
     /**
      * GraphicBuffer manager this stream is registered to. Used to replace the buffer
