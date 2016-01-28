@@ -1274,7 +1274,7 @@ void AwesomePlayer::initRenderer_l() {
         // then performs a color conversion and copy to get the data
         // into the ANativeBuffer.
         sp<AMessage> format;
-        convertMetaDataToMessage(meta, &format);
+        CHECK(OK == convertMetaDataToMessage(meta, &format));
         mVideoRenderer = new AwesomeLocalRenderer(mNativeWindow, format);
     }
 }
