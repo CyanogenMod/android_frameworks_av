@@ -220,6 +220,11 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
             ALOGE("%s: Stream %d: Error cancelling buffer to native window:"
                   " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
         }
+
+        if (mUseBufferManager) {
+            // Return this buffer back to buffer manager.
+            mBufferReleasedListener->onBufferReleased();
+        }
     } else {
         if (mTraceFirstBuffer && (stream_type == CAMERA3_STREAM_OUTPUT)) {
             {
