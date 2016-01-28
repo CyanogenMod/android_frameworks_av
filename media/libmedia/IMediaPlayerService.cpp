@@ -41,7 +41,7 @@ enum {
     CREATE = IBinder::FIRST_CALL_TRANSACTION,
     CREATE_MEDIA_RECORDER,
     CREATE_METADATA_RETRIEVER,
-    //GET_OMX,
+    GET_OMX,
     MAKE_CRYPTO,
     MAKE_DRM,
     MAKE_HDCP,
@@ -87,12 +87,12 @@ public:
         return interface_cast<IMediaRecorder>(reply.readStrongBinder());
     }
 
-//    virtual sp<IOMX> getOMX() {
-//        Parcel data, reply;
-//        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-//        remote()->transact(GET_OMX, data, &reply);
-//        return interface_cast<IOMX>(reply.readStrongBinder());
-//    }
+    virtual sp<IOMX> getOMX() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
+        remote()->transact(GET_OMX, data, &reply);
+        return interface_cast<IOMX>(reply.readStrongBinder());
+    }
 
     virtual sp<ICrypto> makeCrypto() {
         Parcel data, reply;
@@ -179,12 +179,12 @@ status_t BnMediaPlayerService::onTransact(
             reply->writeStrongBinder(IInterface::asBinder(retriever));
             return NO_ERROR;
         } break;
-//        case GET_OMX: {
-//            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-//            sp<IOMX> omx = getOMX();
-//            reply->writeStrongBinder(IInterface::asBinder(omx));
-//            return NO_ERROR;
-//        } break;
+        case GET_OMX: {
+            CHECK_INTERFACE(IMediaPlayerService, data, reply);
+            sp<IOMX> omx = getOMX();
+            reply->writeStrongBinder(IInterface::asBinder(omx));
+            return NO_ERROR;
+        } break;
         case MAKE_CRYPTO: {
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<ICrypto> crypto = makeCrypto();
