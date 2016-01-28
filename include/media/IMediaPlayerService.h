@@ -52,6 +52,7 @@ public:
     virtual sp<IMediaPlayer> create(const sp<IMediaPlayerClient>& client, int audioSessionId = 0)
             = 0;
 
+    virtual sp<IOMX>            getOMX() = 0;
     virtual sp<ICrypto>         makeCrypto() = 0;
     virtual sp<IDrm>            makeDrm() = 0;
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule) = 0;
