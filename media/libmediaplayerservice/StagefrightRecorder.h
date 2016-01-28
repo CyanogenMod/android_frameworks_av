@@ -80,6 +80,7 @@ private:
     sp<IMediaRecorderClient> mListener;
     String16 mClientName;
     uid_t mClientUid;
+    pid_t mClientPid;
     sp<MediaWriter> mWriter;
     int mOutputFd;
     sp<AudioSource> mAudioSourceNode;

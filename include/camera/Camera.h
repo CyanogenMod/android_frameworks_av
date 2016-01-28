@@ -52,7 +52,7 @@ struct CameraTraits<Camera>
     typedef ICamera               TCamUser;
     typedef ICameraClient         TCamCallbacks;
     typedef status_t (ICameraService::*TCamConnectService)(const sp<ICameraClient>&,
-                                                           int, const String16&, int,
+                                                           int, const String16&, int, int,
                                                            /*out*/
                                                            sp<ICamera>&);
     static TCamConnectService     fnConnectService;
@@ -67,12 +67,15 @@ public:
     enum {
         USE_CALLING_UID = ICameraService::USE_CALLING_UID
     };
+    enum {
+        USE_CALLING_PID = ICameraService::USE_CALLING_PID
+    };
 
             // construct a camera client from an existing remote
     static  sp<Camera>  create(const sp<ICamera>& camera);
     static  sp<Camera>  connect(int cameraId,
                                 const String16& clientPackageName,
-                                int clientUid);
+                                int clientUid, int clientPid);
 
     static  status_t  connectLegacy(int cameraId, int halVersion,
                                      const String16& clientPackageName,

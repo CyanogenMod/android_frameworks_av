@@ -17,8 +17,10 @@
 #ifndef ANDROID_CAMERA_CLIENT_CAMERAUTILS_H
 #define ANDROID_CAMERA_CLIENT_CAMERAUTILS_H
 
+#include <binder/IMemory.h>
 #include <camera/CameraMetadata.h>
 #include <utils/Errors.h>
+#include <utils/RefBase.h>
 
 #include <stdint.h>
 
@@ -39,6 +41,12 @@ class CameraUtils {
          */
         static status_t getRotationTransform(const CameraMetadata& staticInfo,
                 /*out*/int32_t* transform);
+
+        /**
+         * Check if the image data is VideoNativeHandleMetadata, that contains a native handle.
+         */
+        static bool isNativeHandleMetadata(const sp<IMemory>& imageData);
+
     private:
         CameraUtils();
 };

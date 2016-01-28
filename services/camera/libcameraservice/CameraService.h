@@ -116,7 +116,7 @@ public:
     virtual status_t    getCameraVendorTagDescriptor(/*out*/ sp<VendorTagDescriptor>& desc);
 
     virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
-            const String16& clientPackageName, int clientUid,
+            const String16& clientPackageName, int clientUid, int clientPid,
             /*out*/
             sp<ICamera>& device);
 
@@ -488,7 +488,8 @@ private:
     virtual void onFirstRef();
 
     // Check if we can connect, before we acquire the service lock.
-    status_t validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid) const;
+    status_t validateConnectLocked(const String8& cameraId, /*inout*/int& clientUid,
+            /*inout*/int& clientPid) const;
 
     // Handle active client evictions, and update service state.
     // Only call with with mServiceLock held.
@@ -501,8 +502,9 @@ private:
     // Single implementation shared between the various connect calls
     template<class CALLBACK, class CLIENT>
     status_t connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId, int halVersion,
-            const String16& clientPackageName, int clientUid, apiLevel effectiveApiLevel,
-            bool legacyMode, bool shimUpdateOnly, /*out*/sp<CLIENT>& device);
+            const String16& clientPackageName, int clientUid, int clientPid,
+            apiLevel effectiveApiLevel, bool legacyMode, bool shimUpdateOnly,
+            /*out*/sp<CLIENT>& device);
 
     // Lock guarding camera service state
     Mutex               mServiceLock;
@@ -801,12 +803,11 @@ void CameraService::CameraState::updateStatus(ICameraServiceListener::Status sta
 
 template<class CALLBACK, class CLIENT>
 status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String8& cameraId,
-        int halVersion, const String16& clientPackageName, int clientUid,
+        int halVersion, const String16& clientPackageName, int clientUid, int clientPid,
         apiLevel effectiveApiLevel, bool legacyMode, bool shimUpdateOnly,
         /*out*/sp<CLIENT>& device) {
     status_t ret = NO_ERROR;
     String8 clientName8(clientPackageName);
-    int clientPid = getCallingPid();
 
     ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
@@ -826,7 +827,8 @@ status_t CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const String
         }
 
         // Enforce client permissions and do basic sanity checks
-        if((ret = validateConnectLocked(cameraId, /*inout*/clientUid)) != NO_ERROR) {
+        if((ret = validateConnectLocked(cameraId, /*inout*/clientUid, /*inout*/clientPid)) !=
+                NO_ERROR) {
             return ret;
         }
 

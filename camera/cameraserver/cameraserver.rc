@@ -1,0 +1,5 @@
+service cameraserver /system/bin/cameraserver
+    class main
+    user cameraserver
+    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct
+    ioprio rt 4

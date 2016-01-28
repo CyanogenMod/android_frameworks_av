@@ -72,9 +72,9 @@ Camera::~Camera()
 }
 
 sp<Camera> Camera::connect(int cameraId, const String16& clientPackageName,
-        int clientUid)
+        int clientUid, int clientPid)
 {
-    return CameraBaseT::connect(cameraId, clientPackageName, clientUid);
+    return CameraBaseT::connect(cameraId, clientPackageName, clientUid, clientPid);
 }
 
 status_t Camera::connectLegacy(int cameraId, int halVersion,

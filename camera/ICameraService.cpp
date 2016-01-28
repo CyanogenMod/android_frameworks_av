@@ -172,7 +172,7 @@ public:
 
     // connect to camera service (android.hardware.Camera)
     virtual status_t connect(const sp<ICameraClient>& cameraClient, int cameraId,
-                             const String16 &clientPackageName, int clientUid,
+                             const String16 &clientPackageName, int clientUid, int clientPid,
                              /*out*/
                              sp<ICamera>& device)
     {
@@ -182,6 +182,7 @@ public:
         data.writeInt32(cameraId);
         data.writeString16(clientPackageName);
         data.writeInt32(clientUid);
+        data.writeInt32(clientPid);
 
         status_t status;
         status = remote()->transact(BnCameraService::CONNECT, data, &reply);
@@ -396,9 +397,10 @@ status_t BnCameraService::onTransact(
             int32_t cameraId = data.readInt32();
             const String16 clientName = data.readString16();
             int32_t clientUid = data.readInt32();
+            int32_t clientPid = data.readInt32();
             sp<ICamera> camera;
             status_t status = connect(cameraClient, cameraId,
-                    clientName, clientUid, /*out*/camera);
+                    clientName, clientUid, clientPid, /*out*/camera);
             reply->writeNoException();
             reply->writeInt32(status);
             if (camera != NULL) {

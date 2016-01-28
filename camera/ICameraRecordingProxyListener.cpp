@@ -16,9 +16,11 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ICameraRecordingProxyListener"
+#include <camera/CameraUtils.h>
 #include <camera/ICameraRecordingProxyListener.h>
 #include <binder/IMemory.h>
 #include <binder/Parcel.h>
+#include <media/hardware/HardwareAPI.h>
 #include <utils/Log.h>
 
 namespace android {
@@ -43,7 +45,22 @@ public:
         data.writeInt64(timestamp);
         data.writeInt32(msgType);
         data.writeStrongBinder(IInterface::asBinder(imageData));
+        native_handle_t* nh = nullptr;
+
+        if (CameraUtils::isNativeHandleMetadata(imageData)) {
+            VideoNativeHandleMetadata *metadata =
+                    (VideoNativeHandleMetadata*)(imageData->pointer());
+            nh = metadata->pHandle;
+            data.writeNativeHandle(nh);
+        }
+
         remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply, IBinder::FLAG_ONEWAY);
+
+        // The native handle is dupped in ICameraClient so we need to free it here.
+        if (nh) {
+            native_handle_close(nh);
+            native_handle_delete(nh);
+        }
     }
 };
 
@@ -61,6 +78,15 @@ status_t BnCameraRecordingProxyListener::onTransact(
             nsecs_t timestamp = data.readInt64();
             int32_t msgType = data.readInt32();
             sp<IMemory> imageData = interface_cast<IMemory>(data.readStrongBinder());
+
+            if (CameraUtils::isNativeHandleMetadata(imageData)) {
+                VideoNativeHandleMetadata *meta = (VideoNativeHandleMetadata*)(imageData->pointer());
+                meta->pHandle = data.readNativeHandle();
+
+                // The native handle will be freed in
+                // BpCameraRecordingProxyListener::releaseRecordingFrame.
+            }
+
             dataCallbackTimestamp(timestamp, msgType, imageData);
             return NO_ERROR;
         } break;
