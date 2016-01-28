@@ -778,6 +778,9 @@ bool MtpDevice::readPartialObject(MtpObjectHandle handle,
         ALOGE("Failed to send a read request.");
         return false;
     }
+    // The expected size is null because it requires the exact number of bytes to read though
+    // MTP_OPERATION_GET_PARTIAL_OBJECT allows devices to return shorter length of bytes than
+    // requested. Destination's buffer length should be checked in |callback|.
     return readData(callback, nullptr /* expected size */, writtenSize, clientData);
 }
 
@@ -798,6 +801,9 @@ bool MtpDevice::readPartialObject64(MtpObjectHandle handle,
         ALOGE("Failed to send a read request.");
         return false;
     }
+    // The expected size is null because it requires the exact number of bytes to read though
+    // MTP_OPERATION_GET_PARTIAL_OBJECT_64 allows devices to return shorter length of bytes than
+    // requested. Destination's buffer length should be checked in |callback|.
     return readData(callback, nullptr /* expected size */, writtenSize, clientData);
 }
 
