@@ -27,6 +27,7 @@ struct ProcessInfo : public ProcessInfoInterface {
     ProcessInfo();
 
     virtual bool getPriority(int pid, int* priority);
+    virtual bool isValidPid(int pid);
 
 protected:
     virtual ~ProcessInfo();
