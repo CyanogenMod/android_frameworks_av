@@ -28,6 +28,8 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+#include <OMX_IndexExt.h>
+#include <OMX_VideoExt.h>
 #include <ui/Rect.h>
 
 #include "ih264_typedefs.h"
@@ -1027,9 +1029,29 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
     }
 }
 
+OMX_ERRORTYPE SoftAVC::getConfig(
+        OMX_INDEXTYPE index, OMX_PTR _params) {
+    switch ((int)index) {
+        case OMX_IndexConfigAndroidIntraRefresh:
+        {
+            OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE *intraRefreshParams =
+                (OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE *)_params;
+            if (intraRefreshParams->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorUndefined;
+            }
+
+            intraRefreshParams->nRefreshPeriod = mAIRRefreshPeriod;
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return SoftVideoEncoderOMXComponent::getConfig(index, _params);
+    }
+}
+
 OMX_ERRORTYPE SoftAVC::setConfig(
         OMX_INDEXTYPE index, const OMX_PTR _params) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexConfigVideoIntraVOPRefresh:
         {
             OMX_CONFIG_INTRAREFRESHVOPTYPE *params =
@@ -1055,6 +1077,24 @@ OMX_ERRORTYPE SoftAVC::setConfig(
             if (mBitrate != params->nEncodeBitrate) {
                 mBitrate = params->nEncodeBitrate;
                 mBitrateUpdated = true;
+            }
+            return OMX_ErrorNone;
+        }
+
+        case OMX_IndexConfigAndroidIntraRefresh:
+        {
+            const OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE *intraRefreshParams =
+                (const OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE *)_params;
+            if (intraRefreshParams->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorUndefined;
+            }
+
+            if (intraRefreshParams->nRefreshPeriod == 0) {
+                mAIRMode = IVE_AIR_MODE_NONE;
+                mAIRRefreshPeriod = 0;
+            } else if (intraRefreshParams->nRefreshPeriod > 0) {
+                mAIRMode = IVE_AIR_MODE_CYCLIC;
+                mAIRRefreshPeriod = intraRefreshParams->nRefreshPeriod;
             }
             return OMX_ErrorNone;
         }
