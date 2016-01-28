@@ -47,6 +47,24 @@ const char *const PolicySerializer::rootName = "audioPolicyConfiguration";
 const char *const PolicySerializer::versionAttribute = "version";
 const uint32_t PolicySerializer::gMajor = 1;
 const uint32_t PolicySerializer::gMinor = 0;
+static const char *const gReferenceElementName = "reference";
+static const char *const gReferenceAttributeName = "name";
+
+static void getReference(const _xmlNode *root, const _xmlNode *&refNode, const string &refName)
+{
+    const _xmlNode *cur = root->xmlChildrenNode;
+    while (cur != NULL) {
+        if ((!xmlStrcmp(cur->name, (const xmlChar *)gReferenceElementName))) {
+            string name = getXmlAttribute(cur, gReferenceAttributeName);
+              if (refName == name) {
+                  refNode = cur;
+                  return;
+              }
+        }
+        cur = cur->next;
+    }
+    return;
+}
 
 template <class Trait>
 static status_t deserializeCollection(_xmlDoc *doc, const _xmlNode *cur,
@@ -490,7 +508,7 @@ const char *const VolumeTraits::volumePointTag = "point";
 
 const char VolumeTraits::Attributes::stream[] = "stream";
 const char VolumeTraits::Attributes::deviceCategory[] = "deviceCategory";
-
+const char VolumeTraits::Attributes::reference[] = "ref";
 
 status_t VolumeTraits::deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElement &element,
                                    PtrSerializingCtx /*serializingContext*/)
@@ -516,9 +534,20 @@ status_t VolumeTraits::deserialize(_xmlDoc *doc, const _xmlNode *root, PtrElemen
               deviceCategoryLiteral.c_str());
         return BAD_VALUE;
     }
+
+    string referenceName = getXmlAttribute(root, Attributes::reference);
+    const _xmlNode *ref = NULL;
+    if (!referenceName.empty()) {
+        getReference(root->parent, ref, referenceName);
+        if (ref == NULL) {
+            ALOGE("%s: No reference Ptr found for %s", __FUNCTION__, referenceName.c_str());
+            return BAD_VALUE;
+        }
+    }
+
     element = new Element(deviceCategory, streamType);
 
-    const xmlNode *child = root->xmlChildrenNode;
+    const xmlNode *child = referenceName.empty() ? root->xmlChildrenNode : ref->xmlChildrenNode;
     while (child != NULL) {
         if (!xmlStrcmp(child->name, (const xmlChar *)volumePointTag)) {
             xmlChar *pointDefinition = xmlNodeListGetString(doc, child->xmlChildrenNode, 1);;

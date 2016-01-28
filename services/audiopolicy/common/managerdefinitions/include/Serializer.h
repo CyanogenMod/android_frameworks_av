@@ -198,6 +198,7 @@ struct VolumeTraits
     {
         static const char stream[];
         static const char deviceCategory[];
+        static const char reference[];
     };
 
     typedef VolumeCurve Element;
