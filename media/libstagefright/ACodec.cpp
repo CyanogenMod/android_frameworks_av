@@ -5906,6 +5906,15 @@ void ACodec::LoadedToIdleState::stateEntered() {
 
         mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
 
+        mCodec->mOMX->sendCommand(
+                mCodec->mNode, OMX_CommandStateSet, OMX_StateLoaded);
+        if (mCodec->allYourBuffersAreBelongToUs(kPortIndexInput)) {
+            mCodec->freeBuffersOnPort(kPortIndexInput);
+        }
+        if (mCodec->allYourBuffersAreBelongToUs(kPortIndexOutput)) {
+            mCodec->freeBuffersOnPort(kPortIndexOutput);
+        }
+
         mCodec->changeState(mCodec->mLoadedState);
     }
 }
