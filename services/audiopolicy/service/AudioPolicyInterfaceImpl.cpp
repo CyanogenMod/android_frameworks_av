@@ -349,8 +349,27 @@ status_t AudioPolicyService::startInput(audio_io_handle_t input,
         return NO_INIT;
     }
     Mutex::Autolock _l(mLock);
+    AudioPolicyInterface::concurrency_type__mask_t concurrency;
+    status_t status = mAudioPolicyManager->startInput(input, session, &concurrency);
 
-    return mAudioPolicyManager->startInput(input, session);
+    if (status == NO_ERROR) {
+        // enforce permission (if any) required for each type of concurrency
+        switch (concurrency) {
+        case AudioPolicyInterface::API_INPUT_CONCURRENCY_NONE:
+            break;
+        case AudioPolicyInterface::API_INPUT_CONCURRENCY_CALL:
+            //TODO: check incall capture permission
+            break;
+        case AudioPolicyInterface::API_INPUT_CONCURRENCY_CAPTURE:
+            //TODO: check concurrent capture permission
+            break;
+       default:
+            LOG_ALWAYS_FATAL("startInput() encountered an invalid input type %d",
+                    (int)concurrency);
+        }
+    }
+
+    return status;
 }
 
 status_t AudioPolicyService::stopInput(audio_io_handle_t input,
@@ -378,7 +397,7 @@ void AudioPolicyService::releaseInput(audio_io_handle_t input,
     }
     if (audioPolicyEffects != 0) {
         // release audio processors from the input
-        status_t status = audioPolicyEffects->releaseInputEffects(input);
+        status_t status = audioPolicyEffects->releaseInputEffects(input, session);
         if(status != NO_ERROR) {
             ALOGW("Failed to release effects on input %d", input);
         }
@@ -551,7 +570,8 @@ status_t AudioPolicyService::queryDefaultPreProcessing(int audioSession,
         *count = 0;
         return NO_INIT;
     }
-    return audioPolicyEffects->queryDefaultInputEffects(audioSession, descriptors, count);
+    return audioPolicyEffects->queryDefaultInputEffects(
+            (audio_session_t)audioSession, descriptors, count);
 }
 
 bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
