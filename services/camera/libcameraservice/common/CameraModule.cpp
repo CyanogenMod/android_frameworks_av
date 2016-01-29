@@ -130,6 +130,7 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         // Check if HAL supports RAW_OPAQUE output
         camera_metadata_entry entry = chars.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
         bool supportRawOpaque = false;
+        bool supportAnyRaw = false;
         const int STREAM_CONFIGURATION_SIZE = 4;
         const int STREAM_FORMAT_OFFSET = 0;
         const int STREAM_WIDTH_OFFSET = 1;
@@ -151,6 +152,13 @@ void CameraModule::deriveCameraCharacteristicsKeys(
                 // HAL does not fill in the opaque raw size
                 rawOpaqueSizes.push(width * height *2);
             }
+            if (isInput == ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT &&
+                    (format == HAL_PIXEL_FORMAT_RAW16 ||
+                     format == HAL_PIXEL_FORMAT_RAW10 ||
+                     format == HAL_PIXEL_FORMAT_RAW12 ||
+                     format == HAL_PIXEL_FORMAT_RAW_OPAQUE)) {
+                supportAnyRaw = true;
+            }
         }
 
         if (supportRawOpaque) {
@@ -159,6 +167,19 @@ void CameraModule::deriveCameraCharacteristicsKeys(
                 // Fill in estimated value if HAL does not list it
                 chars.update(ANDROID_SENSOR_OPAQUE_RAW_SIZE, rawOpaqueSizes);
                 derivedCharKeys.push(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
+            }
+        }
+
+        // Check if HAL supports any RAW output, if so, fill in postRawSensitivityBoost range
+        if (supportAnyRaw) {
+            int32_t defaultRange[2] = {100, 100};
+            entry = chars.find(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE);
+            if (entry.count == 0) {
+                // Fill in default value (100, 100)
+                chars.update(
+                        ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE,
+                        defaultRange, 2);
+                derivedCharKeys.push(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE);
             }
         }
     }
