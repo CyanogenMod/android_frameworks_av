@@ -43,25 +43,11 @@ ssize_t MonoPipeReader::availableToRead()
     return ret;
 }
 
-ssize_t MonoPipeReader::read(void *buffer, size_t count, int64_t readPTS)
+ssize_t MonoPipeReader::read(void *buffer, size_t count)
 {
-    // Compute the "next read PTS" and cache it.  Callers of read pass a read
-    // PTS indicating the local time for which they are requesting data along
-    // with a count (which is the number of audio frames they are going to
-    // ultimately pass to the next stage of the pipeline).  Offsetting readPTS
-    // by the duration of count will give us the readPTS which will be passed to
-    // us next time, assuming they system continues to operate in steady state
-    // with no discontinuities.  We stash this value so it can be used by the
-    // MonoPipe writer to imlement getNextWriteTimestamp.
-    int64_t nextReadPTS;
-    nextReadPTS = mPipe->offsetTimestampByAudioFrames(readPTS, count);
-
     // count == 0 is unlikely and not worth checking for explicitly; will be handled automatically
     ssize_t red = availableToRead();
     if (CC_UNLIKELY(red <= 0)) {
-        // Uh-oh, looks like we are underflowing.  Update the next read PTS and
-        // get out.
-        mPipe->updateFrontAndNRPTS(mPipe->mFront, nextReadPTS);
         return red;
     }
     if (CC_LIKELY((size_t) red > count)) {
@@ -80,7 +66,7 @@ ssize_t MonoPipeReader::read(void *buffer, size_t count, int64_t readPTS)
                 memcpy((char *) buffer + (part1 * mFrameSize), mPipe->mBuffer, part2 * mFrameSize);
             }
         }
-        mPipe->updateFrontAndNRPTS(red + mPipe->mFront, nextReadPTS);
+        android_atomic_release_store(red + mPipe->mFront, &mPipe->mFront);
         mFramesRead += red;
     }
     return red;

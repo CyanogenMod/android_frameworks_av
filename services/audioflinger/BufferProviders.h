@@ -64,7 +64,7 @@ public:
     virtual ~CopyBufferProvider();
 
     // Overrides AudioBufferProvider methods
-    virtual status_t getNextBuffer(Buffer *buffer, int64_t pts);
+    virtual status_t getNextBuffer(Buffer *buffer);
     virtual void releaseBuffer(Buffer *buffer);
 
     // Overrides PassthruBufferProvider
@@ -156,7 +156,7 @@ public:
     virtual ~TimestretchBufferProvider();
 
     // Overrides AudioBufferProvider methods
-    virtual status_t getNextBuffer(Buffer* buffer, int64_t pts);
+    virtual status_t getNextBuffer(Buffer* buffer);
     virtual void releaseBuffer(Buffer* buffer);
 
     // Overrides PassthruBufferProvider

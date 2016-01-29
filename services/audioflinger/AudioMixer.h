@@ -126,7 +126,7 @@ public:
     void        setParameter(int name, int target, int param, void *value);
 
     void        setBufferProvider(int name, AudioBufferProvider* bufferProvider);
-    void        process(int64_t pts);
+    void        process();
 
     uint32_t    trackNames() const { return mTrackNames; }
 
@@ -278,7 +278,7 @@ private:
         void        reconfigureBufferProviders();
     };
 
-    typedef void (*process_hook_t)(state_t* state, int64_t pts);
+    typedef void (*process_hook_t)(state_t* state);
 
     // pad to 32-bytes to fill cache line
     struct state_t {
@@ -328,17 +328,12 @@ private:
     static void volumeStereo(track_t* t, int32_t* out, size_t frameCount, int32_t* temp,
             int32_t* aux);
 
-    static void process__validate(state_t* state, int64_t pts);
-    static void process__nop(state_t* state, int64_t pts);
-    static void process__genericNoResampling(state_t* state, int64_t pts);
-    static void process__genericResampling(state_t* state, int64_t pts);
-    static void process__OneTrack16BitsStereoNoResampling(state_t* state,
-                                                          int64_t pts);
+    static void process__validate(state_t* state);
+    static void process__nop(state_t* state);
+    static void process__genericNoResampling(state_t* state);
+    static void process__genericResampling(state_t* state);
+    static void process__OneTrack16BitsStereoNoResampling(state_t* state);
 
-    static int64_t calculateOutputPTS(const track_t& t, int64_t basePTS,
-                                      int outputFrameIndex);
-
-    static uint64_t         sLocalTimeFreq;
     static pthread_once_t   sOnceControl;
     static void             sInitRoutine();
 
@@ -359,7 +354,7 @@ private:
 
     // multi-format process hooks
     template <int MIXTYPE, typename TO, typename TI, typename TA>
-    static void process_NoResampleOneTrack(state_t* state, int64_t pts);
+    static void process_NoResampleOneTrack(state_t* state);
 
     // multi-format track hooks
     template <int MIXTYPE, typename TO, typename TI, typename TA>

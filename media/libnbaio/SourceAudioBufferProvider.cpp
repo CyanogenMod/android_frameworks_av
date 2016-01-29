@@ -45,7 +45,7 @@ SourceAudioBufferProvider::~SourceAudioBufferProvider()
     free(mAllocated);
 }
 
-status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
+status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer)
 {
     ALOG_ASSERT(buffer != NULL && buffer->frameCount > 0 && mGetCount == 0);
     // any leftover data available?
@@ -73,7 +73,7 @@ status_t SourceAudioBufferProvider::getNextBuffer(Buffer *buffer, int64_t pts)
     }
     {
         // read from source
-        ssize_t actual = mSource->read(mAllocated, buffer->frameCount, pts);
+        ssize_t actual = mSource->read(mAllocated, buffer->frameCount);
         if (actual > 0) {
             ALOG_ASSERT((size_t) actual <= buffer->frameCount);
             mOffset = 0;

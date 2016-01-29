@@ -47,7 +47,6 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_SHARED_LIBRARIES := \
 	libeffects \
 	libnbaio \
-	libcommon_time_client \
 	libaudioresampler \
 	libaudioutils \
 	libdl \

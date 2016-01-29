@@ -272,9 +272,7 @@ int main(int argc, char* argv[]) {
             mFrameSize(frameSize),
             mNextFrame(0), mUnrel(0), mPvalues(Pvalues), mNextPidx(0) {
         }
-        virtual status_t getNextBuffer(Buffer* buffer,
-                int64_t pts = kInvalidPTS) {
-            (void)pts; // suppress warning
+        virtual status_t getNextBuffer(Buffer* buffer) {
             size_t requestedFrames = buffer->frameCount;
             if (requestedFrames > mNumFrames - mNextFrame) {
                 buffer->frameCount = mNumFrames - mNextFrame;

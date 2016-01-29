@@ -527,8 +527,7 @@ size_t AudioResamplerDyn<TC, TI, TO>::resample(TO* out, size_t outFrameCount,
         // We may not fetch a new buffer if the existing data is sufficient.
         while (mBuffer.frameCount == 0 && inFrameCount > 0) {
             mBuffer.frameCount = inFrameCount;
-            provider->getNextBuffer(&mBuffer,
-                    calculateOutputPTS(outputIndex / OUTPUT_CHANNELS));
+            provider->getNextBuffer(&mBuffer);
             if (mBuffer.raw == NULL) {
                 goto resample_exit;
             }

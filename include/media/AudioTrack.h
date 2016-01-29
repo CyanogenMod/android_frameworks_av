@@ -954,7 +954,6 @@ protected:
 
     mutable Mutex           mLock;
 
-    bool                    mIsTimed;
     int                     mPreviousPriority;          // before start()
     SchedPolicy             mPreviousSchedulingGroup;
     bool                    mAwaitBoost;    // thread should wait for priority boost before running
@@ -990,29 +989,6 @@ private:
     pid_t                   mClientPid;
 
     sp<AudioSystem::AudioDeviceCallback> mDeviceCallback;
-};
-
-class TimedAudioTrack : public AudioTrack
-{
-public:
-    TimedAudioTrack();
-
-    /* allocate a shared memory buffer that can be passed to queueTimedBuffer */
-    status_t allocateTimedBuffer(size_t size, sp<IMemory>* buffer);
-
-    /* queue a buffer obtained via allocateTimedBuffer for playback at the
-       given timestamp.  PTS units are microseconds on the media time timeline.
-       The media time transform (set with setMediaTimeTransform) set by the
-       audio producer will handle converting from media time to local time
-       (perhaps going through the common time timeline in the case of
-       synchronized multiroom audio case) */
-    status_t queueTimedBuffer(const sp<IMemory>& buffer, int64_t pts);
-
-    /* define a transform between media time and either common time or
-       local time */
-    enum TargetTimeline {LOCAL_TIME, COMMON_TIME};
-    status_t setMediaTimeTransform(const LinearTransform& xform,
-                                   TargetTimeline target);
 };
 
 }; // namespace android

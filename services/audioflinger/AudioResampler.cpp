@@ -261,8 +261,8 @@ AudioResampler::AudioResampler(int inChannelCount,
         int32_t sampleRate, src_quality quality) :
         mChannelCount(inChannelCount),
         mSampleRate(sampleRate), mInSampleRate(sampleRate), mInputIndex(0),
-        mPhaseFraction(0), mLocalTimeFreq(0),
-        mPTS(AudioBufferProvider::kInvalidPTS), mQuality(quality) {
+        mPhaseFraction(0),
+        mQuality(quality) {
 
     const int maxChannels = quality < DYN_LOW_QUALITY ? 2 : 8;
     if (inChannelCount < 1
@@ -302,23 +302,6 @@ void AudioResampler::setVolume(float left, float right) {
     // integer volume values are clamped to 0 to UNITY_GAIN.
     mVolume[0] = u4_12_from_float(clampFloatVol(left));
     mVolume[1] = u4_12_from_float(clampFloatVol(right));
-}
-
-void AudioResampler::setLocalTimeFreq(uint64_t freq) {
-    mLocalTimeFreq = freq;
-}
-
-void AudioResampler::setPTS(int64_t pts) {
-    mPTS = pts;
-}
-
-int64_t AudioResampler::calculateOutputPTS(int outputFrameIndex) {
-
-    if (mPTS == AudioBufferProvider::kInvalidPTS) {
-        return AudioBufferProvider::kInvalidPTS;
-    } else {
-        return mPTS + ((outputFrameIndex * mLocalTimeFreq) / mSampleRate);
-    }
 }
 
 void AudioResampler::reset() {
@@ -368,8 +351,7 @@ size_t AudioResamplerOrder1::resampleStereo16(int32_t* out, size_t outFrameCount
         // buffer is empty, fetch a new one
         while (mBuffer.frameCount == 0) {
             mBuffer.frameCount = inFrameCount;
-            provider->getNextBuffer(&mBuffer,
-                                    calculateOutputPTS(outputIndex / 2));
+            provider->getNextBuffer(&mBuffer);
             if (mBuffer.raw == NULL) {
                 goto resampleStereo16_exit;
             }
@@ -465,8 +447,7 @@ size_t AudioResamplerOrder1::resampleMono16(int32_t* out, size_t outFrameCount,
         // buffer is empty, fetch a new one
         while (mBuffer.frameCount == 0) {
             mBuffer.frameCount = inFrameCount;
-            provider->getNextBuffer(&mBuffer,
-                                    calculateOutputPTS(outputIndex / 2));
+            provider->getNextBuffer(&mBuffer);
             if (mBuffer.raw == NULL) {
                 mInputIndex = inputIndex;
                 mPhaseFraction = phaseFraction;

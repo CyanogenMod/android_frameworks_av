@@ -47,7 +47,8 @@ public:
     // or-able bits shared by createTrack and openRecord, but not all combinations make sense
     enum {
         TRACK_DEFAULT = 0,  // client requests a default AudioTrack
-        TRACK_TIMED   = 1,  // client requests a TimedAudioTrack
+        // FIXME: obsolete
+        // TRACK_TIMED= 1,  // client requests a TimedAudioTrack
         TRACK_FAST    = 2,  // client requests a fast AudioTrack or AudioRecord
         TRACK_OFFLOAD = 4,  // client requests offload to hw codec
         TRACK_DIRECT = 8,   // client requests a direct output

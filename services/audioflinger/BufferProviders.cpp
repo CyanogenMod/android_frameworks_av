@@ -70,13 +70,12 @@ CopyBufferProvider::~CopyBufferProvider()
     free(mLocalBufferData);
 }
 
-status_t CopyBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
-        int64_t pts)
+status_t CopyBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer)
 {
-    //ALOGV("CopyBufferProvider(%p)::getNextBuffer(%p (%zu), %lld)",
-    //        this, pBuffer, pBuffer->frameCount, pts);
+    //ALOGV("CopyBufferProvider(%p)::getNextBuffer(%p (%zu))",
+    //        this, pBuffer, pBuffer->frameCount);
     if (mLocalBufferFrameCount == 0) {
-        status_t res = mTrackBufferProvider->getNextBuffer(pBuffer, pts);
+        status_t res = mTrackBufferProvider->getNextBuffer(pBuffer);
         if (res == OK) {
             copyFrames(pBuffer->raw, pBuffer->raw, pBuffer->frameCount);
         }
@@ -84,7 +83,7 @@ status_t CopyBufferProvider::getNextBuffer(AudioBufferProvider::Buffer *pBuffer,
     }
     if (mBuffer.frameCount == 0) {
         mBuffer.frameCount = pBuffer->frameCount;
-        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
+        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer);
         // At one time an upstream buffer provider had
         // res == OK and mBuffer.frameCount == 0, doesn't seem to happen now 7/18/2014.
         //
@@ -356,13 +355,13 @@ TimestretchBufferProvider::~TimestretchBufferProvider()
 }
 
 status_t TimestretchBufferProvider::getNextBuffer(
-        AudioBufferProvider::Buffer *pBuffer, int64_t pts)
+        AudioBufferProvider::Buffer *pBuffer)
 {
-    ALOGV("TimestretchBufferProvider(%p)::getNextBuffer(%p (%zu), %lld)",
-            this, pBuffer, pBuffer->frameCount, pts);
+    ALOGV("TimestretchBufferProvider(%p)::getNextBuffer(%p (%zu))",
+            this, pBuffer, pBuffer->frameCount);
 
     // BYPASS
-    //return mTrackBufferProvider->getNextBuffer(pBuffer, pts);
+    //return mTrackBufferProvider->getNextBuffer(pBuffer);
 
     // check if previously processed data is sufficient.
     if (pBuffer->frameCount <= mRemaining) {
@@ -391,7 +390,7 @@ status_t TimestretchBufferProvider::getNextBuffer(
         mBuffer.frameCount = mPlaybackRate.mSpeed == AUDIO_TIMESTRETCH_SPEED_NORMAL
                 ? outputDesired : outputDesired * mPlaybackRate.mSpeed + 1;
 
-        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer, pts);
+        status_t res = mTrackBufferProvider->getNextBuffer(&mBuffer);
 
         ALOG_ASSERT(res == OK || mBuffer.frameCount == 0);
         if (res != OK || mBuffer.frameCount == 0) { // not needed by API spec, but to be safe.

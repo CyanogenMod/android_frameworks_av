@@ -1109,7 +1109,7 @@ public:
         virtual void sync(size_t *framesAvailable = NULL, bool *hasOverrun = NULL);
 
         // AudioBufferProvider interface
-        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer, int64_t pts);
+        virtual status_t    getNextBuffer(AudioBufferProvider::Buffer* buffer);
         virtual void        releaseBuffer(AudioBufferProvider::Buffer* buffer);
     private:
         RecordTrack * const mRecordTrack;

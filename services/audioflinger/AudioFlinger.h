@@ -23,8 +23,6 @@
 #include <sys/types.h>
 #include <limits.h>
 
-#include <common_time/cc_helper.h>
-
 #include <cutils/compiler.h>
 
 #include <media/IAudioFlinger.h>
@@ -414,18 +412,12 @@ private:
         pid_t               pid() const { return mPid; }
         sp<AudioFlinger>    audioFlinger() const { return mAudioFlinger; }
 
-        bool reserveTimedTrack();
-        void releaseTimedTrack();
-
     private:
                             Client(const Client&);
                             Client& operator = (const Client&);
         const sp<AudioFlinger> mAudioFlinger;
               sp<MemoryDealer> mMemoryDealer;
         const pid_t         mPid;
-
-        Mutex               mTimedTrackLock;
-        int                 mTimedTrackCount;
     };
 
     // --- Notification Client ---
@@ -496,12 +488,6 @@ private:
         virtual void        flush();
         virtual void        pause();
         virtual status_t    attachAuxEffect(int effectId);
-        virtual status_t    allocateTimedBuffer(size_t size,
-                                                sp<IMemory>* buffer);
-        virtual status_t    queueTimedBuffer(const sp<IMemory>& buffer,
-                                             int64_t pts);
-        virtual status_t    setMediaTimeTransform(const LinearTransform& xform,
-                                                  int target);
         virtual status_t    setParameters(const String8& keyValuePairs);
         virtual status_t    getTimestamp(AudioTimestamp& timestamp);
         virtual void        signal(); // signal playback thread for a change in control block

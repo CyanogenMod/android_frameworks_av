@@ -166,8 +166,7 @@ void FastCapture::onWork()
         ALOG_ASSERT(mReadBuffer != NULL);
         dumpState->mReadSequence++;
         ATRACE_BEGIN("read");
-        ssize_t framesRead = mInputSource->read(mReadBuffer, frameCount,
-                AudioBufferProvider::kInvalidPTS);
+        ssize_t framesRead = mInputSource->read(mReadBuffer, frameCount);
         ATRACE_END();
         dumpState->mReadSequence++;
         if (framesRead >= 0) {
