@@ -81,7 +81,7 @@ bool AudioOutputDescriptor::sharesHwModuleWith(
         return sharesHwModuleWith(outputDesc->subOutput1()) ||
                     sharesHwModuleWith(outputDesc->subOutput2());
     } else {
-        return (getModuleHandle() == outputDesc->getModuleHandle());
+        return hasSameHwModuleAs(outputDesc);
     }
 }
 

@@ -420,15 +420,17 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         // FIXME: would be better to refine to only inputs whose profile connects to the
         // call TX device but this information is not in the audio patch and logic here must be
         // symmetric to the one in startInput()
-        audio_io_handle_t activeInput = mInputs.getActiveInput();
-        if (activeInput != 0) {
-            sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
-            if (activeDesc->getModuleHandle() == txSourceDeviceDesc->getModuleHandle()) {
-                //FIXME: consider all active sessions
-                AudioSessionCollection activeSessions = activeDesc->getActiveAudioSessions();
-                audio_session_t activeSession = activeSessions.keyAt(0);
-                stopInput(activeInput, activeSession);
-                releaseInput(activeInput, activeSession);
+        Vector<sp <AudioInputDescriptor> > activeInputs = mInputs.getActiveInputs();
+        for (size_t i = 0; i < activeInputs.size(); i++) {
+            sp<AudioInputDescriptor> activeDesc = activeInputs[i];
+            if (activeDesc->hasSameHwModuleAs(txSourceDeviceDesc)) {
+                AudioSessionCollection activeSessions =
+                        activeDesc->getAudioSessions(true /*activeOnly*/);
+                for (size_t j = 0; j < activeSessions.size(); j++) {
+                    audio_session_t activeSession = activeSessions.keyAt(j);
+                    stopInput(activeDesc->mIoHandle, activeSession);
+                    releaseInput(activeDesc->mIoHandle, activeSession);
+                }
             }
         }
 
@@ -594,15 +596,16 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
         }
     }
 
-    audio_io_handle_t activeInput = mInputs.getActiveInput();
-    if (activeInput != 0) {
-        sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
-        audio_devices_t newDevice = getNewInputDevice(activeInput);
+    Vector<sp <AudioInputDescriptor> > activeInputs = mInputs.getActiveInputs();
+    for (size_t i = 0; i < activeInputs.size(); i++) {
+        sp<AudioInputDescriptor> activeDesc = activeInputs[i];
+        audio_devices_t newDevice = getNewInputDevice(activeDesc);
         // Force new input selection if the new device can not be reached via current input
-        if (activeDesc->mProfile->getSupportedDevices().types() & (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
-            setInputDevice(activeInput, newDevice);
+        if (activeDesc->mProfile->getSupportedDevices().types() &
+                (newDevice & ~AUDIO_DEVICE_BIT_IN)) {
+            setInputDevice(activeDesc->mIoHandle, newDevice);
         } else {
-            closeInput(activeInput);
+            closeInput(activeDesc->mIoHandle);
         }
     }
 }
@@ -1334,6 +1337,7 @@ status_t AudioPolicyManager::getInputForAttr(const audio_attributes_t *attr,
 
     *input = AUDIO_IO_HANDLE_NONE;
     *inputType = API_INPUT_INVALID;
+
     audio_devices_t device;
     // handle legacy remote submix case where the address was not always specified
     String8 address = String8("");
@@ -1471,14 +1475,22 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
                                                               isSoundTrigger,
                                                               policyMix, mpClientInterface);
 
-// TODO enable input reuse
-#if 0
+
     // reuse an open input if possible
     for (size_t i = 0; i < mInputs.size(); i++) {
         sp<AudioInputDescriptor> desc = mInputs.valueAt(i);
-        // reuse input if it shares the same profile and same sound trigger attribute
-        if (profile == desc->mProfile &&
-            isSoundTrigger == desc->isSoundTrigger()) {
+        // reuse input if:
+        // - it shares the same profile
+        //      AND
+        // - it is not a reroute submix input
+        //      AND
+        // - it is: not used for sound trigger
+        //                OR
+        //          used for sound trigger and all clients use the same session ID
+        //
+        if ((profile == desc->mProfile) &&
+            (isSoundTrigger == desc->isSoundTrigger()) &&
+            !is_virtual_input_device(device)) {
 
             sp<AudioSession> as = desc->getAudioSession(session);
             if (as != 0) {
@@ -1488,16 +1500,33 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
                 } else {
                     ALOGW("getInputForDevice() record with different attributes"
                           " exists for session %d", session);
-                    return input;
+                    break;
                 }
+            } else if (isSoundTrigger) {
+                break;
+            }
+            // force close input if current source is now the highest priority request on this input
+            // and current input properties are not exactly as requested.
+            if ((desc->mSamplingRate != samplingRate ||
+                    desc->mChannelMask != channelMask ||
+                    desc->mFormat != format) &&
+                    (source_priority(desc->getHighestPrioritySource(false /*activeOnly*/)) <
+                     source_priority(inputSource))) {
+                ALOGV("%s: ", __FUNCTION__);
+                AudioSessionCollection sessions = desc->getAudioSessions(false /*activeOnly*/);
+                for (size_t j = 0; j < sessions.size(); j++) {
+                    audio_session_t currentSession = sessions.keyAt(j);
+                    stopInput(desc->mIoHandle, currentSession);
+                    releaseInput(desc->mIoHandle, currentSession);
+                }
+                break;
             } else {
                 desc->addAudioSession(session, audioSession);
+                ALOGV("%s: reusing input %d", __FUNCTION__, mInputs.keyAt(i));
+                return mInputs.keyAt(i);
             }
-            ALOGV("getInputForDevice() reusing input %d", mInputs.keyAt(i));
-            return mInputs.keyAt(i);
         }
     }
-#endif
 
     audio_config_t config = AUDIO_CONFIG_INITIALIZER;
     config.sample_rate = profileSamplingRate;
@@ -1540,10 +1569,50 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
     return input;
 }
 
+bool AudioPolicyManager::isConcurentCaptureAllowed(const sp<AudioInputDescriptor>& inputDesc,
+        const sp<AudioSession>& audioSession)
+{
+    // Do not allow capture if an active voice call is using a software patch and
+    // the call TX source device is on the same HW module.
+    // FIXME: would be better to refine to only inputs whose profile connects to the
+    // call TX device but this information is not in the audio patch
+    if (mCallTxPatch != 0 &&
+        inputDesc->getModuleHandle() == mCallTxPatch->mPatch.sources[0].ext.device.hw_module) {
+        return false;
+    }
+
+    // starting concurrent capture is enabled if:
+    // 1) capturing for re-routing
+    // 2) capturing for HOTWORD source
+    // 3) capturing for FM TUNER source
+    // 3) All other active captures are either for re-routing or HOTWORD
+
+    if (is_virtual_input_device(inputDesc->mDevice) ||
+            audioSession->inputSource() == AUDIO_SOURCE_HOTWORD ||
+            audioSession->inputSource() == AUDIO_SOURCE_FM_TUNER) {
+        return true;
+    }
+
+    Vector< sp<AudioInputDescriptor> > activeInputs = mInputs.getActiveInputs();
+    for (size_t i = 0; i <  activeInputs.size(); i++) {
+        sp<AudioInputDescriptor> activeInput = activeInputs[i];
+        if ((activeInput->inputSource() != AUDIO_SOURCE_HOTWORD) &&
+                (activeInput->inputSource() != AUDIO_SOURCE_FM_TUNER) &&
+                !is_virtual_input_device(activeInput->mDevice)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 status_t AudioPolicyManager::startInput(audio_io_handle_t input,
-                                        audio_session_t session)
+                                        audio_session_t session,
+                                        concurrency_type__mask_t *concurrency)
 {
     ALOGV("startInput() input %d", input);
+    *concurrency = API_INPUT_CONCURRENCY_NONE;
     ssize_t index = mInputs.indexOfKey(input);
     if (index < 0) {
         ALOGW("startInput() unknown input %d", input);
@@ -1557,74 +1626,52 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
         return BAD_VALUE;
     }
 
-    // virtual input devices are compatible with other input devices
-    if (!is_virtual_input_device(inputDesc->mDevice)) {
+    if (!isConcurentCaptureAllowed(inputDesc, audioSession)) {
+        ALOGW("startInput(%d) failed: other input already started", input);
+        return INVALID_OPERATION;
+    }
 
-        // for a non-virtual input device, check if there is another (non-virtual) active input
-        audio_io_handle_t activeInput = mInputs.getActiveInput();
-        if (activeInput != 0 && activeInput != input) {
-
-            // If the already active input uses AUDIO_SOURCE_HOTWORD then it is closed,
-            // otherwise the active input continues and the new input cannot be started.
-            sp<AudioInputDescriptor> activeDesc = mInputs.valueFor(activeInput);
-            if ((activeDesc->inputSource() == AUDIO_SOURCE_HOTWORD) &&
-                    !activeDesc->hasPreemptedSession(session)) {
-                ALOGW("startInput(%d) preempting low-priority input %d", input, activeInput);
-                //FIXME: consider all active sessions
-                AudioSessionCollection activeSessions = activeDesc->getActiveAudioSessions();
-                audio_session_t activeSession = activeSessions.keyAt(0);
-                SortedVector<audio_session_t> sessions =
-                                           activeDesc->getPreemptedSessions();
-                sessions.add(activeSession);
-                inputDesc->setPreemptedSessions(sessions);
-                stopInput(activeInput, activeSession);
-                releaseInput(activeInput, activeSession);
-            } else {
-                ALOGE("startInput(%d) failed: other input %d already started", input, activeInput);
-                return INVALID_OPERATION;
-            }
-        }
-
-        // Do not allow capture if an active voice call is using a software patch and
-        // the call TX source device is on the same HW module.
-        // FIXME: would be better to refine to only inputs whose profile connects to the
-        // call TX device but this information is not in the audio patch
-        if (mCallTxPatch != 0 &&
-            inputDesc->getModuleHandle() == mCallTxPatch->mPatch.sources[0].ext.device.hw_module) {
-            return INVALID_OPERATION;
-        }
+    if (isInCall()) {
+        *concurrency |= API_INPUT_CONCURRENCY_CALL;
+    }
+    if (mInputs.activeInputsCount() != 0) {
+        *concurrency |= API_INPUT_CONCURRENCY_CAPTURE;
     }
 
     // Routing?
     mInputRoutes.incRouteActivity(session);
 
-    if (!inputDesc->isActive() || mInputRoutes.hasRouteChanged(session)) {
-        // if input maps to a dynamic policy with an activity listener, notify of state change
-        if ((inputDesc->mPolicyMix != NULL)
-                && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
-            mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
-                    MIX_STATE_MIXING);
-        }
+    if (audioSession->activeCount() == 0 || mInputRoutes.hasRouteChanged(session)) {
 
-        if (mInputs.activeInputsCount() == 0) {
-            SoundTrigger::setCaptureState(true);
-        }
-        setInputDevice(input, getNewInputDevice(input), true /* force */);
+        setInputDevice(input, getNewInputDevice(inputDesc), true /* force */);
 
-        // automatically enable the remote submix output when input is started if not
-        // used by a policy mix of type MIX_TYPE_RECORDERS
-        // For remote submix (a virtual device), we open only one input per capture request.
-        if (audio_is_remote_submix_device(inputDesc->mDevice)) {
-            String8 address = String8("");
-            if (inputDesc->mPolicyMix == NULL) {
-                address = String8("0");
-            } else if (inputDesc->mPolicyMix->mMixType == MIX_TYPE_PLAYERS) {
-                address = inputDesc->mPolicyMix->mRegistrationId;
+        if (!inputDesc->isActive()) {
+            // if input maps to a dynamic policy with an activity listener, notify of state change
+            if ((inputDesc->mPolicyMix != NULL)
+                    && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
+                mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
+                        MIX_STATE_MIXING);
             }
-            if (address != "") {
-                setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
-                        AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                        address, "remote-submix");
+
+            if (mInputs.activeInputsCount() == 0) {
+                SoundTrigger::setCaptureState(true);
+            }
+
+            // automatically enable the remote submix output when input is started if not
+            // used by a policy mix of type MIX_TYPE_RECORDERS
+            // For remote submix (a virtual device), we open only one input per capture request.
+            if (audio_is_remote_submix_device(inputDesc->mDevice)) {
+                String8 address = String8("");
+                if (inputDesc->mPolicyMix == NULL) {
+                    address = String8("0");
+                } else if (inputDesc->mPolicyMix->mMixType == MIX_TYPE_PLAYERS) {
+                    address = inputDesc->mPolicyMix->mRegistrationId;
+                }
+                if (address != "") {
+                    setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+                            AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+                            address, "remote-submix");
+                }
             }
         }
     }
@@ -1662,36 +1709,41 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
     // Routing?
     mInputRoutes.decRouteActivity(session);
 
-    if (!inputDesc->isActive()) {
-        // if input maps to a dynamic policy with an activity listener, notify of state change
-        if ((inputDesc->mPolicyMix != NULL)
-                && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
-            mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
-                    MIX_STATE_IDLE);
-        }
+    if (audioSession->activeCount() == 0) {
 
-        // automatically disable the remote submix output when input is stopped if not
-        // used by a policy mix of type MIX_TYPE_RECORDERS
-        if (audio_is_remote_submix_device(inputDesc->mDevice)) {
-            String8 address = String8("");
-            if (inputDesc->mPolicyMix == NULL) {
-                address = String8("0");
-            } else if (inputDesc->mPolicyMix->mMixType == MIX_TYPE_PLAYERS) {
-                address = inputDesc->mPolicyMix->mRegistrationId;
+        if (inputDesc->isActive()) {
+            setInputDevice(input, getNewInputDevice(inputDesc), false /* force */);
+        } else {
+            // if input maps to a dynamic policy with an activity listener, notify of state change
+            if ((inputDesc->mPolicyMix != NULL)
+                    && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
+                mpClientInterface->onDynamicPolicyMixStateUpdate(inputDesc->mPolicyMix->mRegistrationId,
+                        MIX_STATE_IDLE);
             }
-            if (address != "") {
-                setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
-                                         AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-                                         address, "remote-submix");
+
+            // automatically disable the remote submix output when input is stopped if not
+            // used by a policy mix of type MIX_TYPE_RECORDERS
+            if (audio_is_remote_submix_device(inputDesc->mDevice)) {
+                String8 address = String8("");
+                if (inputDesc->mPolicyMix == NULL) {
+                    address = String8("0");
+                } else if (inputDesc->mPolicyMix->mMixType == MIX_TYPE_PLAYERS) {
+                    address = inputDesc->mPolicyMix->mRegistrationId;
+                }
+                if (address != "") {
+                    setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
+                                             AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+                                             address, "remote-submix");
+                }
             }
-        }
 
-        resetInputDevice(input);
+            resetInputDevice(input);
 
-        if (mInputs.activeInputsCount() == 0) {
-            SoundTrigger::setCaptureState(false);
+            if (mInputs.activeInputsCount() == 0) {
+                SoundTrigger::setCaptureState(false);
+            }
+            inputDesc->clearPreemptedSessions();
         }
-        inputDesc->clearPreemptedSessions();
     }
     return NO_ERROR;
 }
@@ -2453,7 +2505,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
                 // create a software bridge in PatchPanel if:
                 // - source and sink devices are on differnt HW modules OR
                 // - audio HAL version is < 3.0
-                if ((srcDeviceDesc->getModuleHandle() != sinkDeviceDesc->getModuleHandle()) ||
+                if (!srcDeviceDesc->hasSameHwModuleAs(sinkDeviceDesc) ||
                         (srcDeviceDesc->mModule->getHalVersion() < AUDIO_DEVICE_API_VERSION_3_0)) {
                     // support only one sink device for now to simplify output selection logic
                     if (patch->num_sinks > 1) {
@@ -2553,7 +2605,7 @@ status_t AudioPolicyManager::releaseAudioPatch(audio_patch_handle_t handle,
                 return BAD_VALUE;
             }
             setInputDevice(inputDesc->mIoHandle,
-                           getNewInputDevice(inputDesc->mIoHandle),
+                           getNewInputDevice(inputDesc),
                            true,
                            NULL);
         } else if (patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) {
@@ -4179,9 +4231,9 @@ audio_devices_t AudioPolicyManager::getNewOutputDevice(const sp<AudioOutputDescr
     return device;
 }
 
-audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
+audio_devices_t AudioPolicyManager::getNewInputDevice(const sp<AudioInputDescriptor>& inputDesc)
 {
-    sp<AudioInputDescriptor> inputDesc = mInputs.valueFor(input);
+    audio_devices_t device = AUDIO_DEVICE_NONE;
 
     ssize_t index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
     if (index >= 0) {
@@ -4193,7 +4245,12 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
         }
     }
 
-    audio_devices_t device = getDeviceAndMixForInputSource(inputDesc->inputSource());
+    audio_source_t source = inputDesc->getHighestPrioritySource(true /*activeOnly*/);
+    if (isInCall()) {
+        device = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
+    } else if (source != AUDIO_SOURCE_DEFAULT) {
+        device = getDeviceAndMixForInputSource(source);
+    }
 
     return device;
 }
