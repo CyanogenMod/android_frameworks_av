@@ -179,7 +179,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             avail = 0;
         } else if (avail > 0) {
             // 'avail' may be non-contiguous, so return only the first contiguous chunk
-            ssize_t part1;
+            size_t part1;
             if (mIsOut) {
                 rear &= mFrameCountP2 - 1;
                 part1 = mFrameCountP2 - rear;
@@ -187,13 +187,13 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
                 front &= mFrameCountP2 - 1;
                 part1 = mFrameCountP2 - front;
             }
-            if (part1 > avail) {
+            if (part1 > (size_t)avail) {
                 part1 = avail;
             }
-            if (part1 > (ssize_t) buffer->mFrameCount) {
+            if (part1 > buffer->mFrameCount) {
                 part1 = buffer->mFrameCount;
             }
-            buffer->mFrameCount = (size_t) part1;
+            buffer->mFrameCount = part1;
             buffer->mRaw = part1 > 0 ?
                     &((char *) mBuffers)[(mIsOut ? rear : front) * mFrameSize] : NULL;
             buffer->mNonContig = avail - part1;
