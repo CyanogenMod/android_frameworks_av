@@ -61,13 +61,13 @@ void SoundTriggerHwService::onFirstRef()
     rc = hw_get_module_by_class(SOUND_TRIGGER_HARDWARE_MODULE_ID, HW_MODULE_PREFIX, &mod);
     if (rc != 0) {
         ALOGE("couldn't load sound trigger module %s.%s (%s)",
-              SOUND_TRIGGER_HARDWARE_MODULE_ID, "primary", strerror(-rc));
+              SOUND_TRIGGER_HARDWARE_MODULE_ID, HW_MODULE_PREFIX, strerror(-rc));
         return;
     }
     rc = sound_trigger_hw_device_open(mod, &dev);
     if (rc != 0) {
         ALOGE("couldn't open sound trigger hw device in %s.%s (%s)",
-              SOUND_TRIGGER_HARDWARE_MODULE_ID, "primary", strerror(-rc));
+              SOUND_TRIGGER_HARDWARE_MODULE_ID, HW_MODULE_PREFIX, strerror(-rc));
         return;
     }
     if (dev->common.version != SOUND_TRIGGER_DEVICE_API_VERSION_CURRENT) {
@@ -811,6 +811,17 @@ void SoundTriggerHwService::Module::setCaptureState_l(bool active)
                 } else if (model->mType == SOUND_MODEL_TYPE_GENERIC) {
                     struct sound_trigger_generic_recognition_event event;
                     memset(&event, 0, sizeof(struct sound_trigger_generic_recognition_event));
+                    event.common.status = RECOGNITION_STATUS_ABORT;
+                    event.common.type = model->mType;
+                    event.common.model = model->mHandle;
+                    event.common.data_size = 0;
+                    sp<IMemory> eventMemory = service->prepareRecognitionEvent_l(&event.common);
+                    if (eventMemory != 0) {
+                        events.add(eventMemory);
+                    }
+                } else if (model->mType == SOUND_MODEL_TYPE_UNKNOWN) {
+                    struct sound_trigger_phrase_recognition_event event;
+                    memset(&event, 0, sizeof(struct sound_trigger_phrase_recognition_event));
                     event.common.status = RECOGNITION_STATUS_ABORT;
                     event.common.type = model->mType;
                     event.common.model = model->mHandle;
