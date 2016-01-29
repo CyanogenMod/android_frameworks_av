@@ -1638,10 +1638,14 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
         *concurrency |= API_INPUT_CONCURRENCY_CAPTURE;
     }
 
+    // increment activity count before calling getNewInputDevice() below as only active sessions
+    // are considered for device selection
+    audioSession->changeActiveCount(1);
+
     // Routing?
     mInputRoutes.incRouteActivity(session);
 
-    if (audioSession->activeCount() == 0 || mInputRoutes.hasRouteChanged(session)) {
+    if (audioSession->activeCount() == 1 || mInputRoutes.hasRouteChanged(session)) {
 
         setInputDevice(input, getNewInputDevice(inputDesc), true /* force */);
 
@@ -1678,7 +1682,6 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
 
     ALOGV("AudioPolicyManager::startInput() input source = %d", audioSession->inputSource());
 
-    audioSession->changeActiveCount(1);
     return NO_ERROR;
 }
 
