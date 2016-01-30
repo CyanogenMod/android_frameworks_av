@@ -1800,8 +1800,11 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
 
     // update volume on all outputs whose current device is also selected by the same
     // strategy as the device specified by the caller
-    audio_devices_t strategyDevice = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
-
+    audio_devices_t selectedDevices = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
+    // it is possible that the requested device is not selected by the strategy (e.g an explicit
+    // audio patch is active causing getDevicesForStream() to return this device. We must make
+    // sure that the device passed is part of the devices considered when applying volume below.
+    selectedDevices |= device;
 
     //FIXME: AUDIO_STREAM_ACCESSIBILITY volume follows AUDIO_STREAM_MUSIC for now
     audio_devices_t accessibilityDevice = AUDIO_DEVICE_NONE;
@@ -1809,15 +1812,12 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
         mVolumeCurves->addCurrentVolumeIndex(AUDIO_STREAM_ACCESSIBILITY, device, index);
         accessibilityDevice = getDeviceForStrategy(STRATEGY_ACCESSIBILITY, true /*fromCache*/);
     }
-    if ((device != AUDIO_DEVICE_OUT_DEFAULT) &&
-            (device & (strategyDevice | accessibilityDevice)) == 0) {
-        return NO_ERROR;
-    }
+
     status_t status = NO_ERROR;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
         audio_devices_t curDevice = Volume::getDeviceForVolume(desc->device());
-        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & strategyDevice) != 0)) {
+        if ((device == AUDIO_DEVICE_OUT_DEFAULT) || ((curDevice & selectedDevices) != 0)) {
             status_t volStatus = checkAndSetVolume(stream, index, desc, curDevice);
             if (volStatus != NO_ERROR) {
                 status = volStatus;
@@ -4227,7 +4227,6 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
         devices |= AUDIO_DEVICE_OUT_SPEAKER;
         devices &= ~AUDIO_DEVICE_OUT_SPEAKER_SAFE;
     }
-
     return devices;
 }
 
