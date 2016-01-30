@@ -4533,7 +4533,6 @@ uint32_t AudioPolicyManager::setOutputDevice(const sp<AudioOutputDescriptor>& ou
                     patchDesc->mPatch = patch;
                 }
                 patchDesc->mAfPatchHandle = afPatchHandle;
-                patchDesc->mUid = mUidCached;
                 if (patchHandle) {
                     *patchHandle = patchDesc->mHandle;
                 }
@@ -4638,7 +4637,6 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
                     patchDesc->mPatch = patch;
                 }
                 patchDesc->mAfPatchHandle = afPatchHandle;
-                patchDesc->mUid = mUidCached;
                 if (patchHandle) {
                     *patchHandle = patchDesc->mHandle;
                 }
