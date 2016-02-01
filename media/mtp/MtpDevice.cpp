@@ -181,7 +181,13 @@ MtpDevice* MtpDevice::open(const char* deviceName, int fd) {
                 return NULL;
             }
 
-            if (usb_device_claim_interface(device, interface->bInterfaceNumber)) {
+            int ret = usb_device_claim_interface(device, interface->bInterfaceNumber);
+            if (ret && errno == EBUSY) {
+                // disconnect kernel driver and try again
+                usb_device_connect_kernel_driver(device, interface->bInterfaceNumber, false);
+                ret = usb_device_claim_interface(device, interface->bInterfaceNumber);
+            }
+            if (ret) {
                 ALOGE("usb_device_claim_interface failed errno: %d\n", errno);
                 usb_device_close(device);
                 return NULL;
