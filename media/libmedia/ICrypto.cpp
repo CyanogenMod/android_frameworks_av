@@ -325,7 +325,9 @@ status_t BnCrypto::onTransact(
 
             if (overflow || sumSubsampleSizes != totalSize) {
                 result = -EINVAL;
-            } else if (offset + totalSize > sharedBuffer->size()) {
+            } else if (totalSize > sharedBuffer->size()) {
+                result = -EINVAL;
+            } else if ((size_t)offset > sharedBuffer->size() - totalSize) {
                 result = -EINVAL;
             } else {
                 result = decrypt(
