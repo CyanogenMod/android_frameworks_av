@@ -222,14 +222,18 @@ static_vo Word16 shl (Word16 var1, Word16 var2)
     }
     else
     {
-        result = (Word32) var1 *((Word32) 1 << var2);
-        if ((var2 > 15 && var1 != 0) || (result != (Word32) ((Word16) result)))
+        if (var2 > 15 && var1 != 0)
         {
             var_out = (Word16)((var1 > 0) ? MAX_16 : MIN_16);
         }
         else
         {
-            var_out = extract_l (result);
+            result = (Word32) var1 *((Word32) 1 << var2);
+            if ((result != (Word32) ((Word16) result))) {
+                var_out = (Word16)((var1 > 0) ? MAX_16 : MIN_16);
+            } else {
+                var_out = extract_l (result);
+            }
         }
     }
     return (var_out);
