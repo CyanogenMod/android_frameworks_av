@@ -5183,12 +5183,13 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
         reply = mpClientInterface->getParameters(ioHandle,
                                                  String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
         ALOGV("%s: supported formats %s", __FUNCTION__, reply.string());
-        value = strpbrk((char *)reply.string(), "=");
-        if (value == NULL) {
+        AudioParameter repliedParameters(reply);
+        if (repliedParameters.get(
+                String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS), reply) != NO_ERROR) {
             ALOGE("%s: failed to retrieve format, bailing out", __FUNCTION__);
             return;
         }
-        profiles.setFormats(formatsFromString(value + 1));
+        profiles.setFormats(formatsFromString(reply.string()));
     }
     const FormatVector &supportedFormats = profiles.getSupportedFormats();
 
@@ -5204,9 +5205,10 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
                                                      requestedParameters.toString() + ";" +
                                                      AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES);
             ALOGV("%s: supported sampling rates %s", __FUNCTION__, reply.string());
-            value = strpbrk((char *)reply.string(), "=");
-            if (value != NULL) {
-                samplingRates = samplingRatesFromString(value + 1);
+            AudioParameter repliedParameters(reply);
+            if (repliedParameters.get(
+                    String8(AUDIO_PARAMETER_STREAM_SUP_SAMPLING_RATES), reply) == NO_ERROR) {
+                samplingRates = samplingRatesFromString(reply.string());
             }
         }
         if (profiles.hasDynamicChannelsFor(format)) {
@@ -5214,9 +5216,10 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
                                                      requestedParameters.toString() + ";" +
                                                      AUDIO_PARAMETER_STREAM_SUP_CHANNELS);
             ALOGV("%s: supported channel masks %s", __FUNCTION__, reply.string());
-            value = strpbrk((char *)reply.string(), "=");
-            if (value != NULL) {
-                channelMasks = channelMasksFromString(value + 1);
+            AudioParameter repliedParameters(reply);
+            if (repliedParameters.get(
+                    String8(AUDIO_PARAMETER_STREAM_SUP_CHANNELS), reply) == NO_ERROR) {
+                channelMasks = channelMasksFromString(reply.string());
             }
         }
         profiles.addProfileFromHal(new AudioProfile(format, channelMasks, samplingRates));
