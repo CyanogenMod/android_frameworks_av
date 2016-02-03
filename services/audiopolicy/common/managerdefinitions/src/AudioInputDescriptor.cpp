@@ -158,6 +158,15 @@ AudioSessionCollection AudioInputDescriptor::getAudioSessions(bool activeOnly) c
     }
 }
 
+size_t AudioInputDescriptor::getAudioSessionCount(bool activeOnly) const
+{
+    if (activeOnly) {
+        return mSessions.getActiveSessionCount();
+    } else {
+        return mSessions.size();
+    }
+}
+
 status_t AudioInputDescriptor::addAudioSession(audio_session_t session,
                          const sp<AudioSession>& audioSession) {
     return mSessions.addSession(session, audioSession);

@@ -186,9 +186,20 @@ AudioSessionCollection AudioSessionCollection::getActiveSessions() const
     return activeSessions;
 }
 
+size_t AudioSessionCollection::getActiveSessionCount() const
+{
+    size_t activeCount = 0;
+    for (size_t i = 0; i < size(); i++) {
+        if (valueAt(i)->activeCount() != 0) {
+            activeCount++;
+        }
+    }
+    return activeCount;
+}
+
 bool AudioSessionCollection::hasActiveSession() const
 {
-    return getActiveSessions().size() != 0;
+    return getActiveSessionCount() != 0;
 }
 
 bool AudioSessionCollection::isSourceActive(audio_source_t source) const
