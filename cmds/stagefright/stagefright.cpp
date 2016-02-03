@@ -33,6 +33,7 @@
 #include <binder/ProcessState.h>
 #include <media/ICrypto.h>
 #include <media/IMediaHTTPService.h>
+#include <media/IMediaCodecService.h>
 #include <media/IMediaPlayerService.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ALooper.h>
@@ -904,8 +905,8 @@ int main(int argc, char **argv) {
 
     if (listComponents) {
         sp<IServiceManager> sm = defaultServiceManager();
-        sp<IBinder> binder = sm->getService(String16("media.player"));
-        sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
+        sp<IBinder> binder = sm->getService(String16("media.codec"));
+        sp<IMediaCodecService> service = interface_cast<IMediaCodecService>(binder);
 
         CHECK(service.get() != NULL);
 
