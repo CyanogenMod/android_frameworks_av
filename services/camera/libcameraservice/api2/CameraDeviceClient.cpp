@@ -456,7 +456,6 @@ status_t CameraDeviceClient::createStream(const OutputConfiguration &outputConfi
         return BAD_VALUE;
     }
 
-    // TODO: Hookup the stream set id with upper layer.
     int streamId = camera3::CAMERA3_STREAM_ID_INVALID;
     res = mDevice->createStream(surface, width, height, format, dataSpace,
                                 static_cast<camera3_stream_rotation_t>

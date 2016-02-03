@@ -113,9 +113,10 @@ status_t Camera3BufferManager::registerStream(const StreamInfo& streamInfo) {
     currentStreamSet.streamInfoMap.add(streamId, streamInfo);
     currentStreamSet.handoutBufferCountMap.add(streamId, 0);
 
-    // The watermark should be the max of buffer count of each stream inside a stream set.
-    if (streamInfo.totalBufferCount > currentStreamSet.allocatedBufferWaterMark) {
-       currentStreamSet.allocatedBufferWaterMark = streamInfo.totalBufferCount;
+    // The max allowed buffer count should be the max of buffer count of each stream inside a stream
+    // set.
+    if (streamInfo.totalBufferCount > currentStreamSet.maxAllowedBufferCount) {
+       currentStreamSet.maxAllowedBufferCount = streamInfo.totalBufferCount;
     }
 
     return OK;
@@ -147,12 +148,15 @@ status_t Camera3BufferManager::unregisterStream(int streamId, int streamSetId) {
 
     // Remove the stream info from info map and recalculate the buffer count water mark.
     infoMap.removeItem(streamId);
-    currentSet.allocatedBufferWaterMark = 0;
+    currentSet.maxAllowedBufferCount = 0;
     for (size_t i = 0; i < infoMap.size(); i++) {
-        if (infoMap[i].totalBufferCount > currentSet.allocatedBufferWaterMark) {
-            currentSet.allocatedBufferWaterMark = infoMap[i].totalBufferCount;
+        if (infoMap[i].totalBufferCount > currentSet.maxAllowedBufferCount) {
+            currentSet.maxAllowedBufferCount = infoMap[i].totalBufferCount;
         }
     }
+    // Lazy solution: when a stream is unregistered, the streams will be reconfigured, reset
+    // the water mark and let it grow again.
+    currentSet.allocatedBufferWaterMark = 0;
 
     // Remove this stream set if all its streams have been removed.
     if (freeBufs.size() == 0 && handOutBufferCounts.size() == 0 && infoMap.size() == 0) {
@@ -181,6 +185,14 @@ status_t Camera3BufferManager::getBufferForStream(int streamId, int streamSetId,
     }
 
     StreamSet &streamSet = mStreamSetMap.editValueFor(streamSetId);
+    BufferCountMap& handOutBufferCounts = streamSet.handoutBufferCountMap;
+    size_t& bufferCount = handOutBufferCounts.editValueFor(streamId);
+    if (bufferCount >= streamSet.maxAllowedBufferCount) {
+        ALOGE("%s: bufferCount (%zu) exceeds the max allowed buffer count (%zu) of this stream set",
+                __FUNCTION__, bufferCount, streamSet.maxAllowedBufferCount);
+        return INVALID_OPERATION;
+    }
+
     GraphicBufferEntry buffer =
             getFirstBufferFromBufferListLocked(streamSet.freeBuffers, streamId);
 
@@ -202,10 +214,10 @@ status_t Camera3BufferManager::getBufferForStream(int streamId, int streamSetId,
         }
 
         // Increase the hand-out buffer count for tracking purpose.
-        BufferCountMap& handOutBufferCounts = streamSet.handoutBufferCountMap;
-        size_t& bufferCount = handOutBufferCounts.editValueFor(streamId);
         bufferCount++;
-
+        if (bufferCount > streamSet.allocatedBufferWaterMark) {
+            streamSet.allocatedBufferWaterMark = bufferCount;
+        }
         *gb = buffer.graphicBuffer;
         *fenceFd = buffer.fenceFd;
         ALOGV("%s: get buffer (%p) with handle (%p).",
@@ -220,7 +232,8 @@ status_t Camera3BufferManager::getBufferForStream(int streamId, int streamSetId,
         if (streamSet.streamInfoMap.size() > 1) {
             for (size_t i = 0; i < streamSet.streamInfoMap.size(); i++) {
                 firstOtherStreamId = streamSet.streamInfoMap[i].streamId;
-                if (firstOtherStreamId != streamId) {
+                if (firstOtherStreamId != streamId &&
+                        hasBufferForStreamLocked(streamSet.freeBuffers, firstOtherStreamId)) {
                     break;
                 }
             }
@@ -299,6 +312,8 @@ void Camera3BufferManager::dump(int fd, const Vector<String16>& args) const {
         for (size_t j = 0; j < mStreamSetMap[i].streamInfoMap.size(); j++) {
             lines.appendFormat("          Stream %d\n", mStreamSetMap[i].streamInfoMap[j].streamId);
         }
+        lines.appendFormat("          Stream set max allowed buffer count: %zu\n",
+                mStreamSetMap[i].maxAllowedBufferCount);
         lines.appendFormat("          Stream set buffer count water mark: %zu\n",
                 mStreamSetMap[i].allocatedBufferWaterMark);
         lines.appendFormat("          Handout buffer counts:\n");
@@ -337,7 +352,7 @@ bool Camera3BufferManager::checkIfStreamRegisteredLocked(int streamId, int strea
         return false;
     }
 
-    size_t bufferWaterMark = mStreamSetMap[setIdx].allocatedBufferWaterMark;
+    size_t bufferWaterMark = mStreamSetMap[setIdx].maxAllowedBufferCount;
     if (bufferWaterMark == 0 || bufferWaterMark > kMaxBufferCount) {
         ALOGW("%s: stream %d with stream set %d is not registered correctly to stream set map,"
                 " as the water mark (%zu) is wrong!",
@@ -377,6 +392,19 @@ status_t Camera3BufferManager::removeBuffersFromBufferListLocked(BufferList& buf
             __FUNCTION__, streamId);
 
     return OK;
+}
+
+bool Camera3BufferManager::hasBufferForStreamLocked(BufferList& buffers, int streamId) {
+    BufferList::iterator i = buffers.begin();
+    while (i != buffers.end()) {
+        ssize_t idx = i->indexOfKey(streamId);
+        if (idx != NAME_NOT_FOUND) {
+            return true;
+        }
+        i++;
+    }
+
+    return false;
 }
 
 Camera3BufferManager::GraphicBufferEntry Camera3BufferManager::getFirstBufferFromBufferListLocked(

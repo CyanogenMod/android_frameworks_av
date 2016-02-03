@@ -220,8 +220,18 @@ private:
          * simultaneously, the max allocated buffer count water mark for a stream set will the max
          * of all streams' total buffer counts. This will avoid new buffer allocation in steady
          * streaming state.
+         *
+         * This water mark can be dynamically changed, and will grow when the hand-out buffer count
+         * of each stream increases, until it reaches the maxAllowedBufferCount.
          */
         size_t allocatedBufferWaterMark;
+
+        /**
+         * The max allowed buffer count for this stream set. It is the max of total number of
+         * buffers for each stream. This is the upper bound of the allocatedBufferWaterMark.
+         */
+        size_t maxAllowedBufferCount;
+
         /**
          * The stream info for all streams in this set
          */
@@ -237,6 +247,7 @@ private:
         BufferCountMap handoutBufferCountMap;
         StreamSet() {
             allocatedBufferWaterMark = 0;
+            maxAllowedBufferCount = 0;
         }
     };
 
@@ -280,6 +291,14 @@ private:
      *
      */
     GraphicBufferEntry getFirstBufferFromBufferListLocked(BufferList& buffers, int streamId);
+
+    /**
+     * Check if there is any buffer associated with this stream in the given buffer list.
+     *
+     * This method needs to be called with mLock held.
+     *
+     */
+    bool inline hasBufferForStreamLocked(BufferList& buffers, int streamId);
 };
 
 } // namespace camera3
