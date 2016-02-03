@@ -31,3 +31,10 @@ brk: 1
 sched_setscheduler: 1
 gettid: 1
 rt_sigprocmask: 1
+
+# for attaching to debuggerd on process crash
+sigaction: 1
+tgkill: 1
+socket: 1
+connect: 1
+fcntl64: 1
