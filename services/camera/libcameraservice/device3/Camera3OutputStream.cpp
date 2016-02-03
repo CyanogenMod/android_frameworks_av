@@ -416,11 +416,12 @@ status_t Camera3OutputStream::configureQueueLocked() {
     }
 
     /**
-     * Camera3 Buffer manager is only supported by HAL3.2 onwards, as the older HALs requires
+     * Camera3 Buffer manager is only supported by HAL3.3 onwards, as the older HALs requires
      * buffers to be statically allocated for internal static buffer registration, while the
      * buffers provided by buffer manager are really dynamically allocated. Camera3Device only
-     * sets the mBufferManager if device version is >= HAL3.2, which guarantees that the buffer
-     * manager setup is skipped in below code.
+     * sets the mBufferManager if device version is > HAL3.2, which guarantees that the buffer
+     * manager setup is skipped in below code. Note that HAL3.2 is also excluded here, as some
+     * HAL3.2 devices may not support the dynamic buffer registeration.
      */
     if (mBufferManager != 0 && mSetId > CAMERA3_STREAM_SET_ID_INVALID) {
         StreamInfo streamInfo(
