@@ -2142,7 +2142,11 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
                 mPausedForBuffering = true;
                 onPause();
             }
+            // fall-thru
+        }
 
+        case Source::kWhatBufferingStart:
+        {
             notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
             break;
         }
@@ -2160,7 +2164,11 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
                     onResume();
                 }
             }
+            // fall-thru
+        }
 
+        case Source::kWhatBufferingEnd:
+        {
             notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
             break;
         }

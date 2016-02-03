@@ -46,6 +46,8 @@ struct NuPlayer::Source : public AHandler {
         kWhatFlagsChanged,
         kWhatVideoSizeChanged,
         kWhatBufferingUpdate,
+        kWhatBufferingStart,
+        kWhatBufferingEnd,
         kWhatPauseOnBufferingStart,
         kWhatResumeOnBufferingEnd,
         kWhatCacheStats,
