@@ -64,6 +64,7 @@ public:
     status_t removeAudioSession(audio_session_t session);
     sp<AudioSession> getAudioSession(audio_session_t session) const;
     AudioSessionCollection getAudioSessions(bool activeOnly) const;
+    size_t getAudioSessionCount(bool activeOnly) const;
     audio_source_t getHighestPrioritySource(bool activeOnly) const;
 
 private:

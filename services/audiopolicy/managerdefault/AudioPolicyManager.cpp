@@ -1649,7 +1649,7 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
 
         setInputDevice(input, getNewInputDevice(inputDesc), true /* force */);
 
-        if (!inputDesc->isActive()) {
+        if (inputDesc->getAudioSessionCount(true/*activeOnly*/) == 1) {
             // if input maps to a dynamic policy with an activity listener, notify of state change
             if ((inputDesc->mPolicyMix != NULL)
                     && ((inputDesc->mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0)) {
