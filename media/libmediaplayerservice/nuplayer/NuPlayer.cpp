@@ -191,7 +191,8 @@ NuPlayer::NuPlayer(pid_t pid)
       mResetting(false),
       mSourceStarted(false),
       mPaused(false),
-      mPausedByClient(false),
+      mPausedByClient(true),
+      mPendingBufferingFlag(PENDING_BUFFERING_FLAG_NONE),
       mPausedForBuffering(false) {
     clearFlushComplete();
 }
@@ -715,6 +716,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 onStart();
             }
             mPausedByClient = false;
+            if (mPendingBufferingFlag != PENDING_BUFFERING_FLAG_NONE) {
+                notifyListener(MEDIA_INFO, mPendingBufferingFlag, 0);
+                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
+            }
             break;
         }
 
@@ -2147,7 +2152,12 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
         case Source::kWhatBufferingStart:
         {
-            notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
+            if (mPausedByClient) {
+                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_START;
+            } else {
+                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_START, 0);
+                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
+            }
             break;
         }
 
@@ -2169,7 +2179,12 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
         case Source::kWhatBufferingEnd:
         {
-            notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+            if (mPausedByClient) {
+                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_END;
+            } else {
+                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
+            }
             break;
         }
 
