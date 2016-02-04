@@ -403,8 +403,6 @@ status_t QueryCodec(
         bool isEncoder,
         CodecCapabilities *caps);
 
-status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
-
 }  // namespace android
 
 #endif  // OMX_CODEC_H_

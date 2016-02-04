@@ -93,6 +93,8 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
             int width, int height, int rate, int bitrate,
             OMX_VIDEO_AVCPROFILETYPE profile = OMX_VIDEO_AVCProfileBaseline);
 
+    static status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
+
 protected:
     virtual ~ACodec();
 
