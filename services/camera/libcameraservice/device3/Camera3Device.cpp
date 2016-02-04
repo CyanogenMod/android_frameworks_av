@@ -971,9 +971,9 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
     assert(mStatus != STATUS_ACTIVE);
 
     sp<Camera3OutputStream> newStream;
-    // Overwrite stream set id to invalid for HAL3.1 or lower, as buffer manager does support
+    // Overwrite stream set id to invalid for HAL3.2 or lower, as buffer manager does support
     // such devices.
-    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+    if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_2) {
         streamSetId = CAMERA3_STREAM_SET_ID_INVALID;
     }
     if (format == HAL_PIXEL_FORMAT_BLOB) {
@@ -1008,11 +1008,12 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
     newStream->setStatusTracker(mStatusTracker);
 
     /**
-     * Camera3 Buffer manager is only supported by HAL3.2 onwards, as the older HALs requires
-     * buffers to be statically allocated for internal static buffer registration, while the
-     * buffers provided by buffer manager are really dynamically allocated.
+     * Camera3 Buffer manager is only supported by HAL3.3 onwards, as the older HALs ( < HAL3.2)
+     * requires buffers to be statically allocated for internal static buffer registration, while
+     * the buffers provided by buffer manager are really dynamically allocated. For HAL3.2, because
+     * not all HAL implementation supports dynamic buffer registeration, exlude it as well.
      */
-    if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
+    if (mDeviceVersion > CAMERA_DEVICE_API_VERSION_3_2) {
         newStream->setBufferManager(mBufferManager);
     }
 
