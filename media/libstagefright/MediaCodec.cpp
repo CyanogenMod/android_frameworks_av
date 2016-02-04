@@ -2232,6 +2232,9 @@ void MediaCodec::extractCSD(const sp<AMessage> &format) {
         if (!format->findBuffer(AStringPrintf("csd-%u", i).c_str(), &csd)) {
             break;
         }
+        if (csd->size() == 0) {
+            ALOGW("csd-%zu size is 0", i);
+        }
 
         mCSD.push_back(csd);
         ++i;
