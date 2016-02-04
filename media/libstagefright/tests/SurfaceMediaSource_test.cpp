@@ -38,11 +38,6 @@
 #include <binder/ProcessState.h>
 
 #include <media/stagefright/foundation/ADebug.h>
-#include <media/stagefright/MediaBufferGroup.h>
-#include <media/stagefright/MediaDefs.h>
-#include <media/stagefright/MetaData.h>
-#include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
 #include <OMX_Component.h>
 
 #include "DummyRecorder.h"
