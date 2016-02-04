@@ -30,6 +30,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/ACodec.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/OMXClient.h>
@@ -1113,6 +1114,87 @@ size_t MediaCodecList::countCodecs() const {
 
 const sp<AMessage> MediaCodecList::getGlobalSettings() const {
     return mGlobalSettings;
+}
+
+//static
+bool MediaCodecList::isSoftwareCodec(const AString &componentName) {
+    return componentName.startsWithIgnoreCase("OMX.google.")
+        || !componentName.startsWithIgnoreCase("OMX.");
+}
+
+static int compareSoftwareCodecsFirst(const AString *name1, const AString *name2) {
+    // sort order 1: software codecs are first (lower)
+    bool isSoftwareCodec1 = MediaCodecList::isSoftwareCodec(*name1);
+    bool isSoftwareCodec2 = MediaCodecList::isSoftwareCodec(*name2);
+    if (isSoftwareCodec1 != isSoftwareCodec2) {
+        return isSoftwareCodec2 - isSoftwareCodec1;
+    }
+
+    // sort order 2: OMX codecs are first (lower)
+    bool isOMX1 = name1->startsWithIgnoreCase("OMX.");
+    bool isOMX2 = name2->startsWithIgnoreCase("OMX.");
+    return isOMX2 - isOMX1;
+}
+
+//static
+void MediaCodecList::findMatchingCodecs(
+        const char *mime, bool encoder, uint32_t flags, Vector<AString> *matches) {
+    matches->clear();
+
+    const sp<IMediaCodecList> list = getInstance();
+    if (list == NULL) {
+        return;
+    }
+
+    size_t index = 0;
+    for (;;) {
+        ssize_t matchIndex =
+            list->findCodecByType(mime, encoder, index);
+
+        if (matchIndex < 0) {
+            break;
+        }
+
+        index = matchIndex + 1;
+
+        const sp<MediaCodecInfo> info = list->getCodecInfo(matchIndex);
+        CHECK(info != NULL);
+        AString componentName = info->getCodecName();
+
+        if (!((flags & kHardwareCodecsOnly) && !isSoftwareCodec(componentName))) {
+            matches->push(componentName);
+            ALOGV("matching '%s'", componentName.c_str());
+        }
+    }
+
+    if (flags & kPreferSoftwareCodecs) {
+        matches->sort(compareSoftwareCodecsFirst);
+    }
+}
+
+// static
+uint32_t MediaCodecList::getQuirksFor(const char *componentName) {
+    const sp<IMediaCodecList> list = getInstance();
+    if (list == NULL) {
+        return 0;
+    }
+
+    ssize_t ix = list->findCodecByName(componentName);
+    if (ix < 0) {
+        return 0;
+    }
+
+    const sp<MediaCodecInfo> info = list->getCodecInfo(ix);
+
+    uint32_t quirks = 0;
+    if (info->hasQuirk("requires-allocate-on-input-ports")) {
+        quirks |= ACodec::kRequiresAllocateBufferOnInputPorts;
+    }
+    if (info->hasQuirk("requires-allocate-on-output-ports")) {
+        quirks |= ACodec::kRequiresAllocateBufferOnOutputPorts;
+    }
+
+    return quirks;
 }
 
 }  // namespace android

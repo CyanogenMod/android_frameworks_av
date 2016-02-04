@@ -93,6 +93,12 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
             int width, int height, int rate, int bitrate,
             OMX_VIDEO_AVCPROFILETYPE profile = OMX_VIDEO_AVCProfileBaseline);
 
+    // Quirk still supported, even though deprecated
+    enum Quirks {
+        kRequiresAllocateBufferOnInputPorts   = 1,
+        kRequiresAllocateBufferOnOutputPorts  = 2,
+    };
+
     static status_t getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE map[]);
 
 protected:
