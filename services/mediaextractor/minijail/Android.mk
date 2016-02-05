@@ -22,6 +22,7 @@ endif
 include $(BUILD_SYSTEM)/base_rules.mk
 
 $(LOCAL_BUILT_MODULE): $(LOCAL_SRC_FILES)
-	cat > $@ $^
+	@mkdir -p $(dir $@)
+	$(hide) cat > $@ $^
 
 endif
