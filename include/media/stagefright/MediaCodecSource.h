@@ -21,14 +21,15 @@
 #include <media/stagefright/foundation/AHandlerReflector.h>
 #include <media/stagefright/MediaSource.h>
 
+#include <gui/IGraphicBufferConsumer.h>
+
 namespace android {
 
 struct ALooper;
-class AMessage;
+struct AMessage;
 struct AReplyToken;
 class IGraphicBufferProducer;
-class IGraphicBufferConsumer;
-class MediaCodec;
+struct MediaCodec;
 class MetaData;
 
 struct MediaCodecSource : public MediaSource,
@@ -36,6 +37,7 @@ struct MediaCodecSource : public MediaSource,
     enum FlagBits {
         FLAG_USE_SURFACE_INPUT      = 1,
         FLAG_USE_METADATA_INPUT     = 2,
+        FLAG_PREFER_SOFTWARE_CODEC  = 4,  // used for testing only
     };
 
     static sp<MediaCodecSource> Create(

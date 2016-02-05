@@ -30,6 +30,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaCodec.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MediaSource.h>
@@ -408,23 +409,38 @@ status_t MediaCodecSource::initEncoder() {
     AString outputMIME;
     CHECK(mOutputFormat->findString("mime", &outputMIME));
 
-    mEncoder = MediaCodec::CreateByType(
-            mCodecLooper, outputMIME.c_str(), true /* encoder */);
+    Vector<AString> matchingCodecs;
+    MediaCodecList::findMatchingCodecs(
+            outputMIME.c_str(), true /* encoder */,
+            ((mFlags & FLAG_PREFER_SOFTWARE_CODEC) ? MediaCodecList::kPreferSoftwareCodecs : 0),
+            &matchingCodecs);
 
-    if (mEncoder == NULL) {
-        return NO_INIT;
+    status_t err = NO_INIT;
+    for (size_t ix = 0; ix < matchingCodecs.size(); ++ix) {
+        mEncoder = MediaCodec::CreateByComponentName(
+                mCodecLooper, matchingCodecs[ix]);
+
+        if (mEncoder == NULL) {
+            continue;
+        }
+
+        ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
+
+        mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
+        mEncoder->setCallback(mEncoderActivityNotify);
+
+        err = mEncoder->configure(
+                    mOutputFormat,
+                    NULL /* nativeWindow */,
+                    NULL /* crypto */,
+                    MediaCodec::CONFIGURE_FLAG_ENCODE);
+
+        if (err == OK) {
+            break;
+        }
+        mEncoder->release();
+        mEncoder = NULL;
     }
-
-    ALOGV("output format is '%s'", mOutputFormat->debugString(0).c_str());
-
-    mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
-    mEncoder->setCallback(mEncoderActivityNotify);
-
-    status_t err = mEncoder->configure(
-                mOutputFormat,
-                NULL /* nativeWindow */,
-                NULL /* crypto */,
-                MediaCodec::CONFIGURE_FLAG_ENCODE);
 
     if (err != OK) {
         return err;
