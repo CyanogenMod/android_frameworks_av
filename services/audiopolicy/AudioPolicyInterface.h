@@ -71,6 +71,8 @@ public:
         API_INPUT_CONCURRENCY_NONE = 0,
         API_INPUT_CONCURRENCY_CALL = (1 << 0),      // Concurrency with a call
         API_INPUT_CONCURRENCY_CAPTURE = (1 << 1),   // Concurrency with another capture
+
+        API_INPUT_CONCURRENCY_ALL = (API_INPUT_CONCURRENCY_CALL | API_INPUT_CONCURRENCY_CAPTURE),
    };
 
    typedef uint32_t concurrency_type__mask_t;
