@@ -41,7 +41,6 @@
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/SurfaceUtils.h>
 #include <media/hardware/HardwareAPI.h>
@@ -828,8 +827,8 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
                 uint32_t requiresAllocateBufferBit =
                     (portIndex == kPortIndexInput)
-                        ? OMXCodec::kRequiresAllocateBufferOnInputPorts
-                        : OMXCodec::kRequiresAllocateBufferOnOutputPorts;
+                        ? kRequiresAllocateBufferOnInputPorts
+                        : kRequiresAllocateBufferOnOutputPorts;
 
                 if ((portIndex == kPortIndexInput && (mFlags & kFlagIsSecure))
                         || (portIndex == kPortIndexOutput && usingMetadataOnEncoderOutput())) {
@@ -5480,7 +5479,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         mDeathNotifier.clear();
     }
 
-    Vector<OMXCodec::CodecNameAndQuirks> matchingCodecs;
+    Vector<AString> matchingCodecs;
 
     AString mime;
 
@@ -5488,13 +5487,9 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     uint32_t quirks = 0;
     int32_t encoder = false;
     if (msg->findString("componentName", &componentName)) {
-        ssize_t index = matchingCodecs.add();
-        OMXCodec::CodecNameAndQuirks *entry = &matchingCodecs.editItemAt(index);
-        entry->mName = String8(componentName.c_str());
-
-        if (!OMXCodec::findCodecQuirks(
-                    componentName.c_str(), &entry->mQuirks)) {
-            entry->mQuirks = 0;
+        sp<IMediaCodecList> list = MediaCodecList::getInstance();
+        if (list != NULL && list->findCodecByName(componentName.c_str()) >= 0) {
+            matchingCodecs.add(componentName);
         }
     } else {
         CHECK(msg->findString("mime", &mime));
@@ -5503,11 +5498,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
             encoder = false;
         }
 
-        OMXCodec::findMatchingCodecs(
+        MediaCodecList::findMatchingCodecs(
                 mime.c_str(),
                 encoder, // createEncoder
-                NULL,  // matchComponentName
-                0,     // flags
+                0,       // flags
                 &matchingCodecs);
     }
 
@@ -5517,8 +5511,8 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     status_t err = NAME_NOT_FOUND;
     for (size_t matchIndex = 0; matchIndex < matchingCodecs.size();
             ++matchIndex) {
-        componentName = matchingCodecs.itemAt(matchIndex).mName.string();
-        quirks = matchingCodecs.itemAt(matchIndex).mQuirks;
+        componentName = matchingCodecs[matchIndex];
+        quirks = MediaCodecList::getQuirksFor(componentName.c_str());
 
         pid_t tid = gettid();
         int prevPriority = androidGetThreadPriority(tid);
