@@ -33,7 +33,6 @@ namespace android {
 
 struct AMessage;
 class Parcel;
-struct CodecCapabilities;
 
 typedef KeyedVector<AString, AString> CodecSettings;
 
@@ -44,12 +43,23 @@ struct MediaCodecInfo : public RefBase {
     };
 
     struct Capabilities : public RefBase {
+        enum {
+            // decoder flags
+            kFlagSupportsAdaptivePlayback = 1 << 0,
+            kFlagSupportsSecurePlayback = 1 << 1,
+            kFlagSupportsTunneledPlayback = 1 << 2,
+
+            // encoder flags
+            kFlagSupportsIntraRefresh = 1 << 0,
+
+        };
+
         void getSupportedProfileLevels(Vector<ProfileLevel> *profileLevels) const;
         void getSupportedColorFormats(Vector<uint32_t> *colorFormats) const;
         uint32_t getFlags() const;
         const sp<AMessage> getDetails() const;
 
-    private:
+    protected:
         Vector<ProfileLevel> mProfileLevels;
         Vector<uint32_t> mColorFormats;
         uint32_t mFlags;
@@ -57,6 +67,7 @@ struct MediaCodecInfo : public RefBase {
 
         Capabilities();
 
+    private:
         // read object from parcel even if object creation fails
         static sp<Capabilities> FromParcel(const Parcel &parcel);
         status_t writeToParcel(Parcel *parcel) const;
@@ -64,6 +75,14 @@ struct MediaCodecInfo : public RefBase {
         DISALLOW_EVIL_CONSTRUCTORS(Capabilities);
 
         friend class MediaCodecInfo;
+    };
+
+    // Use a subclass to allow setting fields on construction without allowing
+    // to do the same throughout the framework.
+    struct CapabilitiesBuilder : public Capabilities {
+        void addProfileLevel(uint32_t profile, uint32_t level);
+        void addColorFormat(uint32_t format);
+        void addFlags(uint32_t flags);
     };
 
     bool isEncoder() const;
@@ -107,7 +126,8 @@ private:
     void addQuirk(const char *name);
     status_t addMime(const char *mime);
     status_t updateMime(const char *mime);
-    status_t initializeCapabilities(const CodecCapabilities &caps);
+    // after this call Capabilities will be owned by MediaCodecInfo
+    status_t setCapabilities(const sp<Capabilities> &caps);
     void addDetail(const AString &key, const AString &value);
     void addFeature(const AString &key, int32_t value);
     void addFeature(const AString &key, const char *value);

@@ -20,6 +20,7 @@
 
 #include <gui/IGraphicBufferProducer.h>
 #include <media/hardware/CryptoAPI.h>
+#include <media/MediaCodecInfo.h>
 #include <media/MediaResource.h>
 #include <media/stagefright/foundation/AHandler.h>
 #include <media/stagefright/FrameRenderTracker.h>
@@ -72,6 +73,11 @@ struct MediaCodec : public AHandler {
             pid_t pid = kNoPid);
 
     static sp<PersistentSurface> CreatePersistentInputSurface();
+
+    // utility method to query capabilities
+    static status_t QueryCapabilities(
+            const AString &name, const AString &mime, bool isEncoder,
+            sp<MediaCodecInfo::Capabilities> *caps /* nonnull */);
 
     status_t configure(
             const sp<AMessage> &format,
@@ -340,6 +346,8 @@ private:
     bool mHavePendingInputBuffers;
 
     MediaCodec(const sp<ALooper> &looper, pid_t pid);
+
+    static sp<CodecBase> GetCodecBase(const AString &name, bool nameIsType = false);
 
     static status_t PostAndAwaitResponse(
             const sp<AMessage> &msg, sp<AMessage> *response);
