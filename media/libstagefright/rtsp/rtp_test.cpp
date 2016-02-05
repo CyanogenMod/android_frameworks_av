@@ -20,13 +20,13 @@
 
 #include <binder/ProcessState.h>
 
+#include <media/stagefright/foundation/base64.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/DataSource.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MetaData.h>
-#include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
-#include <media/stagefright/foundation/base64.h>
+#include <media/stagefright/SimpleDecodingSource.h>
 
 #include "ARTPSession.h"
 #include "ASessionDescription.h"
@@ -178,15 +178,8 @@ int main(int argc, char **argv) {
     CHECK_EQ(session->countTracks(), 1u);
     sp<MediaSource> source = session->trackAt(0);
 
-    OMXClient client;
-    CHECK_EQ(client.connect(), (status_t)OK);
-
-    sp<MediaSource> decoder = OMXCodec::Create(
-            client.interface(),
-            source->getFormat(), false /* createEncoder */,
-            source,
-            NULL,
-            0);  // OMXCodec::kPreferSoftwareCodecs);
+    sp<MediaSource> decoder = SimpleDecodingSource::Create(
+            source, 0 /* flags: ACodec::kPreferSoftwareCodecs */);
     CHECK(decoder != NULL);
 
     CHECK_EQ(decoder->start(), (status_t)OK);
@@ -213,7 +206,7 @@ int main(int argc, char **argv) {
             int64_t timeUs;
             CHECK(buffer->meta_data()->findInt64(kKeyTime, &timeUs));
 
-            printf("decoder returned frame of size %d at time %.2f secs\n",
+            printf("decoder returned frame of size %zu at time %.2f secs\n",
                    buffer->range_length(), timeUs / 1E6);
         }
 #endif
