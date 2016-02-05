@@ -142,6 +142,11 @@ private:
         kNumBuffers = 2,
     };
 
+    enum {
+      kUpdateBitrate            = 1 << 0,
+      kRequestKeyFrame          = 1 << 1,
+    };
+
     // OMX input buffer's timestamp and flags
     typedef struct {
         int64_t mTimeUs;
@@ -153,11 +158,7 @@ private:
     struct timeval mTimeStart;   // Time at the start of decode()
     struct timeval mTimeEnd;     // Time at the end of decode()
 
-
-    // If a request for a change it bitrate has been received.
-    bool mBitrateUpdated;
-
-    bool mKeyFrameRequested;
+    int mUpdateFlag;
 
 #ifdef FILE_DUMP_ENABLE
     char mInFile[200];

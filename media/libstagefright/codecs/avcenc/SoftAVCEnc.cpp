@@ -159,8 +159,7 @@ SoftAVC::SoftAVC(
             kProfileLevels, NELEM(kProfileLevels),
             176 /* width */, 144 /* height */,
             callbacks, appData, component),
-      mBitrateUpdated(false),
-      mKeyFrameRequested(false),
+      mUpdateFlag(0),
       mIvVideoColorFormat(IV_YUV_420P),
       mAVCEncProfile(IV_PROFILE_BASE),
       mAVCEncLevel(41),
@@ -1061,7 +1060,9 @@ OMX_ERRORTYPE SoftAVC::setConfig(
                 return OMX_ErrorBadPortIndex;
             }
 
-            mKeyFrameRequested = params->IntraRefreshVOP;
+            if (params->IntraRefreshVOP) {
+                mUpdateFlag |= kRequestKeyFrame;
+            }
             return OMX_ErrorNone;
         }
 
@@ -1076,7 +1077,7 @@ OMX_ERRORTYPE SoftAVC::setConfig(
 
             if (mBitrate != params->nEncodeBitrate) {
                 mBitrate = params->nEncodeBitrate;
-                mBitrateUpdated = true;
+                mUpdateFlag |= kUpdateBitrate;
             }
             return OMX_ErrorNone;
         }
@@ -1111,7 +1112,7 @@ OMX_ERRORTYPE SoftAVC::internalSetBitrateParams(
     }
 
     mBitrate = bitrate->nTargetBitrate;
-    mBitrateUpdated = true;
+    mUpdateFlag |= kUpdateBitrate;
 
     return OMX_ErrorNone;
 }
@@ -1331,12 +1332,14 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             return;
         }
 
-        if (mBitrateUpdated) {
-            setBitRate();
-        }
-
-        if (mKeyFrameRequested) {
-            setFrameType(IV_IDR_FRAME);
+        if (mUpdateFlag) {
+            if (mUpdateFlag & kUpdateBitrate) {
+                setBitRate();
+            }
+            if (mUpdateFlag & kRequestKeyFrame) {
+                setFrameType(IV_IDR_FRAME);
+            }
+            mUpdateFlag = 0;
         }
 
         if ((inputBufferHeader != NULL)
