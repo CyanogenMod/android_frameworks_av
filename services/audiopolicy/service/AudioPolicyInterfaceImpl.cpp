@@ -353,19 +353,15 @@ status_t AudioPolicyService::startInput(audio_io_handle_t input,
     status_t status = mAudioPolicyManager->startInput(input, session, &concurrency);
 
     if (status == NO_ERROR) {
+        LOG_ALWAYS_FATAL_IF(concurrency & ~AudioPolicyInterface::API_INPUT_CONCURRENCY_ALL,
+                            "startInput(): invalid concurrency type %d", (int)concurrency);
+
         // enforce permission (if any) required for each type of concurrency
-        switch (concurrency) {
-        case AudioPolicyInterface::API_INPUT_CONCURRENCY_NONE:
-            break;
-        case AudioPolicyInterface::API_INPUT_CONCURRENCY_CALL:
+        if (concurrency & AudioPolicyInterface::API_INPUT_CONCURRENCY_CALL) {
             //TODO: check incall capture permission
-            break;
-        case AudioPolicyInterface::API_INPUT_CONCURRENCY_CAPTURE:
+        }
+        if (concurrency & AudioPolicyInterface::API_INPUT_CONCURRENCY_CAPTURE) {
             //TODO: check concurrent capture permission
-            break;
-       default:
-            LOG_ALWAYS_FATAL("startInput() encountered an invalid input type %d",
-                    (int)concurrency);
         }
     }
 
