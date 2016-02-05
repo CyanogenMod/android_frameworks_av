@@ -343,6 +343,12 @@ static void playSource(OMXClient *client, sp<IMediaSource> &source) {
                     printf(".");
                     fflush(stdout);
                 }
+
+                // render buffers from OMXCodec
+                if (buffer->graphicBuffer() != NULL && gSurface != NULL) {
+                    gSurface->queueBuffer(gSurface.get(), buffer->graphicBuffer()->getNativeBuffer(), -1);
+                    buffer->meta_data()->setInt32(kKeyRendered, 1);
+                }
             }
 
             sumDecodeUs += delayDecodeUs;
