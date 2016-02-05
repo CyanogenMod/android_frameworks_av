@@ -64,11 +64,11 @@ struct MediaCodec : public AHandler {
     static const pid_t kNoPid = -1;
 
     static sp<MediaCodec> CreateByType(
-            const sp<ALooper> &looper, const char *mime, bool encoder, status_t *err = NULL,
+            const sp<ALooper> &looper, const AString &mime, bool encoder, status_t *err = NULL,
             pid_t pid = kNoPid);
 
     static sp<MediaCodec> CreateByComponentName(
-            const sp<ALooper> &looper, const char *name, status_t *err = NULL,
+            const sp<ALooper> &looper, const AString &name, status_t *err = NULL,
             pid_t pid = kNoPid);
 
     static sp<PersistentSurface> CreatePersistentInputSurface();
