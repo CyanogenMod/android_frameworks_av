@@ -1161,7 +1161,9 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
     if (ret != NO_ERROR) {
         return 0;
     }
-    if (!audio_is_valid_format(format) || !audio_is_linear_pcm(format)) {
+    if ((sampleRate == 0) ||
+            !audio_is_valid_format(format) || !audio_is_linear_pcm(format) ||
+            !audio_is_input_channel(channelMask)) {
         return 0;
     }
 
