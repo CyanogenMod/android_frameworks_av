@@ -44,7 +44,6 @@
 #include <media/stagefright/MediaFilter.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/SurfaceUtils.h>
 #include <mediautils/BatteryNotifier.h>
