@@ -1135,6 +1135,7 @@ struct MyHandler : public AHandler {
                      result, strerror(-result));
 
                 mCheckPending = false;
+                ++mCheckGeneration;
                 postAccessUnitTimeoutCheck();
 
                 if (result == OK) {
@@ -1286,6 +1287,7 @@ struct MyHandler : public AHandler {
                      result, strerror(-result));
 
                 mCheckPending = false;
+                ++mCheckGeneration;
                 postAccessUnitTimeoutCheck();
 
                 if (result == OK) {
