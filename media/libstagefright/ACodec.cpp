@@ -2231,6 +2231,102 @@ status_t ACodec::setOperatingRate(float rateFloat, bool isVideo) {
     return OK;
 }
 
+status_t ACodec::getIntraRefreshPeriod(uint32_t *intraRefreshPeriod) {
+    OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+    status_t err = mOMX->getConfig(
+            mNode, (OMX_INDEXTYPE)OMX_IndexConfigAndroidIntraRefresh, &params, sizeof(params));
+    if (err == OK) {
+        *intraRefreshPeriod = params.nRefreshPeriod;
+        return OK;
+    }
+
+    // Fallback to query through standard OMX index.
+    OMX_VIDEO_PARAM_INTRAREFRESHTYPE refreshParams;
+    InitOMXParams(&refreshParams);
+    refreshParams.nPortIndex = kPortIndexOutput;
+    refreshParams.eRefreshMode = OMX_VIDEO_IntraRefreshCyclic;
+    err = mOMX->getParameter(
+            mNode, OMX_IndexParamVideoIntraRefresh, &refreshParams, sizeof(refreshParams));
+    if (err != OK || refreshParams.nCirMBs == 0) {
+        *intraRefreshPeriod = 0;
+        return OK;
+    }
+
+    // Calculate period based on width and height
+    uint32_t width, height;
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    InitOMXParams(&def);
+    OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def.format.video;
+    def.nPortIndex = kPortIndexOutput;
+    err = mOMX->getParameter(
+            mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+    if (err != OK) {
+        *intraRefreshPeriod = 0;
+        return err;
+    }
+    width = video_def->nFrameWidth;
+    height = video_def->nFrameHeight;
+    // Use H.264/AVC MacroBlock size 16x16
+    *intraRefreshPeriod = divUp((divUp(width, 16u) * divUp(height, 16u)), refreshParams.nCirMBs);
+
+    return OK;
+}
+
+status_t ACodec::setIntraRefreshPeriod(uint32_t intraRefreshPeriod, bool inConfigure) {
+    OMX_VIDEO_CONFIG_ANDROID_INTRAREFRESHTYPE params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+    params.nRefreshPeriod = intraRefreshPeriod;
+    status_t err = mOMX->setConfig(
+            mNode, (OMX_INDEXTYPE)OMX_IndexConfigAndroidIntraRefresh, &params, sizeof(params));
+    if (err == OK) {
+        return OK;
+    }
+
+    // Only in configure state, a component could invoke setParameter.
+    if (!inConfigure) {
+        return INVALID_OPERATION;
+    } else {
+        ALOGI("[%s] try falling back to Cyclic", mComponentName.c_str());
+    }
+
+    OMX_VIDEO_PARAM_INTRAREFRESHTYPE refreshParams;
+    InitOMXParams(&refreshParams);
+    refreshParams.nPortIndex = kPortIndexOutput;
+    refreshParams.eRefreshMode = OMX_VIDEO_IntraRefreshCyclic;
+
+    if (intraRefreshPeriod == 0) {
+        // 0 means disable intra refresh.
+        refreshParams.nCirMBs = 0;
+    } else {
+        // Calculate macroblocks that need to be intra coded base on width and height
+        uint32_t width, height;
+        OMX_PARAM_PORTDEFINITIONTYPE def;
+        InitOMXParams(&def);
+        OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &def.format.video;
+        def.nPortIndex = kPortIndexOutput;
+        err = mOMX->getParameter(
+                mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+        if (err != OK) {
+            return err;
+        }
+        width = video_def->nFrameWidth;
+        height = video_def->nFrameHeight;
+        // Use H.264/AVC MacroBlock size 16x16
+        refreshParams.nCirMBs = divUp((divUp(width, 16u) * divUp(height, 16u)), intraRefreshPeriod);
+    }
+
+    err = mOMX->setParameter(mNode, OMX_IndexParamVideoIntraRefresh,
+                             &refreshParams, sizeof(refreshParams));
+    if (err != OK) {
+        return err;
+    }
+
+    return OK;
+}
+
 status_t ACodec::setMinBufferSize(OMX_U32 portIndex, size_t size) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
@@ -3080,6 +3176,17 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
               mComponentName.c_str());
 
         return err;
+    }
+
+    int32_t intraRefreshPeriod = 0;
+    if (msg->findInt32("intra-refresh-period", &intraRefreshPeriod)
+            && intraRefreshPeriod >= 0) {
+        err = setIntraRefreshPeriod((uint32_t)intraRefreshPeriod, true);
+        if (err != OK) {
+            ALOGI("[%s] failed setIntraRefreshPeriod. Failure is fine since this key is optional",
+                    mComponentName.c_str());
+            err = OK;
+        }
     }
 
     switch (compressionFormat) {
@@ -4158,6 +4265,11 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         notify->setString("mime", "application/octet-stream");
                     } else {
                         notify->setString("mime", mime.c_str());
+                    }
+                    uint32_t intraRefreshPeriod = 0;
+                    if (mIsEncoder && getIntraRefreshPeriod(&intraRefreshPeriod) == OK
+                            && intraRefreshPeriod > 0) {
+                        notify->setInt32("intra-refresh-period", intraRefreshPeriod);
                     }
                     break;
                 }
@@ -6359,6 +6471,17 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
         if (err != OK) {
             ALOGE("Failed to set parameter 'operating-rate' (err %d)", err);
             return err;
+        }
+    }
+
+    int32_t intraRefreshPeriod = 0;
+    if (params->findInt32("intra-refresh-period", &intraRefreshPeriod)
+            && intraRefreshPeriod > 0) {
+        status_t err = setIntraRefreshPeriod(intraRefreshPeriod, false);
+        if (err != OK) {
+            ALOGI("[%s] failed setIntraRefreshPeriod. Failure is fine since this key is optional",
+                    mComponentName.c_str());
+            err = OK;
         }
     }
 

@@ -218,6 +218,9 @@ private:
     OMX_ERRORTYPE setConfig(
         OMX_INDEXTYPE index, const OMX_PTR _params);
 
+    OMX_ERRORTYPE getConfig(
+        OMX_INDEXTYPE index, const OMX_PTR _params);
+
     // Handles port definition changes.
     OMX_ERRORTYPE internalSetPortParams(
         const OMX_PARAM_PORTDEFINITIONTYPE *port);
