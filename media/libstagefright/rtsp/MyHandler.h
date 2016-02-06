@@ -1131,7 +1131,7 @@ struct MyHandler : public AHandler {
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
 
-                ALOGI("PLAY completed with result %d (%s)",
+                ALOGI("PLAY (for resume) completed with result %d (%s)",
                      result, strerror(-result));
 
                 mCheckPending = false;
@@ -1282,7 +1282,7 @@ struct MyHandler : public AHandler {
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
 
-                ALOGI("PLAY completed with result %d (%s)",
+                ALOGI("PLAY (for seek) completed with result %d (%s)",
                      result, strerror(-result));
 
                 mCheckPending = false;
