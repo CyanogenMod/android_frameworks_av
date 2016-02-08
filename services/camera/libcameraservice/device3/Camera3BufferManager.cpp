@@ -204,19 +204,24 @@ status_t Camera3BufferManager::getBufferForStream(int streamId, int streamSetId,
             buffer.fenceFd = -1;
             buffer.graphicBuffer = mAllocator->createGraphicBuffer(
                     info.width, info.height, info.format, info.combinedUsage, &res);
-            ALOGV("%s: allocate a new graphic buffer %p with handle %p",
-                    __FUNCTION__, buffer.graphicBuffer.get(), buffer.graphicBuffer->handle);
+            ALOGV("%s: allocating a new graphic buffer (%dx%d, format 0x%x) %p with handle %p",
+                    __FUNCTION__, info.width, info.height, info.format,
+                    buffer.graphicBuffer.get(), buffer.graphicBuffer->handle);
             if (res != OK) {
                 ALOGE("%s: graphic buffer allocation failed: (error %d %s) ",
                         __FUNCTION__, res, strerror(-res));
                 return res;
             }
+            ALOGV("%s: allocation done", __FUNCTION__);
         }
 
         // Increase the hand-out buffer count for tracking purpose.
         bufferCount++;
-        if (bufferCount > streamSet.allocatedBufferWaterMark) {
-            streamSet.allocatedBufferWaterMark = bufferCount;
+        // Update the water mark to be the max hand-out buffer count + 1. An additional buffer is
+        // added to reduce the chance of buffer allocation during stream steady state, especially
+        // for cases where one stream is active, the other stream may request some buffers randomly.
+        if (bufferCount + 1 > streamSet.allocatedBufferWaterMark) {
+            streamSet.allocatedBufferWaterMark = bufferCount + 1;
         }
         *gb = buffer.graphicBuffer;
         *fenceFd = buffer.fenceFd;
@@ -248,6 +253,7 @@ status_t Camera3BufferManager::getBufferForStream(int streamId, int streamSetId,
                 totalAllocatedBufferCount += streamSet.handoutBufferCountMap[i];
             }
             if (totalAllocatedBufferCount > streamSet.allocatedBufferWaterMark) {
+                ALOGV("%s: free a buffer from stream %d", __FUNCTION__, firstOtherStreamId);
                 getFirstBufferFromBufferListLocked(streamSet.freeBuffers, firstOtherStreamId);
             }
         }
