@@ -21,7 +21,6 @@
 #include <media/IMediaSource.h>
 #include <media/MediaPlayerInterface.h>
 #include <media/stagefright/MediaBuffer.h>
-#include <media/stagefright/TimeSource.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -30,7 +29,7 @@ struct AudioPlaybackRate;
 class AudioTrack;
 struct AwesomePlayer;
 
-class AudioPlayer : public TimeSource {
+class AudioPlayer {
 public:
     enum {
         REACHED_EOS,
@@ -53,20 +52,10 @@ public:
     // Caller retains ownership of "source".
     void setSource(const sp<IMediaSource> &source);
 
-    // Return time in us.
-    virtual int64_t getRealTimeUs();
-
     status_t start(bool sourceAlreadyStarted = false);
 
     void pause(bool playPendingSamples = false);
     status_t resume();
-
-    // Returns the timestamp of the last buffer played (in us).
-    int64_t getMediaTimeUs();
-
-    // Returns true iff a mapping is established, i.e. the AudioPlayer
-    // has played at least one frame of audio.
-    bool getMediaTimeMapping(int64_t *realtime_us, int64_t *mediatime_us);
 
     status_t seekTo(int64_t time_us);
 
@@ -76,10 +65,7 @@ public:
     status_t setPlaybackRate(const AudioPlaybackRate &rate);
     status_t getPlaybackRate(AudioPlaybackRate *rate /* nonnull */);
 
-    void notifyAudioEOS();
-
 private:
-    friend class VideoEditorAudioPlayer;
     sp<IMediaSource> mSource;
     sp<AudioTrack> mAudioTrack;
 
@@ -108,7 +94,6 @@ private:
     MediaBuffer *mFirstBuffer;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
-    int64_t mPinnedTimeUs;
 
     bool mPlaying;
     int64_t mStartPosUs;
@@ -124,11 +109,8 @@ private:
 
     size_t fillBuffer(void *data, size_t size);
 
-    int64_t getRealTimeUsLocked() const;
-
     void reset();
 
-    uint32_t getNumFramesPendingPlayout() const;
     int64_t getOutputPlayPositionUs_l();
 
     bool allowDeepBuffering() const { return (mCreateFlags & ALLOW_DEEP_BUFFERING) != 0; }

@@ -55,7 +55,6 @@ AudioPlayer::AudioPlayer(
       mFirstBufferResult(OK),
       mFirstBuffer(NULL),
       mAudioSink(audioSink),
-      mPinnedTimeUs(-1ll),
       mPlaying(false),
       mStartPosUs(0),
       mCreateFlags(flags) {
@@ -252,7 +251,6 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
 
     mStarted = true;
     mPlaying = true;
-    mPinnedTimeUs = -1ll;
 
     return OK;
 }
@@ -275,8 +273,6 @@ void AudioPlayer::pause(bool playPendingSamples) {
         } else {
             mAudioTrack->pause();
         }
-
-        mPinnedTimeUs = ALooper::GetNowUs();
     }
 
     mPlaying = false;
@@ -382,21 +378,12 @@ void AudioPlayer::AudioCallback(int event, void *user, void *info) {
     static_cast<AudioPlayer *>(user)->AudioCallback(event, info);
 }
 
-bool AudioPlayer::isSeeking() {
-    Mutex::Autolock autoLock(mLock);
-    return mSeeking;
-}
-
 bool AudioPlayer::reachedEOS(status_t *finalStatus) {
     *finalStatus = OK;
 
     Mutex::Autolock autoLock(mLock);
     *finalStatus = mFinalStatus;
     return mReachedEOS;
-}
-
-void AudioPlayer::notifyAudioEOS() {
-    ALOGV("AudioPlayer@0x%p notifyAudioEOS", this);
 }
 
 status_t AudioPlayer::setPlaybackRate(const AudioPlaybackRate &rate) {
@@ -434,7 +421,6 @@ size_t AudioPlayer::AudioSinkCallback(
     case MediaPlayerBase::AudioSink::CB_EVENT_STREAM_END:
         ALOGV("AudioSinkCallback: stream end");
         me->mReachedEOS = true;
-        me->notifyAudioEOS();
         break;
 
     case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
@@ -457,29 +443,8 @@ void AudioPlayer::AudioCallback(int event, void *info) {
 
     case AudioTrack::EVENT_STREAM_END:
         mReachedEOS = true;
-        notifyAudioEOS();
         break;
     }
-}
-
-uint32_t AudioPlayer::getNumFramesPendingPlayout() const {
-    uint32_t numFramesPlayedOut;
-    status_t err;
-
-    if (mAudioSink != NULL) {
-        err = mAudioSink->getPosition(&numFramesPlayedOut);
-    } else {
-        err = mAudioTrack->getPosition(&numFramesPlayedOut);
-    }
-
-    if (err != OK || mNumFramesPlayed < numFramesPlayedOut) {
-        return 0;
-    }
-
-    // mNumFramesPlayed is the number of frames submitted
-    // to the audio sink for playback, but not all of them
-    // may have played out by now.
-    return mNumFramesPlayed - numFramesPlayedOut;
 }
 
 size_t AudioPlayer::fillBuffer(void *data, size_t size) {
@@ -631,48 +596,9 @@ size_t AudioPlayer::fillBuffer(void *data, size_t size) {
         Mutex::Autolock autoLock(mLock);
         mNumFramesPlayed += size_done / mFrameSize;
         mNumFramesPlayedSysTimeUs = ALooper::GetNowUs();
-
-        if (mReachedEOS) {
-            mPinnedTimeUs = mNumFramesPlayedSysTimeUs;
-        } else {
-            mPinnedTimeUs = -1ll;
-        }
     }
 
     return size_done;
-}
-
-int64_t AudioPlayer::getRealTimeUs() {
-    Mutex::Autolock autoLock(mLock);
-    if (useOffload()) {
-        if (mSeeking) {
-            return mSeekTimeUs;
-        }
-        mPositionTimeRealUs = getOutputPlayPositionUs_l();
-        return mPositionTimeRealUs;
-    }
-
-    return getRealTimeUsLocked();
-}
-
-int64_t AudioPlayer::getRealTimeUsLocked() const {
-    CHECK(mStarted);
-    CHECK_NE(mSampleRate, 0);
-    int64_t result = -mLatencyUs + (mNumFramesPlayed * 1000000) / mSampleRate;
-
-    // Compensate for large audio buffers, updates of mNumFramesPlayed
-    // are less frequent, therefore to get a "smoother" notion of time we
-    // compensate using system time.
-    int64_t diffUs;
-    if (mPinnedTimeUs >= 0ll) {
-        diffUs = mPinnedTimeUs;
-    } else {
-        diffUs = ALooper::GetNowUs();
-    }
-
-    diffUs -= mNumFramesPlayedSysTimeUs;
-
-    return result + diffUs;
 }
 
 int64_t AudioPlayer::getOutputPlayPositionUs_l()
@@ -701,54 +627,6 @@ int64_t AudioPlayer::getOutputPlayPositionUs_l()
     const int64_t renderedDuration = mStartPosUs + playedUs;
     ALOGV("getOutputPlayPositionUs_l %" PRId64, renderedDuration);
     return renderedDuration;
-}
-
-int64_t AudioPlayer::getMediaTimeUs() {
-    Mutex::Autolock autoLock(mLock);
-
-    if (useOffload()) {
-        if (mSeeking) {
-            return mSeekTimeUs;
-        }
-        if (mReachedEOS) {
-            int64_t durationUs;
-            mSource->getFormat()->findInt64(kKeyDuration, &durationUs);
-            return durationUs;
-        }
-        mPositionTimeRealUs = getOutputPlayPositionUs_l();
-        ALOGV("getMediaTimeUs getOutputPlayPositionUs_l() mPositionTimeRealUs %" PRId64,
-              mPositionTimeRealUs);
-        return mPositionTimeRealUs;
-    }
-
-
-    if (mPositionTimeMediaUs < 0 || mPositionTimeRealUs < 0) {
-        // mSeekTimeUs is either seek time while seeking or 0 if playback did not start.
-        return mSeekTimeUs;
-    }
-
-    int64_t realTimeOffset = getRealTimeUsLocked() - mPositionTimeRealUs;
-    if (realTimeOffset < 0) {
-        realTimeOffset = 0;
-    }
-
-    return mPositionTimeMediaUs + realTimeOffset;
-}
-
-bool AudioPlayer::getMediaTimeMapping(
-        int64_t *realtime_us, int64_t *mediatime_us) {
-    Mutex::Autolock autoLock(mLock);
-
-    if (useOffload()) {
-        mPositionTimeRealUs = getOutputPlayPositionUs_l();
-        *realtime_us = mPositionTimeRealUs;
-        *mediatime_us = mPositionTimeRealUs;
-    } else {
-        *realtime_us = mPositionTimeRealUs;
-        *mediatime_us = mPositionTimeMediaUs;
-    }
-
-    return mPositionTimeRealUs != -1 && mPositionTimeMediaUs != -1;
 }
 
 status_t AudioPlayer::seekTo(int64_t time_us) {
