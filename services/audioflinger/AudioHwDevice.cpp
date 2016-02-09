@@ -68,7 +68,7 @@ status_t AudioHwDevice::openOutputStream(
             status);
 
         // If the data is encoded then try again using wrapped PCM.
-        bool wrapperNeeded = !audio_is_linear_pcm(originalConfig.format)
+        bool wrapperNeeded = !audio_has_proportional_frames(originalConfig.format)
                 && ((flags & AUDIO_OUTPUT_FLAG_DIRECT) != 0)
                 && ((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0);
 

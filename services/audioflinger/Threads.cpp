@@ -1815,7 +1815,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     // This is probably too conservative, but legacy application code may depend on it.
     // If you change this calculation, also review the start threshold which is related.
     if (!(*flags & IAudioFlinger::TRACK_FAST)
-            && audio_is_linear_pcm(format) && sharedBuffer == 0) {
+            && audio_has_proportional_frames(format) && sharedBuffer == 0) {
         // this must match AudioTrack.cpp calculateMinFrameCount().
         // TODO: Move to a common library
         uint32_t latencyMs = mOutput->stream->get_latency(mOutput->stream);
@@ -1838,7 +1838,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     switch (mType) {
 
     case DIRECT:
-        if (audio_is_linear_pcm(format)) {
+        if (audio_is_linear_pcm(format)) { // TODO maybe use audio_has_proportional_frames()?
             if (sampleRate != mSampleRate || format != mFormat || channelMask != mChannelMask) {
                 ALOGE("createTrack_l() Bad parameter: sampleRate %u format %#x, channelMask 0x%08x "
                         "for output %p with format %#x",
@@ -4715,7 +4715,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         // Do not use a high threshold for compressed audio.
         uint32_t minFrames;
         if ((track->sharedBuffer() == 0) && !track->isStopping_1() && !track->isPausing()
-            && (track->mRetryCount > 1) && audio_is_linear_pcm(mFormat)) {
+            && (track->mRetryCount > 1) && audio_has_proportional_frames(mFormat)) {
             minFrames = mNormalFrameCount;
         } else {
             minFrames = 1;
@@ -4776,7 +4776,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
                 size_t audioHALFrames;
-                if (audio_is_linear_pcm(mFormat)) {
+                if (audio_has_proportional_frames(mFormat)) {
                     audioHALFrames = (latency_l() * mSampleRate) / 1000;
                 } else {
                     audioHALFrames = 0;
@@ -4884,7 +4884,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
         } else {
             mSleepTimeUs = mIdleSleepTimeUs;
         }
-    } else if (mBytesWritten != 0 && audio_is_linear_pcm(mFormat)) {
+    } else if (mBytesWritten != 0 && audio_has_proportional_frames(mFormat)) {
         memset(mSinkBuffer, 0, mFrameCount * mFrameSize);
         mSleepTimeUs = 0;
     }
@@ -4991,7 +4991,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
 uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_is_linear_pcm(mFormat)) {
+    if (audio_has_proportional_frames(mFormat)) {
         time = PlaybackThread::activeSleepTimeUs();
     } else {
         time = 10000;
@@ -5002,7 +5002,7 @@ uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const
 uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_is_linear_pcm(mFormat)) {
+    if (audio_has_proportional_frames(mFormat)) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000) / 2;
     } else {
         time = 10000;
@@ -5013,7 +5013,7 @@ uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs() const
 uint32_t AudioFlinger::DirectOutputThread::suspendSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_is_linear_pcm(mFormat)) {
+    if (audio_has_proportional_frames(mFormat)) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000);
     } else {
         time = 10000;
@@ -5030,7 +5030,7 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
     // no delay on outputs with HW A/V sync
     if (usesHwAvSync()) {
         mStandbyDelayNs = 0;
-    } else if ((mType == OFFLOAD) && !audio_is_linear_pcm(mFormat)) {
+    } else if ((mType == OFFLOAD) && !audio_has_proportional_frames(mFormat)) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
     } else {
         mStandbyDelayNs = microseconds(mActiveSleepTimeUs*2);

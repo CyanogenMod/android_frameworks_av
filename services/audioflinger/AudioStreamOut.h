@@ -106,7 +106,7 @@ protected:
     uint64_t             mFramesWrittenAtStandby;
     uint64_t             mRenderPosition; // reset by flush or standby
     int                  mRateMultiplier;
-    bool                 mHalFormatIsLinearPcm;
+    bool                 mHalFormatHasProportionalFrames;
     size_t               mHalFrameSize;
 };
 

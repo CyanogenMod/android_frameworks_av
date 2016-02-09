@@ -363,6 +363,8 @@ status_t AudioTrack::set(
     // these below should probably come from the audioFlinger too...
     if (format == AUDIO_FORMAT_DEFAULT) {
         format = AUDIO_FORMAT_PCM_16_BIT;
+    } else if (format == AUDIO_FORMAT_IEC61937) { // HDMI pass-through?
+        mAttributes.flags |= AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO;
     }
 
     // validate parameters
@@ -398,13 +400,13 @@ status_t AudioTrack::set(
     }
 
     if (flags & AUDIO_OUTPUT_FLAG_DIRECT) {
-        if (audio_is_linear_pcm(format)) {
+        if (audio_has_proportional_frames(format)) {
             mFrameSize = channelCount * audio_bytes_per_sample(format);
         } else {
             mFrameSize = sizeof(uint8_t);
         }
     } else {
-        ALOG_ASSERT(audio_is_linear_pcm(format));
+        ALOG_ASSERT(audio_has_proportional_frames(format));
         mFrameSize = channelCount * audio_bytes_per_sample(format);
         // createTrack will return an error if PCM format is not supported by server,
         // so no need to check for specific PCM formats here
@@ -1221,7 +1223,7 @@ status_t AudioTrack::createTrack_l()
     mNotificationFramesAct = mNotificationFramesReq;
 
     size_t frameCount = mReqFrameCount;
-    if (!audio_is_linear_pcm(mFormat)) {
+    if (!audio_has_proportional_frames(mFormat)) {
 
         if (mSharedBuffer != 0) {
             // Same comment as below about ignoring frameCount parameter for set()
@@ -1944,7 +1946,7 @@ nsecs_t AudioTrack::processAudioBuffer()
             return NS_NEVER;
         }
 
-        if (mRetryOnPartialBuffer && audio_is_linear_pcm(mFormat)) {
+        if (mRetryOnPartialBuffer && audio_has_proportional_frames(mFormat)) {
             mRetryOnPartialBuffer = false;
             if (avail < mRemainingFrames) {
                 if (ns > 0) { // account for obtain time
@@ -1990,7 +1992,7 @@ nsecs_t AudioTrack::processAudioBuffer()
             // buffer size and skip the loop entirely.
 
             nsecs_t myns;
-            if (audio_is_linear_pcm(mFormat)) {
+            if (audio_has_proportional_frames(mFormat)) {
                 // time to wait based on buffer occupancy
                 const nsecs_t datans = mRemainingFrames <= avail ? 0 :
                         framesToNanoseconds(mRemainingFrames - avail, sampleRate, speed);
