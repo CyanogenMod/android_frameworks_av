@@ -9,7 +9,7 @@ LOCAL_SRC_FILES:=       \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright libmedia libutils libbinder libstagefright_foundation \
-        libjpeg libgui libcutils liblog libui
+	libjpeg libgui libcutils liblog
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -31,8 +31,8 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=         \
-        SineSource.cpp    \
-        record.cpp
+	SineSource.cpp    \
+	record.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
@@ -55,8 +55,8 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=         \
-        SineSource.cpp    \
-        recordvideo.cpp
+	SineSource.cpp    \
+	recordvideo.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
@@ -80,8 +80,8 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=         \
-        SineSource.cpp    \
-        audioloop.cpp
+	SineSource.cpp    \
+	audioloop.cpp
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright libmedia liblog libutils libbinder libstagefright_foundation
@@ -108,7 +108,7 @@ LOCAL_SRC_FILES:=         \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright liblog libutils libbinder libgui \
-        libstagefright_foundation libmedia libcutils
+	libstagefright_foundation libmedia libcutils
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -128,11 +128,11 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=         \
-        sf2.cpp    \
+	sf2.cpp    \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright liblog libutils libbinder libstagefright_foundation \
-        libmedia libgui libcutils libui
+	libmedia libgui libcutils libui
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -152,12 +152,12 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
-        codec.cpp               \
-        SimplePlayer.cpp        \
+	codec.cpp               \
+	SimplePlayer.cpp        \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright liblog libutils libbinder libstagefright_foundation \
-        libmedia libgui libcutils libui
+	libmedia libgui libcutils libui
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
@@ -220,11 +220,11 @@ include $(BUILD_EXECUTABLE)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=               \
-        muxer.cpp            \
+	muxer.cpp            \
 
 LOCAL_SHARED_LIBRARIES := \
 	libstagefright liblog libutils libbinder libstagefright_foundation \
-        libmedia libgui libcutils libui libc
+	libmedia libgui libcutils libui libc
 
 LOCAL_C_INCLUDES:= \
 	frameworks/av/media/libstagefright \
