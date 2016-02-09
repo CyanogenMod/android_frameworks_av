@@ -295,9 +295,8 @@ status_t CameraClient::setPreviewWindow(const sp<IBinder>& binder,
     // If preview has been already started, register preview buffers now.
     if (mHardware->previewEnabled()) {
         if (window != 0) {
-            native_window_set_scaling_mode(window.get(),
-                    NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-            native_window_set_buffers_transform(window.get(), mOrientation);
+            mHardware->setPreviewScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+            mHardware->setPreviewTransform(mOrientation);
             result = mHardware->setPreviewWindow(window);
         }
     }
@@ -404,10 +403,9 @@ status_t CameraClient::startPreviewMode() {
     }
 
     if (mPreviewWindow != 0) {
-        native_window_set_scaling_mode(mPreviewWindow.get(),
-                NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
-        native_window_set_buffers_transform(mPreviewWindow.get(),
-                mOrientation);
+        mHardware->setPreviewScalingMode(
+            NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        mHardware->setPreviewTransform(mOrientation);
     }
     mHardware->setPreviewWindow(mPreviewWindow);
     result = mHardware->startPreview();
@@ -641,8 +639,7 @@ status_t CameraClient::sendCommand(int32_t cmd, int32_t arg1, int32_t arg2) {
         if (mOrientation != orientation) {
             mOrientation = orientation;
             if (mPreviewWindow != 0) {
-                native_window_set_buffers_transform(mPreviewWindow.get(),
-                        mOrientation);
+                mHardware->setPreviewTransform(mOrientation);
             }
         }
         return OK;
