@@ -31,9 +31,10 @@
 
 #ifdef ANDROID
 #include "VideoSource.h"
-
-#include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/foundation/ABuffer.h>
+#include <media/stagefright/foundation/ALooper.h>
+#include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/MediaCodecSource.h>
 #endif
 
 namespace android {
@@ -109,17 +110,19 @@ struct MyTransmitter : public AHandler {
 
         sp<MediaSource> source = new VideoSource(width, height);
 
-        sp<MetaData> encMeta = new MetaData;
-        encMeta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_AVC);
-        encMeta->setInt32(kKeyWidth, width);
-        encMeta->setInt32(kKeyHeight, height);
+        sp<AMessage> encMeta = new AMessage;
+        encMeta->setString("mime", MEDIA_MIMETYPE_VIDEO_AVC);
+        encMeta->setInt32("width", width);
+        encMeta->setInt32("height", height);
+        encMeta->setInt32("frame-rate", 30);
+        encMeta->setInt32("bitrate", 256000);
+        encMeta->setInt32("i-frame-interval", 10);
 
-        OMXClient client;
-        client.connect();
+        sp<ALooper> encLooper = new ALooper;
+        encLooper->setName("rtsp_transmitter");
+        encLooper->start();
 
-        mEncoder = OMXCodec::Create(
-                client.interface(), encMeta,
-                true /* createEncoder */, source);
+        mEncoder = MediaCodecSource::Create(encLooper, encMeta, source);
 
         mEncoder->start();
 
