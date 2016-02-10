@@ -284,6 +284,8 @@ status_t AudioRecord::set(
     mSequence = 1;
     mObservedSequence = mSequence;
     mInOverrun = false;
+    mFramesRead = 0;
+    mFramesReadServerOffset = 0;
 
     return NO_ERROR;
 }
@@ -298,6 +300,12 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
     if (mActive) {
         return NO_ERROR;
     }
+
+    // discard data in buffer
+    const uint32_t framesFlushed = mProxy->flush();
+    mFramesReadServerOffset -= mFramesRead + framesFlushed;
+    mFramesRead = 0;
+    mProxy->clearTimestamp();  // timestamp is invalid until next server push
 
     // reset current position as seen by client to 0
     mProxy->setEpoch(mProxy->getEpoch() - mProxy->getPosition());
@@ -447,6 +455,27 @@ uint32_t AudioRecord::getInputFramesLost() const
 {
     // no need to check mActive, because if inactive this will return 0, which is what we want
     return AudioSystem::getInputFramesLost(getInputPrivate());
+}
+
+status_t AudioRecord::getTimestamp(ExtendedTimestamp *timestamp)
+{
+    if (timestamp == nullptr) {
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    status_t status = mProxy->getTimestamp(timestamp);
+    if (status == OK) {
+        timestamp->mPosition[ExtendedTimestamp::LOCATION_CLIENT] = mFramesRead;
+        timestamp->mTimeNs[ExtendedTimestamp::LOCATION_CLIENT] = 0;
+        // server side frame offset in case AudioRecord has been restored.
+        for (int i = ExtendedTimestamp::LOCATION_SERVER;
+                i < ExtendedTimestamp::LOCATION_MAX; ++i) {
+            if (timestamp->mTimeNs[i] >= 0) {
+                timestamp->mPosition[i] += mFramesReadServerOffset;
+            }
+        }
+    }
+    return status;
 }
 
 // ---- Explicit Routing ---------------------------------------------------
@@ -837,7 +866,10 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize, bool blocking)
 
         releaseBuffer(&audioBuffer);
     }
-
+    if (read > 0) {
+        mFramesRead += read / mFrameSize;
+        // mFramesReadTime = systemTime(SYSTEM_TIME_MONOTONIC); // not provided at this time.
+    }
     return read;
 }
 
@@ -988,6 +1020,7 @@ nsecs_t AudioRecord::processAudioBuffer()
         requested = &timeout;
     }
 
+    size_t readFrames = 0;
     while (mRemainingFrames > 0) {
 
         Buffer audioBuffer;
@@ -1049,6 +1082,7 @@ nsecs_t AudioRecord::processAudioBuffer()
         }
 
         releaseBuffer(&audioBuffer);
+        readFrames += releasedFrames;
 
         // FIXME here is where we would repeat EVENT_MORE_DATA again on same advanced buffer
         // if callback doesn't like to accept the full chunk
@@ -1071,6 +1105,11 @@ nsecs_t AudioRecord::processAudioBuffer()
         }
 #endif
 
+    }
+    if (readFrames > 0) {
+        AutoMutex lock(mLock);
+        mFramesRead += readFrames;
+        // mFramesReadTime = systemTime(SYSTEM_TIME_MONOTONIC); // not provided at this time.
     }
     mRemainingFrames = notificationFrames;
     mRetryOnPartialBuffer = true;
@@ -1096,6 +1135,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
             // FIXME this fails if we have a new AudioFlinger instance
             result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
         }
+        mFramesReadServerOffset = mFramesRead; // server resets to zero so we need an offset.
     }
     if (result != NO_ERROR) {
         ALOGW("restoreRecord_l() failed status %d", result);

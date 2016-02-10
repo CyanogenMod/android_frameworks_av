@@ -1324,6 +1324,8 @@ private:
             // rolling index that is never cleared
             int32_t                             mRsmpInRear;    // last filled frame + 1
 
+            ExtendedTimestamp                   mTimestamp;
+
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;
 

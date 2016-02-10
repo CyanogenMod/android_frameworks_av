@@ -26,6 +26,7 @@
 #include <utils/RefBase.h>
 #include <audio_utils/roundup.h>
 #include <media/AudioResamplerPublic.h>
+#include <media/AudioTimestamp.h>
 #include <media/Modulo.h>
 #include <media/SingleStateQueue.h>
 
@@ -118,6 +119,8 @@ struct AudioTrackSharedStatic {
 
 typedef SingleStateQueue<AudioPlaybackRate> PlaybackRateQueue;
 
+typedef SingleStateQueue<ExtendedTimestamp> ExtendedTimestampQueue;
+
 // ----------------------------------------------------------------------------
 
 // Important: do not add any virtual methods, including ~
@@ -171,6 +174,8 @@ private:
 
                 uint16_t    mPad2;           // unused
 
+                // server write-only, client read
+                ExtendedTimestampQueue::Shared mExtendedTimestampQueue;
 public:
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
@@ -426,8 +431,39 @@ public:
     AudioRecordClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
             size_t frameSize)
         : ClientProxy(cblk, buffers, frameCount, frameSize,
-            false /*isOut*/, false /*clientInServer*/) { }
+            false /*isOut*/, false /*clientInServer*/)
+        , mTimestampObserver(&cblk->mExtendedTimestampQueue) { }
     ~AudioRecordClientProxy() { }
+
+    status_t    getTimestamp(ExtendedTimestamp *timestamp) {
+        if (timestamp == nullptr) {
+            return BAD_VALUE;
+        }
+        (void) mTimestampObserver.poll(mTimestamp);
+        *timestamp = mTimestamp;
+        return OK;
+    }
+
+    void        clearTimestamp() {
+        mTimestamp.clear();
+    }
+
+    // Advances the client read pointer to the server write head pointer
+    // effectively flushing the client read buffer. The effect is
+    // instantaneous. Returns the number of frames flushed.
+    uint32_t    flush() {
+        int32_t rear = android_atomic_acquire_load(&mCblk->u.mStreaming.mRear);
+        int32_t front = mCblk->u.mStreaming.mFront;
+        android_atomic_release_store(rear, &mCblk->u.mStreaming.mFront);
+        return (Modulo<int32_t>(rear) - front).unsignedValue();
+    }
+
+private:
+    // The shared buffer contents referred to by the timestamp observer
+    // is initialized when the server proxy created.  A local zero timestamp
+    // is initialized by the client constructor.
+    ExtendedTimestampQueue::Observer mTimestampObserver;
+    ExtendedTimestamp mTimestamp; // initialized by constructor
 };
 
 // ----------------------------------------------------------------------------
@@ -476,6 +512,7 @@ public:
 protected:
     size_t      mAvailToClient; // estimated frames available to client prior to releaseBuffer()
     int32_t     mFlush;         // our copy of cblk->u.mStreaming.mFlush, for streaming output only
+    int64_t     mReleased;      // our copy of cblk->mServer, at 64 bit resolution
 };
 
 // Proxy used by AudioFlinger for servicing AudioTrack
@@ -520,7 +557,7 @@ public:
     virtual uint32_t    getUnderrunFrames() const { return mCblk->u.mStreaming.mUnderrunFrames; }
 
     // Return the total number of frames that AudioFlinger has obtained and released
-    virtual size_t      framesReleased() const { return mCblk->mServer; }
+    virtual size_t      framesReleased() const { return mReleased; }
 
     // Return the playback speed and pitch read atomically. Not multi-thread safe on server side.
     AudioPlaybackRate getPlaybackRate();
@@ -574,9 +611,20 @@ class AudioRecordServerProxy : public ServerProxy {
 public:
     AudioRecordServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
             size_t frameSize, bool clientInServer)
-        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/, clientInServer) { }
+        : ServerProxy(cblk, buffers, frameCount, frameSize, false /*isOut*/, clientInServer)
+        , mTimestampMutator(&cblk->mExtendedTimestampQueue) { }
+
+    // Return the total number of frames that AudioFlinger has obtained and released
+    virtual int64_t     framesReleased() const { return mReleased; }
+
+    // Expose timestamp to client proxy. Should only be called by a single thread.
+    virtual void        setExtendedTimestamp(const ExtendedTimestamp &timestamp) {
+                            mTimestampMutator.push(timestamp);
+                        }
 protected:
     virtual ~AudioRecordServerProxy() { }
+
+    ExtendedTimestampQueue::Mutator       mTimestampMutator;
 };
 
 // ----------------------------------------------------------------------------

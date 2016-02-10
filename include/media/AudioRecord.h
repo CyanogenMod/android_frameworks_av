@@ -19,6 +19,7 @@
 
 #include <cutils/sched_policy.h>
 #include <media/AudioSystem.h>
+#include <media/AudioTimestamp.h>
 #include <media/IAudioRecord.h>
 #include <media/Modulo.h>
 #include <utils/threads.h>
@@ -314,6 +315,17 @@ public:
      */
             status_t    getPosition(uint32_t *position) const;
 
+    /* Return the record timestamp.
+     *
+     * Parameters:
+     *  timestamp: A pointer to the timestamp to be filled.
+     *
+     * Returned status (from utils/Errors.h) can be:
+     *  - NO_ERROR: successful operation
+     *  - BAD_VALUE: timestamp is NULL
+     */
+            status_t getTimestamp(ExtendedTimestamp *timestamp);
+
     /* Returns a handle on the audio input used by this AudioRecord.
      *
      * Parameters:
@@ -571,6 +583,11 @@ private:
     size_t                  mReqFrameCount;         // frame count to request the first or next time
                                                     // a new IAudioRecord is needed, non-decreasing
 
+    int64_t                 mFramesRead;            // total frames read. reset to zero after
+                                                    // the start() following stop(). It is not
+                                                    // changed after restoring the track.
+    int64_t                 mFramesReadServerOffset; // An offset to server frames read due to
+                                                    // restoring AudioRecord, or stop/start.
     // constant after constructor or set()
     uint32_t                mSampleRate;
     audio_format_t          mFormat;
