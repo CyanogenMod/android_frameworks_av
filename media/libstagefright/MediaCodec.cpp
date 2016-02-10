@@ -193,6 +193,22 @@ sp<MediaCodec> MediaCodec::CreateByComponentName(
 }
 
 // static
+status_t MediaCodec::QueryCapabilities(
+        const AString &name, const AString &mime, bool isEncoder,
+        sp<MediaCodecInfo::Capabilities> *caps /* nonnull */) {
+    // TRICKY: this method is used by MediaCodecList/Info during its
+    // initialization. As such, we cannot create a MediaCodec instance
+    // because that requires an initialized MediaCodecList.
+
+    sp<CodecBase> codec = GetCodecBase(name);
+    if (codec == NULL) {
+        return NAME_NOT_FOUND;
+    }
+
+    return codec->queryCapabilities(name, mime, isEncoder, caps);
+}
+
+// static
 sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
     OMXClient client;
     CHECK_EQ(client.connect(), (status_t)OK);
@@ -298,6 +314,18 @@ void MediaCodec::PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err)
     response->postReply(replyID);
 }
 
+//static
+sp<CodecBase> MediaCodec::GetCodecBase(const AString &name, bool nameIsType) {
+    // at this time only ACodec specifies a mime type.
+    if (nameIsType || name.startsWithIgnoreCase("omx.")) {
+        return new ACodec;
+    } else if (name.startsWithIgnoreCase("android.filter.")) {
+        return new MediaFilter;
+    } else {
+        return NULL;
+    }
+}
+
 status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     mResourceManagerService->init();
 
@@ -311,12 +339,8 @@ status_t MediaCodec::init(const AString &name, bool nameIsType, bool encoder) {
     // we need to invest in an extra looper to free the main event
     // queue.
 
-    if (nameIsType || !strncasecmp(name.c_str(), "omx.", 4)) {
-        mCodec = new ACodec;
-    } else if (!nameIsType
-            && !strncasecmp(name.c_str(), "android.filter.", 15)) {
-        mCodec = new MediaFilter;
-    } else {
+    mCodec = GetCodecBase(name, nameIsType);
+    if (mCodec == NULL) {
         return NAME_NOT_FOUND;
     }
 

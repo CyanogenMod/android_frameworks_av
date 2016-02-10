@@ -50,6 +50,10 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
     virtual void initiateStart();
     virtual void initiateShutdown(bool keepComponentAllocated = false);
 
+    virtual status_t queryCapabilities(
+            const AString &name, const AString &mime, bool isEncoder,
+            sp<MediaCodecInfo::Capabilities> *caps);
+
     virtual status_t setSurface(const sp<Surface> &surface);
 
     virtual void signalFlush();
@@ -312,6 +316,10 @@ private:
             ssize_t *index = NULL);
 
     status_t setComponentRole(bool isEncoder, const char *mime);
+    static const char *getComponentRole(bool isEncoder, const char *mime);
+    static status_t setComponentRole(
+            const sp<IOMX> &omx, IOMX::node_id node, const char *role);
+
     status_t configureCodec(const char *mime, const sp<AMessage> &msg);
 
     status_t configureTunneledVideoPlayback(int32_t audioHwSync,

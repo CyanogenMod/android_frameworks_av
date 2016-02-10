@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <media/IOMX.h>
 
+#include <media/MediaCodecInfo.h>
 #include <media/stagefright/foundation/AHandler.h>
 
 namespace android {
@@ -58,6 +59,10 @@ struct CodecBase : public AHandler {
 
     // require an explicit message handler
     virtual void onMessageReceived(const sp<AMessage> &msg) = 0;
+
+    virtual status_t queryCapabilities(
+            const AString &name, const AString &mime, bool isEncoder,
+            sp<MediaCodecInfo::Capabilities> *caps /* nonnull */) { return INVALID_OPERATION; }
 
     virtual status_t setSurface(const sp<Surface> &surface) { return INVALID_OPERATION; }
 

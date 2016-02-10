@@ -26,8 +26,6 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <binder/Parcel.h>
 
-#include <media/stagefright/OMXCodec.h>
-
 namespace android {
 
 void MediaCodecInfo::Capabilities::getSupportedProfileLevels(
@@ -99,6 +97,21 @@ status_t MediaCodecInfo::Capabilities::writeToParcel(Parcel *parcel) const {
     parcel->writeInt32(mFlags);
     mDetails->writeToParcel(parcel);
     return OK;
+}
+
+void MediaCodecInfo::CapabilitiesBuilder::addProfileLevel(uint32_t profile, uint32_t level) {
+    ProfileLevel profileLevel;
+    profileLevel.mProfile = profile;
+    profileLevel.mLevel = level;
+    mProfileLevels.push_back(profileLevel);
+}
+
+void MediaCodecInfo::CapabilitiesBuilder::addColorFormat(uint32_t format) {
+    mColorFormats.push(format);
+}
+
+void MediaCodecInfo::CapabilitiesBuilder::addFlags(uint32_t flags) {
+    mFlags |= flags;
 }
 
 bool MediaCodecInfo::isEncoder() const {
@@ -225,26 +238,8 @@ void MediaCodecInfo::removeMime(const char *mime) {
     }
 }
 
-status_t MediaCodecInfo::initializeCapabilities(const CodecCapabilities &caps) {
-    mCurrentCaps->mProfileLevels.clear();
-    mCurrentCaps->mColorFormats.clear();
-
-    for (size_t i = 0; i < caps.mProfileLevels.size(); ++i) {
-        const CodecProfileLevel &src = caps.mProfileLevels.itemAt(i);
-
-        ProfileLevel profileLevel;
-        profileLevel.mProfile = src.mProfile;
-        profileLevel.mLevel = src.mLevel;
-        mCurrentCaps->mProfileLevels.push_back(profileLevel);
-    }
-
-    for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
-        mCurrentCaps->mColorFormats.push_back(caps.mColorFormats.itemAt(i));
-    }
-
-    mCurrentCaps->mFlags = caps.mFlags;
-    mCurrentCaps->mDetails = new AMessage;
-
+status_t MediaCodecInfo::setCapabilities(const sp<Capabilities> &caps) {
+    mCurrentCaps = caps;
     return OK;
 }
 
