@@ -1057,7 +1057,7 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
             // initial latenty of getDurationUsIfPlayedAtSampleRate(mNumFramesWritten).
             // This virtual AudioSink renders audio data starting from the very first sample
             // and it's paced by system clock.
-            ALOGW(""AudioSink stuck. ARE YOU CONNECTED TO AUDIO OUT? Switching to system clock.");
+            ALOGW("AudioSink stuck. ARE YOU CONNECTED TO AUDIO OUT? Switching to system clock.");
             mMediaClock->updateAnchor(mAudioFirstAnchorTimeMediaUs, nowUs, mediaTimeUs);
         }
     }
