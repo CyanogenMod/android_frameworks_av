@@ -50,6 +50,7 @@ struct OMXMaster : public OMXPluginBase {
             Vector<String8> *roles);
 
 private:
+    char mProcessName[16];
     Mutex mLock;
     List<OMXPluginBase *> mPlugins;
     KeyedVector<String8, OMXPluginBase *> mPluginByComponentName;
