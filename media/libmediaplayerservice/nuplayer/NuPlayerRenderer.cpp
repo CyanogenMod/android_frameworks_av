@@ -69,6 +69,9 @@ static inline int32_t getAudioSinkPcmMsSetting() {
 // is closed to allow the audio DSP to power down.
 static const int64_t kOffloadPauseMaxUs = 10000000ll;
 
+// Maximum allowed delay from AudioSink, 1.5 seconds.
+static const int64_t kMaxAllowedAudioSinkDelayUs = 1500000ll;
+
 // static
 const NuPlayer::Renderer::PcmInfo NuPlayer::Renderer::AUDIO_PCMINFO_INITIALIZER = {
         AUDIO_CHANNEL_NONE,
@@ -1038,10 +1041,25 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
 
     AudioTimestamp ts;
     status_t res = mAudioSink->getTimestamp(ts);
+    int64_t nowUs = ALooper::GetNowUs();
     if (res == OK) {
-        int64_t nowUs = ALooper::GetNowUs();
         int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
         mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+    } else {
+        int64_t unused;
+        if ((mMediaClock->getMediaTime(nowUs, &unused) != OK)
+                && (getDurationUsIfPlayedAtSampleRate(mNumFramesWritten)
+                        > kMaxAllowedAudioSinkDelayUs)) {
+            // Enough data has been sent to AudioSink, but AudioSink has not rendered
+            // any data yet. Something is wrong with AudioSink, e.g., the device is not
+            // connected to audio out.
+            // Switch to system clock. This essentially creates a virtual AudioSink with
+            // initial latenty of getDurationUsIfPlayedAtSampleRate(mNumFramesWritten).
+            // This virtual AudioSink renders audio data starting from the very first sample
+            // and it's paced by system clock.
+            ALOGW(""AudioSink stuck. ARE YOU CONNECTED TO AUDIO OUT? Switching to system clock.");
+            mMediaClock->updateAnchor(mAudioFirstAnchorTimeMediaUs, nowUs, mediaTimeUs);
+        }
     }
     mAnchorNumFramesWritten = mNumFramesWritten;
     mAnchorTimeMediaUs = mediaTimeUs;
