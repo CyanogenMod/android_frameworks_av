@@ -157,11 +157,6 @@ LOCAL_SHARED_LIBRARIES += \
 
 LOCAL_CFLAGS += -Werror -Wno-multichar -Wno-error=deprecated-declarations
 
-ifeq ($(TARGET_USES_QCOM_BSP), true)
-    LOCAL_C_INCLUDES += $(call project-path-for,qcom-display)/libgralloc
-    LOCAL_CFLAGS += -DQTI_BSP
-endif
-
 LOCAL_C_INCLUDES += $(call project-path-for,qcom-media)/mm-core/inc
 
 # enable experiments only in userdebug and eng builds
