@@ -1809,6 +1809,7 @@ void AudioPolicyManager::closeAllInputs() {
         mpClientInterface->closeInput(mInputs.keyAt(input_index));
     }
     mInputs.clear();
+    SoundTrigger::setCaptureState(false);
     nextAudioPortGeneration();
 
     if (patchRemoved) {
