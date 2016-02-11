@@ -876,7 +876,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
                 outputDesc = desc;
                 // reuse direct output if currently open and configured with same parameters
                 if ((samplingRate == outputDesc->mSamplingRate) &&
-                        (format == outputDesc->mFormat) &&
+                        audio_formats_match(format, outputDesc->mFormat) &&
                         (channelMask == outputDesc->mChannelMask)) {
                     outputDesc->mDirectOpenCount++;
                     ALOGV("getOutput() reusing direct output %d", mOutputs.keyAt(i));
@@ -927,7 +927,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         // only accept an output with the requested parameters
         if (status != NO_ERROR ||
             (samplingRate != 0 && samplingRate != config.sample_rate) ||
-            (format != AUDIO_FORMAT_DEFAULT && format != config.format) ||
+            (format != AUDIO_FORMAT_DEFAULT && !audio_formats_match(format, config.format)) ||
             (channelMask != 0 && channelMask != config.channel_mask)) {
             ALOGV("getOutput() failed opening direct output: output %d samplingRate %d %d,"
                     "format %d %d, channelMask %04x %04x", output, samplingRate,
@@ -992,8 +992,9 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
     // devices (the list was previously build by getOutputsForDevice()).
     // The priority is as follows:
     // 1: the output with the highest number of requested policy flags
-    // 2: the primary output
-    // 3: the first output in the list
+    // 2: the output with the bit depth the closest to the requested one
+    // 3: the primary output
+    // 4: the first output in the list
 
     if (outputs.size() == 0) {
         return 0;
@@ -1003,8 +1004,11 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
     }
 
     int maxCommonFlags = 0;
-    audio_io_handle_t outputFlags = 0;
-    audio_io_handle_t outputPrimary = 0;
+    audio_io_handle_t outputForFlags = 0;
+    audio_io_handle_t outputForPrimary = 0;
+    audio_io_handle_t outputForFormat = 0;
+    audio_format_t bestFormat = AUDIO_FORMAT_INVALID;
+    audio_format_t bestFormatForFlags = AUDIO_FORMAT_INVALID;
 
     for (size_t i = 0; i < outputs.size(); i++) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueFor(outputs[i]);
@@ -1012,31 +1016,48 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
             // if a valid format is specified, skip output if not compatible
             if (format != AUDIO_FORMAT_INVALID) {
                 if (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
-                    if (format != outputDesc->mFormat) {
+                    if (!audio_formats_match(format, outputDesc->mFormat)) {
                         continue;
                     }
                 } else if (!audio_is_linear_pcm(format)) {
                     continue;
                 }
+                if (AudioPort::isBetterFormatMatch(
+                        outputDesc->mFormat, bestFormat, format)) {
+                    outputForFormat = outputs[i];
+                    bestFormat = outputDesc->mFormat;
+                }
             }
 
             int commonFlags = popcount(outputDesc->mProfile->getFlags() & flags);
-            if (commonFlags > maxCommonFlags) {
-                outputFlags = outputs[i];
-                maxCommonFlags = commonFlags;
+            if (commonFlags >= maxCommonFlags) {
+                if (commonFlags == maxCommonFlags) {
+                    if (AudioPort::isBetterFormatMatch(
+                            outputDesc->mFormat, bestFormatForFlags, format)) {
+                        outputForFlags = outputs[i];
+                        bestFormatForFlags = outputDesc->mFormat;
+                    }
+                } else {
+                    outputForFlags = outputs[i];
+                    maxCommonFlags = commonFlags;
+                    bestFormatForFlags = outputDesc->mFormat;
+                }
                 ALOGV("selectOutput() commonFlags for output %d, %04x", outputs[i], commonFlags);
             }
             if (outputDesc->mProfile->getFlags() & AUDIO_OUTPUT_FLAG_PRIMARY) {
-                outputPrimary = outputs[i];
+                outputForPrimary = outputs[i];
             }
         }
     }
 
-    if (outputFlags != 0) {
-        return outputFlags;
+    if (outputForFlags != 0) {
+        return outputForFlags;
     }
-    if (outputPrimary != 0) {
-        return outputPrimary;
+    if (outputForFormat != 0) {
+        return outputForFormat;
+    }
+    if (outputForPrimary != 0) {
+        return outputForPrimary;
     }
 
     return outputs[0];
@@ -1509,7 +1530,7 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
             // and current input properties are not exactly as requested.
             if ((desc->mSamplingRate != samplingRate ||
                     desc->mChannelMask != channelMask ||
-                    desc->mFormat != format) &&
+                    !audio_formats_match(desc->mFormat, format)) &&
                     (source_priority(desc->getHighestPrioritySource(false /*activeOnly*/)) <
                      source_priority(inputSource))) {
                 ALOGV("%s: ", __FUNCTION__);
@@ -1544,7 +1565,7 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
     // only accept input with the exact requested set of parameters
     if (status != NO_ERROR || input == AUDIO_IO_HANDLE_NONE ||
         (profileSamplingRate != config.sample_rate) ||
-        (profileFormat != config.format) ||
+        !audio_formats_match(profileFormat, config.format) ||
         (profileChannelMask != config.channel_mask)) {
         ALOGW("getInputForAttr() failed opening input: samplingRate %d"
               ", format %d, channelMask %x",

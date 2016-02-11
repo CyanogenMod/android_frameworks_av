@@ -126,3 +126,18 @@ static inline int32_t source_priority(audio_source_t inputSource)
     }
     return 0;
 }
+
+/* Indicates if audio formats are equivalent when considering a match between
+ * audio HAL supported formats and client requested formats
+ */
+static inline bool audio_formats_match(audio_format_t format1,
+                                       audio_format_t format2)
+{
+    if (audio_is_linear_pcm(format1) &&
+            (audio_bytes_per_sample(format1) > 2) &&
+            audio_is_linear_pcm(format2) &&
+            (audio_bytes_per_sample(format2) > 2)) {
+        return true;
+    }
+    return format1 == format2;
+}

@@ -110,6 +110,12 @@ public:
 
     static int compareFormats(audio_format_t format1, audio_format_t format2);
 
+    // Used to select an audio HAL output stream with a sample format providing the
+    // less degradation for a given AudioTrack sample format.
+    static bool isBetterFormatMatch(audio_format_t newFormat,
+                                        audio_format_t currentFormat,
+                                        audio_format_t targetFormat);
+
     audio_module_handle_t getModuleHandle() const;
     uint32_t getModuleVersion() const;
     const char *getModuleName() const;
