@@ -6550,7 +6550,8 @@ bool ACodec::ExecutingState::onOMXEvent(
                 mCodec->freeOutputBuffersNotOwnedByComponent();
 
                 mCodec->changeState(mCodec->mOutputPortSettingsChangedState);
-            } else if (data2 == OMX_IndexConfigCommonOutputCrop) {
+            } else if (data2 == OMX_IndexConfigCommonOutputCrop
+                    || data2 == OMX_IndexConfigAndroidIntraRefresh) {
                 mCodec->mSentFormat = false;
 
                 if (mCodec->mTunneled) {

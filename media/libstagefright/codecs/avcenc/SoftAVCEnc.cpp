@@ -1097,6 +1097,7 @@ OMX_ERRORTYPE SoftAVC::setConfig(
                 mAIRMode = IVE_AIR_MODE_CYCLIC;
                 mAIRRefreshPeriod = intraRefreshParams->nRefreshPeriod;
             }
+            mUpdateFlag |= kUpdateAIRMode;
             return OMX_ErrorNone;
         }
 
@@ -1338,6 +1339,11 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             }
             if (mUpdateFlag & kRequestKeyFrame) {
                 setFrameType(IV_IDR_FRAME);
+            }
+            if (mUpdateFlag & kUpdateAIRMode) {
+                setAirParams();
+                notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
+                        OMX_IndexConfigAndroidIntraRefresh, NULL);
             }
             mUpdateFlag = 0;
         }
