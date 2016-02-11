@@ -63,10 +63,13 @@ bool operator == (const AudioProfile &left, const AudioProfile &compareTo)
 status_t AudioProfile::checkCompatibleSamplingRate(uint32_t samplingRate,
                                                    uint32_t &updatedSamplingRate) const
 {
+    ALOG_ASSERT(samplingRate > 0);
+
     if (mSamplingRates.isEmpty()) {
         updatedSamplingRate = samplingRate;
         return NO_ERROR;
     }
+
     // Search for the closest supported sampling rate that is above (preferred)
     // or below (acceptable) the desired sampling rate, within a permitted ratio.
     // The sampling rates are sorted in ascending order.

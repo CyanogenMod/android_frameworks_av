@@ -39,7 +39,7 @@ public:
     // For a Profile aka MixPort, tag name and name are equivalent.
     virtual const String8 getTagName() const { return getName(); }
 
-    // This method is used for both output and input.
+    // This method is used for input and direct output, and is not used for other output.
     // If parameter updatedSamplingRate is non-NULL, it is assigned the actual sample rate.
     // For input, flags is interpreted as audio_input_flags_t.
     // TODO: merge audio_output_flags_t and audio_input_flags_t.
