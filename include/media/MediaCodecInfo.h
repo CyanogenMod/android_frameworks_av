@@ -33,6 +33,7 @@ namespace android {
 
 struct AMessage;
 class Parcel;
+struct CodecCapabilities;
 
 typedef KeyedVector<AString, AString> CodecSettings;
 
@@ -126,9 +127,7 @@ private:
     void addQuirk(const char *name);
     status_t addMime(const char *mime);
     status_t updateMime(const char *mime);
-  
-    // after this call |caps| will be owned by MediaCodecInfo, which may modify it
-    status_t setCapabilitiesFromCodec(const sp<Capabilities> &caps);
+    status_t initializeCapabilities(const CodecCapabilities &caps);
     void addDetail(const AString &key, const AString &value);
     void addFeature(const AString &key, int32_t value);
     void addFeature(const AString &key, const char *value);

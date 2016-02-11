@@ -26,6 +26,8 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <binder/Parcel.h>
 
+#include <media/stagefright/OMXCodec.h>
+
 namespace android {
 
 void MediaCodecInfo::Capabilities::getSupportedProfileLevels(
@@ -238,12 +240,26 @@ void MediaCodecInfo::removeMime(const char *mime) {
     }
 }
 
-status_t MediaCodecInfo::setCapabilitiesFromCodec(const sp<Capabilities> &caps) {
-    if (mCurrentCaps != NULL) {
-        // keep current capabilities map
-        caps->mDetails = mCurrentCaps->mDetails;
+status_t MediaCodecInfo::initializeCapabilities(const CodecCapabilities &caps) {
+    mCurrentCaps->mProfileLevels.clear();
+    mCurrentCaps->mColorFormats.clear();
+
+    for (size_t i = 0; i < caps.mProfileLevels.size(); ++i) {
+        const CodecProfileLevel &src = caps.mProfileLevels.itemAt(i);
+
+        ProfileLevel profileLevel;
+        profileLevel.mProfile = src.mProfile;
+        profileLevel.mLevel = src.mLevel;
+        mCurrentCaps->mProfileLevels.push_back(profileLevel);
     }
-    mCurrentCaps = caps;
+
+    for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
+        mCurrentCaps->mColorFormats.push_back(caps.mColorFormats.itemAt(i));
+    }
+
+    mCurrentCaps->mFlags = caps.mFlags;
+    mCurrentCaps->mDetails = new AMessage;
+
     return OK;
 }
 
