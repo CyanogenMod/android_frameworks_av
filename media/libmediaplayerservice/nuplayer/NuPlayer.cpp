@@ -736,6 +736,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             if (err == OK) {
                 if (rate.mSpeed == 0.f) {
                     onPause();
+                    mPausedByClient = true;
                     // save all other settings (using non-paused speed)
                     // so we can restore them on start
                     AudioPlaybackRate newRate = rate;
@@ -743,6 +744,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     mPlaybackSettings = newRate;
                 } else { /* rate.mSpeed != 0.f */
                     onResume();
+                    mPausedByClient = false;
                     mPlaybackSettings = rate;
                 }
             }
@@ -1207,6 +1209,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
                 break;
             }
+
+            mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
 
             mDeferredActions.push_back(
                     new FlushDecoderAction(FLUSH_CMD_FLUSH /* audio */,
@@ -1908,6 +1912,7 @@ void NuPlayer::performSeek(int64_t seekTimeUs) {
     }
     mPreviousSeekTimeUs = seekTimeUs;
     mSource->seekTo(seekTimeUs);
+    mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
     ++mTimedTextGeneration;
 
     // everything's flushed, continue playback.
