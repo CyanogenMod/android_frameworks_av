@@ -238,7 +238,11 @@ void MediaCodecInfo::removeMime(const char *mime) {
     }
 }
 
-status_t MediaCodecInfo::setCapabilities(const sp<Capabilities> &caps) {
+status_t MediaCodecInfo::setCapabilitiesFromCodec(const sp<Capabilities> &caps) {
+    if (mCurrentCaps != NULL) {
+        // keep current capabilities map
+        caps->mDetails = mCurrentCaps->mDetails;
+    }
     mCurrentCaps = caps;
     return OK;
 }
