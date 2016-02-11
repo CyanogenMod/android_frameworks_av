@@ -174,15 +174,15 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(MuxOMX);
 };
 
-bool MuxOMX::sCodecProcessEnabled = true;
+bool MuxOMX::sCodecProcessEnabled = false;
 
 MuxOMX::MuxOMX(const sp<IOMX> &mediaServerOMX, const sp<IOMX> &mediaCodecOMX)
     : mMediaServerOMX(mediaServerOMX),
       mMediaCodecOMX(mediaCodecOMX) {
     char value[PROPERTY_VALUE_MAX];
     if (property_get("media.stagefright.codecremote", value, NULL)
-            && (!strcmp("0", value) || !strcasecmp("false", value))) {
-        sCodecProcessEnabled = false;
+            && (!strcmp("1", value) || !strcasecmp("true", value))) {
+        sCodecProcessEnabled = true;
     }
 }
 
@@ -201,7 +201,6 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 
 // static
 MuxOMX::node_location MuxOMX::getPreferredCodecLocation(const char *name) {
-    ALOGI("ShouldRunInCodecProcess(%s)", name);
     if (sCodecProcessEnabled) {
         // all non-secure decoders plus OMX.google.* encoders can go in the codec process
         if ((strcasestr(name, "decoder") && !strcasestr(name, "secure")) ||
