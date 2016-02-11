@@ -25,10 +25,8 @@
 
 #include <binder/IServiceManager.h>
 #include <media/IMediaPlayerService.h>
-#include <media/IMediaCodecService.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/OMXClient.h>
-#include <cutils/properties.h>
 #include <utils/KeyedVector.h>
 
 #include "include/OMX.h"
@@ -36,11 +34,10 @@
 namespace android {
 
 struct MuxOMX : public IOMX {
-    MuxOMX(const sp<IOMX> &mediaServerOMX, const sp<IOMX> &mediaCodecOMX);
+    MuxOMX(const sp<IOMX> &remoteOMX);
     virtual ~MuxOMX();
 
-    // TODO: does it matter which interface we return here?
-    virtual IBinder *onAsBinder() { return IInterface::asBinder(mMediaServerOMX).get(); }
+    virtual IBinder *onAsBinder() { return IInterface::asBinder(mRemoteOMX).get(); }
 
     virtual bool livesLocally(node_id node, pid_t pid);
 
@@ -151,39 +148,23 @@ struct MuxOMX : public IOMX {
 private:
     mutable Mutex mLock;
 
-    sp<IOMX> mMediaServerOMX;
-    sp<IOMX> mMediaCodecOMX;
+    sp<IOMX> mRemoteOMX;
     sp<IOMX> mLocalOMX;
-    static bool sCodecProcessEnabled;
 
-    typedef enum {
-        LOCAL,
-        MEDIAPROCESS,
-        CODECPROCESS
-    } node_location;
-
-    KeyedVector<node_id, node_location> mNodeLocation;
+    KeyedVector<node_id, bool> mIsLocalNode;
 
     bool isLocalNode(node_id node) const;
     bool isLocalNode_l(node_id node) const;
     const sp<IOMX> &getOMX(node_id node) const;
     const sp<IOMX> &getOMX_l(node_id node) const;
 
-    static node_location getPreferredCodecLocation(const char *name);
+    static bool CanLiveLocally(const char *name);
 
     DISALLOW_EVIL_CONSTRUCTORS(MuxOMX);
 };
 
-bool MuxOMX::sCodecProcessEnabled = false;
-
-MuxOMX::MuxOMX(const sp<IOMX> &mediaServerOMX, const sp<IOMX> &mediaCodecOMX)
-    : mMediaServerOMX(mediaServerOMX),
-      mMediaCodecOMX(mediaCodecOMX) {
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.stagefright.codecremote", value, NULL)
-            && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        sCodecProcessEnabled = true;
-    }
+MuxOMX::MuxOMX(const sp<IOMX> &remoteOMX)
+    : mRemoteOMX(remoteOMX) {
 }
 
 MuxOMX::~MuxOMX() {
@@ -196,49 +177,27 @@ bool MuxOMX::isLocalNode(node_id node) const {
 }
 
 bool MuxOMX::isLocalNode_l(node_id node) const {
-    return mNodeLocation.valueFor(node) == LOCAL;
+    return mIsLocalNode.indexOfKey(node) >= 0;
 }
 
 // static
-MuxOMX::node_location MuxOMX::getPreferredCodecLocation(const char *name) {
-    if (sCodecProcessEnabled) {
-        // all non-secure decoders plus OMX.google.* encoders can go in the codec process
-        if ((strcasestr(name, "decoder") && !strcasestr(name, "secure")) ||
-                !strncasecmp(name, "OMX.google.", 11)) {
-            return CODECPROCESS;
-        }
-        // everything else runs in the media server
-        return MEDIAPROCESS;
-    } else {
+bool MuxOMX::CanLiveLocally(const char *name) {
 #ifdef __LP64__
-        // 64 bit processes always run OMX remote on MediaServer
-        return MEDIAPROCESS;
+    (void)name; // disable unused parameter warning
+    // 64 bit processes always run OMX remote on MediaServer
+    return false;
 #else
-        // 32 bit processes run only OMX.google.* components locally
-        if (!strncasecmp(name, "OMX.google.", 11)) {
-            return LOCAL;
-        }
-        return MEDIAPROCESS;
+    // 32 bit processes run only OMX.google.* components locally
+    return !strncasecmp(name, "OMX.google.", 11);
 #endif
-    }
 }
 
 const sp<IOMX> &MuxOMX::getOMX(node_id node) const {
-    Mutex::Autolock autoLock(mLock);
-    return getOMX_l(node);
+    return isLocalNode(node) ? mLocalOMX : mRemoteOMX;
 }
 
 const sp<IOMX> &MuxOMX::getOMX_l(node_id node) const {
-    node_location loc = mNodeLocation.valueFor(node);
-    if (loc == LOCAL) {
-        return mLocalOMX;
-    } else if (loc == MEDIAPROCESS) {
-        return mMediaServerOMX;
-    } else if (loc == CODECPROCESS) {
-        return mMediaCodecOMX;
-    }
-    ALOGE("Couldn't determine node location for node %d: %d, using local", node, loc);
-    return mLocalOMX;
+    return isLocalNode_l(node) ? mLocalOMX : mRemoteOMX;
 }
 
 bool MuxOMX::livesLocally(node_id node, pid_t pid) {
@@ -262,16 +221,13 @@ status_t MuxOMX::allocateNode(
 
     sp<IOMX> omx;
 
-    node_location loc = getPreferredCodecLocation(name);
-    if (loc == CODECPROCESS) {
-        omx = mMediaCodecOMX;
-    } else if (loc == MEDIAPROCESS) {
-        omx = mMediaServerOMX;
-    } else {
+    if (CanLiveLocally(name)) {
         if (mLocalOMX == NULL) {
             mLocalOMX = new OMX;
         }
         omx = mLocalOMX;
+    } else {
+        omx = mRemoteOMX;
     }
 
     status_t err = omx->allocateNode(name, observer, node);
@@ -280,7 +236,9 @@ status_t MuxOMX::allocateNode(
         return err;
     }
 
-    mNodeLocation.add(*node, loc);
+    if (omx == mLocalOMX) {
+        mIsLocalNode.add(*node, true);
+    }
 
     return OK;
 }
@@ -294,7 +252,7 @@ status_t MuxOMX::freeNode(node_id node) {
         return err;
     }
 
-    mNodeLocation.removeItem(node);
+    mIsLocalNode.removeItem(node);
 
     return OK;
 }
@@ -394,7 +352,7 @@ status_t MuxOMX::createPersistentInputSurface(
         sp<IGraphicBufferProducer> *bufferProducer,
         sp<IGraphicBufferConsumer> *bufferConsumer) {
     // TODO: local or remote? Always use remote for now
-    return mMediaServerOMX->createPersistentInputSurface(
+    return mRemoteOMX->createPersistentInputSurface(
             bufferProducer, bufferConsumer);
 }
 
@@ -461,35 +419,24 @@ OMXClient::OMXClient() {
 
 status_t OMXClient::connect() {
     sp<IServiceManager> sm = defaultServiceManager();
-    sp<IBinder> playerbinder = sm->getService(String16("media.player"));
-    sp<IMediaPlayerService> mediaservice = interface_cast<IMediaPlayerService>(playerbinder);
+    sp<IBinder> binder = sm->getService(String16("media.player"));
+    sp<IMediaPlayerService> service = interface_cast<IMediaPlayerService>(binder);
 
-    if (mediaservice.get() == NULL) {
+    if (service.get() == NULL) {
         ALOGE("Cannot obtain IMediaPlayerService");
         return NO_INIT;
     }
 
-    sp<IOMX> mediaServerOMX = mediaservice->getOMX();
-    if (mediaServerOMX.get() == NULL) {
-        ALOGE("Cannot obtain mediaserver IOMX");
+    mOMX = service->getOMX();
+    if (mOMX.get() == NULL) {
+        ALOGE("Cannot obtain IOMX");
         return NO_INIT;
     }
 
-    sp<IBinder> codecbinder = sm->getService(String16("media.codec"));
-    sp<IMediaCodecService> codecservice = interface_cast<IMediaCodecService>(codecbinder);
-
-    if (codecservice.get() == NULL) {
-        ALOGE("Cannot obtain IMediaCodecService");
-        return NO_INIT;
+    if (!mOMX->livesLocally(0 /* node */, getpid())) {
+        ALOGI("Using client-side OMX mux.");
+        mOMX = new MuxOMX(mOMX);
     }
-
-    sp<IOMX> mediaCodecOMX = codecservice->getOMX();
-    if (mediaCodecOMX.get() == NULL) {
-        ALOGE("Cannot obtain mediacodec IOMX");
-        return NO_INIT;
-    }
-
-    mOMX = new MuxOMX(mediaServerOMX, mediaCodecOMX);
 
     return OK;
 }
