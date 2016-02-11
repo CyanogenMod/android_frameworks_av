@@ -22,37 +22,37 @@
 namespace android {
 
 //
-//  AttributeMatchCriterion implementation
+//  AudioMixMatchCriterion implementation
 //
-AttributeMatchCriterion::AttributeMatchCriterion(audio_usage_t usage,
+AudioMixMatchCriterion::AudioMixMatchCriterion(audio_usage_t usage,
                                                  audio_source_t source,
                                                  uint32_t rule)
 : mRule(rule)
 {
     if (mRule == RULE_MATCH_ATTRIBUTE_USAGE ||
             mRule == RULE_EXCLUDE_ATTRIBUTE_USAGE) {
-        mAttr.mUsage = usage;
+        mValue.mUsage = usage;
     } else {
-        mAttr.mSource = source;
+        mValue.mSource = source;
     }
 }
 
-status_t AttributeMatchCriterion::readFromParcel(Parcel *parcel)
+status_t AudioMixMatchCriterion::readFromParcel(Parcel *parcel)
 {
     mRule = parcel->readInt32();
     if (mRule == RULE_MATCH_ATTRIBUTE_USAGE ||
             mRule == RULE_EXCLUDE_ATTRIBUTE_USAGE) {
-        mAttr.mUsage = (audio_usage_t)parcel->readInt32();
+        mValue.mUsage = (audio_usage_t)parcel->readInt32();
     } else {
-        mAttr.mSource = (audio_source_t)parcel->readInt32();
+        mValue.mSource = (audio_source_t)parcel->readInt32();
     }
     return NO_ERROR;
 }
 
-status_t AttributeMatchCriterion::writeToParcel(Parcel *parcel) const
+status_t AudioMixMatchCriterion::writeToParcel(Parcel *parcel) const
 {
     parcel->writeInt32(mRule);
-    parcel->writeInt32(mAttr.mUsage);
+    parcel->writeInt32(mValue.mUsage);
     return NO_ERROR;
 }
 
@@ -74,7 +74,7 @@ status_t AudioMix::readFromParcel(Parcel *parcel)
         size = MAX_CRITERIA_PER_MIX;
     }
     for (size_t i = 0; i < size; i++) {
-        AttributeMatchCriterion criterion;
+        AudioMixMatchCriterion criterion;
         if (criterion.readFromParcel(parcel) == NO_ERROR) {
             mCriteria.add(criterion);
         }
