@@ -47,6 +47,7 @@ LOCAL_SHARED_LIBRARIES := \
     libstagefright_foundation \
     liblog \
     libutils \
+    libcutils \
     libandroid_runtime \
     libbinder \
     libgui \

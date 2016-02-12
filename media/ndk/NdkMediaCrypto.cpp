@@ -23,10 +23,12 @@
 #include "NdkMediaFormatPriv.h"
 
 
+#include <cutils/properties.h>
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <binder/IServiceManager.h>
 #include <media/ICrypto.h>
+#include <media/IMediaDrmService.h>
 #include <media/IMediaPlayerService.h>
 #include <android_runtime/AndroidRuntime.h>
 #include <android_util_Binder.h>
@@ -46,18 +48,29 @@ static media_status_t translate_error(status_t err) {
 
 static sp<ICrypto> makeCrypto() {
     sp<IServiceManager> sm = defaultServiceManager();
+    sp<ICrypto> crypto;
 
-    sp<IBinder> binder =
-        sm->getService(String16("media.player"));
-
-    sp<IMediaPlayerService> service =
-        interface_cast<IMediaPlayerService>(binder);
-
-    if (service == NULL) {
-        return NULL;
+    char value[PROPERTY_VALUE_MAX];
+    if (property_get("media.mediadrmservice.enable", value, NULL)
+        && (!strcmp("1", value) || !strcasecmp("true", value))) {
+        sp<IBinder> binder =
+            sm->getService(String16("media.drm"));
+        sp<IMediaDrmService> service =
+            interface_cast<IMediaDrmService>(binder);
+        if (service == NULL) {
+            return NULL;
+        }
+        crypto = service->makeCrypto();
+    } else {
+        sp<IBinder> binder =
+            sm->getService(String16("media.player"));
+        sp<IMediaPlayerService> service =
+            interface_cast<IMediaPlayerService>(binder);
+        if (service == NULL) {
+            return NULL;
+        }
+        crypto = service->makeCrypto();
     }
-
-    sp<ICrypto> crypto = service->makeCrypto();
 
     if (crypto == NULL || (crypto->initCheck() != OK && crypto->initCheck() != NO_INIT)) {
         return NULL;

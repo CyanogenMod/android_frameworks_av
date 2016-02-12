@@ -1,0 +1,5 @@
+service mediadrm /system/bin/mediadrmserver
+    class main
+    user mediadrm
+    group drmrpc
+    ioprio rt 4
