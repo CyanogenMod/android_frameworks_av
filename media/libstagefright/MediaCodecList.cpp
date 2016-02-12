@@ -31,10 +31,10 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/ACodec.h>
+#include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/OMXClient.h>
-#include <media/stagefright/OMXCodec.h>
 
 #include <sys/stat.h>
 #include <utils/threads.h>
@@ -752,15 +752,19 @@ status_t MediaCodecList::initializeCapabilities(const char *type) {
     ALOGV("initializeCapabilities %s:%s",
             mCurrentInfo->mName.c_str(), type);
 
-    CodecCapabilities caps;
-    status_t err = QueryCodec(
-            mOMX,
-            mCurrentInfo->mName.c_str(),
+    sp<MediaCodecInfo::Capabilities> caps;
+    status_t err = MediaCodec::QueryCapabilities(
+            mCurrentInfo->mName,
             type,
             mCurrentInfo->mIsEncoder,
             &caps);
     if (err != OK) {
         return err;
+    } else if (caps == NULL) {
+        ALOGE("MediaCodec::QueryCapabilities returned OK but no capabilities for '%s':'%s':'%s'",
+                mCurrentInfo->mName.c_str(), type,
+                mCurrentInfo->mIsEncoder ? "encoder" : "decoder");
+        return UNKNOWN_ERROR;
     }
 
     return mCurrentInfo->initializeCapabilities(caps);
