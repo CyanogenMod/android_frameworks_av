@@ -26,8 +26,6 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <binder/Parcel.h>
 
-#include <media/stagefright/OMXCodec.h>
-
 namespace android {
 
 void MediaCodecInfo::Capabilities::getSupportedProfileLevels(
@@ -240,26 +238,15 @@ void MediaCodecInfo::removeMime(const char *mime) {
     }
 }
 
-status_t MediaCodecInfo::initializeCapabilities(const CodecCapabilities &caps) {
-    mCurrentCaps->mProfileLevels.clear();
+status_t MediaCodecInfo::initializeCapabilities(const sp<Capabilities> &caps) {
+    // TRICKY: copy data to mCurrentCaps as it is a reference to
+    // an element of the capabilites map.
     mCurrentCaps->mColorFormats.clear();
-
-    for (size_t i = 0; i < caps.mProfileLevels.size(); ++i) {
-        const CodecProfileLevel &src = caps.mProfileLevels.itemAt(i);
-
-        ProfileLevel profileLevel;
-        profileLevel.mProfile = src.mProfile;
-        profileLevel.mLevel = src.mLevel;
-        mCurrentCaps->mProfileLevels.push_back(profileLevel);
-    }
-
-    for (size_t i = 0; i < caps.mColorFormats.size(); ++i) {
-        mCurrentCaps->mColorFormats.push_back(caps.mColorFormats.itemAt(i));
-    }
-
-    mCurrentCaps->mFlags = caps.mFlags;
-    mCurrentCaps->mDetails = new AMessage;
-
+    mCurrentCaps->mColorFormats.appendVector(caps->mColorFormats);
+    mCurrentCaps->mProfileLevels.clear();
+    mCurrentCaps->mProfileLevels.appendVector(caps->mProfileLevels);
+    mCurrentCaps->mFlags = caps->mFlags;
+    mCurrentCaps->mDetails = caps->mDetails;
     return OK;
 }
 
