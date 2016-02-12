@@ -64,6 +64,7 @@ Camera3Device::Camera3Device(int id):
         mStatusWaiters(0),
         mUsePartialResult(false),
         mNumPartialResults(1),
+        mTimestampOffset(0),
         mNextResultFrameNumber(0),
         mNextReprocessResultFrameNumber(0),
         mNextShutterFrameNumber(0),
@@ -203,6 +204,14 @@ status_t Camera3Device::initialize(CameraModule *module)
     mDummyStreamId = NO_STREAM;
     mNeedConfig = true;
     mPauseStateNotify = false;
+
+    // Measure the clock domain offset between camera and video/hw_composer
+    camera_metadata_entry timestampSource =
+            mDeviceInfo.find(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE);
+    if (timestampSource.count > 0 && timestampSource.data.u8[0] ==
+            ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME) {
+        mTimestampOffset = getMonoToBoottimeOffset();
+    }
 
     // Will the HAL be sending in early partial result metadata?
     if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
@@ -380,6 +389,24 @@ Camera3Device::Size Camera3Device::getMaxJpegResolution() const {
         }
     }
     return Size(maxJpegWidth, maxJpegHeight);
+}
+
+nsecs_t Camera3Device::getMonoToBoottimeOffset() {
+    // try three times to get the clock offset, choose the one
+    // with the minimum gap in measurements.
+    const int tries = 3;
+    nsecs_t bestGap, measured;
+    for (int i = 0; i < tries; ++i) {
+        const nsecs_t tmono = systemTime(SYSTEM_TIME_MONOTONIC);
+        const nsecs_t tbase = systemTime(SYSTEM_TIME_BOOTTIME);
+        const nsecs_t tmono2 = systemTime(SYSTEM_TIME_MONOTONIC);
+        const nsecs_t gap = tmono2 - tmono;
+        if (i == 0 || gap < bestGap) {
+            bestGap = gap;
+            measured = tbase - ((tmono + tmono2) >> 1);
+        }
+    }
+    return measured;
 }
 
 ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
@@ -992,7 +1019,8 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
             }
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, blobBufferSize, format, dataSpace, rotation, streamSetId);
+                width, height, blobBufferSize, format, dataSpace, rotation,
+                mTimestampOffset, streamSetId);
     } else if (format == HAL_PIXEL_FORMAT_RAW_OPAQUE) {
         ssize_t rawOpaqueBufferSize = getRawOpaqueBufferSize(width, height);
         if (rawOpaqueBufferSize <= 0) {
@@ -1000,10 +1028,12 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
             return BAD_VALUE;
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, rawOpaqueBufferSize, format, dataSpace, rotation, streamSetId);
+                width, height, rawOpaqueBufferSize, format, dataSpace, rotation,
+                mTimestampOffset, streamSetId);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
-                width, height, format, dataSpace, rotation, streamSetId);
+                width, height, format, dataSpace, rotation,
+                mTimestampOffset, streamSetId);
     }
     newStream->setStatusTracker(mStatusTracker);
 

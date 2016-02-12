@@ -23,6 +23,7 @@
 #include <utils/Mutex.h>
 #include <utils/Thread.h>
 #include <utils/KeyedVector.h>
+#include <utils/Timers.h>
 #include <hardware/camera3.h>
 #include <camera/CaptureResult.h>
 #include <camera/camera2/ICameraDeviceUser.h>
@@ -251,6 +252,12 @@ class Camera3Device :
 
     /**** End scope for mLock ****/
 
+    // The offset converting from clock domain of other subsystem
+    // (video/hardware composer) to that of camera. Assumption is that this
+    // offset won't change during the life cycle of the camera device. In other
+    // words, camera device shouldn't be open during CPU suspend.
+    nsecs_t                    mTimestampOffset;
+
     typedef struct AeTriggerCancelOverride {
         bool applyAeLock;
         uint8_t aeLock;
@@ -391,6 +398,12 @@ class Camera3Device :
      * Return Size(0, 0) if static metatdata is invalid
      */
     Size getMaxJpegResolution() const;
+
+    /**
+     * Helper function to get the offset between MONOTONIC and BOOTTIME
+     * timestamp.
+     */
+    static nsecs_t getMonoToBoottimeOffset();
 
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
