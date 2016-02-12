@@ -34,14 +34,15 @@ namespace camera3 {
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<Surface> consumer,
         uint32_t width, uint32_t height, int format,
-        android_dataspace dataSpace, camera3_stream_rotation_t rotation, int setId) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+        nsecs_t timestampOffset, int setId) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
                             /*maxSize*/0, format, dataSpace, rotation, setId),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true),
-        mTimestampBuffer(true),
-        mUseBufferManager(false) {
+        mUseBufferManager(false),
+        mTimestampOffset(timestampOffset) {
 
     if (mConsumer == NULL) {
         ALOGE("%s: Consumer is NULL!", __FUNCTION__);
@@ -56,14 +57,16 @@ Camera3OutputStream::Camera3OutputStream(int id,
 Camera3OutputStream::Camera3OutputStream(int id,
         sp<Surface> consumer,
         uint32_t width, uint32_t height, size_t maxSize, int format,
-        android_dataspace dataSpace, camera3_stream_rotation_t rotation, int setId) :
+        android_dataspace dataSpace, camera3_stream_rotation_t rotation,
+        nsecs_t timestampOffset, int setId) :
         Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height, maxSize,
                             format, dataSpace, rotation, setId),
         mConsumer(consumer),
         mTransform(0),
         mTraceFirstBuffer(true),
-        mTimestampBuffer(true),
-        mUseBufferManager(false) {
+        mUseMonoTimestamp(false),
+        mUseBufferManager(false),
+        mTimestampOffset(timestampOffset) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB && format != HAL_PIXEL_FORMAT_RAW_OPAQUE) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
@@ -92,6 +95,7 @@ Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
                             format, dataSpace, rotation, setId),
         mTransform(0),
         mTraceFirstBuffer(true),
+        mUseMonoTimestamp(false),
         mUseBufferManager(false) {
 
     if (setId > CAMERA3_STREAM_SET_ID_INVALID) {
@@ -237,15 +241,13 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
 
         /* Certain consumers (such as AudioSource or HardwareComposer) use
          * MONOTONIC time, causing time misalignment if camera timestamp is
-         * in BOOTTIME. Avoid setting timestamp, and let BufferQueue generate it
-         * instead. */
-        if (mTimestampBuffer) {
-            res = native_window_set_buffers_timestamp(mConsumer.get(), timestamp);
-            if (res != OK) {
-                ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
-                      __FUNCTION__, mId, strerror(-res), res);
-                return res;
-            }
+         * in BOOTTIME. Do the conversion if necessary. */
+        res = native_window_set_buffers_timestamp(mConsumer.get(),
+                mUseMonoTimestamp ? timestamp - mTimestampOffset : timestamp);
+        if (res != OK) {
+            ALOGE("%s: Stream %d: Error setting timestamp: %s (%d)",
+                  __FUNCTION__, mId, strerror(-res), res);
+            return res;
         }
 
         res = currentConsumer->queueBuffer(currentConsumer.get(),
@@ -398,7 +400,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     mHandoutTotalBufferCount = 0;
     mFrameCount = 0;
     mLastTimestamp = 0;
-    mTimestampBuffer = !(isConsumedByHWComposer() | isVideoStream());
+    mUseMonoTimestamp = (isConsumedByHWComposer() | isVideoStream());
 
     res = native_window_set_buffer_count(mConsumer.get(),
             mTotalBufferCount);

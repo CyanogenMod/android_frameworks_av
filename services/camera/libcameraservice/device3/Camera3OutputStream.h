@@ -81,7 +81,7 @@ class Camera3OutputStream :
     Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation,
-            int setId = CAMERA3_STREAM_SET_ID_INVALID);
+            nsecs_t timestampOffset, int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
     /**
      * Set up a stream for formats that have a variable buffer size for the same
@@ -92,7 +92,7 @@ class Camera3OutputStream :
     Camera3OutputStream(int id, sp<Surface> consumer,
             uint32_t width, uint32_t height, size_t maxSize, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation,
-            int setId = CAMERA3_STREAM_SET_ID_INVALID);
+            nsecs_t timestampOffset, int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
     virtual ~Camera3OutputStream();
 
@@ -167,8 +167,8 @@ class Camera3OutputStream :
     // Name of Surface consumer
     String8           mConsumerName;
 
-    // Whether to timestamp the output buffer
-    bool mTimestampBuffer;
+    // Whether consumer assumes MONOTONIC timestamp
+    bool mUseMonoTimestamp;
 
     /**
      * GraphicBuffer manager this stream is registered to. Used to replace the buffer
@@ -186,6 +186,12 @@ class Camera3OutputStream :
      * Flag indicating if the buffer manager is used to allocate the stream buffers
      */
     bool mUseBufferManager;
+
+    /**
+     * Timestamp offset for video and hardware composer consumed streams
+     */
+    nsecs_t mTimestampOffset;
+
     /**
      * Internal Camera3Stream interface
      */
