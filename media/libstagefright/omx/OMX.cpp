@@ -380,15 +380,15 @@ status_t OMX::getState(
             state);
 }
 
-status_t OMX::enableGraphicBuffers(
-        node_id node, OMX_U32 port_index, OMX_BOOL enable) {
+status_t OMX::enableNativeBuffers(
+        node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable) {
     OMXNodeInstance *instance = findInstance(node);
 
     if (instance == NULL) {
         return NAME_NOT_FOUND;
     }
 
-    return instance->enableGraphicBuffers(port_index, enable);
+    return instance->enableNativeBuffers(port_index, graphic, enable);
 }
 
 status_t OMX::getGraphicBufferUsage(
@@ -521,17 +521,17 @@ status_t OMX::signalEndOfInputStream(node_id node) {
     return instance->signalEndOfInputStream();
 }
 
-status_t OMX::allocateBuffer(
+status_t OMX::allocateSecureBuffer(
         node_id node, OMX_U32 port_index, size_t size,
-        buffer_id *buffer, void **buffer_data) {
+        buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) {
     OMXNodeInstance *instance = findInstance(node);
 
     if (instance == NULL) {
         return NAME_NOT_FOUND;
     }
 
-    return instance->allocateBuffer(
-            port_index, size, buffer, buffer_data);
+    return instance->allocateSecureBuffer(
+            port_index, size, buffer, buffer_data, native_handle);
 }
 
 status_t OMX::allocateBufferWithBackup(

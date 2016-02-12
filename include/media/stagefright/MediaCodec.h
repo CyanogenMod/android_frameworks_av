@@ -254,6 +254,7 @@ private:
     struct BufferInfo {
         uint32_t mBufferID;
         sp<ABuffer> mData;
+        sp<NativeHandle> mNativeHandle;
         sp<RefBase> mMemRef;
         sp<ABuffer> mEncryptedData;
         sp<IMemory> mSharedEncryptedBuffer;

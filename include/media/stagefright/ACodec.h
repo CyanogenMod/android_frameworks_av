@@ -26,6 +26,7 @@
 #include <media/stagefright/CodecBase.h>
 #include <media/stagefright/FrameRenderTracker.h>
 #include <media/stagefright/SkipCutBuffer.h>
+#include <utils/NativeHandle.h>
 #include <OMX_Audio.h>
 
 #define TRACK_BUFFER_TIMING     0
@@ -72,6 +73,7 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
         size_t countBuffers();
         IOMX::buffer_id bufferIDAt(size_t index) const;
         sp<ABuffer> bufferAt(size_t index) const;
+        sp<NativeHandle> handleAt(size_t index) const;
         sp<RefBase> memRefAt(size_t index) const;
 
     private:
@@ -79,10 +81,13 @@ struct ACodec : public AHierarchicalStateMachine, public CodecBase {
 
         Vector<IOMX::buffer_id> mBufferIDs;
         Vector<sp<ABuffer> > mBuffers;
+        Vector<sp<NativeHandle> > mHandles;
         Vector<sp<RefBase> > mMemRefs;
 
         PortDescription();
-        void addBuffer(IOMX::buffer_id id, const sp<ABuffer> &buffer, const sp<RefBase> &memRef);
+        void addBuffer(
+                IOMX::buffer_id id, const sp<ABuffer> &buffer,
+                const sp<NativeHandle> &handle, const sp<RefBase> &memRef);
 
         DISALLOW_EVIL_CONSTRUCTORS(PortDescription);
     };
@@ -186,6 +191,7 @@ private:
         sp<ABuffer> mData;
         sp<RefBase> mMemRef;
         sp<GraphicBuffer> mGraphicBuffer;
+        sp<NativeHandle> mNativeHandle;
         int mFenceFd;
         FrameRenderTracker::Info *mRenderInfo;
 

@@ -23,6 +23,7 @@
 
 #include <media/MediaCodecInfo.h>
 #include <media/stagefright/foundation/AHandler.h>
+#include <utils/NativeHandle.h>
 
 namespace android {
 
@@ -77,6 +78,7 @@ struct CodecBase : public AHandler {
         virtual size_t countBuffers() = 0;
         virtual IOMX::buffer_id bufferIDAt(size_t index) const = 0;
         virtual sp<ABuffer> bufferAt(size_t index) const = 0;
+        virtual sp<NativeHandle> handleAt(size_t index) { return NULL; };
         virtual sp<RefBase> memRefAt(size_t index) const { return NULL; }
 
     protected:

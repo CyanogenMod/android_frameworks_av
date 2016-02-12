@@ -54,7 +54,7 @@ struct OMXNodeInstance {
 
     status_t getState(OMX_STATETYPE* state);
 
-    status_t enableGraphicBuffers(OMX_U32 portIndex, OMX_BOOL enable);
+    status_t enableNativeBuffers(OMX_U32 portIndex, OMX_BOOL graphic, OMX_BOOL enable);
 
     status_t getGraphicBufferUsage(OMX_U32 portIndex, OMX_U32* usage);
 
@@ -95,9 +95,9 @@ struct OMXNodeInstance {
 
     status_t signalEndOfInputStream();
 
-    status_t allocateBuffer(
+    status_t allocateSecureBuffer(
             OMX_U32 portIndex, size_t size, OMX::buffer_id *buffer,
-            void **buffer_data);
+            void **buffer_data, native_handle_t **native_handle);
 
     status_t allocateBufferWithBackup(
             OMX_U32 portIndex, const sp<IMemory> &params,
@@ -165,7 +165,15 @@ private:
     uint32_t mBufferIDCount;
     KeyedVector<OMX::buffer_id, OMX_BUFFERHEADERTYPE *> mBufferIDToBufferHeader;
     KeyedVector<OMX_BUFFERHEADERTYPE *, OMX::buffer_id> mBufferHeaderToBufferID;
+
+    // metadata and secure buffer type tracking
     MetadataBufferType mMetadataType[2];
+    enum SecureBufferType {
+        kSecureBufferTypeUnknown,
+        kSecureBufferTypeOpaque,
+        kSecureBufferTypeNativeHandle,
+    };
+    SecureBufferType mSecureBufferType[2];
 
     // For debug support
     char *mName;

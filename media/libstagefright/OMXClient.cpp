@@ -82,8 +82,8 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
             OMX_U32 audioHwSync, native_handle_t **sidebandHandle);
 
-    virtual status_t enableGraphicBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable);
+    virtual status_t enableNativeBuffers(
+            node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable);
 
     virtual status_t getGraphicBufferUsage(
             node_id node, OMX_U32 port_index, OMX_U32* usage);
@@ -114,9 +114,9 @@ struct MuxOMX : public IOMX {
 
     virtual status_t signalEndOfInputStream(node_id node);
 
-    virtual status_t allocateBuffer(
+    virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data);
+            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle);
 
     virtual status_t allocateBufferWithBackup(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
@@ -310,9 +310,9 @@ status_t MuxOMX::configureVideoTunnelMode(
             node, portIndex, enable, audioHwSync, sidebandHandle);
 }
 
-status_t MuxOMX::enableGraphicBuffers(
-        node_id node, OMX_U32 port_index, OMX_BOOL enable) {
-    return getOMX(node)->enableGraphicBuffers(node, port_index, enable);
+status_t MuxOMX::enableNativeBuffers(
+        node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable) {
+    return getOMX(node)->enableNativeBuffers(node, port_index, graphic, enable);
 }
 
 status_t MuxOMX::getGraphicBufferUsage(
@@ -366,11 +366,11 @@ status_t MuxOMX::signalEndOfInputStream(node_id node) {
     return getOMX(node)->signalEndOfInputStream(node);
 }
 
-status_t MuxOMX::allocateBuffer(
+status_t MuxOMX::allocateSecureBuffer(
         node_id node, OMX_U32 port_index, size_t size,
-        buffer_id *buffer, void **buffer_data) {
-    return getOMX(node)->allocateBuffer(
-            node, port_index, size, buffer, buffer_data);
+        buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) {
+    return getOMX(node)->allocateSecureBuffer(
+            node, port_index, size, buffer, buffer_data, native_handle);
 }
 
 status_t MuxOMX::allocateBufferWithBackup(

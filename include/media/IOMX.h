@@ -98,8 +98,8 @@ public:
             node_id node, OMX_U32 portIndex, OMX_BOOL tunneled,
             OMX_U32 audioHwSync, native_handle_t **sidebandHandle) = 0;
 
-    virtual status_t enableGraphicBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable) = 0;
+    virtual status_t enableNativeBuffers(
+            node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable) = 0;
 
     virtual status_t getGraphicBufferUsage(
             node_id node, OMX_U32 port_index, OMX_U32* usage) = 0;
@@ -137,13 +137,14 @@ public:
 
     virtual status_t signalEndOfInputStream(node_id node) = 0;
 
-    // This API clearly only makes sense if the caller lives in the
-    // same process as the callee, i.e. is the media_server, as the
-    // returned "buffer_data" pointer is just that, a pointer into local
-    // address space.
-    virtual status_t allocateBuffer(
+    // Allocate an opaque buffer as a native handle. If component supports returning native
+    // handles, those are returned in *native_handle. Otherwise, the allocated buffer is
+    // returned in *buffer_data. This clearly only makes sense if the caller lives in the
+    // same process as the callee, i.e. is the media_server, as the returned "buffer_data"
+    // pointer is just that, a pointer into local address space.
+    virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data) = 0;
+            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) = 0;
 
     // Allocate an OMX buffer of size |allotedSize|. Use |params| as the backup buffer, which
     // may be larger.

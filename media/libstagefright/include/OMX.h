@@ -62,8 +62,8 @@ public:
     virtual status_t getState(
             node_id node, OMX_STATETYPE* state);
 
-    virtual status_t enableGraphicBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable);
+    virtual status_t enableNativeBuffers(
+            node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable);
 
     virtual status_t getGraphicBufferUsage(
             node_id node, OMX_U32 port_index, OMX_U32* usage);
@@ -107,9 +107,9 @@ public:
 
     virtual status_t signalEndOfInputStream(node_id node);
 
-    virtual status_t allocateBuffer(
+    virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data);
+            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle);
 
     virtual status_t allocateBufferWithBackup(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,

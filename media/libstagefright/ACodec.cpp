@@ -828,6 +828,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 info.mStatus = BufferInfo::OWNED_BY_US;
                 info.mFenceFd = -1;
                 info.mRenderInfo = NULL;
+                info.mNativeHandle = NULL;
 
                 uint32_t requiresAllocateBufferBit =
                     (portIndex == kPortIndexInput)
@@ -837,12 +838,22 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 if (portIndex == kPortIndexInput && (mFlags & kFlagIsSecure)) {
                     mem.clear();
 
-                    void *ptr;
-                    err = mOMX->allocateBuffer(
+                    void *ptr = NULL;
+                    native_handle_t *native_handle = NULL;
+                    err = mOMX->allocateSecureBuffer(
                             mNode, portIndex, bufSize, &info.mBufferID,
-                            &ptr);
+                            &ptr, &native_handle);
 
-                    info.mData = new ABuffer(ptr, bufSize);
+                    // TRICKY: this representation is unorthodox, but ACodec requires
+                    // an ABuffer with a proper size to validate range offsets and lengths.
+                    // Since mData is never referenced for secure input, it is used to store
+                    // either the pointer to the secure buffer, or the opaque handle as on
+                    // some devices ptr is actually an opaque handle, not a pointer.
+
+                    // TRICKY2: use native handle as the base of the ABuffer if received one,
+                    // because Widevine source only receives these base addresses.
+                    info.mData = new ABuffer(ptr != NULL ? ptr : (void *)native_handle, bufSize);
+                    info.mNativeHandle = NativeHandle::create(native_handle, true /* ownsHandle */);
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
                             mNode, portIndex, mem, &info.mBufferID, allottedSize);
@@ -876,7 +887,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
     for (size_t i = 0; i < mBuffers[portIndex].size(); ++i) {
         const BufferInfo &info = mBuffers[portIndex][i];
-        desc->addBuffer(info.mBufferID, info.mData, info.mMemRef);
+        desc->addBuffer(info.mBufferID, info.mData, info.mNativeHandle, info.mMemRef);
     }
 
     notify->setObject("portDesc", desc);
@@ -1774,6 +1785,14 @@ status_t ACodec::configureCodec(
             mFlags |= kFlagIsGrallocUsageProtected;
             mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
         }
+
+        if (mFlags & kFlagIsSecure) {
+            // use native_handles for secure input buffers
+            err = mOMX->enableNativeBuffers(
+                    mNode, kPortIndexInput, OMX_FALSE /* graphic */, OMX_TRUE);
+            ALOGI_IF(err != OK, "falling back to non-native_handles");
+            err = OK; // ignore error for now
+        }
     }
     if (haveNativeWindow) {
         sp<ANativeWindow> nativeWindow =
@@ -1985,7 +2004,8 @@ status_t ACodec::configureCodec(
                         inputFormat->setInt32("adaptive-playback", false);
                     }
                     if (err == OK) {
-                        err = mOMX->enableGraphicBuffers(mNode, kPortIndexOutput, OMX_FALSE);
+                        err = mOMX->enableNativeBuffers(
+                                mNode, kPortIndexOutput, OMX_TRUE /* graphic */, OMX_FALSE);
                     }
                     if (mFlags & kFlagIsGrallocUsageProtected) {
                         // fallback is not supported for protected playback
@@ -3879,10 +3899,10 @@ status_t ACodec::setVideoFormatOnPort(
 
 status_t ACodec::initNativeWindow() {
     if (mNativeWindow != NULL) {
-        return mOMX->enableGraphicBuffers(mNode, kPortIndexOutput, OMX_TRUE);
+        return mOMX->enableNativeBuffers(mNode, kPortIndexOutput, OMX_TRUE /* graphic */, OMX_TRUE);
     }
 
-    mOMX->enableGraphicBuffers(mNode, kPortIndexOutput, OMX_FALSE);
+    mOMX->enableNativeBuffers(mNode, kPortIndexOutput, OMX_TRUE /* graphic */, OMX_FALSE);
     return OK;
 }
 
@@ -4646,9 +4666,11 @@ status_t ACodec::requestIDRFrame() {
 }
 
 void ACodec::PortDescription::addBuffer(
-        IOMX::buffer_id id, const sp<ABuffer> &buffer, const sp<RefBase> &memRef) {
+        IOMX::buffer_id id, const sp<ABuffer> &buffer,
+        const sp<NativeHandle> &handle, const sp<RefBase> &memRef) {
     mBufferIDs.push_back(id);
     mBuffers.push_back(buffer);
+    mHandles.push_back(handle);
     mMemRefs.push_back(memRef);
 }
 
@@ -4662,6 +4684,10 @@ IOMX::buffer_id ACodec::PortDescription::bufferIDAt(size_t index) const {
 
 sp<ABuffer> ACodec::PortDescription::bufferAt(size_t index) const {
     return mBuffers.itemAt(index);
+}
+
+sp<NativeHandle> ACodec::PortDescription::handleAt(size_t index) const {
+    return mHandles.itemAt(index);
 }
 
 sp<RefBase> ACodec::PortDescription::memRefAt(size_t index) const {

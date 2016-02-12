@@ -37,7 +37,7 @@ enum {
     GET_CONFIG,
     SET_CONFIG,
     GET_STATE,
-    ENABLE_GRAPHIC_BUFFERS,
+    ENABLE_NATIVE_BUFFERS,
     USE_BUFFER,
     USE_GRAPHIC_BUFFER,
     CREATE_INPUT_SURFACE,
@@ -46,7 +46,7 @@ enum {
     SIGNAL_END_OF_INPUT_STREAM,
     STORE_META_DATA_IN_BUFFERS,
     PREPARE_FOR_ADAPTIVE_PLAYBACK,
-    ALLOC_BUFFER,
+    ALLOC_SECURE_BUFFER,
     ALLOC_BUFFER_WITH_BACKUP,
     FREE_BUFFER,
     FILL_BUFFER,
@@ -217,14 +217,15 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t enableGraphicBuffers(
-            node_id node, OMX_U32 port_index, OMX_BOOL enable) {
+    virtual status_t enableNativeBuffers(
+            node_id node, OMX_U32 port_index, OMX_BOOL graphic, OMX_BOOL enable) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
+        data.writeInt32((uint32_t)graphic);
         data.writeInt32((uint32_t)enable);
-        remote()->transact(ENABLE_GRAPHIC_BUFFERS, data, &reply);
+        remote()->transact(ENABLE_NATIVE_BUFFERS, data, &reply);
 
         status_t err = reply.readInt32();
         return err;
@@ -453,26 +454,31 @@ public:
     }
 
 
-    virtual status_t allocateBuffer(
+    virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data) {
+            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) {
         Parcel data, reply;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
         data.writeInt64(size);
-        remote()->transact(ALLOC_BUFFER, data, &reply);
+        remote()->transact(ALLOC_SECURE_BUFFER, data, &reply);
 
         status_t err = reply.readInt32();
         if (err != OK) {
             *buffer = 0;
-
+            *buffer_data = NULL;
+            *native_handle = NULL;
             return err;
         }
 
         *buffer = (buffer_id)reply.readInt32();
         *buffer_data = (void *)reply.readInt64();
-
+        if (*buffer_data == NULL) {
+            *native_handle = reply.readNativeHandle();
+        } else {
+            *native_handle = NULL;
+        }
         return err;
     }
 
@@ -754,15 +760,16 @@ status_t BnOMX::onTransact(
             return NO_ERROR;
         }
 
-        case ENABLE_GRAPHIC_BUFFERS:
+        case ENABLE_NATIVE_BUFFERS:
         {
             CHECK_OMX_INTERFACE(IOMX, data, reply);
 
             node_id node = (node_id)data.readInt32();
             OMX_U32 port_index = data.readInt32();
+            OMX_BOOL graphic = (OMX_BOOL)data.readInt32();
             OMX_BOOL enable = (OMX_BOOL)data.readInt32();
 
-            status_t err = enableGraphicBuffers(node, port_index, enable);
+            status_t err = enableNativeBuffers(node, port_index, graphic, enable);
             reply->writeInt32(err);
 
             return NO_ERROR;
@@ -965,7 +972,7 @@ status_t BnOMX::onTransact(
             OMX_BOOL tunneled = (OMX_BOOL)data.readInt32();
             OMX_U32 audio_hw_sync = data.readInt32();
 
-            native_handle_t *sideband_handle;
+            native_handle_t *sideband_handle = NULL;
             status_t err = configureVideoTunnelMode(
                     node, port_index, tunneled, audio_hw_sync, &sideband_handle);
             reply->writeInt32(err);
@@ -974,7 +981,7 @@ status_t BnOMX::onTransact(
             return NO_ERROR;
         }
 
-        case ALLOC_BUFFER:
+        case ALLOC_SECURE_BUFFER:
         {
             CHECK_OMX_INTERFACE(IOMX, data, reply);
 
@@ -989,14 +996,18 @@ status_t BnOMX::onTransact(
             size_t size = data.readInt64();
 
             buffer_id buffer;
-            void *buffer_data;
-            status_t err = allocateBuffer(
-                    node, port_index, size, &buffer, &buffer_data);
+            void *buffer_data = NULL;
+            native_handle_t *native_handle = NULL;
+            status_t err = allocateSecureBuffer(
+                    node, port_index, size, &buffer, &buffer_data, &native_handle);
             reply->writeInt32(err);
 
             if (err == OK) {
                 reply->writeInt32((int32_t)buffer);
                 reply->writeInt64((uintptr_t)buffer_data);
+                if (buffer_data == NULL) {
+                    reply->writeNativeHandle(native_handle);
+                }
             }
 
             return NO_ERROR;

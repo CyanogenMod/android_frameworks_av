@@ -1357,6 +1357,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         info.mBufferID = portDesc->bufferIDAt(i);
                         info.mOwnedByClient = false;
                         info.mData = portDesc->bufferAt(i);
+                        info.mNativeHandle = portDesc->handleAt(i);
                         info.mMemRef = portDesc->memRefAt(i);
 
                         if (portIndex == kPortIndexInput && mCrypto != NULL) {
@@ -2493,6 +2494,9 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         AString *errorDetailMsg;
         CHECK(msg->findPointer("errorDetailMsg", (void **)&errorDetailMsg));
 
+        // TODO: use different decrypt based on native handle or not
+        // use native handle if we have it; otherwise, use opaque handle
+        void *dst_pointer = (void *)info->mNativeHandle.get() ? : info->mData->base();
         ssize_t result = mCrypto->decrypt(
                 (mFlags & kFlagIsSecure) != 0,
                 key,
@@ -2503,7 +2507,7 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
                 offset,
                 subSamples,
                 numSubSamples,
-                info->mData->base(),
+                dst_pointer,
                 errorDetailMsg);
 
         if (result < 0) {
