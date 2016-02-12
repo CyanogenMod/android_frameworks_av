@@ -38,6 +38,9 @@
 
 namespace android {
 
+// node ids are created by concatenating the pid with a 16-bit counter
+static size_t kMaxNodeInstances = (1 << 16);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // This provides the underlying Thread used by CallbackDispatcher.
@@ -237,6 +240,11 @@ status_t OMX::allocateNode(
 
     *node = 0;
 
+    if (mNodeIDToInstance.size() == kMaxNodeInstances) {
+        // all possible node IDs are in use
+        return NO_MEMORY;
+    }
+
     OMXNodeInstance *instance = new OMXNodeInstance(this, observer, name);
 
     OMX_COMPONENTTYPE *handle;
@@ -252,7 +260,7 @@ status_t OMX::allocateNode(
         return StatusFromOMXError(err);
     }
 
-    *node = makeNodeID(instance);
+    *node = makeNodeID_l(instance);
     mDispatchers.add(*node, new CallbackDispatcher(instance));
 
     instance->setHandle(*node, handle);
@@ -690,10 +698,17 @@ OMX_ERRORTYPE OMX::OnFillBufferDone(
     return OMX_ErrorNone;
 }
 
-OMX::node_id OMX::makeNodeID(OMXNodeInstance *instance) {
+OMX::node_id OMX::makeNodeID_l(OMXNodeInstance *instance) {
     // mLock is already held.
 
-    node_id node = (node_id)++mNodeCounter;
+    node_id prefix = node_id(getpid() << 16);
+    node_id node = 0;
+    do  {
+        if (++mNodeCounter >= kMaxNodeInstances) {
+            mNodeCounter = 0; // OK to use because we're combining with the pid
+        }
+        node = node_id(prefix | mNodeCounter);
+    } while (mNodeIDToInstance.indexOfKey(node) >= 0);
     mNodeIDToInstance.add(node, instance);
 
     return node;

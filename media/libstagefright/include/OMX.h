@@ -166,13 +166,13 @@ private:
 
     Mutex mLock;
     OMXMaster *mMaster;
-    int32_t mNodeCounter;
+    size_t mNodeCounter;
 
     KeyedVector<wp<IBinder>, OMXNodeInstance *> mLiveNodes;
     KeyedVector<node_id, OMXNodeInstance *> mNodeIDToInstance;
     KeyedVector<node_id, sp<CallbackDispatcher> > mDispatchers;
 
-    node_id makeNodeID(OMXNodeInstance *instance);
+    node_id makeNodeID_l(OMXNodeInstance *instance);
     OMXNodeInstance *findInstance(node_id node);
     sp<CallbackDispatcher> findDispatcher(node_id node);
 
