@@ -7096,7 +7096,7 @@ status_t ACodec::queryCapabilities(
         // prefix "flexible" standard ones with the flexible equivalent
         OMX_VIDEO_PARAM_PORTFORMATTYPE portFormat;
         InitOMXParams(&portFormat);
-        param.nPortIndex = isEncoder ? kPortIndexInput : kPortIndexOutput;
+        portFormat.nPortIndex = isEncoder ? kPortIndexInput : kPortIndexOutput;
         Vector<uint32_t> supportedColors; // shadow copy to check for duplicates
         for (OMX_U32 index = 0; index <= kMaxIndicesToCheck; ++index) {
             portFormat.nIndex = index;
