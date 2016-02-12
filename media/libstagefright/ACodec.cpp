@@ -834,8 +834,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                         ? kRequiresAllocateBufferOnInputPorts
                         : kRequiresAllocateBufferOnOutputPorts;
 
-                if ((portIndex == kPortIndexInput && (mFlags & kFlagIsSecure))
-                        || (portIndex == kPortIndexOutput && usingMetadataOnEncoderOutput())) {
+                if (portIndex == kPortIndexInput && (mFlags & kFlagIsSecure)) {
                     mem.clear();
 
                     void *ptr;
