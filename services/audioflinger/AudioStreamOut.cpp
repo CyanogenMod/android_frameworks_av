@@ -35,7 +35,7 @@ AudioStreamOut::AudioStreamOut(AudioHwDevice *dev, audio_output_flags_t flags)
         , mFramesWrittenAtStandby(0)
         , mRenderPosition(0)
         , mRateMultiplier(1)
-        , mHalFormatIsLinearPcm(false)
+        , mHalFormatHasProportionalFrames(false)
         , mHalFrameSize(0)
 {
 }
@@ -96,7 +96,7 @@ status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timesp
 
     // Adjust for standby using HAL rate frames.
     // Only apply this correction if the HAL is getting PCM frames.
-    if (mHalFormatIsLinearPcm) {
+    if (mHalFormatHasProportionalFrames) {
         uint64_t adjustedPosition = (halPosition <= mFramesWrittenAtStandby) ?
                 0 : (halPosition - mFramesWrittenAtStandby);
         // Scale from HAL sample rate to application rate.
@@ -116,16 +116,21 @@ status_t AudioStreamOut::open(
         const char *address)
 {
     audio_stream_out_t *outStream;
+
+    audio_output_flags_t customFlags = (config->format == AUDIO_FORMAT_IEC61937)
+                ? (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO)
+                : flags;
+
     int status = hwDev()->open_output_stream(
             hwDev(),
             handle,
             devices,
-            flags,
+            customFlags,
             config,
             &outStream,
             address);
-    ALOGV("AudioStreamOut::open(), HAL open_output_stream returned "
-            " %p, sampleRate %d, Format %#x, "
+    ALOGV("AudioStreamOut::open(), HAL returned "
+            " stream %p, sampleRate %d, Format %#x, "
             "channelMask %#x, status %d",
             outStream,
             config->sample_rate,
@@ -133,10 +138,26 @@ status_t AudioStreamOut::open(
             config->channel_mask,
             status);
 
+    // Some HALs may not recognize AUDIO_FORMAT_IEC61937. But if we declare
+    // it as PCM then it will probably work.
+    if (status != NO_ERROR && config->format == AUDIO_FORMAT_IEC61937) {
+        struct audio_config customConfig = *config;
+        customConfig.format = AUDIO_FORMAT_PCM_16_BIT;
+
+        status = hwDev()->open_output_stream(
+                hwDev(),
+                handle,
+                devices,
+                customFlags,
+                &customConfig,
+                &outStream,
+                address);
+        ALOGV("AudioStreamOut::open(), treat IEC61937 as PCM, status = %d", status);
+    }
+
     if (status == NO_ERROR) {
         stream = outStream;
-        mHalFormatIsLinearPcm = audio_is_linear_pcm(config->format);
-        ALOGI("AudioStreamOut::open(), mHalFormatIsLinearPcm = %d", (int)mHalFormatIsLinearPcm);
+        mHalFormatHasProportionalFrames = audio_has_proportional_frames(config->format);
         mHalFrameSize = audio_stream_out_frame_size(stream);
     }
 

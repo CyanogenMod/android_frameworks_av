@@ -711,7 +711,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     sp<SwAudioOutputDescriptor> desc;
     if (mPolicyMixes.getOutputForAttr(attributes, uid, desc) == NO_ERROR) {
         ALOG_ASSERT(desc != 0, "Invalid desc returned by getOutputForAttr");
-        if (!audio_is_linear_pcm(format)) {
+        if (!audio_has_proportional_frames(format)) {
             return BAD_VALUE;
         }
         *stream = streamTypefromAttributesInt(&attributes);

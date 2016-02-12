@@ -107,7 +107,7 @@ static const nsecs_t kMinGlobalEffectEnabletimeNs = seconds(7200);
 // ----------------------------------------------------------------------------
 
 const char *formatToString(audio_format_t format) {
-    switch (format & AUDIO_FORMAT_MAIN_MASK) {
+    switch (audio_get_main_format(format)) {
     case AUDIO_FORMAT_PCM:
         switch (format) {
         case AUDIO_FORMAT_PCM_16_BIT: return "pcm16";
@@ -130,6 +130,7 @@ const char *formatToString(audio_format_t format) {
     case AUDIO_FORMAT_OPUS: return "opus";
     case AUDIO_FORMAT_AC3: return "ac-3";
     case AUDIO_FORMAT_E_AC3: return "e-ac-3";
+    case AUDIO_FORMAT_IEC61937: return "iec61937";
     default:
         break;
     }
@@ -1162,7 +1163,7 @@ size_t AudioFlinger::getInputBufferSize(uint32_t sampleRate, audio_format_t form
         return 0;
     }
     if ((sampleRate == 0) ||
-            !audio_is_valid_format(format) || !audio_is_linear_pcm(format) ||
+            !audio_is_valid_format(format) || !audio_has_proportional_frames(format) ||
             !audio_is_input_channel(channelMask)) {
         return 0;
     }
