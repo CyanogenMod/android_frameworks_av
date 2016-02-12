@@ -143,8 +143,9 @@ private:
     };
 
     enum {
-      kUpdateBitrate            = 1 << 0,
-      kRequestKeyFrame          = 1 << 1,
+        kUpdateBitrate            = 1 << 0,
+        kRequestKeyFrame          = 1 << 1,
+        kUpdateAIRMode            = 1 << 2,
     };
 
     // OMX input buffer's timestamp and flags
