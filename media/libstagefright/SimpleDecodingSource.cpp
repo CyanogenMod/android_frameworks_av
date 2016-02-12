@@ -34,7 +34,8 @@ const int64_t kTimeoutWaitForOutputUs = 500000; // 0.5 seconds
 
 //static
 sp<SimpleDecodingSource> SimpleDecodingSource::Create(
-        const sp<IMediaSource> &source, uint32_t flags, const sp<ANativeWindow> &nativeWindow) {
+        const sp<IMediaSource> &source, uint32_t flags, const sp<ANativeWindow> &nativeWindow,
+        const char *desiredCodec) {
     sp<Surface> surface = static_cast<Surface*>(nativeWindow.get());
     const char *mime = NULL;
     sp<MetaData> meta = source->getFormat();
@@ -55,6 +56,9 @@ sp<SimpleDecodingSource> SimpleDecodingSource::Create(
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
         const AString &componentName = matchingCodecs[i];
+        if (desiredCodec != NULL && componentName.compare(desiredCodec)) {
+            continue;
+        }
 
         ALOGV("Attempting to allocate codec '%s'", componentName.c_str());
 

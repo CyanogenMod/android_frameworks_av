@@ -43,9 +43,11 @@ public:
     // case the source will return empty buffers.
     // This source cannot be restarted (hence the name "Simple"), all reads are blocking, and
     // does not support secure input or pausing.
+    // if |desiredCodec| is given, use this specific codec.
     static sp<SimpleDecodingSource> Create(
             const sp<IMediaSource> &source, uint32_t flags = 0,
-            const sp<ANativeWindow> &nativeWindow = NULL);
+            const sp<ANativeWindow> &nativeWindow = NULL,
+            const char *desiredCodec = NULL);
 
     virtual ~SimpleDecodingSource();
 
