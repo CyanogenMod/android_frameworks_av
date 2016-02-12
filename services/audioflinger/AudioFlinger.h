@@ -57,6 +57,7 @@
 #include "AudioStreamOut.h"
 #include "SpdifStreamOut.h"
 #include "AudioHwDevice.h"
+#include "LinearMap.h"
 
 #include <powermanager/IPowerManager.h>
 

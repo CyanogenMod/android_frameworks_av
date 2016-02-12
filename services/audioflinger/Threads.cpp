@@ -1579,9 +1579,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
-        mHwSupportsPause(false), mHwPaused(false), mFlushPending(false),
-        // mLatchD, mLatchQ,
-        mLatchDValid(false), mLatchQValid(false)
+        mHwSupportsPause(false), mHwPaused(false), mFlushPending(false)
 {
     snprintf(mThreadName, kThreadNameLength, "AudioOut_%X", id);
     mNBLogWriter = audioFlinger->newWriter_l(kLogSize, mThreadName);
@@ -2554,16 +2552,6 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         } else {
             bytesWritten = framesWritten;
         }
-        mLatchDValid = false;
-        status_t status = mNormalSink->getTimestamp(mLatchD.mTimestamp);
-        if (status == NO_ERROR) {
-            size_t totalFramesWritten = mNormalSink->framesWritten();
-            if (totalFramesWritten >= mLatchD.mTimestamp.mPosition) {
-                mLatchD.mUnpresentedFrames = totalFramesWritten - mLatchD.mTimestamp.mPosition;
-                // mLatchD.mFramesReleased is set immediately before D is clocked into Q
-                mLatchDValid = true;
-            }
-        }
     // otherwise use the HAL / AudioStreamOut directly
     } else {
         // Direct output and offload threads
@@ -2869,21 +2857,47 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             }
 
             // Gather the framesReleased counters for all active tracks,
-            // and latch them atomically with the timestamp.
-            // FIXME We're using raw pointers as indices. A unique track ID would be a better index.
-            mLatchD.mFramesReleased.clear();
-            size_t size = mActiveTracks.size();
-            for (size_t i = 0; i < size; i++) {
-                sp<Track> t = mActiveTracks[i].promote();
-                if (t != 0) {
-                    mLatchD.mFramesReleased.add(t.get(),
-                            t->mAudioTrackServerProxy->framesReleased());
+            // and associate with the sink frames written out.  We need
+            // this to convert the sink timestamp to the track timestamp.
+            if (mNormalSink != 0) {
+                bool updateTracks = true;
+                bool cacheTimestamp = false;
+                AudioTimestamp timeStamp;
+                // FIXME: Use a 64 bit mNormalSink->framesWritten() counter.
+                // At this time, we must always use cached timestamps even when
+                // going through mPipeSink (which is non-blocking). The reason is that
+                // the track may be removed from the active list for many hours and
+                // the mNormalSink->framesWritten() will wrap making the linear
+                // mapping fail.
+                //
+                // (Also mAudioTrackServerProxy->framesReleased() needs to be
+                // updated to 64 bits for 64 bit frame position.)
+                //
+                if (true /* see comment above, should be: mNormalSink == mOutputSink */) {
+                    // If we use a hardware device, we must cache the sink timestamp now.
+                    // hardware devices can block timestamp access during data writes.
+                    if (mNormalSink->getTimestamp(timeStamp) == NO_ERROR) {
+                        cacheTimestamp = true;
+                    } else {
+                        updateTracks = false;
+                    }
                 }
-            }
-            if (mLatchDValid) {
-                mLatchQ = mLatchD;
-                mLatchDValid = false;
-                mLatchQValid = true;
+                if (updateTracks) {
+                    // sinkFramesWritten for non-offloaded tracks are contiguous
+                    // even after standby() is called. This is useful for the track frame
+                    // to sink frame mapping.
+                    const uint32_t sinkFramesWritten = mNormalSink->framesWritten();
+                    const size_t size = mActiveTracks.size();
+                    for (size_t i = 0; i < size; ++i) {
+                        sp<Track> t = mActiveTracks[i].promote();
+                        if (t != 0 && !t->isFastTrack()) {
+                            t->updateTrackFrameInfo(
+                                    t->mAudioTrackServerProxy->framesReleased(),
+                                    sinkFramesWritten,
+                                    cacheTimestamp ? &timeStamp : NULL);
+                        }
+                    }
+                }
             }
 
             saveOutputTracks();
