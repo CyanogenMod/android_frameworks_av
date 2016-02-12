@@ -29,6 +29,7 @@
 #include <OMX_AsString.h>
 
 #include <binder/IMemory.h>
+#include <cutils/properties.h>
 #include <gui/BufferQueue.h>
 #include <HardwareAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -485,6 +486,17 @@ status_t OMXNodeInstance::enableNativeBuffers(
             mSecureBufferType[portIndex] =
                 enable ? kSecureBufferTypeNativeHandle : kSecureBufferTypeOpaque;
         } else if (mSecureBufferType[portIndex] == kSecureBufferTypeUnknown) {
+
+            // BEGIN ALTERNATE SIGNALING FOR USING NATIVE HANDLES
+            char value[PROPERTY_VALUE_MAX];
+            if (property_get("media.mediadrmservice.enable", value, NULL)
+                    && (!strcmp("1", value) || !strcasecmp("true", value))) {
+                CLOG_CONFIG(enableNativeBuffers, "system property override: using native-handles");
+                mSecureBufferType[portIndex] = kSecureBufferTypeNativeHandle;
+                return OK;
+            }
+            // END ALTERNATE SIGNALING FOR USING NATIVE HANDLES
+
             mSecureBufferType[portIndex] = kSecureBufferTypeOpaque;
         }
     }
