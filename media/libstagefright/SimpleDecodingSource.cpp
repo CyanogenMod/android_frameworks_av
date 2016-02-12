@@ -31,6 +31,7 @@
 using namespace android;
 
 const int64_t kTimeoutWaitForOutputUs = 500000; // 0.5 seconds
+const int64_t kTimeoutWaitForInputUs = 5000; // 5 milliseconds
 
 //static
 sp<SimpleDecodingSource> SimpleDecodingSource::Create(
@@ -209,13 +210,14 @@ status_t SimpleDecodingSource::doRead(
         return ERROR_END_OF_STREAM;
     }
 
-    for (int retries = 1; ++retries; ) {
+    for (int retries = 0; ++retries; ) {
         // If we fill all available input buffers, we should expect that
         // the codec produces at least one output buffer. Also, the codec
         // should produce an output buffer in at most 1 seconds. Retry a
         // few times nonetheless.
         while (!me->mQueuedInputEOS) {
-            res = mCodec->dequeueInputBuffer(&in_ix, 0);
+            // allow some time to get input buffer after flush
+            res = mCodec->dequeueInputBuffer(&in_ix, kTimeoutWaitForInputUs);
             if (res == -EAGAIN) {
                 // no available input buffers
                 break;
