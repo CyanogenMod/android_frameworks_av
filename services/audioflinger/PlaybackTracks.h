@@ -89,6 +89,7 @@ protected:
     // ExtendedAudioBufferProvider interface
     virtual size_t framesReady() const;
     virtual size_t framesReleased() const;
+    virtual void onTimestamp(const AudioTimestamp &timestamp);
 
     bool isPausing() const { return mState == PAUSING; }
     bool isPaused() const { return mState == PAUSED; }
