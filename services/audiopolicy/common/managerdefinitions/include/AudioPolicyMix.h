@@ -69,7 +69,8 @@ public:
      * @return NO_ERROR if an output was found for the given attribute (in this case, the
      *                  descriptor output param is initialized), error code otherwise.
      */
-    status_t getOutputForAttr(audio_attributes_t attributes, sp<SwAudioOutputDescriptor> &desc);
+    status_t getOutputForAttr(audio_attributes_t attributes, uid_t uid,
+            sp<SwAudioOutputDescriptor> &desc);
 
     audio_devices_t getDeviceAndMixForInputSource(audio_source_t inputSource,
                                                   audio_devices_t availableDeviceTypes,
