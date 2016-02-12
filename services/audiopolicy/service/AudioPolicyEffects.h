@@ -171,10 +171,10 @@ private:
     void loadEffectParameters(cnode *root, Vector <effect_param_t *>& params);
     effect_param_t *loadEffectParameter(cnode *root);
     size_t readParamValue(cnode *node,
-                          char *param,
+                          char **param,
                           size_t *curSize,
                           size_t *totSize);
-    size_t growParamSize(char *param,
+    size_t growParamSize(char **param,
                          size_t size,
                          size_t *curSize,
                          size_t *totSize);
