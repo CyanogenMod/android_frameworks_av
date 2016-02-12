@@ -16,6 +16,7 @@ LOCAL_SRC_FILES:=                 \
     AStringUtils.cpp              \
     AWakeLock.cpp                 \
     MediaBuffer.cpp               \
+    MediaBufferGroup.cpp          \
     MetaData.cpp                  \
     ParsedMessage.cpp             \
     base64.cpp                    \

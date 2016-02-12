@@ -56,19 +56,59 @@ void MediaBufferGroup::add_buffer(MediaBuffer *buffer) {
 }
 
 status_t MediaBufferGroup::acquire_buffer(
-        MediaBuffer **out, bool nonBlocking) {
+        MediaBuffer **out, bool nonBlocking, size_t requestedSize) {
     Mutex::Autolock autoLock(mLock);
 
     for (;;) {
-        for (MediaBuffer *buffer = mFirstBuffer;
+        MediaBuffer *freeBuffer = NULL;
+        MediaBuffer *freeBufferPrevious = NULL;
+        MediaBuffer *buffer = NULL;
+        MediaBuffer *bufferPrevious = NULL;
+        size_t smallest = requestedSize;
+        for (buffer = mFirstBuffer;
              buffer != NULL; buffer = buffer->nextBuffer()) {
             if (buffer->refcount() == 0) {
-                buffer->add_ref();
-                buffer->reset();
-
-                *out = buffer;
-                goto exit;
+               if (buffer->size() >= requestedSize) {
+                   break;
+               } else if (buffer->size() < smallest) {
+                   freeBuffer = buffer;
+                   freeBufferPrevious = bufferPrevious;
+               }
             }
+            bufferPrevious = buffer;
+        }
+
+        if (buffer == NULL && freeBuffer != NULL) {
+            ALOGV("allocate new buffer, requested size %zu vs available %zu",
+                    requestedSize, freeBuffer->size());
+            size_t allocateSize = requestedSize;
+            if (requestedSize < SIZE_MAX / 3) {
+                allocateSize = requestedSize * 3 / 2;
+            }
+            MediaBuffer *newBuffer = new MediaBuffer(allocateSize);
+            newBuffer->setObserver(this);
+            if (freeBuffer == mFirstBuffer) {
+                mFirstBuffer = newBuffer;
+            }
+            if (freeBuffer == mLastBuffer) {
+                mLastBuffer = newBuffer;
+            }
+            newBuffer->setNextBuffer(freeBuffer->nextBuffer());
+            if (freeBufferPrevious != NULL) {
+                freeBufferPrevious->setNextBuffer(newBuffer);
+            }
+            freeBuffer->setObserver(NULL);
+            freeBuffer->release();
+
+            buffer = newBuffer;
+        }
+
+        if (buffer != NULL) {
+            buffer->add_ref();
+            buffer->reset();
+
+            *out = buffer;
+            goto exit;
         }
 
         if (nonBlocking) {

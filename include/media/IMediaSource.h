@@ -26,6 +26,7 @@ namespace android {
 struct MediaSource;
 class MetaData;
 class MediaBuffer;
+class MediaBufferGroup;
 
 class IMediaSource : public IInterface {
 public:
@@ -112,6 +113,8 @@ public:
 class BnMediaSource: public BnInterface<IMediaSource>
 {
 public:
+    BnMediaSource();
+
     virtual status_t    onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                 uint32_t flags = 0);
 
@@ -122,6 +125,12 @@ public:
     virtual status_t setBuffers(const Vector<MediaBuffer *> & /* buffers */) {
         return ERROR_UNSUPPORTED;
     }
+
+protected:
+    virtual ~BnMediaSource();
+
+private:
+    MediaBufferGroup *mGroup;
 };
 
 

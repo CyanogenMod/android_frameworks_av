@@ -29,7 +29,6 @@ LOCAL_SRC_FILES:=                         \
         MPEG4Extractor.cpp                \
         MPEG4Writer.cpp                   \
         MediaAdapter.cpp                  \
-        MediaBufferGroup.cpp              \
         MediaClock.cpp                    \
         MediaCodec.cpp                    \
         MediaCodecList.cpp                \
