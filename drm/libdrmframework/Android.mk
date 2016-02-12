@@ -38,6 +38,7 @@ LOCAL_C_INCLUDES += \
     $(TOP)/frameworks/av/drm/libdrmframework/include \
     $(TOP)/frameworks/av/include
 
+LOCAL_CFLAGS += -Werror
 
 
 LOCAL_MODULE_TAGS := optional
