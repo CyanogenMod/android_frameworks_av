@@ -398,9 +398,9 @@ protected:
      *     DRM_ERROR_CANNOT_HANDLE for failure and DRM_NO_ERROR for success
      */
     virtual status_t onOpenDecryptSession(
-            int uniqueId, DecryptHandle* decryptHandle,
-            int fd, off64_t offset, off64_t length,
-            const char* mime) {
+            int /* uniqueId */, DecryptHandle* /* decryptHandle */,
+            int /* fd */, off64_t /* offset */, off64_t /* length */,
+            const char* /* mime */) {
 
         return DRM_ERROR_CANNOT_HANDLE;
     }
@@ -430,8 +430,8 @@ protected:
      *     DRM_ERROR_CANNOT_HANDLE for failure and DRM_NO_ERROR for success
      */
     virtual status_t onOpenDecryptSession(
-            int uniqueId, DecryptHandle* decryptHandle,
-            const char* uri, const char* mime) {
+            int /* uniqueId */, DecryptHandle* /* decryptHandle */,
+            const char* /* uri */, const char* /* mime */) {
 
         return DRM_ERROR_CANNOT_HANDLE;
     }
@@ -446,8 +446,10 @@ protected:
      * @return
      *     DRM_ERROR_CANNOT_HANDLE for failure and DRM_NO_ERROR for success
      */
-    virtual status_t onOpenDecryptSession(int uniqueId, DecryptHandle* decryptHandle,
-            const DrmBuffer& buf, const String8& mimeType) {
+    virtual status_t onOpenDecryptSession(int /* uniqueId */,
+            DecryptHandle* /* decryptHandle */,
+            const DrmBuffer& /* buf */,
+            const String8& /* mimeType */) {
         return DRM_ERROR_CANNOT_HANDLE;
     }
 
