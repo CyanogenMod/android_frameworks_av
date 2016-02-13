@@ -1113,6 +1113,9 @@ void AudioFlinger::PlaybackThread::Track::updateTrackFrameInfo(
     if (!checked) { // no server info, assume drained.
         mAudioTrackServerProxy->setDrained(true);
     }
+    // Set correction for flushed frames that are not accounted for in released.
+    // This is important for the new 64 bit timestamps which do not reset to 0 on flush.
+    local.mFlushed = mAudioTrackServerProxy->framesFlushed();
     mServerProxy->setTimestamp(local);
 }
 

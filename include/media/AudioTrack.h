@@ -727,11 +727,50 @@ public:
      *                     because the audio device changed or AudioFlinger died.
      *                     This typically occurs for direct or offload tracks
      *                     or if mDoNotReconnect is true.
-     *         INVALID_OPERATION  if called on a FastTrack, wrong state, or some other error.
+     *         INVALID_OPERATION  wrong state, or some other error.
      *
      * The timestamp parameter is undefined on return, if status is not NO_ERROR.
      */
             status_t    getTimestamp(AudioTimestamp& timestamp);
+
+    /* Return the extended timestamp, with additional timebase info and improved drain behavior.
+     *
+     * This is similar to the AudioTrack.java API:
+     * getTimestamp(@NonNull AudioTimestamp timestamp, @AudioTimestamp.Timebase int timebase)
+     *
+     * Some differences between this method and the getTimestamp(AudioTimestamp& timestamp) method
+     *
+     *   1. stop() by itself does not reset the frame position.
+     *      A following start() resets the frame position to 0.
+     *   2. flush() by itself does not reset the frame position.
+     *      The frame position advances by the number of frames flushed,
+     *      when the first frame after flush reaches the audio sink.
+     *   3. BOOTTIME clock offsets are provided to help synchronize with
+     *      non-audio streams, e.g. sensor data.
+     *   4. Position is returned with 64 bits of resolution.
+     *
+     * Parameters:
+     *  timestamp: A pointer to the caller allocated ExtendedTimestamp.
+     *
+     * Returns NO_ERROR    on success; timestamp is filled with valid data.
+     *         BAD_VALUE   if timestamp is NULL.
+     *         WOULD_BLOCK if called immediately after start() when the number
+     *                     of frames consumed is less than the
+     *                     overall hardware latency to physical output. In WOULD_BLOCK cases,
+     *                     one might poll again, or use getPosition(), or use 0 position and
+     *                     current time for the timestamp.
+     *                     If WOULD_BLOCK is returned, the timestamp is still
+     *                     modified with the LOCATION_CLIENT portion filled.
+     *         DEAD_OBJECT if AudioFlinger dies or the output device changes and
+     *                     the track cannot be automatically restored.
+     *                     The application needs to recreate the AudioTrack
+     *                     because the audio device changed or AudioFlinger died.
+     *                     This typically occurs for direct or offloaded tracks
+     *                     or if mDoNotReconnect is true.
+     *         INVALID_OPERATION  if called on a offloaded or direct track.
+     *                     Use getTimestamp(AudioTimestamp& timestamp) instead.
+     */
+            status_t getTimestamp(ExtendedTimestamp *timestamp);
 
     /* Add an AudioDeviceCallback. The caller will be notified when the audio device to which this
      * AudioTrack is routed is updated.
@@ -955,6 +994,13 @@ protected:
     AudioTimestamp          mPreviousTimestamp;     // used to detect retrograde motion
 
     uint32_t                mUnderrunCountOffset;   // updated when restoring tracks
+
+    int64_t                 mFramesWritten;         // total frames written. reset to zero after
+                                                    // the start() following stop(). It is not
+                                                    // changed after restoring the track or
+                                                    // after flush.
+    int64_t                 mFramesWrittenServerOffset; // An offset to server frames due to
+                                                    // restoring AudioTrack, or stop/start.
 
     audio_output_flags_t    mFlags;                 // same as mOrigFlags, except for bits that may
                                                     // be denied by client or server, such as

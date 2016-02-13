@@ -522,6 +522,9 @@ public:
         mTimestampMutator.push(timestamp);
     }
 
+    // Total count of the number of flushed frames since creation (never reset).
+    virtual int64_t     framesFlushed() const { return mFlushed; }
+
     // Get dynamic buffer size from the shared control block.
     uint32_t            getBufferSizeInFrames() const {
         return android_atomic_acquire_load((int32_t *)&mCblk->mBufferSizeInFrames);
@@ -531,7 +534,7 @@ protected:
     size_t      mAvailToClient; // estimated frames available to client prior to releaseBuffer()
     int32_t     mFlush;         // our copy of cblk->u.mStreaming.mFlush, for streaming output only
     int64_t     mReleased;      // our copy of cblk->mServer, at 64 bit resolution
-
+    int64_t     mFlushed;       // flushed frames to account for client-server discrepancy
     ExtendedTimestampQueue::Mutator mTimestampMutator;
 };
 

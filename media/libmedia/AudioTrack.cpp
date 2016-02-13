@@ -500,6 +500,8 @@ status_t AudioTrack::set(
     mTimestampStartupGlitchReported = false;
     mRetrogradeMotionReported = false;
     mUnderrunCountOffset = 0;
+    mFramesWritten = 0;
+    mFramesWrittenServerOffset = 0;
 
     return NO_ERROR;
 }
@@ -537,6 +539,14 @@ status_t AudioTrack::start()
         // Note: the if is technically unnecessary because previousState == STATE_FLUSHED
         // is only for streaming tracks, and mMarkerReached is already set to false.
         if (previousState == STATE_STOPPED) {
+            // read last server side position change via timestamp
+            ExtendedTimestamp ets;
+            if (mProxy->getTimestamp(&ets) == OK &&
+                    ets.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] > 0) {
+                mFramesWrittenServerOffset = -(ets.mPosition[ExtendedTimestamp::LOCATION_SERVER]
+                                                             + ets.mFlushed);
+            }
+            mFramesWritten = 0;
             mProxy->clearTimestamp(); // need new server push for valid timestamp
             mMarkerReached = false;
         }
@@ -1657,6 +1667,9 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
         releaseBuffer(&audioBuffer);
     }
 
+    if (written > 0) {
+        mFramesWritten += written / mFrameSize;
+    }
     return written;
 }
 
@@ -1923,6 +1936,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         requested = &timeout;
     }
 
+    size_t writtenFrames = 0;
     while (mRemainingFrames > 0) {
 
         Buffer audioBuffer;
@@ -2024,6 +2038,7 @@ nsecs_t AudioTrack::processAudioBuffer()
         }
 
         releaseBuffer(&audioBuffer);
+        writtenFrames += releasedFrames;
 
         // FIXME here is where we would repeat EVENT_MORE_DATA again on same advanced buffer
         // if callback doesn't like to accept the full chunk
@@ -2046,6 +2061,10 @@ nsecs_t AudioTrack::processAudioBuffer()
         }
 #endif
 
+    }
+    if (writtenFrames > 0) {
+        AutoMutex lock(mLock);
+        mFramesWritten += writtenFrames;
     }
     mRemainingFrames = notificationFrames;
     mRetryOnPartialBuffer = true;
@@ -2109,6 +2128,7 @@ status_t AudioTrack::restoreTrack_l(const char *from)
         }
         if (mState == STATE_ACTIVE) {
             result = mAudioTrack->start();
+            mFramesWrittenServerOffset = mFramesWritten; // server resets to zero so we offset
         }
     }
     if (result != NO_ERROR) {
@@ -2160,6 +2180,42 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
 {
     AutoMutex lock(mLock);
     return mAudioTrack->setParameters(keyValuePairs);
+}
+
+status_t AudioTrack::getTimestamp(ExtendedTimestamp *timestamp)
+{
+    if (timestamp == nullptr) {
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mCblk->mFlags & CBLK_INVALID) {
+        const status_t status = restoreTrack_l("getTimestampExtended");
+        if (status != OK) {
+            // per getTimestamp() API doc in header, we return DEAD_OBJECT here,
+            // recommending that the track be recreated.
+            return DEAD_OBJECT;
+        }
+    }
+    // check for offloaded/direct here in case restoring somehow changed those flags.
+    if (isOffloadedOrDirect_l()) {
+        return INVALID_OPERATION; // not supported
+    }
+    status_t status = mProxy->getTimestamp(timestamp);
+    bool found = false;
+    if (status == OK) {
+        timestamp->mPosition[ExtendedTimestamp::LOCATION_CLIENT] = mFramesWritten;
+        timestamp->mTimeNs[ExtendedTimestamp::LOCATION_CLIENT] = 0;
+        // server side frame offset in case AudioTrack has been restored.
+        for (int i = ExtendedTimestamp::LOCATION_SERVER;
+                i < ExtendedTimestamp::LOCATION_MAX; ++i) {
+            if (timestamp->mTimeNs[i] >= 0) {
+                // apply server offset and the "flush frame correction here"
+                timestamp->mPosition[i] += mFramesWrittenServerOffset + timestamp->mFlushed;
+                found = true;
+            }
+        }
+    }
+    return found ? OK : WOULD_BLOCK;
 }
 
 status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
