@@ -2169,6 +2169,11 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     // Set false here to cover all the error return cases.
     mPreviousTimestampValid = false;
 
+    // FIXME not implemented for fast tracks; should use proxy and SSQ
+    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
+        return INVALID_OPERATION;
+    }
+
     switch (mState) {
     case STATE_ACTIVE:
     case STATE_PAUSED:
@@ -2198,10 +2203,7 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
     // The presented frame count must always lag behind the consumed frame count.
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
-
-    // FastTrack timestamps are read through shared memory; otherwise use Binder.
-    status_t status = (mFlags & AUDIO_OUTPUT_FLAG_FAST) ?
-            mProxy->getTimestamp(&timestamp) : mAudioTrack->getTimestamp(timestamp);
+    status_t status = mAudioTrack->getTimestamp(timestamp);
     if (status != NO_ERROR) {
         ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
         return status;
