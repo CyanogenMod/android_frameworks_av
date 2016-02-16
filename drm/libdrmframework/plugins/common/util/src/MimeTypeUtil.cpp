@@ -115,7 +115,7 @@ static struct MimeTypeList mimeTypeList[] = {
  * replacement mimetype otherwise the original mimetype
  * is returned.
  *
- * If the mimetype is of unsupported group i.e. application/*
+ * If the mimetype is of unsupported group i.e. application / *
  * then "unsupported/drm.mimetype" will be returned.
  *
  * @param mimeType - mimetype in lower case to convert.

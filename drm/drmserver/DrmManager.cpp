@@ -370,7 +370,7 @@ DrmConvertedStatus* DrmManager::closeConvertSession(int uniqueId, int convertId)
 }
 
 status_t DrmManager::getAllSupportInfo(
-                    int uniqueId, int* length, DrmSupportInfo** drmSupportInfoArray) {
+                    int /* uniqueId */, int* length, DrmSupportInfo** drmSupportInfoArray) {
     Mutex::Autolock _l(mLock);
     Vector<String8> plugInPathList = mPlugInManager.getPlugInIdList();
     int size = plugInPathList.size();
