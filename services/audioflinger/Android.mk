@@ -127,6 +127,9 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_MODULE := libaudioresampler
 
+# uncomment to disable NEON on architectures that actually do support NEON, for benchmarking
+#LOCAL_CFLAGS += -DUSE_NEON=false
+
 include $(BUILD_SHARED_LIBRARY)
 
 include $(call all-makefiles-under,$(LOCAL_PATH))

@@ -26,10 +26,14 @@ namespace android {
 #endif
 
 #if defined(__aarch64__) || defined(__ARM_NEON__)
+#ifndef USE_NEON
 #define USE_NEON (true)
-#include <arm_neon.h>
+#endif
 #else
 #define USE_NEON (false)
+#endif
+#if USE_NEON
+#include <arm_neon.h>
 #endif
 
 template<typename T, typename U>
