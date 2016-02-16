@@ -29,7 +29,8 @@
 #include "AudioResamplerDyn.h"
 
 #ifdef __arm__
-    #define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
+    // bug 13102576
+    //#define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
 #endif
 
 namespace android {
