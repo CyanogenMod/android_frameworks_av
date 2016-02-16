@@ -73,7 +73,6 @@ class Camera3ZslStream :
 
   private:
 
-    int mDepth;
     // Input buffers pending to be queued into HAL
     List<sp<RingBufferConsumer::PinnedBufferItem> > mInputBufferQueue;
     sp<RingBufferConsumer>                          mProducer;
