@@ -17,6 +17,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "SoftVPX"
 #include <utils/Log.h>
+#include <utils/misc.h>
+#include "OMX_VideoExt.h"
 
 #include "SoftVPX.h"
 
@@ -25,6 +27,11 @@
 
 
 namespace android {
+
+// Only need to declare the highest supported profile and level here.
+static const CodecProfileLevel kVP9ProfileLevels[] = {
+    { OMX_VIDEO_VP9Profile0, OMX_VIDEO_VP9Level5  },
+};
 
 SoftVPX::SoftVPX(
         const char *name,
@@ -35,7 +42,8 @@ SoftVPX::SoftVPX(
         OMX_COMPONENTTYPE **component)
     : SoftVideoDecoderOMXComponent(
             name, componentRole, codingType,
-            NULL /* profileLevels */, 0 /* numProfileLevels */,
+            codingType == OMX_VIDEO_CodingVP8 ? NULL : kVP9ProfileLevels,
+            codingType == OMX_VIDEO_CodingVP8 ?  0 : NELEM(kVP9ProfileLevels),
             320 /* width */, 240 /* height */, callbacks, appData, component),
       mMode(codingType == OMX_VIDEO_CodingVP8 ? MODE_VP8 : MODE_VP9),
       mEOSStatus(INPUT_DATA_AVAILABLE),
