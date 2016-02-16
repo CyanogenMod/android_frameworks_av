@@ -792,10 +792,14 @@ status_t CameraSource::start(MetaData *meta) {
 void CameraSource::stopCameraRecording() {
     ALOGV("stopCameraRecording");
     if (mCameraFlags & FLAGS_HOT_CAMERA) {
-        mCameraRecordingProxy->stopRecording();
+        if (mCameraRecordingProxy != 0) {
+            mCameraRecordingProxy->stopRecording();
+        }
     } else {
-        mCamera->setListener(NULL);
-        mCamera->stopRecording();
+        if (mCamera != 0) {
+            mCamera->setListener(NULL);
+            mCamera->stopRecording();
+        }
     }
 }
 
