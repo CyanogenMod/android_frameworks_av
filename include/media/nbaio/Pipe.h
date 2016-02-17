@@ -45,9 +45,9 @@ public:
 
     // NBAIO_Sink interface
 
-    //virtual size_t framesWritten() const;
-    //virtual size_t framesUnderrun() const;
-    //virtual size_t underruns() const;
+    //virtual int64_t framesWritten() const;
+    //virtual int64_t framesUnderrun() const;
+    //virtual int64_t underruns() const;
 
     // The write side of a pipe permits overruns; flow control is the caller's responsibility.
     // It doesn't return +infinity because that would guarantee an overrun.

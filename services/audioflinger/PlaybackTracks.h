@@ -88,8 +88,8 @@ protected:
 
     // ExtendedAudioBufferProvider interface
     virtual size_t framesReady() const;
-    virtual size_t framesReleased() const;
-    virtual void onTimestamp(const AudioTimestamp &timestamp);
+    virtual int64_t framesReleased() const;
+    virtual void onTimestamp(const ExtendedTimestamp &timestamp);
 
     bool isPausing() const { return mState == PAUSING; }
     bool isPaused() const { return mState == PAUSED; }
@@ -101,15 +101,15 @@ protected:
     void flushAck();
     bool isResumePending();
     void resumeAck();
-    void updateTrackFrameInfo(uint32_t trackFramesReleased, uint32_t sinkFramesWritten,
-            AudioTimestamp *timeStamp = NULL);
+    void updateTrackFrameInfo(int64_t trackFramesReleased, int64_t sinkFramesWritten,
+            const ExtendedTimestamp &timeStamp);
 
     sp<IMemory> sharedBuffer() const { return mSharedBuffer; }
 
     // framesWritten is cumulative, never reset, and is shared all tracks
     // audioHalFrames is derived from output latency
     // FIXME parameters not needed, could get them from the thread
-    bool presentationComplete(size_t framesWritten, size_t audioHalFrames);
+    bool presentationComplete(int64_t framesWritten, size_t audioHalFrames);
 
 public:
     void triggerEvents(AudioSystem::sync_event_t type);
@@ -142,9 +142,9 @@ protected:
                                     // zero means not monitoring
 
     // access these three variables only when holding thread lock.
-    LinearMap<uint32_t> mFrameMap;           // track frame to server frame mapping
-    bool                mSinkTimestampValid; // valid cached timestamp
-    AudioTimestamp      mSinkTimestamp;
+    LinearMap<int64_t> mFrameMap;           // track frame to server frame mapping
+
+    ExtendedTimestamp  mSinkTimestamp;
 
 private:
     // The following fields are only for fast tracks, and should be in a subclass

@@ -53,7 +53,7 @@ ssize_t AudioStreamInSource::negotiate(const NBAIO_Format offers[], size_t numOf
     return NBAIO_Source::negotiate(offers, numOffers, counterOffers, numCounterOffers);
 }
 
-size_t AudioStreamInSource::framesOverrun()
+int64_t AudioStreamInSource::framesOverrun()
 {
     uint32_t framesOverrun = mStream->get_input_frames_lost(mStream);
     if (framesOverrun > 0) {

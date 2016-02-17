@@ -381,7 +381,7 @@ protected:
                 };
 
                 void        acquireWakeLock(int uid = -1);
-                void        acquireWakeLock_l(int uid = -1);
+                virtual void acquireWakeLock_l(int uid = -1);
                 void        releaseWakeLock();
                 void        releaseWakeLock_l();
                 void        updateWakeLockUids(const SortedVector<int> &uids);
@@ -460,6 +460,7 @@ protected:
                 sp<NBLog::Writer>       mNBLogWriter;
                 bool                    mSystemReady;
                 bool                    mNotifiedBatteryStart;
+                ExtendedTimestamp       mTimestamp;
 };
 
 // --- PlaybackThread ---
@@ -691,9 +692,7 @@ protected:
     // 'volatile' means accessed via atomic operations and no lock.
     volatile int32_t                mSuspended;
 
-    // FIXME overflows every 6+ hours at 44.1 kHz stereo 16-bit samples
-    // mFramesWritten would be better, or 64-bit even better
-    size_t                          mBytesWritten;
+    int64_t                         mBytesWritten;
 private:
     // mMasterMute is in both PlaybackThread and in AudioFlinger.  When a
     // PlaybackThread needs to find out if master-muted, it checks it's local
@@ -867,6 +866,14 @@ protected:
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
     virtual     void        cacheParameters_l();
+
+    virtual void acquireWakeLock_l(int uid = -1) {
+        PlaybackThread::acquireWakeLock_l(uid);
+        if (hasFastMixer()) {
+            mFastMixer->setBoottimeOffset(
+                    mTimestamp.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_BOOTTIME]);
+        }
+    }
 
     // threadLoop snippets
     virtual     ssize_t     threadLoop_write();
@@ -1310,8 +1317,6 @@ private:
 
             // rolling index that is never cleared
             int32_t                             mRsmpInRear;    // last filled frame + 1
-
-            ExtendedTimestamp                   mTimestamp;
 
             // For dumpsys
             const sp<NBAIO_Sink>                mTeeSink;

@@ -112,12 +112,12 @@ size_t SourceAudioBufferProvider::framesReady() const
     return avail < 0 ? 0 : (size_t) avail;
 }
 
-size_t SourceAudioBufferProvider::framesReleased() const
+int64_t SourceAudioBufferProvider::framesReleased() const
 {
     return mFramesReleased;
 }
 
-void SourceAudioBufferProvider::onTimestamp(const AudioTimestamp& timestamp)
+void SourceAudioBufferProvider::onTimestamp(const ExtendedTimestamp &timestamp)
 {
     mSource->onTimestamp(timestamp);
 }

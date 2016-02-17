@@ -183,9 +183,14 @@ bool MonoPipe::isShutdown()
     return mIsShutdown;
 }
 
-status_t MonoPipe::getTimestamp(AudioTimestamp& timestamp)
+status_t MonoPipe::getTimestamp(ExtendedTimestamp &timestamp)
 {
-    if (mTimestampObserver.poll(timestamp)) {
+    ExtendedTimestamp ets;
+    if (mTimestampObserver.poll(ets)) {
+        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
+                ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+        timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
+                ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
         return OK;
     }
     return INVALID_OPERATION;

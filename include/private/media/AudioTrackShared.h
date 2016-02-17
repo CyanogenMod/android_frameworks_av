@@ -176,6 +176,7 @@ private:
 
                 // server write-only, client read
                 ExtendedTimestampQueue::Shared mExtendedTimestampQueue;
+
 public:
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
@@ -532,7 +533,7 @@ public:
             size_t frameSize, bool clientInServer = false, uint32_t sampleRate = 0)
         : ServerProxy(cblk, buffers, frameCount, frameSize, true /*isOut*/, clientInServer),
           mPlaybackRateObserver(&cblk->mPlaybackRateQueue),
-          mUnderrunCount(0), mUnderrunning(false) {
+          mUnderrunCount(0), mUnderrunning(false), mDrained(true) {
         mCblk->mSampleRate = sampleRate;
         mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
     }
@@ -569,6 +570,18 @@ public:
     // Return the playback speed and pitch read atomically. Not multi-thread safe on server side.
     AudioPlaybackRate getPlaybackRate();
 
+    // Set the internal drain state of the track buffer from the timestamp received.
+    virtual void        setDrained(bool drained) {
+        mDrained.store(drained);
+    }
+
+    // Check if the internal drain state of the track buffer.
+    // This is not a guarantee, but advisory for determining whether the track is
+    // fully played out.
+    virtual bool        isDrained() const {
+        return mDrained.load();
+    }
+
 private:
     AudioPlaybackRate             mPlaybackRate;  // last observed playback rate
     PlaybackRateQueue::Observer   mPlaybackRateObserver;
@@ -576,6 +589,8 @@ private:
     // The server keeps a copy here where it is safe from the client.
     uint32_t                      mUnderrunCount; // echoed to mCblk
     bool                          mUnderrunning;  // used to detect edge of underrun
+
+    std::atomic<bool>             mDrained; // is the track buffer drained
 };
 
 class StaticAudioTrackServerProxy : public AudioTrackServerProxy {

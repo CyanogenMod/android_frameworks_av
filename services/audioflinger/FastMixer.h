@@ -38,7 +38,9 @@ public:
             FastMixerStateQueue* sq();
 
     virtual void setMasterMono(bool mono) { mMasterMono.store(mono); /* memory_order_seq_cst */ }
-
+    virtual void setBoottimeOffset(int64_t boottimeOffset) {
+        mBoottimeOffset.store(boottimeOffset); /* memory_order_seq_cst */
+    }
 private:
             FastMixerStateQueue mSQ;
 
@@ -79,14 +81,15 @@ private:
     unsigned        mSampleRate;
     int             mFastTracksGen;
     FastMixerDumpState mDummyFastMixerDumpState;
-    uint32_t        mTotalNativeFramesWritten;  // copied to dumpState->mFramesWritten
+    int64_t         mTotalNativeFramesWritten;  // copied to dumpState->mFramesWritten
 
     // next 2 fields are valid only when timestampStatus == NO_ERROR
-    AudioTimestamp  mTimestamp;
-    uint32_t        mNativeFramesWrittenButNotPresented;
+    ExtendedTimestamp mTimestamp;
+    int64_t         mNativeFramesWrittenButNotPresented;
 
     // accessed without lock between multiple threads.
     std::atomic_bool mMasterMono;
+    std::atomic_int_fast64_t mBoottimeOffset;
 };  // class FastMixer
 
 }   // namespace android

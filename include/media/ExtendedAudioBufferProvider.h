@@ -27,11 +27,11 @@ public:
     virtual size_t  framesReady() const = 0;  // see description at AudioFlinger.h
 
     // Return the total number of frames that have been obtained and released
-    virtual size_t  framesReleased() const { return 0; }
+    virtual int64_t  framesReleased() const { return 0; }
 
     // Invoked by buffer consumer when a new timestamp is available.
     // Default implementation ignores the timestamp.
-    virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
+    virtual void    onTimestamp(const ExtendedTimestamp& timestamp) { }
 };
 
 }   // namespace android

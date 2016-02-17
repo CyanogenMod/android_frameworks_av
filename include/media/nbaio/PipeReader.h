@@ -40,8 +40,8 @@ public:
     // NBAIO_Source interface
 
     //virtual size_t framesRead() const;
-    virtual size_t framesOverrun() { return mFramesOverrun; }
-    virtual size_t overruns()  { return mOverruns; }
+    virtual int64_t framesOverrun() { return mFramesOverrun; }
+    virtual int64_t overruns()  { return mOverruns; }
 
     virtual ssize_t availableToRead();
 
@@ -56,8 +56,8 @@ public:
 private:
     Pipe&       mPipe;
     int32_t     mFront;         // follows behind mPipe.mRear
-    size_t      mFramesOverrun;
-    size_t      mOverruns;
+    int64_t     mFramesOverrun;
+    int64_t     mOverruns;
 };
 
 }   // namespace android

@@ -38,8 +38,8 @@ public:
     // NBAIO_Sink interface
 
     //virtual size_t framesRead() const;
-    virtual size_t framesOverrun();
-    virtual size_t overruns() { (void) framesOverrun(); return mOverruns; }
+    virtual int64_t framesOverrun();
+    virtual int64_t overruns() { (void) framesOverrun(); return mOverruns; }
 
     // This is an over-estimate, and could dupe the caller into making a blocking read()
     // FIXME Use an audio HAL API to query the buffer filling status when it's available.
@@ -56,8 +56,8 @@ public:
 private:
     audio_stream_in * const mStream;
     size_t              mStreamBufferSizeBytes; // as reported by get_buffer_size()
-    size_t              mFramesOverrun;
-    size_t              mOverruns;
+    int64_t             mFramesOverrun;
+    int64_t             mOverruns;
 };
 
 }   // namespace android
