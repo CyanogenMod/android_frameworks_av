@@ -320,7 +320,18 @@ status_t SampleIterator::findSampleTimeAndDuration(
 
     *time = mTTSSampleTime + mTTSDuration * (sampleIndex - mTTSSampleIndex);
 
-    *time += mTable->getCompositionTimeOffset(sampleIndex);
+    int32_t offset = mTable->getCompositionTimeOffset(sampleIndex);
+    if ((offset < 0 && *time < (offset == INT32_MIN ?
+            INT32_MAX : uint32_t(-offset))) ||
+            (offset > 0 && *time > UINT32_MAX - offset)) {
+        ALOGE("%u + %d would overflow", *time, offset);
+        return ERROR_OUT_OF_RANGE;
+    }
+    if (offset > 0) {
+        *time += offset;
+    } else {
+        *time -= (offset == INT32_MIN ? INT32_MAX : (-offset));
+    }
 
     *duration = mTTSDuration;
 
