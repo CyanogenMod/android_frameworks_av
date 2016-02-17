@@ -235,10 +235,14 @@ status_t OMX::listNodes(List<ComponentInfo> *list) {
 }
 
 status_t OMX::allocateNode(
-        const char *name, const sp<IOMXObserver> &observer, node_id *node) {
+        const char *name, const sp<IOMXObserver> &observer,
+        sp<IBinder> *nodeBinder, node_id *node) {
     Mutex::Autolock autoLock(mLock);
 
     *node = 0;
+    if (nodeBinder != NULL) {
+        *nodeBinder = NULL;
+    }
 
     if (mNodeIDToInstance.size() == kMaxNodeInstances) {
         // all possible node IDs are in use

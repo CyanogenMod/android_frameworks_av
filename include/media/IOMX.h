@@ -59,6 +59,7 @@ public:
 
     virtual status_t allocateNode(
             const char *name, const sp<IOMXObserver> &observer,
+            sp<IBinder> *nodeBinder,
             node_id *node) = 0;
 
     virtual status_t freeNode(node_id node) = 0;

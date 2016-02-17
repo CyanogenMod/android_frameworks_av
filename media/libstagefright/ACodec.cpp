@@ -5541,7 +5541,7 @@ void ACodec::UninitializedState::stateEntered() {
     ALOGV("Now uninitialized");
 
     if (mDeathNotifier != NULL) {
-        IInterface::asBinder(mCodec->mOMX)->unlinkToDeath(mDeathNotifier);
+        mCodec->mNodeBinder->unlinkToDeath(mDeathNotifier);
         mDeathNotifier.clear();
     }
 
@@ -5638,13 +5638,6 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
     sp<AMessage> notify = new AMessage(kWhatOMXDied, mCodec);
 
-    mDeathNotifier = new DeathNotifier(notify);
-    if (IInterface::asBinder(omx)->linkToDeath(mDeathNotifier) != OK) {
-        // This was a local binder, if it dies so do we, we won't care
-        // about any notifications in the afterlife.
-        mDeathNotifier.clear();
-    }
-
     Vector<AString> matchingCodecs;
 
     AString mime;
@@ -5683,7 +5676,7 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         pid_t tid = gettid();
         int prevPriority = androidGetThreadPriority(tid);
         androidSetThreadPriority(tid, ANDROID_PRIORITY_FOREGROUND);
-        err = omx->allocateNode(componentName.c_str(), observer, &node);
+        err = omx->allocateNode(componentName.c_str(), observer, &mCodec->mNodeBinder, &node);
         androidSetThreadPriority(tid, prevPriority);
 
         if (err == OK) {
@@ -5705,6 +5698,14 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
 
         mCodec->signalError((OMX_ERRORTYPE)err, makeNoSideEffectStatus(err));
         return false;
+    }
+
+    mDeathNotifier = new DeathNotifier(notify);
+    if (mCodec->mNodeBinder == NULL ||
+            mCodec->mNodeBinder->linkToDeath(mDeathNotifier) != OK) {
+        // This was a local binder, if it dies so do we, we won't care
+        // about any notifications in the afterlife.
+        mDeathNotifier.clear();
     }
 
     notify = new AMessage(kWhatOMXMessageList, mCodec);
@@ -7078,7 +7079,7 @@ status_t ACodec::queryCapabilities(
     sp<CodecObserver> observer = new CodecObserver;
     IOMX::node_id node = 0;
 
-    err = omx->allocateNode(name.c_str(), observer, &node);
+    err = omx->allocateNode(name.c_str(), observer, NULL, &node);
     if (err != OK) {
         client.disconnect();
         return err;
