@@ -337,7 +337,9 @@ public:
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
 
     virtual void onRecordingConfigurationUpdate(int event, audio_session_t session,
-                    audio_source_t source) = 0;
+                    audio_source_t source,
+                    const struct audio_config_base *clientConfig,
+                    const struct audio_config_base *deviceConfig) = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);

@@ -220,9 +220,11 @@ void AudioPolicyService::AudioPolicyClient::onDynamicPolicyMixStateUpdate(
 }
 
 void AudioPolicyService::AudioPolicyClient::onRecordingConfigurationUpdate(
-        int event, audio_session_t session, audio_source_t source)
+        int event, audio_session_t session, audio_source_t source,
+        const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig)
 {
-    mAudioPolicyService->onRecordingConfigurationUpdate(event, session, source);
+    mAudioPolicyService->onRecordingConfigurationUpdate(event, session, source,
+            clientConfig, deviceConfig);
 }
 
 audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId()

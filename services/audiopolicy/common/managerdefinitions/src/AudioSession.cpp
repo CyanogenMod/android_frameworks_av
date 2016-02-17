@@ -37,7 +37,8 @@ AudioSession::AudioSession(audio_session_t session,
                            AudioMix* policyMix,
                            AudioPolicyClientInterface *clientInterface) :
     mSession(session), mInputSource(inputSource),
-    mFormat(format), mSampleRate(sampleRate), mChannelMask(channelMask),
+    mConfig({ .format = format, .sample_rate = sampleRate, .channel_mask = channelMask}),
+    mDeviceConfig(AUDIO_CONFIG_BASE_INITIALIZER),
     mFlags(flags), mUid(uid), mIsSoundTrigger(isSoundTrigger),
     mOpenCount(1), mActiveCount(0), mPolicyMix(policyMix), mClientInterface(clientInterface)
 {
@@ -74,7 +75,7 @@ uint32_t AudioSession::changeActiveCount(int delta)
                     MIX_STATE_MIXING);
         }
         mClientInterface->onRecordingConfigurationUpdate(RECORD_CONFIG_EVENT_START,
-                mSession, mInputSource);
+                mSession, mInputSource, &mConfig, &mDeviceConfig);
     } else if ((oldActiveCount > 0) && (mActiveCount == 0)) {
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
@@ -83,7 +84,7 @@ uint32_t AudioSession::changeActiveCount(int delta)
                     MIX_STATE_IDLE);
         }
         mClientInterface->onRecordingConfigurationUpdate(RECORD_CONFIG_EVENT_STOP,
-                mSession, mInputSource);
+                mSession, mInputSource, &mConfig, &mDeviceConfig);
     }
 
     return mActiveCount;
@@ -93,9 +94,9 @@ bool AudioSession::matches(const sp<AudioSession> &other) const
 {
     if (other->session() == mSession &&
         other->inputSource() == mInputSource &&
-        other->format() == mFormat &&
-        other->sampleRate() == mSampleRate &&
-        other->channelMask() == mChannelMask &&
+        other->format() == mConfig.format &&
+        other->sampleRate() == mConfig.sample_rate &&
+        other->channelMask() == mConfig.channel_mask &&
         other->flags() == mFlags &&
         other->uid() == mUid) {
         return true;
@@ -103,6 +104,12 @@ bool AudioSession::matches(const sp<AudioSession> &other) const
     return false;
 }
 
+void AudioSession::setDeviceConfig(audio_format_t format, uint32_t sampleRate,
+            audio_channel_mask_t channelMask) {
+    mDeviceConfig.format = format;
+    mDeviceConfig.sample_rate = sampleRate;
+    mDeviceConfig.channel_mask = channelMask;
+}
 
 status_t AudioSession::dump(int fd, int spaces, int index) const
 {
@@ -118,12 +125,12 @@ status_t AudioSession::dump(int fd, int spaces, int index) const
     result.append(buffer);
     snprintf(buffer, SIZE, "%*s- input source: %d\n", spaces, "", mInputSource);
     result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- format: %08x\n", spaces, "", mFormat);
+    snprintf(buffer, SIZE, "%*s- format: %08x\n", spaces, "", mConfig.format);
     result.append(buffer);
-    snprintf(buffer, SIZE, "%*s- sample: %d\n", spaces, "", mSampleRate);
+    snprintf(buffer, SIZE, "%*s- sample: %d\n", spaces, "", mConfig.sample_rate);
     result.append(buffer);
     snprintf(buffer, SIZE, "%*s- channel mask: %08x\n",
-             spaces, "", mChannelMask);
+             spaces, "", mConfig.channel_mask);
     result.append(buffer);
     snprintf(buffer, SIZE, "%*s- is soundtrigger: %s\n",
              spaces, "", mIsSoundTrigger ? "true" : "false");

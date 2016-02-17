@@ -39,7 +39,9 @@ public:
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
     // Notifies a change of audio recording configuration
     virtual void onRecordingConfigurationUpdate(int event, audio_session_t session,
-            audio_source_t source) = 0;
+            audio_source_t source,
+            const audio_config_base_t *clientConfig,
+            const audio_config_base_t *deviceConfig) = 0;
 };
 
 
