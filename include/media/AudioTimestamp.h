@@ -79,7 +79,7 @@ struct ExtendedTimestamp {
 
     // Returns the best timestamp as judged from the closest-to-hw stage in the
     // pipeline with a valid timestamp.
-    int getBestTimestamp(int64_t *position, int64_t *time, int timebase) {
+    status_t getBestTimestamp(int64_t *position, int64_t *time, int timebase) const {
         if (position == nullptr || time == nullptr
                 || timebase < 0 || timebase >= TIMEBASE_MAX) {
             return BAD_VALUE;
@@ -93,6 +93,20 @@ struct ExtendedTimestamp {
                 *time = mTimeNs[i] + mTimebaseOffset[timebase];
                 return OK;
             }
+        }
+        return INVALID_OPERATION;
+    }
+
+    status_t getBestTimestamp(AudioTimestamp *timestamp) const {
+        if (timestamp == nullptr) {
+            return BAD_VALUE;
+        }
+        int64_t position, time;
+        if (getBestTimestamp(&position, &time, TIMEBASE_MONOTONIC) == OK) {
+            timestamp->mPosition = position;
+            timestamp->mTime.tv_sec = time / 1000000000;
+            timestamp->mTime.tv_nsec = time - timestamp->mTime.tv_sec * 1000000000LL;
+            return OK;
         }
         return INVALID_OPERATION;
     }

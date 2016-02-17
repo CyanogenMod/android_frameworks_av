@@ -76,8 +76,6 @@ private:
             // be dropped and therefore not read by the application.
             sp<SyncEvent>                       mSyncStartEvent;
 
-            AudioRecordServerProxy             *mAudioRecordServerProxy;
-
             // number of captured frames to drop after the start sync event has been received.
             // when < 0, maximum frames to drop before starting capture even if sync event is
             // not received

@@ -69,6 +69,7 @@ ClientProxy::ClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer)
     , mBufferSizeInFrames(frameCount)
     , mEpoch(0)
+    , mTimestampObserver(&cblk->mExtendedTimestampQueue)
 {
 }
 
@@ -598,6 +599,7 @@ ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
         size_t frameSize, bool isOut, bool clientInServer)
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer),
       mAvailToClient(0), mFlush(0), mReleased(0)
+    , mTimestampMutator(&cblk->mExtendedTimestampQueue)
 {
 }
 
