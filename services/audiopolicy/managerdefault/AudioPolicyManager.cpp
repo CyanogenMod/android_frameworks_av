@@ -2200,6 +2200,13 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
         return false;
     }
 
+    // Check if streaming is off, then only allow offload as of now.
+    if (offloadInfo.is_streaming)
+    {
+        ALOGV("isOffloadSupported: is_streaming == true, returning false");
+        return false;
+    }
+
     //TODO: enable audio offloading with video when ready
     const bool allowOffloadWithVideo =
             property_get_bool("audio.offload.video", false /* default_value */);
