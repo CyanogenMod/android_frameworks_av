@@ -23,6 +23,7 @@ LOCAL_SHARED_LIBRARIES := \
 	libmediaplayerservice \
 	libutils \
 	libbinder \
+	libicuuc \
 
 LOCAL_STATIC_LIBRARIES := \
         libicuandroid_utils \
