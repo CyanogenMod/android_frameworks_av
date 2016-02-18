@@ -2201,6 +2201,8 @@ bool AudioPolicyManager::isOffloadSupported(const audio_offload_info_t& offloadI
     }
 
     // Check if streaming is off, then only allow offload as of now.
+    // This is a temporary work around until the root cause is fixed in offload
+    // playback path.
     if (offloadInfo.is_streaming)
     {
         ALOGV("isOffloadSupported: is_streaming == true, returning false");
