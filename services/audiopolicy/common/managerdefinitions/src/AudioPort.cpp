@@ -268,6 +268,32 @@ int AudioPort::compareFormats(audio_format_t format1, audio_format_t format2)
     return index1 - index2;
 }
 
+bool AudioPort::isBetterFormatMatch(audio_format_t newFormat,
+                                    audio_format_t currentFormat,
+                                    audio_format_t targetFormat)
+{
+    if (newFormat == currentFormat) {
+        return false;
+    }
+    if (currentFormat == AUDIO_FORMAT_INVALID) {
+        return true;
+    }
+    if (newFormat == targetFormat) {
+        return true;
+    }
+    int currentDiffBytes = (int)audio_bytes_per_sample(targetFormat) -
+            audio_bytes_per_sample(currentFormat);
+    int newDiffBytes = (int)audio_bytes_per_sample(targetFormat) -
+            audio_bytes_per_sample(newFormat);
+
+    if (abs(newDiffBytes) < abs(currentDiffBytes)) {
+        return true;
+    } else if (abs(newDiffBytes) == abs(currentDiffBytes)) {
+        return (newDiffBytes >= 0);
+    }
+    return false;
+}
+
 void AudioPort::pickAudioProfile(uint32_t &samplingRate,
                                  audio_channel_mask_t &channelMask,
                                  audio_format_t &format) const

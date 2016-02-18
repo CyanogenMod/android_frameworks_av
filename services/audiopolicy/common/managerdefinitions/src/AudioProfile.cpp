@@ -31,7 +31,7 @@ namespace android {
 status_t AudioProfile::checkExact(uint32_t samplingRate, audio_channel_mask_t channelMask,
                                   audio_format_t format) const
 {
-    if (format == mFormat &&
+    if (audio_formats_match(format, mFormat) &&
             (mChannelMasks.isEmpty() || supportsChannels(channelMask)) &&
             (mSamplingRates.isEmpty() || supportsRate(samplingRate))) {
         return NO_ERROR;
