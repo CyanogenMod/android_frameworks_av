@@ -2184,12 +2184,8 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
 
         case Source::kWhatBufferingEnd:
         {
-            if (mPausedByClient) {
-                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_END;
-            } else {
-                notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
-                mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
-            }
+            notifyListener(MEDIA_INFO, MEDIA_INFO_BUFFERING_END, 0);
+            mPendingBufferingFlag = PENDING_BUFFERING_FLAG_NONE;
             break;
         }
 
