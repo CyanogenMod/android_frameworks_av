@@ -94,10 +94,16 @@ sp<hardware::ICameraService> CameraManagerGlobal::getCameraService() {
         if (mCbLooper == nullptr) {
             mCbLooper = new ALooper;
             mCbLooper->setName("C2N-mgr-looper");
-            status_t ret = mCbLooper->start(
+            status_t err = mCbLooper->start(
                     /*runOnCallingThread*/false,
                     /*canCallJava*/       true,
                     PRIORITY_DEFAULT);
+            if (err != OK) {
+                ALOGE("%s: Unable to start camera service listener looper: %s (%d)",
+                        __FUNCTION__, strerror(-err), err);
+                mCbLooper.clear();
+                return nullptr;
+            }
             if (mHandler == nullptr) {
                 mHandler = new CallbackHandler();
             }

@@ -64,10 +64,15 @@ CameraDevice::CameraDevice(
     // Setup looper thread to perfrom device callbacks to app
     mCbLooper = new ALooper;
     mCbLooper->setName("C2N-dev-looper");
-    status_t ret = mCbLooper->start(
+    status_t err = mCbLooper->start(
             /*runOnCallingThread*/false,
             /*canCallJava*/       true,
             PRIORITY_DEFAULT);
+    if (err != OK) {
+        ALOGE("%s: Unable to start camera device callback looper: %s (%d)",
+                __FUNCTION__, strerror(-err), err);
+        setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_DEVICE);
+    }
     mHandler = new CallbackHandler();
     mCbLooper->registerHandler(mHandler);
 
@@ -161,8 +166,6 @@ CameraDevice::createCaptureSession(
 
     ACameraCaptureSession* newSession = new ACameraCaptureSession(
             mNextSessionId++, outputs, callbacks, this);
-
-    bool configureSucceeded = (ret == ACAMERA_OK);
 
     // set new session as current session
     newSession->incStrong((void *) ACameraDevice_createCaptureSession);
@@ -419,7 +422,7 @@ CameraDevice::getIGBPfromSessionOutput(
     }
     int value;
     int err = (*anw->query)(anw, NATIVE_WINDOW_CONCRETE_TYPE, &value);
-    if (value != NATIVE_WINDOW_SURFACE) {
+    if (err != OK || value != NATIVE_WINDOW_SURFACE) {
         ALOGE("Error: ANativeWindow is not backed by Surface!");
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -437,7 +440,7 @@ CameraDevice::getSurfaceFromANativeWindow(
     }
     int value;
     int err = (*anw->query)(anw, NATIVE_WINDOW_CONCRETE_TYPE, &value);
-    if (value != NATIVE_WINDOW_SURFACE) {
+    if (err != OK || value != NATIVE_WINDOW_SURFACE) {
         ALOGE("Error: ANativeWindow is not backed by Surface!");
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -453,7 +456,6 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
         outputs = &emptyOutput;
     }
 
-    bool success = false;
     camera_status_t ret = checkCameraClosedOrErrorLocked();
     if (ret != ACAMERA_OK) {
         return ret;
@@ -1126,7 +1128,6 @@ CameraDevice::ServiceCallback::onCaptureStarted(
     }
 
     int sequenceId = resultExtras.requestId;
-    int64_t frameNumber = resultExtras.frameNumber;
     int32_t burstId = resultExtras.burstId;
 
     auto it = dev->mSequenceCallbackMap.find(sequenceId);

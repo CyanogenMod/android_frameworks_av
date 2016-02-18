@@ -256,9 +256,7 @@ status_t RingBufferConsumer::releaseOldestBufferLocked(size_t* pinnedFrames) {
         BI_LOGV("Buffer timestamp %" PRId64 ", frame %" PRIu64 " evicted",
                 item.mTimestamp, item.mFrameNumber);
 
-        size_t currentSize = mBufferItemList.size();
         mBufferItemList.erase(accIt);
-        assert(mBufferItemList.size() == currentSize - 1);
     } else {
         BI_LOGW("All buffers pinned, could not find any to release");
         return NO_BUFFER_AVAILABLE;

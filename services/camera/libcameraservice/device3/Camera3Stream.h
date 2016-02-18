@@ -442,8 +442,8 @@ class Camera3Stream :
     bool mStreamUnpreparable;
 
   private:
-    uint32_t oldUsage;
-    uint32_t oldMaxBuffers;
+    uint32_t mOldUsage;
+    uint32_t mOldMaxBuffers;
     Condition mOutputBufferReturnedSignal;
     Condition mInputBufferReturnedSignal;
     static const nsecs_t kWaitForBufferDuration = 3000000000LL; // 3000 ms
@@ -468,7 +468,7 @@ class Camera3Stream :
     size_t mPreparedBufferIdx;
 
     // Number of buffers allocated on last prepare call.
-    int mLastMaxCount;
+    size_t mLastMaxCount;
 
 }; // class Camera3Stream
 

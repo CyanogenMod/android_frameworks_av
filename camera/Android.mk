@@ -73,6 +73,8 @@ LOCAL_EXPORT_C_INCLUDE_DIRS := \
 	system/media/camera/include \
 	frameworks/av/include/camera
 
+LOCAL_CFLAGS += -Werror -Wall -Wextra
+
 LOCAL_MODULE:= libcamera_client
 
 include $(BUILD_SHARED_LIBRARY)

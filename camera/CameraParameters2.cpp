@@ -351,7 +351,7 @@ const char *CameraParameters2::getPictureFormat() const
 
 void CameraParameters2::dump() const
 {
-    ALOGD("dump: mMap.size = %d", mMap.size());
+    ALOGD("dump: mMap.size = %zu", mMap.size());
     for (size_t i = 0; i < mMap.size(); i++) {
         String8 k, v;
         k = mMap.keyAt(i);

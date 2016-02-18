@@ -36,7 +36,7 @@ LOCAL_C_INCLUDES += \
 	system/media/camera/tests \
 	frameworks/av/services/camera/libcameraservice \
 
-LOCAL_CFLAGS += -Wall -Wextra
+LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_MODULE:= camera_client_test
 LOCAL_MODULE_TAGS := tests

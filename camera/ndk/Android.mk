@@ -38,6 +38,7 @@ LOCAL_C_INCLUDES := \
     frameworks/av/include/ndk
 
 LOCAL_CFLAGS += -fvisibility=hidden -D EXPORT='__attribute__ ((visibility ("default")))'
+LOCAL_CFLAGS += -Wall -Wextra -Werror
 
 LOCAL_SHARED_LIBRARIES := \
     libbinder \

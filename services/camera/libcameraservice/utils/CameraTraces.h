@@ -24,7 +24,7 @@
 namespace android {
 namespace camera3 {
 
-class CameraTracesImpl;
+struct CameraTracesImpl;
 
 // Collect a list of the process's stack traces
 class CameraTraces {

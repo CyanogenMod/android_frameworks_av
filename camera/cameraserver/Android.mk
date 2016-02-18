@@ -29,6 +29,8 @@ LOCAL_SHARED_LIBRARIES := \
 LOCAL_MODULE:= cameraserver
 LOCAL_32_BIT_ONLY := true
 
+LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
+
 LOCAL_INIT_RC := cameraserver.rc
 
 include $(BUILD_EXECUTABLE)

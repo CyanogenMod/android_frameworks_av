@@ -118,7 +118,6 @@ sp<TCam> CameraBase<TCam, TCamTraits>::connect(int cameraId,
     ALOGV("%s: connect", __FUNCTION__);
     sp<TCam> c = new TCam(cameraId);
     sp<TCamCallbacks> cl = c;
-    status_t status = NO_ERROR;
     const sp<::android::hardware::ICameraService>& cs = getCameraService();
 
     binder::Status ret;

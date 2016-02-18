@@ -59,7 +59,7 @@ VendorTagDescriptor::~VendorTagDescriptor() {
 
 VendorTagDescriptor::VendorTagDescriptor() :
         mTagCount(0),
-        mVendorOps({nullptr}) {
+        mVendorOps() {
 }
 
 VendorTagDescriptor::VendorTagDescriptor(const VendorTagDescriptor& src) {

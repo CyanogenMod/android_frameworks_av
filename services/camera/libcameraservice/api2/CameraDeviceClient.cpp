@@ -30,16 +30,13 @@
 
 // Convenience methods for constructing binder::Status objects for error returns
 
-#define STRINGIZE_IMPL(x) #x
-#define STRINGIZE(x) STRINGIZE_IMPL(x)
-
 #define STATUS_ERROR(errorCode, errorString) \
     binder::Status::fromServiceSpecificError(errorCode, \
-            String8(STRINGIZE(__FUNCTION__) ":" STRINGIZE(__LINE__) ":" # errorString))
+            String8::format("%s:%d: %s", __FUNCTION__, __LINE__, errorString))
 
 #define STATUS_ERROR_FMT(errorCode, errorString, ...) \
     binder::Status::fromServiceSpecificError(errorCode, \
-            String8::format(STRINGIZE(__FUNCTION__) ":" STRINGIZE(__LINE__) ":" # errorString, \
+            String8::format("%s:%d: " errorString, __FUNCTION__, __LINE__, \
                     __VA_ARGS__))
 
 namespace android {

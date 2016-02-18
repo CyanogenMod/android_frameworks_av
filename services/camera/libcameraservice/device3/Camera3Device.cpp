@@ -463,7 +463,7 @@ ssize_t Camera3Device::getRawOpaqueBufferSize(int32_t width, int32_t height) con
         mDeviceInfo.find(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
     size_t count = rawOpaqueSizes.count;
     if (count == 0 || (count % PER_CONFIGURATION_SIZE)) {
-        ALOGE("%s: Camera %d: bad opaque RAW size static metadata length(%d)!",
+        ALOGE("%s: Camera %d: bad opaque RAW size static metadata length(%zu)!",
                 __FUNCTION__, mId, count);
         return BAD_VALUE;
     }

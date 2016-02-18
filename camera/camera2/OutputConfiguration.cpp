@@ -80,8 +80,8 @@ status_t OutputConfiguration::readFromParcel(const Parcel* parcel) {
     mRotation = rotation;
     mSurfaceSetID = setID;
 
-    ALOGV("%s: OutputConfiguration: bp = %p, name = %s", __FUNCTION__,
-          mGbp.get(), String8(surfaceShim.name).string());
+    ALOGV("%s: OutputConfiguration: bp = %p, name = %s, rotation = %d, setId = %d", __FUNCTION__,
+            mGbp.get(), String8(surfaceShim.name).string(), mRotation, mSurfaceSetID);
 
     return err;
 }
