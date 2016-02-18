@@ -26,6 +26,7 @@
 
 // from LOCAL_C_INCLUDES
 #include "CameraService.h"
+#include "IcuUtils.h"
 #include "MediaPlayerService.h"
 #include "ResourceManagerService.h"
 
@@ -38,6 +39,7 @@ int main(int argc __unused, char **argv __unused)
     sp<ProcessState> proc(ProcessState::self());
     sp<IServiceManager> sm(defaultServiceManager());
     ALOGI("ServiceManager: %p", sm.get());
+    InitializeIcuOrDie();
     MediaPlayerService::instantiate();
     ResourceManagerService::instantiate();
     registerExtensions();
