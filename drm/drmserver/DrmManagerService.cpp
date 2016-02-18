@@ -51,8 +51,7 @@ const char *const DrmManagerService::drm_perm_labels[] = {
 const char *DrmManagerService::get_perm_label(drm_perm_t perm) {
     unsigned int index = perm;
 
-    if (index < 0 ||
-            index >= (sizeof(drm_perm_labels) / sizeof(drm_perm_labels[0]))) {
+    if (index >= (sizeof(drm_perm_labels) / sizeof(drm_perm_labels[0]))) {
         ALOGE("SELinux: Failed to retrieve permission label(perm=%d).\n", perm);
         abort();
     }
@@ -338,7 +337,7 @@ ssize_t DrmManagerService::pread(int uniqueId, DecryptHandle* decryptHandle,
     return mDrmManager->pread(uniqueId, decryptHandle, buffer, numBytes, offset);
 }
 
-status_t DrmManagerService::dump(int fd, const Vector<String16>& args)
+status_t DrmManagerService::dump(int fd, const Vector<String16>& /* args */)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];

@@ -36,6 +36,8 @@ LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/av/drm/libdrmframework/include \
     $(TOP)/frameworks/av/drm/libdrmframework/plugins/common/include
 
+LOCAL_CFLAGS += -Wall -Wextra -Werror
+
 LOCAL_MODULE:= drmserver
 
 LOCAL_MODULE_TAGS := optional
