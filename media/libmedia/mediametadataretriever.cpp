@@ -35,7 +35,7 @@ Mutex MediaMetadataRetriever::sServiceLock;
 sp<IMediaPlayerService> MediaMetadataRetriever::sService;
 sp<MediaMetadataRetriever::DeathNotifier> MediaMetadataRetriever::sDeathNotifier;
 
-const sp<IMediaPlayerService>& MediaMetadataRetriever::getService()
+const sp<IMediaPlayerService> MediaMetadataRetriever::getService()
 {
     Mutex::Autolock lock(sServiceLock);
     if (sService == 0) {
@@ -62,7 +62,7 @@ const sp<IMediaPlayerService>& MediaMetadataRetriever::getService()
 MediaMetadataRetriever::MediaMetadataRetriever()
 {
     ALOGV("constructor");
-    const sp<IMediaPlayerService>& service(getService());
+    const sp<IMediaPlayerService> service(getService());
     if (service == 0) {
         ALOGE("failed to obtain MediaMetadataRetrieverService");
         return;
