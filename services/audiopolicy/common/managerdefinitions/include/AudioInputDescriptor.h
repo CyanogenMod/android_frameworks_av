@@ -63,9 +63,7 @@ public:
                              const sp<AudioSession>& audioSession);
     status_t removeAudioSession(audio_session_t session);
     sp<AudioSession> getAudioSession(audio_session_t session) const;
-    AudioSessionCollection getAudioSessions(bool activeOnly) const;
-    size_t getAudioSessionCount(bool activeOnly) const;
-    audio_source_t getHighestPrioritySource(bool activeOnly) const;
+    AudioSessionCollection getActiveAudioSessions() const;
 
 private:
     audio_port_handle_t           mId;
@@ -95,7 +93,7 @@ public:
      * Only considers inputs from physical devices (e.g. main mic, headset mic) when
      * ignoreVirtualInputs is true.
      */
-    Vector<sp <AudioInputDescriptor> > getActiveInputs(bool ignoreVirtualInputs = true);
+    audio_io_handle_t getActiveInput(bool ignoreVirtualInputs = true);
 
     audio_devices_t getSupportedDevices(audio_io_handle_t handle) const;
 

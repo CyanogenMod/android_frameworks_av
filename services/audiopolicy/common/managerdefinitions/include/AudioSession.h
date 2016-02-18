@@ -85,10 +85,8 @@ public:
     uint32_t getOpenCount() const;
 
     AudioSessionCollection getActiveSessions() const;
-    size_t getActiveSessionCount() const;
     bool hasActiveSession() const;
     bool isSourceActive(audio_source_t source) const;
-    audio_source_t getHighestPrioritySource(bool activeOnly) const;
 
     status_t dump(int fd, int spaces) const;
 };
