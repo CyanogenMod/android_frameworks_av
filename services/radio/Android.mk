@@ -31,6 +31,8 @@ LOCAL_SHARED_LIBRARIES:= \
     libradio \
     libradio_metadata
 
+LOCAL_CFLAGS += -Wall -Wextra -Werror
+
 LOCAL_MODULE:= libradioservice
 
 include $(BUILD_SHARED_LIBRARY)

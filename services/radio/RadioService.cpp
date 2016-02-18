@@ -735,7 +735,7 @@ status_t RadioService::ModuleClient::setConfiguration(const struct radio_band_co
         }
     } else {
         mConfig = *config;
-        status == INVALID_OPERATION;
+        status = INVALID_OPERATION;
     }
 
     return status;

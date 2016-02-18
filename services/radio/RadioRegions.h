@@ -67,11 +67,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_ITU1},
             {
-            RADIO_DEEMPHASIS_50,
-            true,
-            RADIO_RDS_WORLD,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_50,
+                true,
+                RADIO_RDS_WORLD,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
@@ -85,11 +88,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_ITU2},
             {
-            RADIO_DEEMPHASIS_75,
-            true,
-            RADIO_RDS_US,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_75,
+                true,
+                RADIO_RDS_US,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
@@ -103,11 +109,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_JAPAN},
             {
-            RADIO_DEEMPHASIS_50,
-            true,
-            RADIO_RDS_WORLD,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_50,
+                true,
+                RADIO_RDS_WORLD,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
@@ -121,11 +130,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_ITU1},
             {
-            RADIO_DEEMPHASIS_75,
-            true,
-            RADIO_RDS_WORLD,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_75,
+                true,
+                RADIO_RDS_WORLD,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
@@ -139,11 +151,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_OIRT},
             {
-            RADIO_DEEMPHASIS_50,
-            true,
-            RADIO_RDS_WORLD,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_50,
+                true,
+                RADIO_RDS_WORLD,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
@@ -157,11 +172,14 @@ const radio_band_config_t sKnownRegionConfigs[] = {
             1,
             {RADIO_BAND_SPACING_FM_ITU2},
             {
-            RADIO_DEEMPHASIS_75,
-            true,
-            RADIO_RDS_US,
-            true,
-            true,
+                {
+                RADIO_DEEMPHASIS_75,
+                true,
+                RADIO_RDS_US,
+                true,
+                true,
+                true,
+                }
             }
         }
     },
