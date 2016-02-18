@@ -134,6 +134,7 @@ private:
     static const int64_t kMinPositionUpdateDelayUs;
 
     sp<MediaPlayerBase::AudioSink> mAudioSink;
+    bool mUseVirtualAudioSink;
     sp<AMessage> mNotify;
     Mutex mLock;
     uint32_t mFlags;

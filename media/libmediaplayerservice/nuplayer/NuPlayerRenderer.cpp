@@ -91,6 +91,7 @@ NuPlayer::Renderer::Renderer(
         const sp<AMessage> &notify,
         uint32_t flags)
     : mAudioSink(sink),
+      mUseVirtualAudioSink(false),
       mNotify(notify),
       mFlags(flags),
       mNumFramesWritten(0),
@@ -1020,6 +1021,15 @@ int64_t NuPlayer::Renderer::getDurationUsIfPlayedAtSampleRate(uint32_t numFrames
 // Calculate duration of pending samples if played at normal rate (i.e., 1.0).
 int64_t NuPlayer::Renderer::getPendingAudioPlayoutDurationUs(int64_t nowUs) {
     int64_t writtenAudioDurationUs = getDurationUsIfPlayedAtSampleRate(mNumFramesWritten);
+    if (mUseVirtualAudioSink) {
+        int64_t nowUs = ALooper::GetNowUs();
+        int64_t mediaUs;
+        if (mMediaClock->getMediaTime(nowUs, &mediaUs) != OK) {
+            return 0ll;
+        } else {
+            return writtenAudioDurationUs - (mediaUs - mAudioFirstAnchorTimeMediaUs);
+        }
+    }
     return writtenAudioDurationUs - mAudioSink->getPlayedOutDurationUs(nowUs);
 }
 
@@ -1054,6 +1064,7 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
         if (nowUs >= mNextAudioClockUpdateTimeUs) {
             int64_t nowMediaUs = mediaTimeUs - getPendingAudioPlayoutDurationUs(nowUs);
             mMediaClock->updateAnchor(nowMediaUs, nowUs, mediaTimeUs);
+            mUseVirtualAudioSink = false;
             mNextAudioClockUpdateTimeUs = nowUs + kMinimumAudioClockUpdatePeriodUs;
         }
     } else {
@@ -1070,6 +1081,7 @@ void NuPlayer::Renderer::onNewAudioMediaTime(int64_t mediaTimeUs) {
             // and it's paced by system clock.
             ALOGW("AudioSink stuck. ARE YOU CONNECTED TO AUDIO OUT? Switching to system clock.");
             mMediaClock->updateAnchor(mAudioFirstAnchorTimeMediaUs, nowUs, mediaTimeUs);
+            mUseVirtualAudioSink = true;
         }
     }
     mAnchorNumFramesWritten = mNumFramesWritten;
