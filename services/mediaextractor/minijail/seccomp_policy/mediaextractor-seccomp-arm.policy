@@ -31,6 +31,7 @@ brk: 1
 sched_setscheduler: 1
 gettid: 1
 rt_sigprocmask: 1
+sched_yield: 1
 
 # for attaching to debuggerd on process crash
 sigaction: 1
