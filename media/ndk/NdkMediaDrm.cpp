@@ -629,9 +629,9 @@ static media_status_t encrypt_decrypt_common(AMediaDrm *mObj,
 
     Vector<uint8_t> outputVec;
     if (encrypt) {
-        status_t status = mObj->mDrm->encrypt(*iter, keyIdVec, inputVec, ivVec, outputVec);
+        status = mObj->mDrm->encrypt(*iter, keyIdVec, inputVec, ivVec, outputVec);
     } else {
-        status_t status = mObj->mDrm->decrypt(*iter, keyIdVec, inputVec, ivVec, outputVec);
+        status = mObj->mDrm->decrypt(*iter, keyIdVec, inputVec, ivVec, outputVec);
     }
     if (status == OK) {
         memcpy(output, outputVec.array(), outputVec.size());
