@@ -48,6 +48,9 @@ private:
 
 class MediaBuffer : public MediaBufferBase {
 public:
+    // allocations larger than or equal to this will use shared memory.
+    static const size_t kSharedMemThreshold = 64 * 1024;
+
     // The underlying data remains the responsibility of the caller!
     MediaBuffer(void *data, size_t size);
 

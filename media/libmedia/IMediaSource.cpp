@@ -25,6 +25,7 @@
 #include <binder/Parcel.h>
 #include <media/IMediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
+#include <media/stagefright/MediaBufferGroup.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
 
@@ -47,8 +48,9 @@ enum {
 
 class RemoteMediaBufferReleaser : public BBinder {
 public:
-    RemoteMediaBufferReleaser(MediaBuffer *buf) {
+    RemoteMediaBufferReleaser(MediaBuffer *buf, sp<BnMediaSource> owner) {
         mBuf = buf;
+        mOwner = owner;
     }
     ~RemoteMediaBufferReleaser() {
         if (mBuf) {
@@ -70,6 +72,10 @@ public:
     }
 private:
     MediaBuffer *mBuf;
+    // Keep a ref to ensure MediaBuffer is released before the owner, i.e., BnMediaSource,
+    // because BnMediaSource needs to delete MediaBufferGroup in its dtor and
+    // MediaBufferGroup dtor requires all MediaBuffer's have 0 ref count.
+    sp<BnMediaSource> mOwner;
 };
 
 
@@ -207,6 +213,15 @@ IMPLEMENT_META_INTERFACE(MediaSource, "android.media.IMediaSource");
 #undef LOG_TAG
 #define LOG_TAG "BnMediaSource"
 
+BnMediaSource::BnMediaSource()
+    : mGroup(NULL) {
+}
+
+BnMediaSource::~BnMediaSource() {
+    delete mGroup;
+    mGroup = NULL;
+}
+
 status_t BnMediaSource::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
@@ -263,17 +278,45 @@ status_t BnMediaSource::onTransact(
                 size_t usedSize = buf->range_length();
                 // even if we're using shared memory, we might not want to use it, since for small
                 // sizes it's faster to copy data through the Binder transaction
-                if (buf->mMemory != NULL && usedSize >= 64 * 1024) {
-                    ALOGV("buffer is using shared memory: %zu", usedSize);
+                // On the other hand, if the data size is large enough, it's better to use shared
+                // memory. When data is too large, binder can't handle it.
+                if (usedSize >= MediaBuffer::kSharedMemThreshold) {
+                    ALOGV("use shared memory: %zu", usedSize);
+
+                    MediaBuffer *transferBuf = buf;
+                    size_t offset = buf->range_offset();
+                    if (transferBuf->mMemory == NULL) {
+                        if (mGroup == NULL) {
+                            mGroup = new MediaBufferGroup;
+                            size_t allocateSize = usedSize;
+                            if (usedSize < SIZE_MAX / 3) {
+                                allocateSize = usedSize * 3 / 2;
+                            }
+                            mGroup->add_buffer(new MediaBuffer(allocateSize));
+                        }
+
+                        ret = mGroup->acquire_buffer(
+                                &transferBuf, false /* nonBlocking */, usedSize);
+                        if (ret != OK || transferBuf == NULL || transferBuf->mMemory == NULL) {
+                            ALOGW("failed to acquire shared memory, ret %d", ret);
+                            reply->writeInt32(NULL_BUFFER);
+                            return NO_ERROR;
+                        }
+                        memcpy(transferBuf->data(), (uint8_t*)buf->data() + buf->range_offset(),
+                                buf->range_length());
+                        offset = 0;
+                    }
+
                     reply->writeInt32(SHARED_BUFFER);
-                    RemoteMediaBufferReleaser *wrapper = new RemoteMediaBufferReleaser(buf);
+                    RemoteMediaBufferReleaser *wrapper =
+                        new RemoteMediaBufferReleaser(transferBuf, this);
                     reply->writeStrongBinder(wrapper);
-                    reply->writeStrongBinder(IInterface::asBinder(buf->mMemory));
-                    reply->writeInt32(buf->range_offset());
+                    reply->writeStrongBinder(IInterface::asBinder(transferBuf->mMemory));
+                    reply->writeInt32(offset);
                     reply->writeInt32(usedSize);
                     buf->meta_data()->writeToParcel(*reply);
                 } else {
-                    // buffer is not in shared memory, or is small: copy it
+                    // buffer is small: copy it
                     if (buf->mMemory != NULL) {
                         ALOGV("%zu shared mem available, but only %zu used", buf->mMemory->size(), buf->range_length());
                     }

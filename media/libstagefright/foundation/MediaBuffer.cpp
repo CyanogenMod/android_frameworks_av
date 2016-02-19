@@ -30,9 +30,6 @@
 
 namespace android {
 
-// allocations larger than this will use shared memory
-static const size_t kSharedMemThreshold = 64 * 1024;
-
 MediaBuffer::MediaBuffer(void *data, size_t size)
     : mObserver(NULL),
       mNextBuffer(NULL),

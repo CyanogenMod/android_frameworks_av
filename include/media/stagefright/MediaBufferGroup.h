@@ -39,7 +39,11 @@ public:
     // The returned buffer will have a reference count of 1.
     // If nonBlocking is true and a buffer is not immediately available,
     // buffer is set to NULL and it returns WOULD_BLOCK.
-    status_t acquire_buffer(MediaBuffer **buffer, bool nonBlocking = false);
+    // If requestedSize is 0, any free MediaBuffer will be returned.
+    // If requestedSize is > 0, the returned MediaBuffer should have buffer
+    // size of at least requstedSize.
+    status_t acquire_buffer(
+            MediaBuffer **buffer, bool nonBlocking = false, size_t requestedSize = 0);
 
 protected:
     virtual void signalBufferReturned(MediaBuffer *buffer);
