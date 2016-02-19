@@ -528,12 +528,14 @@ status_t AudioTrack::start()
         mTimestampStartupGlitchReported = false;
         mRetrogradeMotionReported = false;
 
-        // If previousState == STATE_STOPPED, we reactivate markers (mMarkerPosition != 0)
+        // If previousState == STATE_STOPPED, we clear the timestamp so that it
+        // needs a new server push. We also reactivate markers (mMarkerPosition != 0)
         // as the position is reset to 0. This is legacy behavior. This is not done
         // in stop() to avoid a race condition where the last marker event is issued twice.
         // Note: the if is technically unnecessary because previousState == STATE_FLUSHED
         // is only for streaming tracks, and mMarkerReached is already set to false.
         if (previousState == STATE_STOPPED) {
+            mProxy->clearTimestamp(); // need new server push for valid timestamp
             mMarkerReached = false;
         }
 
@@ -2169,11 +2171,6 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
     // Set false here to cover all the error return cases.
     mPreviousTimestampValid = false;
 
-    // FIXME not implemented for fast tracks; should use proxy and SSQ
-    if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
-        return INVALID_OPERATION;
-    }
-
     switch (mState) {
     case STATE_ACTIVE:
     case STATE_PAUSED:
@@ -2203,7 +2200,22 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
 
     // The presented frame count must always lag behind the consumed frame count.
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
-    status_t status = mAudioTrack->getTimestamp(timestamp);
+
+    status_t status;
+    if (!(mFlags & AUDIO_OUTPUT_FLAG_FAST)) {
+        // use Binder to get timestamp
+        status = mAudioTrack->getTimestamp(timestamp);
+    } else {
+        // read timestamp from shared memory
+        ExtendedTimestamp ets;
+        status = mProxy->getTimestamp(&ets);
+        if (status == OK) {
+            status = ets.getBestTimestamp(&timestamp);
+        }
+        if (status == INVALID_OPERATION) {
+            status = WOULD_BLOCK;
+        }
+    }
     if (status != NO_ERROR) {
         ALOGV_IF(status != WOULD_BLOCK, "getTimestamp error:%#x", status);
         return status;

@@ -6157,7 +6157,7 @@ reacquire_wakelock:
 
             // update frame information and push timestamp out
             activeTrack->updateTrackFrameInfo(
-                    activeTrack->mAudioRecordServerProxy->framesReleased(),
+                    activeTrack->mServerProxy->framesReleased(),
                     mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER],
                     mSampleRate, mTimestamp);
         }

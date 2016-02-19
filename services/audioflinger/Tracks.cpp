@@ -596,6 +596,20 @@ size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
     return mAudioTrackServerProxy->framesReleased();
 }
 
+void AudioFlinger::PlaybackThread::Track::onTimestamp(const AudioTimestamp &timestamp)
+{
+    // This call comes from a FastTrack and should be kept lockless.
+    // The server side frames are already translated to client frames.
+
+    ExtendedTimestamp ets;
+    ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
+            timestamp.mTime.tv_sec * 1000000000LL + timestamp.mTime.tv_nsec;
+    ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = timestamp.mPosition;
+
+    // Caution, this doesn't set the timebase for BOOTTIME properly, but is ignored right now.
+    mAudioTrackServerProxy->setTimestamp(ets);
+}
+
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool AudioFlinger::PlaybackThread::Track::isReady() const {
     if (mFillingUpStatus != FS_FILLING || isStopped() || isPausing()) {
@@ -1438,9 +1452,8 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
         return;
     }
 
-    mAudioRecordServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
+    mServerProxy = new AudioRecordServerProxy(mCblk, mBuffer, frameCount,
             mFrameSize, !isExternalTrack());
-    mServerProxy = mAudioRecordServerProxy;
 
     mResamplerBufferProvider = new ResamplerBufferProvider(this);
 
@@ -1594,7 +1607,7 @@ void AudioFlinger::RecordThread::RecordTrack::updateTrackFrameInfo(
             local.mPosition[i] = relativeTrackFrames + trackFramesReleased;
         }
     }
-    mAudioRecordServerProxy->setExtendedTimestamp(local);
+    mServerProxy->setTimestamp(local);
 }
 
 AudioFlinger::RecordThread::PatchRecord::PatchRecord(RecordThread *recordThread,
