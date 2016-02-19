@@ -863,8 +863,12 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
 
             sp<IGraphicBufferProducer> bufferProducer;
-            MetadataBufferType type;
+            MetadataBufferType type = kMetadataBufferTypeInvalid;
             status_t err = createInputSurface(node, port_index, &bufferProducer, &type);
+
+            if ((err != OK) && (type == kMetadataBufferTypeInvalid)) {
+                android_errorWriteLog(0x534e4554, "26324358");
+            }
 
             reply->writeInt32(type);
             reply->writeInt32(err);
@@ -906,11 +910,16 @@ status_t BnOMX::onTransact(
                     interface_cast<IGraphicBufferConsumer>(data.readStrongBinder());
 
             MetadataBufferType type = kMetadataBufferTypeInvalid;
+
             status_t err = INVALID_OPERATION;
             if (bufferConsumer == NULL) {
                 ALOGE("b/26392700");
             } else {
                 err = setInputSurface(node, port_index, bufferConsumer, &type);
+
+                if ((err != OK) && (type == kMetadataBufferTypeInvalid)) {
+                   android_errorWriteLog(0x534e4554, "26324358");
+                }
             }
 
             reply->writeInt32(type);
@@ -938,8 +947,13 @@ status_t BnOMX::onTransact(
             OMX_U32 port_index = data.readInt32();
             OMX_BOOL enable = (OMX_BOOL)data.readInt32();
 
-            MetadataBufferType type;
+            MetadataBufferType type = kMetadataBufferTypeInvalid;
             status_t err = storeMetaDataInBuffers(node, port_index, enable, &type);
+
+            if ((err != OK) && (type == kMetadataBufferTypeInvalid)) {
+                android_errorWriteLog(0x534e4554, "26324358");
+            }
+
             reply->writeInt32(type);
             reply->writeInt32(err);
 
