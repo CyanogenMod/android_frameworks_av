@@ -235,7 +235,7 @@ struct MyHandler : public AHandler {
         sp<AMessage> msg = new AMessage('paus', this);
         mPauseGeneration++;
         msg->setInt32("pausecheck", mPauseGeneration);
-        msg->post(kPauseDelayUs);
+        msg->post();
     }
 
     void resume() {
@@ -979,6 +979,11 @@ struct MyHandler : public AHandler {
 
             case 'accu':
             {
+                if (mSeekPending) {
+                    ALOGV("Stale access unit.");
+                    break;
+                }
+
                 int32_t timeUpdate;
                 if (msg->findInt32("time-update", &timeUpdate) && timeUpdate) {
                     size_t trackIndex;
@@ -1070,6 +1075,12 @@ struct MyHandler : public AHandler {
                     ALOGW("This is a live stream, ignoring pause request.");
                     break;
                 }
+
+                if (mPausing) {
+                    ALOGV("This stream is already paused.");
+                    break;
+                }
+
                 mCheckPending = true;
                 ++mCheckGeneration;
                 mPausing = true;
