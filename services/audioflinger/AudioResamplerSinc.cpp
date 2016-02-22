@@ -43,10 +43,14 @@
 #endif
 
 #if defined(__aarch64__) || defined(__ARM_NEON__)
-#include <arm_neon.h>
-#define USE_NEON
+#ifndef USE_NEON
+#define USE_NEON (true)
+#endif
 #else
-#undef USE_NEON
+#define USE_NEON (false)
+#endif
+#if USE_NEON
+#include <arm_neon.h>
 #endif
 
 #define UNUSED(x) ((void)(x))
@@ -417,7 +421,7 @@ void AudioResamplerSinc::filterCoefficient(int32_t* out, uint32_t phase,
 
     size_t count = offset;
 
-#ifndef USE_NEON
+#if !USE_NEON
     int32_t l = 0;
     int32_t r = 0;
     for (size_t i=0 ; i<count ; i++) {
