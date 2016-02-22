@@ -1591,7 +1591,7 @@ void NuPlayer::Renderer::onResume() {
             notifyAudioTearDown();
         }
         //Update anchor time after resuming playback.
-        if (offloadingAudio()) {
+        if (offloadingAudio() && err == NO_ERROR) {
             int64_t nowUs = ALooper::GetNowUs();
             int64_t nowMediaUs =
                 mAudioFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
