@@ -238,6 +238,7 @@ private:
     uint32_t mFlags;
     uint32_t mQuirks;
     sp<IOMX> mOMX;
+    sp<IBinder> mNodeBinder;
     IOMX::node_id mNode;
     sp<MemoryDealer> mDealer[2];
 
