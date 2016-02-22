@@ -704,34 +704,39 @@ status_t BnOMX::onTransact(
 
             size_t size = data.readInt32();
 
-            void *params = malloc(size);
-            data.read(params, size);
+            status_t err = NO_MEMORY;
+            void *params = calloc(size, 1);
+            if (params) {
+                err = data.read(params, size);
+                if (err != OK) {
+                    android_errorWriteLog(0x534e4554, "26914474");
+                } else {
+                    switch (code) {
+                        case GET_PARAMETER:
+                            err = getParameter(node, index, params, size);
+                            break;
+                        case SET_PARAMETER:
+                            err = setParameter(node, index, params, size);
+                            break;
+                        case GET_CONFIG:
+                            err = getConfig(node, index, params, size);
+                            break;
+                        case SET_CONFIG:
+                            err = setConfig(node, index, params, size);
+                            break;
+                        case SET_INTERNAL_OPTION:
+                        {
+                            InternalOptionType type =
+                                (InternalOptionType)data.readInt32();
 
-            status_t err;
-            switch (code) {
-                case GET_PARAMETER:
-                    err = getParameter(node, index, params, size);
-                    break;
-                case SET_PARAMETER:
-                    err = setParameter(node, index, params, size);
-                    break;
-                case GET_CONFIG:
-                    err = getConfig(node, index, params, size);
-                    break;
-                case SET_CONFIG:
-                    err = setConfig(node, index, params, size);
-                    break;
-                case SET_INTERNAL_OPTION:
-                {
-                    InternalOptionType type =
-                        (InternalOptionType)data.readInt32();
+                            err = setInternalOption(node, index, type, params, size);
+                            break;
+                        }
 
-                    err = setInternalOption(node, index, type, params, size);
-                    break;
+                        default:
+                            TRESPASS();
+                    }
                 }
-
-                default:
-                    TRESPASS();
             }
 
             reply->writeInt32(err);
