@@ -447,7 +447,7 @@ public:
         remote()->transact(CONFIGURE_VIDEO_TUNNEL_MODE, data, &reply);
 
         status_t err = reply.readInt32();
-        if (sidebandHandle) {
+        if (err == OK && sidebandHandle) {
             *sidebandHandle = (native_handle_t *)reply.readNativeHandle();
         }
         return err;
@@ -990,7 +990,9 @@ status_t BnOMX::onTransact(
             status_t err = configureVideoTunnelMode(
                     node, port_index, tunneled, audio_hw_sync, &sideband_handle);
             reply->writeInt32(err);
-            reply->writeNativeHandle(sideband_handle);
+            if(err == OK){
+                reply->writeNativeHandle(sideband_handle);
+            }
 
             return NO_ERROR;
         }
