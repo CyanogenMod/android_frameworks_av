@@ -482,6 +482,7 @@ status_t AudioPolicyService::registerEffect(const effect_descriptor_t *desc,
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
+    Mutex::Autolock _l(mEffectsLock);
     return mAudioPolicyManager->registerEffect(desc, io, strategy, session, id);
 }
 
@@ -490,6 +491,7 @@ status_t AudioPolicyService::unregisterEffect(int id)
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
+    Mutex::Autolock _l(mEffectsLock);
     return mAudioPolicyManager->unregisterEffect(id);
 }
 
@@ -498,6 +500,7 @@ status_t AudioPolicyService::setEffectEnabled(int id, bool enabled)
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
+    Mutex::Autolock _l(mEffectsLock);
     return mAudioPolicyManager->setEffectEnabled(id, enabled);
 }
 
@@ -561,6 +564,8 @@ bool AudioPolicyService::isOffloadSupported(const audio_offload_info_t& info)
         return false;
     }
     Mutex::Autolock _l(mLock);
+    Mutex::Autolock _le(mEffectsLock); // isOffloadSupported queries for
+                                      // non-offloadable effects
     return mAudioPolicyManager->isOffloadSupported(info);
 }
 
