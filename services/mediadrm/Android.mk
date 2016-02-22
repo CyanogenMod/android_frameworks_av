@@ -34,6 +34,8 @@ LOCAL_SHARED_LIBRARIES:= \
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
 
+LOCAL_CFLAGS += -Wall -Wextra -Werror
+
 LOCAL_MODULE:= mediadrmserver
 LOCAL_32_BIT_ONLY := true
 

@@ -30,7 +30,7 @@
 
 using namespace android;
 
-int main(int argc __unused, char** argv)
+int main()
 {
     signal(SIGPIPE, SIG_IGN);
 
