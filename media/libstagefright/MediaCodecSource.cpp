@@ -48,6 +48,7 @@ const int kStopTimeoutUs = 300000; // allow 1 sec for shutting down encoder
 struct MediaCodecSource::Puller : public AHandler {
     Puller(const sp<MediaSource> &source);
 
+    void interruptSource();
     status_t start(const sp<MetaData> &meta, const sp<AMessage> &notify);
     void stop();
     void stopSource();
@@ -84,9 +85,9 @@ private:
 
         void flush();
         // if queue is empty, return false and set *|buffer| to NULL . Otherwise, pop
-        // buffer from front of the queue, place it into *|buffer| and return true. 
+        // buffer from front of the queue, place it into *|buffer| and return true.
         bool readBuffer(MediaBuffer **buffer);
-        // add a buffer to the back of the queue 
+        // add a buffer to the back of the queue
         void pushBuffer(MediaBuffer *mbuf);
     };
     Mutexed<Queue> mQueue;
@@ -186,14 +187,19 @@ void MediaCodecSource::Puller::stop() {
     }
 
     if (interrupt) {
-        // call source->stop if read has been pending for over a second
-        // TODO: we should really call this if kWhatStop has not returned for more than a second.
-        mSource->stop();
+        interruptSource();
     }
 }
 
+void MediaCodecSource::Puller::interruptSource() {
+    // call source->stop if read has been pending for over a second
+    // We have to call this outside the looper as looper is pending on the read.
+    mSource->stop();
+}
+
 void MediaCodecSource::Puller::stopSource() {
-    (new AMessage(kWhatStop, this))->post();
+    sp<AMessage> msg = new AMessage(kWhatStop, this);
+    (void)postSynchronouslyAndReturnError(msg);
 }
 
 void MediaCodecSource::Puller::pause() {
@@ -247,6 +253,13 @@ void MediaCodecSource::Puller::onMessageReceived(const sp<AMessage> &msg) {
         case kWhatStop:
         {
             mSource->stop();
+
+            sp<AMessage> response = new AMessage;
+            response->setInt32("err", OK);
+
+            sp<AReplyToken> replyID;
+            CHECK(msg->senderAwaitsResponse(&replyID));
+            response->postReply(replyID);
             break;
         }
 
@@ -915,7 +928,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
 
         if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
             ALOGV("source (%s) stopping", mIsVideo ? "video" : "audio");
-            mPuller->stopSource();
+            mPuller->interruptSource();
             ALOGV("source (%s) stopped", mIsVideo ? "video" : "audio");
         }
         signalEOS();
