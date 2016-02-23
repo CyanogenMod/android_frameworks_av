@@ -344,13 +344,7 @@ status_t OMX::getGraphicBufferUsage(
 
 status_t OMX::storeMetaDataInBuffers(
         node_id node, OMX_U32 port_index, OMX_BOOL enable, MetadataBufferType *type) {
-    OMXNodeInstance *instance = findInstance(node);
-
-    if (instance == NULL) {
-        android_errorWriteLog(0x534e4554, "26324358");
-    }
-
-    return instance->storeMetaDataInBuffers(port_index, enable, type);
+    return findInstance(node)->storeMetaDataInBuffers(port_index, enable, type);
 }
 
 status_t OMX::prepareForAdaptivePlayback(
