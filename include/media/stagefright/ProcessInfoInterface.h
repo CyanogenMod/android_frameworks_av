@@ -23,6 +23,7 @@ namespace android {
 
 struct ProcessInfoInterface : public RefBase {
     virtual bool getPriority(int pid, int* priority) = 0;
+    virtual bool isValidPid(int pid) = 0;
 
 protected:
     virtual ~ProcessInfoInterface() {}

@@ -39,6 +39,10 @@ struct FakeProcessInfo : public ProcessInfoInterface {
         return true;
     }
 
+    virtual bool isValidPid(int /* pid */) {
+        return true;
+    }
+
 private:
     DISALLOW_EVIL_CONSTRUCTORS(FakeProcessInfo);
 };

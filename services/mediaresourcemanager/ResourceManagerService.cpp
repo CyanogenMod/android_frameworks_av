@@ -206,6 +206,10 @@ void ResourceManagerService::addResource(
     mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
+    if (!mProcessInfo->isValidPid(pid)) {
+        ALOGE("Rejected addResource call with invalid pid.");
+        return;
+    }
     ResourceInfos& infos = getResourceInfosForEdit(pid, mMap);
     ResourceInfo& info = getResourceInfoForEdit(clientId, client, infos);
     // TODO: do the merge instead of append.
@@ -220,6 +224,10 @@ void ResourceManagerService::removeResource(int pid, int64_t clientId) {
     mServiceLog->add(log);
 
     Mutex::Autolock lock(mLock);
+    if (!mProcessInfo->isValidPid(pid)) {
+        ALOGE("Rejected removeResource call with invalid pid.");
+        return;
+    }
     ssize_t index = mMap.indexOfKey(pid);
     if (index < 0) {
         ALOGV("removeResource: didn't find pid %d for clientId %lld", pid, (long long) clientId);
@@ -259,6 +267,10 @@ bool ResourceManagerService::reclaimResource(
     Vector<sp<IResourceManagerClient>> clients;
     {
         Mutex::Autolock lock(mLock);
+        if (!mProcessInfo->isValidPid(callingPid)) {
+            ALOGE("Rejected reclaimResource call with invalid callingPid.");
+            return false;
+        }
         const MediaResource *secureCodec = NULL;
         const MediaResource *nonSecureCodec = NULL;
         const MediaResource *graphicMemory = NULL;

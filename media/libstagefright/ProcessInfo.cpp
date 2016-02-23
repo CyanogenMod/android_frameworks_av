@@ -20,6 +20,7 @@
 
 #include <media/stagefright/ProcessInfo.h>
 
+#include <binder/IPCThreadState.h>
 #include <binder/IProcessInfoService.h>
 #include <binder/IServiceManager.h>
 
@@ -50,6 +51,12 @@ bool ProcessInfo::getPriority(int pid, int* priority) {
     // Use OOM adjustments value as the priority. Lower the value, higher the priority.
     *priority = score;
     return true;
+}
+
+bool ProcessInfo::isValidPid(int pid) {
+    int callingPid = IPCThreadState::self()->getCallingPid();
+    // Trust it if this is called from the same process otherwise pid has to match the calling pid.
+    return (callingPid == getpid()) || (callingPid == pid);
 }
 
 ProcessInfo::~ProcessInfo() {}
