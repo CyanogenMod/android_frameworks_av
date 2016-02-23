@@ -197,6 +197,7 @@ AudioFlinger::AudioFlinger()
     BatteryNotifier::getInstance().noteResetAudio();
 
 #ifdef TEE_SINK
+    char value[PROPERTY_VALUE_MAX];
     (void) property_get("ro.debuggable", value, "0");
     int debuggable = atoi(value);
     int teeEnabled = 0;
@@ -2878,7 +2879,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
         // failures at unlink() which are ignored.  It's also unlikely since
         // normally dumpsys is only done by bugreport or from the command line.
         char teePath[32+256];
-        strcpy(teePath, "/data/misc/media");
+        strcpy(teePath, "/data/misc/audioserver");
         size_t teePathLen = strlen(teePath);
         DIR *dir = opendir(teePath);
         teePath[teePathLen++] = '/';
@@ -2920,7 +2921,8 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             }
         } else {
             if (fd >= 0) {
-                dprintf(fd, "unable to rotate tees in %s: %s\n", teePath, strerror(errno));
+                dprintf(fd, "unable to rotate tees in %.*s: %s\n", teePathLen, teePath,
+                        strerror(errno));
             }
         }
         char teeTime[16];
