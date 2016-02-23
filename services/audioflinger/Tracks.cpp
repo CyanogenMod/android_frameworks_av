@@ -960,9 +960,17 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(
                 (long long)mPresentationCompleteFrames, audioHalFrames);
     }
 
-    if ((!isOffloaded() && !isDirect() && !isFastTrack()
-            && framesWritten >= mPresentationCompleteFrames
-            && mAudioTrackServerProxy->isDrained()) || isOffloaded()) {
+    bool complete;
+    if (isOffloaded()) {
+        complete = true;
+    } else if (isDirect() || isFastTrack()) { // these do not go through linear map
+        complete = framesWritten >= mPresentationCompleteFrames;
+    } else {  // Normal tracks, OutputTracks, and PatchTracks
+        complete = framesWritten >= mPresentationCompleteFrames
+                && mAudioTrackServerProxy->isDrained();
+    }
+
+    if (complete) {
         triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
         mAudioTrackServerProxy->setStreamEndDone();
         return true;
