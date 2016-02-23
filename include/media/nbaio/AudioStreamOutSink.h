@@ -47,7 +47,7 @@ public:
 
     virtual ssize_t write(const void *buffer, size_t count);
 
-    virtual status_t getTimestamp(AudioTimestamp& timestamp);
+    virtual status_t getTimestamp(ExtendedTimestamp &timestamp);
 
     // NBAIO_Sink end
 

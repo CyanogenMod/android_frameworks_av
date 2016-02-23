@@ -72,7 +72,7 @@ ssize_t MonoPipeReader::read(void *buffer, size_t count)
     return red;
 }
 
-void MonoPipeReader::onTimestamp(const AudioTimestamp& timestamp)
+void MonoPipeReader::onTimestamp(const ExtendedTimestamp &timestamp)
 {
     mPipe->mTimestampMutator.push(timestamp);
 }

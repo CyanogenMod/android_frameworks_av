@@ -141,6 +141,10 @@ void FastMixer::onStateChange()
     FastMixerDumpState * const dumpState = (FastMixerDumpState *) mDumpState;
     const size_t frameCount = current->mFrameCount;
 
+    // update boottime offset, in case it has changed
+    mTimestamp.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_BOOTTIME] =
+            mBoottimeOffset.load();
+
     // handle state change here, but since we want to diff the state,
     // we're prepared for previous == &sInitial the first time through
     unsigned previousTrackMask;
@@ -341,21 +345,23 @@ void FastMixer::onWork()
             currentTrackMask &= ~(1 << i);
             const FastTrack* fastTrack = &current->mFastTracks[i];
 
-            // Refresh the per-track timestamp
-            if (mTimestampStatus == NO_ERROR) {
-                uint32_t trackFramesWrittenButNotPresented =
-                    mNativeFramesWrittenButNotPresented;
-                uint32_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
-                // Can't provide an AudioTimestamp before first frame presented,
-                // or during the brief 32-bit wraparound window
-                if (trackFramesWritten >= trackFramesWrittenButNotPresented) {
-                    AudioTimestamp perTrackTimestamp;
-                    perTrackTimestamp.mPosition =
-                            trackFramesWritten - trackFramesWrittenButNotPresented;
-                    perTrackTimestamp.mTime = mTimestamp.mTime;
-                    fastTrack->mBufferProvider->onTimestamp(perTrackTimestamp);
-                }
+            const int64_t trackFramesWrittenButNotPresented =
+                mNativeFramesWrittenButNotPresented;
+            const int64_t trackFramesWritten = fastTrack->mBufferProvider->framesReleased();
+            ExtendedTimestamp perTrackTimestamp(mTimestamp);
+
+            // Can't provide an ExtendedTimestamp before first frame presented.
+            // Also, timestamp may not go to very last frame on stop().
+            if (trackFramesWritten >= trackFramesWrittenButNotPresented &&
+                    perTrackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] > 0) {
+                perTrackTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
+                        trackFramesWritten - trackFramesWrittenButNotPresented;
+            } else {
+                perTrackTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = 0;
+                perTrackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] = -1;
             }
+            perTrackTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = trackFramesWritten;
+            fastTrack->mBufferProvider->onTimestamp(perTrackTimestamp);
 
             int name = mFastTrackNames[i];
             ALOG_ASSERT(name >= 0);
@@ -449,16 +455,33 @@ void FastMixer::onWork()
         mAttemptedWrite = true;
         // FIXME count # of writes blocked excessively, CPU usage, etc. for dump
 
-        mTimestampStatus = mOutputSink->getTimestamp(mTimestamp);
-        if (mTimestampStatus == NO_ERROR) {
-            uint32_t totalNativeFramesPresented = mTimestamp.mPosition;
+        ExtendedTimestamp timestamp; // local
+        status_t status = mOutputSink->getTimestamp(timestamp);
+        if (status == NO_ERROR) {
+            const int64_t totalNativeFramesPresented =
+                    timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
             if (totalNativeFramesPresented <= mTotalNativeFramesWritten) {
                 mNativeFramesWrittenButNotPresented =
                     mTotalNativeFramesWritten - totalNativeFramesPresented;
+                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
+                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
+                        timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
             } else {
                 // HAL reported that more frames were presented than were written
-                mTimestampStatus = INVALID_OPERATION;
+                mNativeFramesWrittenButNotPresented = 0;
+                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = 0;
+                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] = -1;
+                status = INVALID_OPERATION;
             }
+        }
+        if (status == NO_ERROR) {
+            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] =
+                    mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
+        } else {
+            // fetch server time if we can't get timestamp
+            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] =
+                    systemTime(SYSTEM_TIME_MONOTONIC);
         }
     }
 }

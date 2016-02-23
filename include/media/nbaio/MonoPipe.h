@@ -23,7 +23,7 @@
 
 namespace android {
 
-typedef SingleStateQueue<AudioTimestamp> AudioTimestampSingleStateQueue;
+typedef SingleStateQueue<ExtendedTimestamp> ExtendedTimestampSingleStateQueue;
 
 // MonoPipe is similar to Pipe except:
 //  - supports only a single reader, called MonoPipeReader
@@ -51,9 +51,9 @@ public:
 
     // NBAIO_Sink interface
 
-    //virtual size_t framesWritten() const;
-    //virtual size_t framesUnderrun() const;
-    //virtual size_t underruns() const;
+    //virtual int64_t framesWritten() const;
+    //virtual int64_t framesUnderrun() const;
+    //virtual int64_t underruns() const;
 
     virtual ssize_t availableToWrite() const;
     virtual ssize_t write(const void *buffer, size_t count);
@@ -77,7 +77,7 @@ public:
             bool    isShutdown();
 
             // Return NO_ERROR if there is a timestamp available
-            status_t getTimestamp(AudioTimestamp& timestamp);
+            status_t getTimestamp(ExtendedTimestamp &timestamp);
 
 private:
     const size_t    mReqFrames;     // as requested in constructor, unrounded
@@ -97,9 +97,9 @@ private:
 
     bool            mIsShutdown;    // whether shutdown(true) was called, no barriers are needed
 
-    AudioTimestampSingleStateQueue::Shared      mTimestampShared;
-    AudioTimestampSingleStateQueue::Mutator     mTimestampMutator;
-    AudioTimestampSingleStateQueue::Observer    mTimestampObserver;
+    ExtendedTimestampSingleStateQueue::Shared      mTimestampShared;
+    ExtendedTimestampSingleStateQueue::Mutator     mTimestampMutator;
+    ExtendedTimestampSingleStateQueue::Observer    mTimestampObserver;
 };
 
 }   // namespace android

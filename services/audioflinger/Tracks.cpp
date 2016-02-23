@@ -362,7 +362,6 @@ AudioFlinger::PlaybackThread::Track::Track(
     mAuxEffectId(0), mHasVolumeController(false),
     mPresentationCompleteFrames(0),
     mFrameMap(16 /* sink-frame-to-track-frame map memory */),
-    mSinkTimestampValid(false),
     // mSinkTimestamp
     mFastIndex(-1),
     mCachedVolume(1.0),
@@ -591,23 +590,18 @@ size_t AudioFlinger::PlaybackThread::Track::framesReady() const {
     return mAudioTrackServerProxy->framesReady();
 }
 
-size_t AudioFlinger::PlaybackThread::Track::framesReleased() const
+int64_t AudioFlinger::PlaybackThread::Track::framesReleased() const
 {
     return mAudioTrackServerProxy->framesReleased();
 }
 
-void AudioFlinger::PlaybackThread::Track::onTimestamp(const AudioTimestamp &timestamp)
+void AudioFlinger::PlaybackThread::Track::onTimestamp(const ExtendedTimestamp &timestamp)
 {
     // This call comes from a FastTrack and should be kept lockless.
     // The server side frames are already translated to client frames.
+    mAudioTrackServerProxy->setTimestamp(timestamp);
 
-    ExtendedTimestamp ets;
-    ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
-            timestamp.mTime.tv_sec * 1000000000LL + timestamp.mTime.tv_nsec;
-    ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = timestamp.mPosition;
-
-    // Caution, this doesn't set the timebase for BOOTTIME properly, but is ignored right now.
-    mAudioTrackServerProxy->setTimestamp(ets);
+    // We do not set drained here, as FastTrack timestamp may not go to very last frame.
 }
 
 // Don't call for fast tracks; the framesReady() could result in priority inversion
@@ -872,9 +866,8 @@ status_t AudioFlinger::PlaybackThread::Track::setParameters(const String8& keyVa
 
 status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& timestamp)
 {
-    // Client should implement this using SSQ; the unpresented frame count in latch is irrelevant
-    if (isFastTrack()) {
-        return INVALID_OPERATION;
+    if (!isOffloaded() && !isDirect()) {
+        return INVALID_OPERATION; // normal tracks handled through SSQ
     }
     sp<ThreadBase> thread = mThread.promote();
     if (thread == 0) {
@@ -883,33 +876,7 @@ status_t AudioFlinger::PlaybackThread::Track::getTimestamp(AudioTimestamp& times
 
     Mutex::Autolock _l(thread->mLock);
     PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
-
-    if (isOffloaded() || isDirect()) {
-        return playbackThread->getTimestamp_l(timestamp);
-    }
-
-    if (!mFrameMap.hasData()) {
-        // WOULD_BLOCK is consistent with AudioTrack::getTimestamp() in the
-        // FLUSHED and STOPPED state.  We should only return INVALID_OPERATION
-        // when this method is not permitted due to configuration or device.
-        return WOULD_BLOCK;
-    }
-    status_t result = OK;
-    if (!mSinkTimestampValid) { // if no sink position, try to fetch again
-        result = playbackThread->getTimestamp_l(mSinkTimestamp);
-    }
-
-    if (result == OK) {
-        // Lookup the track frame corresponding to the sink frame position.
-        timestamp.mPosition = mFrameMap.findX(mSinkTimestamp.mPosition);
-        timestamp.mTime = mSinkTimestamp.mTime;
-        // ALOGD("track (server-side) timestamp: mPosition(%u)  mTime(%llu)",
-        //        timestamp.mPosition, TIME_TO_NANOS(timestamp.mTime));
-    }
-    // (Possible) FIXME: mSinkTimestamp is updated only when the track is on
-    // the Thread active list. If the track is no longer on the thread active
-    // list should we use current time?
-    return result;
+    return playbackThread->getTimestamp_l(timestamp);
 }
 
 status_t AudioFlinger::PlaybackThread::Track::attachAuxEffect(int EffectId)
@@ -972,9 +939,12 @@ void AudioFlinger::PlaybackThread::Track::setAuxBuffer(int EffectId, int32_t *bu
     mAuxBuffer = buffer;
 }
 
-bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWritten,
-                                                         size_t audioHalFrames)
+bool AudioFlinger::PlaybackThread::Track::presentationComplete(
+        int64_t framesWritten, size_t audioHalFrames)
 {
+    // TODO: improve this based on FrameMap if it exists, to ensure full drain.
+    // This assists in proper timestamp computation as well as wakelock management.
+
     // a track is considered presented when the total number of frames written to audio HAL
     // corresponds to the number of frames written when presentationComplete() is called for the
     // first time (mPresentationCompleteFrames == 0) plus the buffer filling status at that time.
@@ -982,15 +952,17 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(size_t framesWrit
     // to detect when all frames have been played. In this case framesWritten isn't
     // useful because it doesn't always reflect whether there is data in the h/w
     // buffers, particularly if a track has been paused and resumed during draining
-    ALOGV("presentationComplete() mPresentationCompleteFrames %d framesWritten %d",
-                      mPresentationCompleteFrames, framesWritten);
+    ALOGV("presentationComplete() mPresentationCompleteFrames %lld framesWritten %lld",
+            (long long)mPresentationCompleteFrames, (long long)framesWritten);
     if (mPresentationCompleteFrames == 0) {
         mPresentationCompleteFrames = framesWritten + audioHalFrames;
-        ALOGV("presentationComplete() reset: mPresentationCompleteFrames %d audioHalFrames %d",
-                  mPresentationCompleteFrames, audioHalFrames);
+        ALOGV("presentationComplete() reset: mPresentationCompleteFrames %lld audioHalFrames %zu",
+                (long long)mPresentationCompleteFrames, audioHalFrames);
     }
 
-    if (framesWritten >= mPresentationCompleteFrames || isOffloaded()) {
+    if ((!isOffloaded() && !isDirect() && !isFastTrack()
+            && framesWritten >= mPresentationCompleteFrames
+            && mAudioTrackServerProxy->isDrained()) || isOffloaded()) {
         triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
         mAudioTrackServerProxy->setStreamEndDone();
         return true;
@@ -1101,14 +1073,34 @@ void AudioFlinger::PlaybackThread::Track::resumeAck() {
 
 //To be called with thread lock held
 void AudioFlinger::PlaybackThread::Track::updateTrackFrameInfo(
-        uint32_t trackFramesReleased, uint32_t sinkFramesWritten, AudioTimestamp *timeStamp) {
+        int64_t trackFramesReleased, int64_t sinkFramesWritten,
+        const ExtendedTimestamp &timeStamp) {
+    //update frame map
     mFrameMap.push(trackFramesReleased, sinkFramesWritten);
-    if (timeStamp == NULL) {
-        mSinkTimestampValid = false;
-    } else {
-        mSinkTimestampValid = true;
-        mSinkTimestamp = *timeStamp;
+
+    // adjust server times and set drained state.
+    //
+    // Our timestamps are only updated when the track is on the Thread active list.
+    // We need to ensure that tracks are not removed before full drain.
+    ExtendedTimestamp local = timeStamp;
+    bool checked = false;
+    for (int i = ExtendedTimestamp::LOCATION_MAX - 1;
+            i >= ExtendedTimestamp::LOCATION_SERVER; --i) {
+        // Lookup the track frame corresponding to the sink frame position.
+        if (local.mTimeNs[i] > 0) {
+            local.mPosition[i] = mFrameMap.findX(local.mPosition[i]);
+            // check drain state from the latest stage in the pipeline.
+            if (!checked) {
+                mAudioTrackServerProxy->setDrained(
+                        local.mPosition[i] >= mAudioTrackServerProxy->framesReleased());
+                checked = true;
+            }
+        }
     }
+    if (!checked) { // no server info, assume drained.
+        mAudioTrackServerProxy->setDrained(true);
+    }
+    mServerProxy->setTimestamp(local);
 }
 
 // ----------------------------------------------------------------------------

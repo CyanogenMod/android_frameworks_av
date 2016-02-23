@@ -1034,6 +1034,8 @@ void AudioFlinger::ThreadBase::acquireWakeLock_l(int uid)
         mNotifiedBatteryStart = true;
     }
     gBoottime.acquire(mWakeLockToken);
+    mTimestamp.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_BOOTTIME] =
+            gBoottime.getBoottimeOffset();
 }
 
 void AudioFlinger::ThreadBase::releaseWakeLock()
@@ -2370,13 +2372,14 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     if (initCheck() != NO_ERROR) {
         return INVALID_OPERATION;
     }
-    size_t framesWritten = mBytesWritten / mFrameSize;
+    int64_t framesWritten = mBytesWritten / mFrameSize;
     *halFrames = framesWritten;
 
     if (isSuspended()) {
         // return an estimation of rendered frames when the output is suspended
         size_t latencyFrames = (latency_l() * mSampleRate) / 1000;
-        *dspFrames = framesWritten >= latencyFrames ? framesWritten - latencyFrames : 0;
+        *dspFrames = (uint32_t)
+                (framesWritten >= (int64_t)latencyFrames ? framesWritten - latencyFrames : 0);
         return NO_ERROR;
     } else {
         status_t status;
@@ -2860,42 +2863,31 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // and associate with the sink frames written out.  We need
             // this to convert the sink timestamp to the track timestamp.
             if (mNormalSink != 0) {
-                bool updateTracks = true;
-                bool cacheTimestamp = false;
-                AudioTimestamp timeStamp;
-                // FIXME: Use a 64 bit mNormalSink->framesWritten() counter.
-                // At this time, we must always use cached timestamps even when
-                // going through mPipeSink (which is non-blocking). The reason is that
-                // the track may be removed from the active list for many hours and
-                // the mNormalSink->framesWritten() will wrap making the linear
-                // mapping fail.
-                //
-                // (Also mAudioTrackServerProxy->framesReleased() needs to be
-                // updated to 64 bits for 64 bit frame position.)
-                //
-                if (true /* see comment above, should be: mNormalSink == mOutputSink */) {
-                    // If we use a hardware device, we must cache the sink timestamp now.
-                    // hardware devices can block timestamp access during data writes.
-                    if (mNormalSink->getTimestamp(timeStamp) == NO_ERROR) {
-                        cacheTimestamp = true;
-                    } else {
-                        updateTracks = false;
-                    }
-                }
-                if (updateTracks) {
-                    // sinkFramesWritten for non-offloaded tracks are contiguous
-                    // even after standby() is called. This is useful for the track frame
-                    // to sink frame mapping.
-                    const uint32_t sinkFramesWritten = mNormalSink->framesWritten();
-                    const size_t size = mActiveTracks.size();
-                    for (size_t i = 0; i < size; ++i) {
-                        sp<Track> t = mActiveTracks[i].promote();
-                        if (t != 0 && !t->isFastTrack()) {
-                            t->updateTrackFrameInfo(
-                                    t->mAudioTrackServerProxy->framesReleased(),
-                                    sinkFramesWritten,
-                                    cacheTimestamp ? &timeStamp : NULL);
-                        }
+                // We always fetch the timestamp here because often the downstream
+                // sink will block whie writing.
+                ExtendedTimestamp timestamp; // use private copy to fetch
+                (void) mNormalSink->getTimestamp(timestamp);
+                // copy over kernel info
+                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
+                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
+                        timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
+
+                // sinkFramesWritten for non-offloaded tracks are contiguous
+                // even after standby() is called. This is useful for the track frame
+                // to sink frame mapping.
+                const int64_t sinkFramesWritten = mNormalSink->framesWritten();
+                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = sinkFramesWritten;
+                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
+
+                const size_t size = mActiveTracks.size();
+                for (size_t i = 0; i < size; ++i) {
+                    sp<Track> t = mActiveTracks[i].promote();
+                    if (t != 0 && !t->isFastTrack()) {
+                        t->updateTrackFrameInfo(
+                                t->mAudioTrackServerProxy->framesReleased(),
+                                sinkFramesWritten,
+                                mTimestamp);
                     }
                 }
             }
@@ -3209,7 +3201,12 @@ void AudioFlinger::PlaybackThread::removeTracks_l(const Vector< sp<Track> >& tra
 status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
 {
     if (mNormalSink != 0) {
-        return mNormalSink->getTimestamp(timestamp);
+        ExtendedTimestamp ets;
+        status_t status = mNormalSink->getTimestamp(ets);
+        if (status == NO_ERROR) {
+            status = ets.getBestTimestamp(&timestamp);
+        }
+        return status;
     }
     if ((mType == OFFLOAD || mType == DIRECT)
             && mOutput != NULL && mOutput->stream->get_presentation_position) {
@@ -3925,7 +3922,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 {
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
-                    size_t framesWritten = mBytesWritten / mFrameSize;
+                    int64_t framesWritten = mBytesWritten / mFrameSize;
                     if (!(mStandby || track->presentationComplete(framesWritten, audioHALFrames))) {
                         // track stays in active list until presentation is complete
                         break;
@@ -4255,7 +4252,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                 // TODO: use actual buffer filling status instead of latency when available from
                 // audio HAL
                 size_t audioHALFrames = (latency_l() * mSampleRate) / 1000;
-                size_t framesWritten = mBytesWritten / mFrameSize;
+                int64_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopped()) {
                         track->reset();
@@ -4796,7 +4793,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     audioHALFrames = 0;
                 }
 
-                size_t framesWritten = mBytesWritten / mFrameSize;
+                int64_t framesWritten = mBytesWritten / mFrameSize;
                 if (mStandby || !last ||
                         track->presentationComplete(framesWritten, audioHALFrames)) {
                     if (track->isStopping_2()) {
@@ -5343,7 +5340,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     track->mState = TrackBase::STOPPED;
                     size_t audioHALFrames =
                             (mOutput->stream->get_latency(mOutput->stream)*mSampleRate) / 1000;
-                    size_t framesWritten =
+                    int64_t framesWritten =
                             mBytesWritten / mOutput->getFrameSize();
                     track->presentationComplete(framesWritten, audioHALFrames);
                     track->reset();
@@ -5788,9 +5785,6 @@ reacquire_wakelock:
             acquireWakeLock_l(-1);
         }
     }
-
-    mTimestamp.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_BOOTTIME] =
-            gBoottime.getBoottimeOffset();
 
     // used to request a deferred sleep, to be executed later while mutex is unlocked
     uint32_t sleepUs = 0;

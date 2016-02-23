@@ -145,13 +145,13 @@ public:
     // 32 bits rolls over after 27 hours at 44.1 kHz; if that concerns you then poll periodically.
 
     // Return the number of frames written successfully since construction.
-    virtual size_t framesWritten() const { return mFramesWritten; }
+    virtual int64_t framesWritten() const { return mFramesWritten; }
 
     // Number of frames lost due to underrun since construction.
-    virtual size_t framesUnderrun() const { return 0; }
+    virtual int64_t framesUnderrun() const { return 0; }
 
     // Number of underruns since construction, where a set of contiguous lost frames is one event.
-    virtual size_t underruns() const { return 0; }
+    virtual int64_t underruns() const { return 0; }
 
     // Estimate of number of frames that could be written successfully now without blocking.
     // When a write() is actually attempted, the implementation is permitted to return a smaller or
@@ -212,7 +212,7 @@ public:
     // Returns NO_ERROR if a timestamp is available.  The timestamp includes the total number
     // of frames presented to an external observer, together with the value of CLOCK_MONOTONIC
     // as of this presentation count.  The timestamp parameter is undefined if error is returned.
-    virtual status_t getTimestamp(AudioTimestamp& timestamp) { return INVALID_OPERATION; }
+    virtual status_t getTimestamp(ExtendedTimestamp &timestamp) { return INVALID_OPERATION; }
 
 protected:
     NBAIO_Sink(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesWritten(0)
@@ -220,7 +220,7 @@ protected:
     virtual ~NBAIO_Sink() { }
 
     // Implementations are free to ignore these if they don't need them
-    size_t  mFramesWritten;
+    int64_t  mFramesWritten;
 };
 
 // Abstract class (interface) representing a non-blocking data source, for use by a data consumer.
@@ -232,15 +232,15 @@ public:
     // 32 bits rolls over after 27 hours at 44.1 kHz; if that concerns you then poll periodically.
 
     // Number of frames read successfully since construction.
-    virtual size_t framesRead() const { return mFramesRead; }
+    virtual int64_t framesRead() const { return mFramesRead; }
 
     // Number of frames lost due to overrun since construction.
     // Not const because implementations may need to do I/O.
-    virtual size_t framesOverrun() /*const*/ { return 0; }
+    virtual int64_t framesOverrun() /*const*/ { return 0; }
 
     // Number of overruns since construction, where a set of contiguous lost frames is one event.
     // Not const because implementations may need to do I/O.
-    virtual size_t overruns() /*const*/ { return 0; }
+    virtual int64_t overruns() /*const*/ { return 0; }
 
     // Estimate of number of frames that could be read successfully now.
     // When a read() is actually attempted, the implementation is permitted to return a smaller or
@@ -299,7 +299,7 @@ public:
 
     // Invoked asynchronously by corresponding sink when a new timestamp is available.
     // Default implementation ignores the timestamp.
-    virtual void    onTimestamp(const AudioTimestamp& timestamp) { }
+    virtual void    onTimestamp(const ExtendedTimestamp& timestamp) { }
 
 protected:
     NBAIO_Source(const NBAIO_Format& format = Format_Invalid) : NBAIO_Port(format), mFramesRead(0)
@@ -307,7 +307,7 @@ protected:
     virtual ~NBAIO_Source() { }
 
     // Implementations are free to ignore these if they don't need them
-    size_t  mFramesRead;
+    int64_t  mFramesRead;
 };
 
 }   // namespace android

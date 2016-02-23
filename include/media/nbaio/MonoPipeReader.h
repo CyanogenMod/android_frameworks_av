@@ -49,7 +49,7 @@ public:
 
     virtual ssize_t read(void *buffer, size_t count);
 
-    virtual void    onTimestamp(const AudioTimestamp& timestamp);
+    virtual void    onTimestamp(const ExtendedTimestamp &timestamp);
 
     // NBAIO_Source end
 
