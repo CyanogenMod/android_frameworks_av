@@ -681,10 +681,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     // If the video decoder is not set (perhaps audio only in this case)
                     // do not perform a seek as it is not needed.
                     int64_t currentPositionUs = 0;
-                    if (getCurrentPosition(&currentPositionUs) == OK) {
-                        mDeferredActions.push_back(
-                                new SeekAction(currentPositionUs));
-                    }
+                    getCurrentPosition(&currentPositionUs);
+                    mDeferredActions.push_back(
+                            new SeekAction(currentPositionUs));
                 }
 
                 // If there is a new surface texture, instantiate decoders
