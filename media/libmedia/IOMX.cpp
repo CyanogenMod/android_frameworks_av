@@ -956,10 +956,6 @@ status_t BnOMX::onTransact(
             MetadataBufferType type = kMetadataBufferTypeInvalid;
             status_t err = storeMetaDataInBuffers(node, port_index, enable, &type);
 
-            if ((err != OK) && (type == kMetadataBufferTypeInvalid)) {
-                android_errorWriteLog(0x534e4554, "26324358");
-            }
-
             reply->writeInt32(type);
             reply->writeInt32(err);
 
