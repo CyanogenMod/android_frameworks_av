@@ -208,6 +208,7 @@ void  SoftAVC::initEncParams() {
     mEnableAltRef = DEFAULT_ENABLE_ALT_REF;
     mEncSpeed = DEFAULT_ENC_SPEED;
     mIntra4x4 = DEFAULT_INTRA4x4;
+    mConstrainedIntraFlag = DEFAULT_CONSTRAINED_INTRA;
     mAIRMode = DEFAULT_AIR;
     mAIRRefreshPeriod = DEFAULT_AIR_REFRESH_PERIOD;
     mPSNREnable = DEFAULT_PSNR_ENABLE;
@@ -305,6 +306,7 @@ OMX_ERRORTYPE SoftAVC::setIpeParams() {
 
     s_ipe_params_ip.u4_enable_intra_4x4 = mIntra4x4;
     s_ipe_params_ip.u4_enc_speed_preset = mEncSpeed;
+    s_ipe_params_ip.u4_constrained_intra_pred = mConstrainedIntraFlag;
 
     s_ipe_params_ip.u4_timestamp_high = -1;
     s_ipe_params_ip.u4_timestamp_low = -1;
