@@ -28,3 +28,10 @@ exit: 1
 exit_group: 1
 rt_sigreturn: 1
 faccessat: 1
+
+# for attaching to debuggerd on process crash
+socketcall: 1
+sigaction: 1
+tgkill: 1
+rt_sigprocmask: 1
+fcntl64: 1
