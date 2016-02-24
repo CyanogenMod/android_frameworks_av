@@ -79,7 +79,7 @@ public:
     const char* extractMetadata(int keyCode);
 
 private:
-    static const sp<IMediaPlayerService>& getService();
+    static const sp<IMediaPlayerService> getService();
 
     class DeathNotifier: public IBinder::DeathRecipient
     {
