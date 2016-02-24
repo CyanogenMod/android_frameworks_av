@@ -45,9 +45,9 @@ public:
 
     audio_session_t session() const { return mSession; }
     audio_source_t inputSource()const { return mInputSource; }
-    audio_format_t format() const { return mFormat; }
-    uint32_t sampleRate() const { return mSampleRate; }
-    audio_channel_mask_t channelMask() const { return mChannelMask; }
+    audio_format_t format() const { return mConfig.format; }
+    uint32_t sampleRate() const { return mConfig.sample_rate; }
+    audio_channel_mask_t channelMask() const { return mConfig.channel_mask; }
     audio_input_flags_t flags() const { return mFlags; }
     uid_t uid() const { return mUid; }
     bool matches(const sp<AudioSession> &other) const;
@@ -58,12 +58,14 @@ public:
     uint32_t changeOpenCount(int delta);
     uint32_t changeActiveCount(int delta);
 
+    void setDeviceConfig(audio_format_t format, uint32_t sampleRate,
+            audio_channel_mask_t channelMask);
+
 private:
     const audio_session_t mSession;
     const audio_source_t mInputSource;
-    const audio_format_t mFormat;
-    const uint32_t mSampleRate;
-    const audio_channel_mask_t mChannelMask;
+    const struct audio_config_base mConfig;
+          struct audio_config_base mDeviceConfig;
     const audio_input_flags_t mFlags;
     const uid_t mUid;
     bool  mIsSoundTrigger;

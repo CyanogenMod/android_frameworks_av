@@ -239,17 +239,21 @@ void AudioPolicyService::doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t 
 }
 
 void AudioPolicyService::onRecordingConfigurationUpdate(int event, audio_session_t session,
-        audio_source_t source)
+        audio_source_t source, const audio_config_base_t *clientConfig,
+        const audio_config_base_t *deviceConfig)
 {
-    mOutputCommandThread->recordingConfigurationUpdateCommand(event, session, source);
+    mOutputCommandThread->recordingConfigurationUpdateCommand(event, session, source,
+            clientConfig, deviceConfig);
 }
 
 void AudioPolicyService::doOnRecordingConfigurationUpdate(int event, audio_session_t session,
-        audio_source_t source)
+        audio_source_t source, const audio_config_base_t *clientConfig,
+        const audio_config_base_t *deviceConfig)
 {
     Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
-        mNotificationClients.valueAt(i)->onRecordingConfigurationUpdate(event, session, source);
+        mNotificationClients.valueAt(i)->onRecordingConfigurationUpdate(event, session, source,
+                clientConfig, deviceConfig);
     }
 }
 
@@ -316,10 +320,12 @@ void AudioPolicyService::NotificationClient::onDynamicPolicyMixStateUpdate(
 }
 
 void AudioPolicyService::NotificationClient::onRecordingConfigurationUpdate(
-        int event, audio_session_t session, audio_source_t source)
+        int event, audio_session_t session, audio_source_t source,
+        const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig)
 {
     if (mAudioPolicyServiceClient != 0) {
-        mAudioPolicyServiceClient->onRecordingConfigurationUpdate(event, session, source);
+        mAudioPolicyServiceClient->onRecordingConfigurationUpdate(event, session, source,
+                clientConfig, deviceConfig);
     }
 }
 
@@ -601,7 +607,7 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }
                     mLock.unlock();
                     svc->doOnRecordingConfigurationUpdate(data->mEvent, data->mSession,
-                            data->mSource);
+                            data->mSource, &data->mClientConfig, &data->mDeviceConfig);
                     mLock.lock();
                     } break;
                 default:
@@ -865,7 +871,8 @@ void AudioPolicyService::AudioCommandThread::dynamicPolicyMixStateUpdateCommand(
 }
 
 void AudioPolicyService::AudioCommandThread::recordingConfigurationUpdateCommand(
-        int event, audio_session_t session, audio_source_t source)
+        int event, audio_session_t session, audio_source_t source,
+        const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig)
 {
     sp<AudioCommand>command = new AudioCommand();
     command->mCommand = RECORDING_CONFIGURATION_UPDATE;
@@ -873,6 +880,8 @@ void AudioPolicyService::AudioCommandThread::recordingConfigurationUpdateCommand
     data->mEvent = event;
     data->mSession = session;
     data->mSource = source;
+    data->mClientConfig = *clientConfig;
+    data->mDeviceConfig = *deviceConfig;
     command->mParam = data;
     ALOGV("AudioCommandThread() adding recording configuration update event %d, source %d",
             event, source);

@@ -1245,7 +1245,8 @@ void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
 }
 
 void AudioSystem::AudioPolicyServiceClient::onRecordingConfigurationUpdate(
-        int event, audio_session_t session, audio_source_t source) {
+        int event, audio_session_t session, audio_source_t source,
+        const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig) {
     record_config_callback cb = NULL;
     {
         Mutex::Autolock _l(AudioSystem::gLock);
@@ -1253,7 +1254,7 @@ void AudioSystem::AudioPolicyServiceClient::onRecordingConfigurationUpdate(
     }
 
     if (cb != NULL) {
-        cb(event, session, source);
+        cb(event, session, source, clientConfig, deviceConfig);
     }
 }
 

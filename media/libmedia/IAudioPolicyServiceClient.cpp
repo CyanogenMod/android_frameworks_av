@@ -34,6 +34,21 @@ enum {
     RECORDING_CONFIGURATION_UPDATE
 };
 
+// ----------------------------------------------------------------------
+inline void readAudioConfigBaseFromParcel(const Parcel& data, audio_config_base_t *config) {
+    config->sample_rate = data.readUint32();
+    config->channel_mask = (audio_channel_mask_t) data.readInt32();
+    config->format = (audio_format_t) data.readInt32();
+}
+
+inline void writeAudioConfigBaseToParcel(Parcel& data, const audio_config_base_t *config)
+{
+    data.writeUint32(config->sample_rate);
+    data.writeInt32((int32_t) config->channel_mask);
+    data.writeInt32((int32_t) config->format);
+}
+
+// ----------------------------------------------------------------------
 class BpAudioPolicyServiceClient : public BpInterface<IAudioPolicyServiceClient>
 {
 public:
@@ -66,12 +81,15 @@ public:
     }
 
     void onRecordingConfigurationUpdate(int event, audio_session_t session,
-            audio_source_t source) {
+            audio_source_t source, const audio_config_base_t *clientConfig,
+            const audio_config_base_t *deviceConfig) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
         data.writeInt32(event);
         data.writeInt32(session);
         data.writeInt32(source);
+        writeAudioConfigBaseToParcel(data, clientConfig);
+        writeAudioConfigBaseToParcel(data, deviceConfig);
         remote()->transact(RECORDING_CONFIGURATION_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
@@ -106,7 +124,11 @@ status_t BnAudioPolicyServiceClient::onTransact(
             int event = (int) data.readInt32();
             audio_session_t session = (audio_session_t) data.readInt32();
             audio_source_t source = (audio_source_t) data.readInt32();
-            onRecordingConfigurationUpdate(event, session, source);
+            audio_config_base_t clientConfig;
+            audio_config_base_t deviceConfig;
+            readAudioConfigBaseFromParcel(data, &clientConfig);
+            readAudioConfigBaseFromParcel(data, &deviceConfig);
+            onRecordingConfigurationUpdate(event, session, source, &clientConfig, &deviceConfig);
             return NO_ERROR;
         } break;
     default:
