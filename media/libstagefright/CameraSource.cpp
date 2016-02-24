@@ -919,6 +919,7 @@ void CameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
         mReceivedBufferItemMap.removeItemsAt(index);
         mVideoBufferConsumer->releaseBuffer(buffer);
         mMemoryBases.push_back(frame);
+        mMemoryBaseAvailableCond.signal();
     } else if (mCameraRecordingProxy != NULL) {
         mCameraRecordingProxy->releaseRecordingFrame(frame);
     } else if (mCamera != NULL) {
@@ -1122,10 +1123,13 @@ void CameraSource::processBufferQueueFrame(const BufferItem& buffer) {
         return;
     }
 
-    if (mMemoryBases.empty()) {
-        ALOGW("%s: No available memory base. Dropping a recording frame.", __FUNCTION__);
-        mVideoBufferConsumer->releaseBuffer(buffer);
-        return;
+    while (mMemoryBases.empty()) {
+        if (mMemoryBaseAvailableCond.waitRelative(mLock, kMemoryBaseAvailableTimeoutNs) ==
+                TIMED_OUT) {
+            ALOGW("Waiting on an available memory base timed out. Dropping a recording frame.");
+            mVideoBufferConsumer->releaseBuffer(buffer);
+            return;
+        }
     }
 
     ++mNumFramesReceived;
