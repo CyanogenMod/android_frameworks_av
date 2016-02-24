@@ -16,7 +16,6 @@ LOCAL_SRC_FILES:= \
 LOCAL_SHARED_LIBRARIES := \
 	libcamera_metadata\
 	libcameraservice \
-	libmedialogservice \
 	libresourcemanagerservice \
 	libcutils \
 	libmedia \

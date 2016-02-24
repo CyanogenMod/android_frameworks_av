@@ -184,8 +184,7 @@ AudioFlinger::AudioFlinger()
       mSystemReady(false)
 {
     getpid_cached = getpid();
-    // disable media.log until the service is reenabled, see b/26306954
-    const bool doLog = false; // property_get_bool("ro.test_harness", false);
+    const bool doLog = property_get_bool("ro.test_harness", false);
     if (doLog) {
         mLogMemoryDealer = new MemoryDealer(kLogMemorySize, "LogWriters",
                 MemoryHeapBase::READ_ONLY);

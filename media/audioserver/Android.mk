@@ -9,11 +9,14 @@ LOCAL_SHARED_LIBRARIES := \
 	libaudioflinger \
 	libaudiopolicyservice \
 	libbinder \
+	libcutils \
 	liblog \
 	libmedia \
+	libmedialogservice \
+	libnbaio \
 	libradioservice \
 	libsoundtriggerservice \
-	libutils \
+	libutils
 
 LOCAL_C_INCLUDES := \
 	frameworks/av/services/audioflinger \
@@ -22,6 +25,7 @@ LOCAL_C_INCLUDES := \
 	frameworks/av/services/audiopolicy/common/include \
 	frameworks/av/services/audiopolicy/engine/interface \
 	frameworks/av/services/audiopolicy/service \
+	frameworks/av/services/medialog \
 	frameworks/av/services/radio \
 	frameworks/av/services/soundtrigger \
 	$(call include-path-for, audio-utils) \
