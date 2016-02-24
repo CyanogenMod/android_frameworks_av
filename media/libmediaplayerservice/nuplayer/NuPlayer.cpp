@@ -731,6 +731,29 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             readFromAMessage(msg, &rate);
             status_t err = OK;
             if (mRenderer != NULL) {
+                // AudioSink allows only 1.f and 0.f for offload mode.
+                // For other speed, switch to non-offload mode.
+                if (mOffloadAudio && ((rate.mSpeed != 0.f && rate.mSpeed != 1.f)
+                        || rate.mPitch != 1.f)) {
+                    int64_t currentPositionUs;
+                    if (getCurrentPosition(&currentPositionUs) != OK) {
+                        currentPositionUs = mPreviousSeekTimeUs;
+                    }
+
+                    // Set mPlaybackSettings so that the new audio decoder can
+                    // be created correctly.
+                    mPlaybackSettings = rate;
+                    if (!mPaused) {
+                        mRenderer->pause();
+                    }
+                    restartAudioFromOffload(
+                            currentPositionUs, true /* forceNonOffload */,
+                            true /* needsToCreateAudioDecoder */);
+                    if (!mPaused) {
+                        mRenderer->resume();
+                    }
+                }
+
                 err = mRenderer->setPlaybackSettings(rate);
             }
             if (err == OK) {
@@ -1121,41 +1144,14 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
                 ALOGV("Tear down audio with reason %d.", reason);
-                mAudioDecoder->pause();
-                mAudioDecoder.clear();
-                ++mAudioDecoderGeneration;
-                bool needsToCreateAudioDecoder = true;
-                if (mFlushingAudio == FLUSHING_DECODER) {
-                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
-                    mFlushingAudio = FLUSHED;
-                    finishFlushIfPossible();
-                } else if (mFlushingAudio == FLUSHING_DECODER_SHUTDOWN
-                        || mFlushingAudio == SHUTTING_DOWN_DECODER) {
-                    mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
-                    mFlushingAudio = SHUT_DOWN;
-                    finishFlushIfPossible();
-                    needsToCreateAudioDecoder = false;
-                }
-                if (mRenderer == NULL) {
-                    break;
-                }
-                closeAudioSink();
-                mRenderer->flush(
-                        true /* audio */, false /* notifyComplete */);
-                if (mVideoDecoder != NULL) {
-                    mRenderer->flush(
-                            false /* audio */, false /* notifyComplete */);
-                }
-
                 int64_t positionUs;
                 if (!msg->findInt64("positionUs", &positionUs)) {
                     positionUs = mPreviousSeekTimeUs;
                 }
-                performSeek(positionUs);
 
-                if (reason == Renderer::kDueToError && needsToCreateAudioDecoder) {
-                    instantiateDecoder(true /* audio */, &mAudioDecoder);
-                }
+                restartAudioFromOffload(
+                        positionUs, false /* forceNonOffload */,
+                        reason == Renderer::kDueToError /* needsToCreateAudioDecoder */);
             }
             break;
         }
@@ -1339,7 +1335,8 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     sp<AMessage> videoFormat = mSource->getFormat(false /* audio */);
 
     mOffloadAudio =
-        canOffloadStream(audioMeta, (videoFormat != NULL), mSource->isStreaming(), streamType);
+        canOffloadStream(audioMeta, (videoFormat != NULL), mSource->isStreaming(), streamType)
+                && (mPlaybackSettings.mSpeed == 1.f && mPlaybackSettings.mPitch == 1.f);
     if (mOffloadAudio) {
         flags |= Renderer::FLAG_OFFLOAD_AUDIO;
     }
@@ -1491,6 +1488,45 @@ void NuPlayer::closeAudioSink() {
     mRenderer->closeAudioSink();
 }
 
+void NuPlayer::restartAudioFromOffload(
+        int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder) {
+    if (!mOffloadAudio) {
+        return;
+    }
+    mAudioDecoder->pause();
+    mAudioDecoder.clear();
+    ++mAudioDecoderGeneration;
+    if (mFlushingAudio == FLUSHING_DECODER) {
+        mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+        mFlushingAudio = FLUSHED;
+        finishFlushIfPossible();
+    } else if (mFlushingAudio == FLUSHING_DECODER_SHUTDOWN
+            || mFlushingAudio == SHUTTING_DOWN_DECODER) {
+        mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
+        mFlushingAudio = SHUT_DOWN;
+        finishFlushIfPossible();
+        needsToCreateAudioDecoder = false;
+    }
+    if (mRenderer == NULL) {
+        return;
+    }
+    closeAudioSink();
+    mRenderer->flush(true /* audio */, false /* notifyComplete */);
+    if (mVideoDecoder != NULL) {
+        mRenderer->flush(false /* audio */, false /* notifyComplete */);
+    }
+
+    performSeek(currentPositionUs);
+
+    if (forceNonOffload) {
+        mRenderer->signalDisableOffloadAudio();
+        mOffloadAudio = false;
+    }
+    if (needsToCreateAudioDecoder) {
+        instantiateDecoder(true /* audio */, &mAudioDecoder);
+    }
+}
+
 void NuPlayer::determineAudioModeChange() {
     if (mSource == NULL || mAudioSink == NULL) {
         return;
@@ -1507,7 +1543,8 @@ void NuPlayer::determineAudioModeChange() {
     audio_stream_type_t streamType = mAudioSink->getAudioStreamType();
     const bool hasVideo = (videoFormat != NULL);
     const bool canOffload = canOffloadStream(
-            audioMeta, hasVideo, mSource->isStreaming(), streamType);
+            audioMeta, hasVideo, mSource->isStreaming(), streamType)
+                    && (mPlaybackSettings.mSpeed == 1.f && mPlaybackSettings.mPitch == 1.f);
     if (canOffload) {
         if (!mOffloadAudio) {
             mRenderer->signalEnableOffloadAudio();
