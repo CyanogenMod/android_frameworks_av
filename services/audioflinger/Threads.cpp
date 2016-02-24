@@ -1565,6 +1565,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mEffectBufferFormat(AUDIO_FORMAT_INVALID),
         mEffectBufferValid(false),
         mSuspended(0), mBytesWritten(0),
+        mFramesWritten(0),
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
@@ -2863,6 +2864,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // and associate with the sink frames written out.  We need
             // this to convert the sink timestamp to the track timestamp.
             if (mNormalSink != 0) {
+                // Note: The DuplicatingThread may not have a mNormalSink.
                 // We always fetch the timestamp here because often the downstream
                 // sink will block whie writing.
                 ExtendedTimestamp timestamp; // use private copy to fetch
@@ -2872,23 +2874,20 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
                 mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
                         timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
-
-                // sinkFramesWritten for non-offloaded tracks are contiguous
-                // even after standby() is called. This is useful for the track frame
-                // to sink frame mapping.
-                const int64_t sinkFramesWritten = mNormalSink->framesWritten();
-                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = sinkFramesWritten;
-                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
-
-                const size_t size = mActiveTracks.size();
-                for (size_t i = 0; i < size; ++i) {
-                    sp<Track> t = mActiveTracks[i].promote();
-                    if (t != 0 && !t->isFastTrack()) {
-                        t->updateTrackFrameInfo(
-                                t->mAudioTrackServerProxy->framesReleased(),
-                                sinkFramesWritten,
-                                mTimestamp);
-                    }
+            }
+            // mFramesWritten for non-offloaded tracks are contiguous
+            // even after standby() is called. This is useful for the track frame
+            // to sink frame mapping.
+            mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = mFramesWritten;
+            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
+            const size_t size = mActiveTracks.size();
+            for (size_t i = 0; i < size; ++i) {
+                sp<Track> t = mActiveTracks[i].promote();
+                if (t != 0 && !t->isFastTrack()) {
+                    t->updateTrackFrameInfo(
+                            t->mAudioTrackServerProxy->framesReleased(),
+                            mFramesWritten,
+                            mTimestamp);
                 }
             }
 
@@ -3026,6 +3025,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 mSleepTimeUs = suspendSleepTimeUs();
                 // simulate write to HAL when suspended
                 mBytesWritten += mSinkBufferSize;
+                mFramesWritten += mSinkBufferSize / mFrameSize;
                 mBytesRemaining = 0;
             }
 
@@ -3076,6 +3076,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     } else {
                         mBytesWritten += ret;
                         mBytesRemaining -= ret;
+                        mFramesWritten += ret / mFrameSize;
                     }
                 } else if ((mMixerStatus == MIXER_DRAIN_TRACK) ||
                         (mMixerStatus == MIXER_DRAIN_ALL)) {
