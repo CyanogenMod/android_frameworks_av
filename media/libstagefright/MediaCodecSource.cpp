@@ -39,6 +39,7 @@
 #include <media/stagefright/Utils.h>
 #include <stagefright/AVExtensions.h>
 #include <OMX_Core.h>
+#include <cutils/properties.h>
 
 namespace android {
 
@@ -770,8 +771,15 @@ status_t MediaCodecSource::onStart(MetaData *params) {
     status_t err = OK;
 
     if (mFlags & FLAG_USE_SURFACE_INPUT) {
+        auto key = kKeyTimeBoot;
+        char value[PROPERTY_VALUE_MAX];
+        if (property_get("media.camera.ts.monotonic", value, "0") &&
+            atoi(value)) {
+            key = kKeyTime;
+        }
+
         int64_t startTimeUs;
-        if (!params || !params->findInt64(kKeyTime, &startTimeUs)) {
+        if (!params || !params->findInt64(key, &startTimeUs)) {
             startTimeUs = -1ll;
         }
         resume(startTimeUs);
@@ -879,7 +887,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
             mbuf->setObserver(this);
             mbuf->add_ref();
-            
+
             sp<MetaData> meta = mbuf->meta_data();
             AVUtils::get()->setDeferRelease(meta);
 
