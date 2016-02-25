@@ -468,6 +468,7 @@ String8 devicesToString(audio_devices_t devices)
         {AUDIO_DEVICE_OUT_AUX_LINE,         "AUX_LINE"},
         {AUDIO_DEVICE_OUT_SPEAKER_SAFE,     "SPEAKER_SAFE"},
         {AUDIO_DEVICE_OUT_IP,               "IP"},
+        {AUDIO_DEVICE_OUT_BUS,              "BUS"},
         {AUDIO_DEVICE_NONE,                 "NONE"},       // must be last
     }, mappingsIn[] = {
         {AUDIO_DEVICE_IN_COMMUNICATION,     "COMMUNICATION"},
@@ -491,6 +492,7 @@ String8 devicesToString(audio_devices_t devices)
         {AUDIO_DEVICE_IN_BLUETOOTH_A2DP,    "BLUETOOTH_A2DP"},
         {AUDIO_DEVICE_IN_LOOPBACK,          "LOOPBACK"},
         {AUDIO_DEVICE_IN_IP,                "IP"},
+        {AUDIO_DEVICE_IN_BUS,               "BUS"},
         {AUDIO_DEVICE_NONE,                 "NONE"},        // must be last
     };
     String8 result;
