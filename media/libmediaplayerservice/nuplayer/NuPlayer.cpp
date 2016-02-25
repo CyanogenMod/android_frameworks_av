@@ -746,7 +746,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     if (!mPaused) {
                         mRenderer->pause();
                     }
-                    restartAudioFromOffload(
+                    restartAudio(
                             currentPositionUs, true /* forceNonOffload */,
                             true /* needsToCreateAudioDecoder */);
                     if (!mPaused) {
@@ -1149,7 +1149,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     positionUs = mPreviousSeekTimeUs;
                 }
 
-                restartAudioFromOffload(
+                restartAudio(
                         positionUs, false /* forceNonOffload */,
                         reason == Renderer::kDueToError /* needsToCreateAudioDecoder */);
             }
@@ -1488,11 +1488,8 @@ void NuPlayer::closeAudioSink() {
     mRenderer->closeAudioSink();
 }
 
-void NuPlayer::restartAudioFromOffload(
+void NuPlayer::restartAudio(
         int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder) {
-    if (!mOffloadAudio) {
-        return;
-    }
     mAudioDecoder->pause();
     mAudioDecoder.clear();
     ++mAudioDecoderGeneration;
