@@ -52,6 +52,7 @@
 #include <OMX_AsString.h>
 
 #include "include/avc_utils.h"
+#include "omx/OMXUtils.h"
 
 namespace android {
 
@@ -99,15 +100,6 @@ static inline status_t makeNoSideEffectStatus(status_t err) {
     default:
         return err;
     }
-}
-
-template<class T>
-static void InitOMXParams(T *params) {
-    params->nSize = sizeof(T);
-    params->nVersion.s.nVersionMajor = 1;
-    params->nVersion.s.nVersionMinor = 0;
-    params->nVersion.s.nRevision = 0;
-    params->nVersion.s.nStep = 0;
 }
 
 struct MessageList : public RefBase {
@@ -3985,11 +3977,11 @@ void ACodec::processDeferredMessages() {
 }
 
 // static
-bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
-    MediaImage &image = params.sMediaImage;
+bool ACodec::describeDefaultColorFormat(DescribeColorFormat2Params &params) {
+    MediaImage2 &image = params.sMediaImage;
     memset(&image, 0, sizeof(image));
 
-    image.mType = MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN;
+    image.mType = MediaImage2::MEDIA_IMAGE_TYPE_UNKNOWN;
     image.mNumPlanes = 0;
 
     const OMX_COLOR_FORMATTYPE fmt = params.eColorFormat;
@@ -4024,9 +4016,10 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
     }
 
     // set-up YUV format
-    image.mType = MediaImage::MEDIA_IMAGE_TYPE_YUV;
+    image.mType = MediaImage2::MEDIA_IMAGE_TYPE_YUV;
     image.mNumPlanes = 3;
     image.mBitDepth = 8;
+    image.mBitDepthAllocated = 8;
     image.mPlane[image.Y].mOffset = 0;
     image.mPlane[image.Y].mColInc = 1;
     image.mPlane[image.Y].mRowInc = params.nStride;
@@ -4099,26 +4092,34 @@ bool ACodec::describeDefaultColorFormat(DescribeColorFormatParams &params) {
 // static
 bool ACodec::describeColorFormat(
         const sp<IOMX> &omx, IOMX::node_id node,
-        DescribeColorFormatParams &describeParams)
+        DescribeColorFormat2Params &describeParams)
 {
     OMX_INDEXTYPE describeColorFormatIndex;
     if (omx->getExtensionIndex(
             node, "OMX.google.android.index.describeColorFormat",
-            &describeColorFormatIndex) != OK ||
-        omx->getParameter(
-            node, describeColorFormatIndex,
-            &describeParams, sizeof(describeParams)) != OK) {
-        return describeDefaultColorFormat(describeParams);
+            &describeColorFormatIndex) == OK) {
+        DescribeColorFormatParams describeParamsV1(describeParams);
+        if (omx->getParameter(
+                node, describeColorFormatIndex,
+                &describeParamsV1, sizeof(describeParamsV1)) == OK) {
+            describeParams.initFromV1(describeParamsV1);
+            return describeParams.sMediaImage.mType != MediaImage2::MEDIA_IMAGE_TYPE_UNKNOWN;
+        }
+    } else if (omx->getExtensionIndex(
+            node, "OMX.google.android.index.describeColorFormat2", &describeColorFormatIndex) == OK
+               && omx->getParameter(
+            node, describeColorFormatIndex, &describeParams, sizeof(describeParams)) == OK) {
+        return describeParams.sMediaImage.mType != MediaImage2::MEDIA_IMAGE_TYPE_UNKNOWN;
     }
-    return describeParams.sMediaImage.mType !=
-            MediaImage::MEDIA_IMAGE_TYPE_UNKNOWN;
+
+    return describeDefaultColorFormat(describeParams);
 }
 
 // static
 bool ACodec::isFlexibleColorFormat(
          const sp<IOMX> &omx, IOMX::node_id node,
          uint32_t colorFormat, bool usingNativeBuffers, OMX_U32 *flexibleEquivalent) {
-    DescribeColorFormatParams describeParams;
+    DescribeColorFormat2Params describeParams;
     InitOMXParams(&describeParams);
     describeParams.eColorFormat = (OMX_COLOR_FORMATTYPE)colorFormat;
     // reasonable dummy values
@@ -4134,11 +4135,11 @@ bool ACodec::isFlexibleColorFormat(
         return false;
     }
 
-    const MediaImage &img = describeParams.sMediaImage;
-    if (img.mType == MediaImage::MEDIA_IMAGE_TYPE_YUV) {
-        if (img.mNumPlanes != 3 ||
-            img.mPlane[img.Y].mHorizSubsampling != 1 ||
-            img.mPlane[img.Y].mVertSubsampling != 1) {
+    const MediaImage2 &img = describeParams.sMediaImage;
+    if (img.mType == MediaImage2::MEDIA_IMAGE_TYPE_YUV) {
+        if (img.mNumPlanes != 3
+                || img.mPlane[img.Y].mHorizSubsampling != 1
+                || img.mPlane[img.Y].mVertSubsampling != 1) {
             return false;
         }
 
@@ -4188,7 +4189,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     notify->setInt32("color-format", videoDef->eColorFormat);
 
                     if (mNativeWindow == NULL) {
-                        DescribeColorFormatParams describeParams;
+                        DescribeColorFormat2Params describeParams;
                         InitOMXParams(&describeParams);
                         describeParams.eColorFormat = videoDef->eColorFormat;
                         describeParams.nFrameWidth = videoDef->nFrameWidth;
@@ -4204,12 +4205,13 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                                             &describeParams.sMediaImage,
                                             sizeof(describeParams.sMediaImage)));
 
-                            MediaImage *img = &describeParams.sMediaImage;
-                            ALOGV("[%s] MediaImage { F(%ux%u) @%u+%u+%u @%u+%u+%u @%u+%u+%u }",
-                                    mComponentName.c_str(), img->mWidth, img->mHeight,
-                                    img->mPlane[0].mOffset, img->mPlane[0].mColInc, img->mPlane[0].mRowInc,
-                                    img->mPlane[1].mOffset, img->mPlane[1].mColInc, img->mPlane[1].mRowInc,
-                                    img->mPlane[2].mOffset, img->mPlane[2].mColInc, img->mPlane[2].mRowInc);
+                            MediaImage2 &img = describeParams.sMediaImage;
+                            MediaImage2::PlaneInfo *plane = img.mPlane;
+                            ALOGV("[%s] MediaImage { F(%ux%u) @%u+%d+%d @%u+%d+%d @%u+%d+%d }",
+                                    mComponentName.c_str(), img.mWidth, img.mHeight,
+                                    plane[0].mOffset, plane[0].mColInc, plane[0].mRowInc,
+                                    plane[1].mOffset, plane[1].mColInc, plane[1].mRowInc,
+                                    plane[2].mOffset, plane[2].mColInc, plane[2].mRowInc);
                         }
                     }
 

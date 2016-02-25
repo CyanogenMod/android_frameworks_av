@@ -35,7 +35,7 @@ namespace android {
 
 struct ABuffer;
 struct MemoryDealer;
-struct DescribeColorFormatParams;
+struct DescribeColorFormat2Params;
 
 struct ACodec : public AHierarchicalStateMachine, public CodecBase {
     ACodec();
@@ -442,10 +442,10 @@ private:
             OMX_ERRORTYPE error = OMX_ErrorUndefined,
             status_t internalError = UNKNOWN_ERROR);
 
-    static bool describeDefaultColorFormat(DescribeColorFormatParams &describeParams);
+    static bool describeDefaultColorFormat(DescribeColorFormat2Params &describeParams);
     static bool describeColorFormat(
         const sp<IOMX> &omx, IOMX::node_id node,
-        DescribeColorFormatParams &describeParams);
+        DescribeColorFormat2Params &describeParams);
 
     status_t requestIDRFrame();
     status_t setParameters(const sp<AMessage> &params);
