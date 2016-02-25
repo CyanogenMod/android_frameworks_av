@@ -1,5 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 
+ifneq ($(USE_CUSTOM_PARAMETER_FRAMEWORK), true)
+
 include $(CLEAR_VARS)
 
 LOCAL_MODULE_TAGS := optional
@@ -33,3 +35,4 @@ LOCAL_MODULE := libpolicy-subsystem
 
 include $(BUILD_SHARED_LIBRARY)
 
+endif # ifneq ($(USE_CUSTOM_PARAMETER_FRAMEWORK), true)
