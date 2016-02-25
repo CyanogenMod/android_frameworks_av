@@ -38,6 +38,7 @@ public:
     virtual sp<IMediaSource> getTrack(size_t index);
     virtual sp<MetaData> getTrackMetaData(size_t index, uint32_t flags);
     virtual sp<MetaData> getMetaData();
+    virtual const char * name() { return "DRMExtractor"; }
 
 protected:
     virtual ~DRMExtractor();

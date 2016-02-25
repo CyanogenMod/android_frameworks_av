@@ -44,6 +44,7 @@ struct MPEG2TSExtractor : public MediaExtractor {
     virtual sp<MetaData> getMetaData();
 
     virtual uint32_t flags() const;
+    virtual const char * name() { return "MPEG2TSExtractor"; }
 
 private:
     friend struct MPEG2TSSource;
