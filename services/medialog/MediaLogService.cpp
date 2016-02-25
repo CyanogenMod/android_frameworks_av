@@ -28,7 +28,7 @@ namespace android {
 
 void MediaLogService::registerWriter(const sp<IMemory>& shared, size_t size, const char *name)
 {
-    if (IPCThreadState::self()->getCallingUid() != AID_MEDIA || shared == 0 ||
+    if (IPCThreadState::self()->getCallingUid() != AID_AUDIOSERVER || shared == 0 ||
             size < kMinSize || size > kMaxSize || name == NULL ||
             shared->size() < NBLog::Timeline::sharedSize(size)) {
         return;
@@ -41,7 +41,7 @@ void MediaLogService::registerWriter(const sp<IMemory>& shared, size_t size, con
 
 void MediaLogService::unregisterWriter(const sp<IMemory>& shared)
 {
-    if (IPCThreadState::self()->getCallingUid() != AID_MEDIA || shared == 0) {
+    if (IPCThreadState::self()->getCallingUid() != AID_AUDIOSERVER || shared == 0) {
         return;
     }
     Mutex::Autolock _l(mLock);
@@ -58,7 +58,7 @@ status_t MediaLogService::dump(int fd, const Vector<String16>& args __unused)
 {
     // FIXME merge with similar but not identical code at services/audioflinger/ServiceUtilities.cpp
     static const String16 sDump("android.permission.DUMP");
-    if (!(IPCThreadState::self()->getCallingUid() == AID_MEDIA ||
+    if (!(IPCThreadState::self()->getCallingUid() == AID_AUDIOSERVER ||
             PermissionCache::checkCallingPermission(sDump))) {
         dprintf(fd, "Permission Denial: can't dump media.log from pid=%d, uid=%d\n",
                 IPCThreadState::self()->getCallingPid(),
