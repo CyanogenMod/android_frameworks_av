@@ -1161,6 +1161,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     ALOGW("Receive a stale message for teardown.");
                     break;
                 }
+                closeAudioSink();
+                mRenderer->flush(
+                        true /* audio */, false /* notifyComplete */);
+                if (mVideoDecoder != NULL) {
+                    mRenderer->flush(
+                            false /* audio */, false /* notifyComplete */);
+                }
+                mRenderer->signalAudioTearDownComplete();
+
                 int64_t positionUs;
                 if (!msg->findInt64("positionUs", &positionUs)) {
                     positionUs = mPreviousSeekTimeUs;

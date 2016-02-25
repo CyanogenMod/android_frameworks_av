@@ -80,6 +80,7 @@ struct NuPlayer::Renderer : public AHandler {
             uint32_t flags,
             bool *isOffloaded);
     void closeAudioSink();
+    void signalAudioTearDownComplete();
 
     enum {
         kWhatEOS                      = 'eos ',
@@ -89,6 +90,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatMediaRenderingStart      = 'mdrd',
         kWhatAudioTearDown            = 'adTD',
         kWhatAudioOffloadPauseTimeout = 'aOPT',
+        kWhatAudioTearDownComplete    = 'aTDC',
     };
 
     enum AudioTearDownReason {
@@ -185,7 +187,7 @@ protected:
     int64_t mLastAudioMediaTimeUs;
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
-    bool mAudioTornDown;
+    bool mAudioTearingDown;
     audio_offload_info_t mCurrentOffloadInfo;
 
     struct PcmInfo {
@@ -256,6 +258,7 @@ protected:
             bool hasVideo,
             uint32_t flags);
     void onCloseAudioSink();
+    void onAudioTearDownComplete();
 
     void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);
     void notifyFlushComplete(bool audio);
