@@ -544,7 +544,7 @@ MtpPropertyValue* MtpProperty::readArrayValues(MtpDataPacket& packet, uint32_t& 
     MtpPropertyValue* result = new MtpPropertyValue[length];
     for (uint32_t i = 0; i < length; i++)
         if (!readValue(packet, result[i])) {
-            delete result;
+            delete [] result;
             return NULL;
         }
     return result;

@@ -456,7 +456,7 @@ int MtpDataPacket::read(struct usb_request *request) {
         // look at the length field to see if the data spans multiple packets
         uint32_t totalLength = MtpPacket::getUInt32(MTP_CONTAINER_LENGTH_OFFSET);
         allocate(totalLength);
-        while (totalLength > length) {
+        while (totalLength > static_cast<uint32_t>(length)) {
             request->buffer = mBuffer + length;
             request->buffer_length = totalLength - length;
             int ret = transfer(request);

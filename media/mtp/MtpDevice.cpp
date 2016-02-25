@@ -505,6 +505,7 @@ bool MtpDevice::sendObject(MtpObjectHandle handle, int size, int srcFD) {
     int remaining = size;
     mRequest.reset();
     mRequest.setParameter(1, handle);
+    bool error = false;
     if (sendRequest(MTP_OPERATION_SEND_OBJECT)) {
         // send data header
         writeDataHeader(MTP_OPERATION_SEND_OBJECT, remaining);
@@ -514,7 +515,9 @@ bool MtpDevice::sendObject(MtpObjectHandle handle, int size, int srcFD) {
         while (remaining > 0) {
             int count = read(srcFD, buffer, sizeof(buffer));
             if (count > 0) {
-                int written = mData.write(mRequestOut, buffer, count);
+                if (mData.write(mRequestOut, buffer, count) < 0) {
+                    error = true;
+                }
                 // FIXME check error
                 remaining -= count;
             } else {
@@ -523,7 +526,7 @@ bool MtpDevice::sendObject(MtpObjectHandle handle, int size, int srcFD) {
         }
     }
     MtpResponseCode ret = readResponse();
-    return (remaining == 0 && ret == MTP_RESPONSE_OK);
+    return (remaining == 0 && ret == MTP_RESPONSE_OK && !error);
 }
 
 bool MtpDevice::deleteObject(MtpObjectHandle handle) {

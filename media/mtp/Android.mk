@@ -37,7 +37,7 @@ LOCAL_SRC_FILES:=                                       \
 
 LOCAL_MODULE:= libmtp
 
-LOCAL_CFLAGS := -DMTP_DEVICE -DMTP_HOST
+LOCAL_CFLAGS := -DMTP_DEVICE -DMTP_HOST -Wall -Wextra -Werror
 
 LOCAL_SHARED_LIBRARIES := libutils libcutils liblog libusbhost libbinder
 

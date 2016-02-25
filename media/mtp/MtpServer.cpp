@@ -923,9 +923,7 @@ MtpResponseCode MtpServer::doSendObjectInfo() {
     if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // image bit depth
     if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // parent
     if (!mData.getUInt16(temp16)) return MTP_RESPONSE_INVALID_PARAMETER;
-    uint16_t associationType = temp16;
     if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;
-    uint32_t associationDesc = temp32;        // association desc
     if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // sequence number
     MtpStringBuffer name, created, modified;
     if (!mData.getString(name)) return MTP_RESPONSE_INVALID_PARAMETER;    // file name
@@ -1102,7 +1100,6 @@ static void deleteRecursive(const char* path) {
         }
         strcpy(fileSpot, name);
 
-        int type = entry->d_type;
         if (entry->d_type == DT_DIR) {
             deleteRecursive(pathbuf);
             rmdir(pathbuf);
