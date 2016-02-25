@@ -2086,7 +2086,12 @@ status_t StagefrightRecorder::setSourcePause(bool pause) {
                 return err;
             }
         }
-        if (mAudioEncoderOMX != NULL) {
+        // mAudioSourceNode is used as the LPCM 'encoder' if no other LPCM
+        // encoder is available.
+        // Don't call start() on mAudioEncoderOMX for this case because we
+        // already called mAudioSourceNode->start()
+        if (mAudioEncoderOMX != NULL &&
+            mAudioSourceNode.get() != mAudioEncoderOMX.get()) {
             err = mAudioEncoderOMX->start();
             if (err != OK) {
                 ALOGE("OMX AudioEncoder start failed");
