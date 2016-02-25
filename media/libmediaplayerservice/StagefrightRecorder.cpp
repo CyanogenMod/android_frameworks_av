@@ -1799,6 +1799,8 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
 void StagefrightRecorder::setupMPEG4orWEBMMetaData(sp<MetaData> *meta) {
     int64_t startTimeUs = systemTime() / 1000;
     (*meta)->setInt64(kKeyTime, startTimeUs);
+    int64_t startTimeBootUs = systemTime(SYSTEM_TIME_BOOTTIME) / 1000;
+    (*meta)->setInt64(kKeyTimeBoot, startTimeBootUs);
     (*meta)->setInt32(kKeyFileType, mOutputFormat);
     (*meta)->setInt32(kKeyBitRate, mTotalBitRate);
     if (mMovieTimeScale > 0) {
