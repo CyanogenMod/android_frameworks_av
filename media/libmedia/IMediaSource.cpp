@@ -18,6 +18,8 @@
 #define LOG_TAG "BpMediaSource"
 #include <utils/Log.h>
 
+#include <utils/CallStack.h>
+
 #include <inttypes.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -109,9 +111,16 @@ public:
     BpMediaSource(const sp<IBinder>& impl)
         : BpInterface<IMediaSource>(impl)
     {
+        mStarted = false;
     }
 
     virtual status_t start(MetaData *params) {
+        if (mStarted) {
+            ALOGD("Source was started previously from:");
+            mStartStack.log(LOG_TAG);
+            ALOGD("Now from:");
+            CallStack stack(LOG_TAG);
+        }
         ALOGV("start");
         Parcel data, reply;
         data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
@@ -119,6 +128,10 @@ public:
             params->writeToParcel(data);
         }
         status_t ret = remote()->transact(START, data, &reply);
+        if (ret == NO_ERROR) {
+            mStarted = true;
+            mStartStack.update();
+        }
         if (ret == NO_ERROR && params) {
             ALOGW("ignoring potentially modified MetaData from start");
             ALOGW("input:");
@@ -131,6 +144,7 @@ public:
     }
 
     virtual status_t stop() {
+        mStarted = false;
         ALOGV("stop");
         Parcel data, reply;
         data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
@@ -205,7 +219,8 @@ private:
     // NuPlayer passes pointers-to-metadata around, so we use this to keep the metadata alive
     // XXX: could we use this for caching, or does metadata change on the fly?
     sp<MetaData> mMetaData;
-
+    bool mStarted;
+    CallStack mStartStack;
 };
 
 IMPLEMENT_META_INTERFACE(MediaSource, "android.media.IMediaSource");
