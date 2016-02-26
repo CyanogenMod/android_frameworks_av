@@ -82,7 +82,7 @@ public:
 
     void onRecordingConfigurationUpdate(int event, audio_session_t session,
             audio_source_t source, const audio_config_base_t *clientConfig,
-            const audio_config_base_t *deviceConfig) {
+            const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle) {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioPolicyServiceClient::getInterfaceDescriptor());
         data.writeInt32(event);
@@ -90,6 +90,7 @@ public:
         data.writeInt32(source);
         writeAudioConfigBaseToParcel(data, clientConfig);
         writeAudioConfigBaseToParcel(data, deviceConfig);
+        data.writeInt32(patchHandle);
         remote()->transact(RECORDING_CONFIGURATION_UPDATE, data, &reply, IBinder::FLAG_ONEWAY);
     }
 };
@@ -128,7 +129,9 @@ status_t BnAudioPolicyServiceClient::onTransact(
             audio_config_base_t deviceConfig;
             readAudioConfigBaseFromParcel(data, &clientConfig);
             readAudioConfigBaseFromParcel(data, &deviceConfig);
-            onRecordingConfigurationUpdate(event, session, source, &clientConfig, &deviceConfig);
+            audio_patch_handle_t patchHandle = (audio_patch_handle_t) data.readInt32();
+            onRecordingConfigurationUpdate(event, session, source, &clientConfig, &deviceConfig,
+                    patchHandle);
             return NO_ERROR;
         } break;
     default:

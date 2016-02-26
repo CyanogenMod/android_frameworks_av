@@ -230,10 +230,10 @@ public:
             void doOnDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
             void onRecordingConfigurationUpdate(int event, audio_session_t session,
                     audio_source_t source, const audio_config_base_t *clientConfig,
-                    const audio_config_base_t *deviceConfig);
+                    const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
             void doOnRecordingConfigurationUpdate(int event, audio_session_t session,
                     audio_source_t source, const audio_config_base_t *clientConfig,
-                    const audio_config_base_t *deviceConfig);
+                    const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -309,7 +309,8 @@ private:
                                                         int event, audio_session_t session,
                                                         audio_source_t source,
                                                         const audio_config_base_t *clientConfig,
-                                                        const audio_config_base_t *deviceConfig);
+                                                        const audio_config_base_t *deviceConfig,
+                                                        audio_patch_handle_t patchHandle);
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
 
     private:
@@ -407,6 +408,7 @@ private:
             audio_source_t mSource;
             struct audio_config_base mClientConfig;
             struct audio_config_base mDeviceConfig;
+            audio_patch_handle_t mPatchHandle;
         };
 
         Mutex   mLock;
@@ -518,7 +520,7 @@ private:
         virtual void onRecordingConfigurationUpdate(int event,
                         audio_session_t session, audio_source_t source,
                         const audio_config_base_t *clientConfig,
-                        const audio_config_base_t *deviceConfig);
+                        const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
 
         virtual audio_unique_id_t newAudioUniqueId();
 
@@ -541,7 +543,8 @@ private:
                                         int event, audio_session_t session,
                                         audio_source_t source,
                                         const audio_config_base_t *clientConfig,
-                                        const audio_config_base_t *deviceConfig);
+                                        const audio_config_base_t *deviceConfig,
+                                        audio_patch_handle_t patchHandle);
                             void      setAudioPortCallbacksEnabled(bool enabled);
 
                 // IBinder::DeathRecipient

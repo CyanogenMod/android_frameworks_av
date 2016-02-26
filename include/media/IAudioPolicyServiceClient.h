@@ -41,7 +41,8 @@ public:
     virtual void onRecordingConfigurationUpdate(int event, audio_session_t session,
             audio_source_t source,
             const audio_config_base_t *clientConfig,
-            const audio_config_base_t *deviceConfig) = 0;
+            const audio_config_base_t *deviceConfig,
+            audio_patch_handle_t patchHandle) = 0;
 };
 
 

@@ -339,7 +339,8 @@ public:
     virtual void onRecordingConfigurationUpdate(int event, audio_session_t session,
                     audio_source_t source,
                     const struct audio_config_base *clientConfig,
-                    const struct audio_config_base *deviceConfig) = 0;
+                    const struct audio_config_base *deviceConfig,
+                    audio_patch_handle_t patchHandle) = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);

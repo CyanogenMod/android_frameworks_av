@@ -97,6 +97,7 @@ public:
 
 // definitions for audio recording configuration updates
 // which update type is reported
+#define RECORD_CONFIG_EVENT_NONE -1
 #define RECORD_CONFIG_EVENT_START 1
 #define RECORD_CONFIG_EVENT_STOP  0
 

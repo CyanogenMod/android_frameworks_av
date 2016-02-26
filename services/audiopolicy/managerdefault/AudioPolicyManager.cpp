@@ -1765,7 +1765,7 @@ void AudioPolicyManager::closeAllInputs() {
 
     for(size_t input_index = 0; input_index < mInputs.size(); input_index++) {
         sp<AudioInputDescriptor> inputDesc = mInputs.valueAt(input_index);
-        ssize_t patch_index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+        ssize_t patch_index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
         if (patch_index >= 0) {
             sp<AudioPatch> patchDesc = mAudioPatches.valueAt(patch_index);
             status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
@@ -3968,7 +3968,7 @@ void AudioPolicyManager::closeInput(audio_io_handle_t input)
 
     nextAudioPortGeneration();
 
-    ssize_t index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+    ssize_t index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
     if (index >= 0) {
         sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
         status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
@@ -4214,12 +4214,12 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
 {
     sp<AudioInputDescriptor> inputDesc = mInputs.valueFor(input);
 
-    ssize_t index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+    ssize_t index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
     if (index >= 0) {
         sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
         if (patchDesc->mUid != mUidCached) {
             ALOGV("getNewInputDevice() device %08x forced by patch %d",
-                  inputDesc->mDevice, inputDesc->mPatchHandle);
+                  inputDesc->mDevice, inputDesc->getPatchHandle());
             return inputDesc->mDevice;
         }
     }
@@ -4645,7 +4645,7 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
             if (patchHandle && *patchHandle != AUDIO_PATCH_HANDLE_NONE) {
                 index = mAudioPatches.indexOfKey(*patchHandle);
             } else {
-                index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+                index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
             }
             sp< AudioPatch> patchDesc;
             audio_patch_handle_t afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
@@ -4670,7 +4670,7 @@ status_t AudioPolicyManager::setInputDevice(audio_io_handle_t input,
                 if (patchHandle) {
                     *patchHandle = patchDesc->mHandle;
                 }
-                inputDesc->mPatchHandle = patchDesc->mHandle;
+                inputDesc->setPatchHandle(patchDesc->mHandle);
                 nextAudioPortGeneration();
                 mpClientInterface->onAudioPatchListUpdate();
             }
@@ -4687,7 +4687,7 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
     if (patchHandle) {
         index = mAudioPatches.indexOfKey(*patchHandle);
     } else {
-        index = mAudioPatches.indexOfKey(inputDesc->mPatchHandle);
+        index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
     }
     if (index < 0) {
         return INVALID_OPERATION;
@@ -4695,7 +4695,7 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
     sp< AudioPatch> patchDesc = mAudioPatches.valueAt(index);
     status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
     ALOGV("resetInputDevice() releaseAudioPatch returned %d", status);
-    inputDesc->mPatchHandle = 0;
+    inputDesc->setPatchHandle(0);
     removeAudioPatch(patchDesc->mHandle);
     nextAudioPortGeneration();
     mpClientInterface->onAudioPatchListUpdate();
