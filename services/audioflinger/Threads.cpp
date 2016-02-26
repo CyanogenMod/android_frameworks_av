@@ -1342,7 +1342,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         ALOGV("createEffect_l() got effect %p on chain %p", effect.get(), chain.get());
 
         if (effect == 0) {
-            int id = mAudioFlinger->nextUniqueId();
+            audio_unique_id_t id = mAudioFlinger->nextUniqueId(AUDIO_UNIQUE_ID_USE_EFFECT);
             // Check CPU and memory usage
             lStatus = AudioSystem::registerEffect(desc, mId, chain->strategy(), sessionId, id);
             if (lStatus != NO_ERROR) {

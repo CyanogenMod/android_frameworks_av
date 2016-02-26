@@ -196,7 +196,7 @@ public:
 
     virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;
 
-    virtual audio_unique_id_t newAudioUniqueId();
+    virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
 
     virtual void acquireAudioSessionId(int audioSession, pid_t pid);
 
@@ -517,6 +517,7 @@ private:
     };
 
 
+              ThreadBase *checkThread_l(audio_io_handle_t ioHandle) const;
               PlaybackThread *checkPlaybackThread_l(audio_io_handle_t output) const;
               MixerThread *checkMixerThread_l(audio_io_handle_t output) const;
               RecordThread *checkRecordThread_l(audio_io_handle_t input) const;
@@ -547,15 +548,17 @@ private:
                                    const sp<AudioIoDescriptor>& ioDesc,
                                    pid_t pid = 0);
 
-              // Allocate an audio_io_handle_t, session ID, effect ID, or audio_module_handle_t.
+              // Allocate an audio_unique_id_t.
+              // Specific types are audio_io_handle_t, audio_session_t, effect ID (int),
+              // audio_module_handle_t, and audio_patch_handle_t.
               // They all share the same ID space, but the namespaces are actually independent
               // because there are separate KeyedVectors for each kind of ID.
-              // The return value is uint32_t, but is cast to signed for some IDs.
+              // The return value is cast to the specific type depending on how the ID will be used.
               // FIXME This API does not handle rollover to zero (for unsigned IDs),
               //       or from positive to negative (for signed IDs).
               //       Thus it may fail by returning an ID of the wrong sign,
               //       or by returning a non-unique ID.
-              uint32_t nextUniqueId();
+              audio_unique_id_t nextUniqueId(audio_unique_id_use_t use);
 
               status_t moveEffectChain_l(int sessionId,
                                      PlaybackThread *srcThread,

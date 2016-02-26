@@ -522,7 +522,7 @@ private:
                         const audio_config_base_t *clientConfig,
                         const audio_config_base_t *deviceConfig, audio_patch_handle_t patchHandle);
 
-        virtual audio_unique_id_t newAudioUniqueId();
+        virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
 
      private:
         AudioPolicyService *mAudioPolicyService;

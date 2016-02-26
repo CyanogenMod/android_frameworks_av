@@ -228,9 +228,9 @@ void AudioPolicyService::AudioPolicyClient::onRecordingConfigurationUpdate(
             clientConfig, deviceConfig, patchHandle);
 }
 
-audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId()
+audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId(audio_unique_id_use_t use)
 {
-    return AudioSystem::newAudioUniqueId();
+    return AudioSystem::newAudioUniqueId(use);
 }
 
 }; // namespace android

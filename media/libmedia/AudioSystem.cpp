@@ -394,11 +394,11 @@ uint32_t AudioSystem::getInputFramesLost(audio_io_handle_t ioHandle)
     return result;
 }
 
-audio_unique_id_t AudioSystem::newAudioUniqueId()
+audio_unique_id_t AudioSystem::newAudioUniqueId(audio_unique_id_use_t use)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return AUDIO_UNIQUE_ID_ALLOCATE;
-    return af->newAudioUniqueId();
+    return af->newAudioUniqueId(use);
 }
 
 void AudioSystem::acquireAudioSessionId(int audioSession, pid_t pid)

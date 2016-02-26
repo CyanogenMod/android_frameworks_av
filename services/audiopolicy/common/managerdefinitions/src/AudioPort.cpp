@@ -36,6 +36,7 @@ void AudioPort::attach(const sp<HwModule>& module)
     mModule = module;
 }
 
+// Note that is a different namespace than AudioFlinger unique IDs
 audio_port_handle_t AudioPort::getNextUniqueId()
 {
     return static_cast<audio_port_handle_t>(android_atomic_inc(&mNextUniqueId));
