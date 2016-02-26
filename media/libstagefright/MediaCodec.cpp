@@ -2498,7 +2498,7 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
         ICrypto::DestinationType dst_type = ICrypto::kDestinationTypeOpaqueHandle;
 
         if (info->mNativeHandle != NULL) {
-            dst_pointer = (void *)info->mNativeHandle.get();
+            dst_pointer = (void *)info->mNativeHandle->handle();
             dst_type = ICrypto::kDestinationTypeNativeHandle;
         } else if ((mFlags & kFlagIsSecure) == 0) {
             dst_type = ICrypto::kDestinationTypeVmPointer;
