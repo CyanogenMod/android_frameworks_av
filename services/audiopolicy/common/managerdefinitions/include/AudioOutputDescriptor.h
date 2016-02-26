@@ -71,9 +71,11 @@ public:
 
     audio_module_handle_t getModuleHandle() const;
 
+    audio_patch_handle_t getPatchHandle() const { return mPatchHandle; };
+    void setPatchHandle(audio_patch_handle_t handle) { mPatchHandle = handle; };
+
     sp<AudioPort>       mPort;
     audio_devices_t mDevice;                   // current device this output is routed to
-    audio_patch_handle_t mPatchHandle;
     uint32_t mRefCount[AUDIO_STREAM_CNT]; // number of streams of each type using this output
     nsecs_t mStopTime[AUDIO_STREAM_CNT];
     float mCurVolume[AUDIO_STREAM_CNT];   // current stream volume in dB
@@ -83,6 +85,7 @@ public:
     AudioPolicyClientInterface *mClientInterface;
 
 protected:
+    audio_patch_handle_t mPatchHandle;
     audio_port_handle_t mId;
 };
 

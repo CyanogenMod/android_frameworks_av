@@ -34,7 +34,7 @@ namespace android {
 AudioOutputDescriptor::AudioOutputDescriptor(const sp<AudioPort>& port,
                                              AudioPolicyClientInterface *clientInterface)
     : mPort(port), mDevice(AUDIO_DEVICE_NONE),
-      mPatchHandle(0), mClientInterface(clientInterface), mId(0)
+      mClientInterface(clientInterface), mPatchHandle(0), mId(0)
 {
     // clear usage count for all stream types
     for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
