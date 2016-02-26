@@ -22,12 +22,13 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <media/AudioPolicy.h>
+#include "AudioSessionInfoProvider.h"
 
 namespace android {
 
 class AudioPolicyClientInterface;
 
-class AudioSession : public RefBase
+class AudioSession : public RefBase, public AudioSessionInfoUpdateListener
 {
 public:
     AudioSession(audio_session_t session,
@@ -58,14 +59,14 @@ public:
     uint32_t changeOpenCount(int delta);
     uint32_t changeActiveCount(int delta);
 
-    void setDeviceConfig(audio_format_t format, uint32_t sampleRate,
-            audio_channel_mask_t channelMask);
+    void setInfoProvider(AudioSessionInfoProvider *provider);
+    // implementation of AudioSessionInfoUpdateListener
+    virtual void onSessionInfoUpdate() const;
 
 private:
     const audio_session_t mSession;
     const audio_source_t mInputSource;
     const struct audio_config_base mConfig;
-          struct audio_config_base mDeviceConfig;
     const audio_input_flags_t mFlags;
     const uid_t mUid;
     bool  mIsSoundTrigger;
@@ -73,14 +74,17 @@ private:
     uint32_t  mActiveCount;
     AudioMix* mPolicyMix; // non NULL when used by a dynamic policy
     AudioPolicyClientInterface* mClientInterface;
+    const AudioSessionInfoProvider* mInfoProvider;
 };
 
 class AudioSessionCollection :
-    public DefaultKeyedVector<audio_session_t, sp<AudioSession> >
+    public DefaultKeyedVector<audio_session_t, sp<AudioSession> >,
+    public AudioSessionInfoUpdateListener
 {
 public:
     status_t addSession(audio_session_t session,
-                             const sp<AudioSession>& audioSession);
+                             const sp<AudioSession>& audioSession,
+                             AudioSessionInfoProvider *provider);
 
     status_t removeSession(audio_session_t session);
 
@@ -89,6 +93,9 @@ public:
     AudioSessionCollection getActiveSessions() const;
     bool hasActiveSession() const;
     bool isSourceActive(audio_source_t source) const;
+
+    // implementation of AudioSessionInfoUpdateListener
+    virtual void onSessionInfoUpdate() const;
 
     status_t dump(int fd, int spaces) const;
 };

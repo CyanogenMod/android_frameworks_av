@@ -28,8 +28,8 @@ namespace android {
 
 AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
     : mIoHandle(0),
-      mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL), mPatchHandle(0),
-      mProfile(profile), mId(0)
+      mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL),
+      mProfile(profile), mPatchHandle(0), mId(0)
 {
     if (profile != NULL) {
         profile->pickAudioProfile(mSamplingRate, mChannelMask, mFormat);
@@ -150,12 +150,29 @@ AudioSessionCollection AudioInputDescriptor::getActiveAudioSessions() const
 
 status_t AudioInputDescriptor::addAudioSession(audio_session_t session,
                          const sp<AudioSession>& audioSession) {
-    audioSession->setDeviceConfig(mFormat, mSamplingRate, mChannelMask);
-    return mSessions.addSession(session, audioSession);
+    return mSessions.addSession(session, audioSession, /*AudioSessionInfoProvider*/this);
 }
 
 status_t AudioInputDescriptor::removeAudioSession(audio_session_t session) {
     return mSessions.removeSession(session);
+}
+
+audio_port_handle_t AudioInputDescriptor::getPatchHandle() const
+{
+    return mPatchHandle;
+}
+
+void AudioInputDescriptor::setPatchHandle(audio_patch_handle_t handle)
+{
+    mPatchHandle = handle;
+    mSessions.onSessionInfoUpdate();
+}
+
+audio_config_base_t AudioInputDescriptor::getConfig() const
+{
+    const audio_config_base_t config = { .sample_rate = mSamplingRate, .channel_mask = mChannelMask,
+            .format = mFormat };
+    return config;
 }
 
 status_t AudioInputDescriptor::dump(int fd)
