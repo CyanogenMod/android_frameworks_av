@@ -167,6 +167,12 @@ status_t convertMetaDataToMessage(
         msg->setInt32("is-sync-frame", 1);
     }
 
+    // this only needs to be translated from meta to message as it is an extractor key
+    int32_t trackID;
+    if (meta->findInt32(kKeyTrackID, &trackID)) {
+        msg->setInt32("track-id", trackID);
+    }
+
     if (!strncasecmp("video/", mime, 6)) {
         int32_t width, height;
         if (!meta->findInt32(kKeyWidth, &width)
