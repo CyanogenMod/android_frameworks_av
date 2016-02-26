@@ -4987,6 +4987,8 @@ void AudioFlinger::DirectOutputThread::cacheParameters_l()
         mStandbyDelayNs = 0;
     } else if ((mType == OFFLOAD) && !audio_is_linear_pcm(mFormat)) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
+    } else if (mType == DIRECT && mIsDirectPcm) {
+        mStandbyDelayNs = kOffloadStandbyDelayNs;
     } else {
         mStandbyDelayNs = microseconds(mActiveSleepTimeUs*2);
     }
