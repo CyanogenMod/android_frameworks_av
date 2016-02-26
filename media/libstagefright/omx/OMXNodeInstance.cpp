@@ -468,38 +468,40 @@ status_t OMXNodeInstance::enableNativeBuffers(
     OMX_INDEXTYPE index;
     OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, name, &index);
 
-    if (err != OMX_ErrorNone) {
+    if (err == OMX_ErrorNone) {
+        EnableAndroidNativeBuffersParams params;
+        InitOMXParams(&params);
+        params.nPortIndex = portIndex;
+        params.enable = enable;
+
+        err = OMX_SetParameter(mHandle, index, &params);
+        CLOG_IF_ERROR(setParameter, err, "%s(%#x): %s:%u en=%d", name, index,
+                      portString(portIndex), portIndex, enable);
+        if (!graphic) {
+            if (err == OMX_ErrorNone) {
+                mSecureBufferType[portIndex] =
+                    enable ? kSecureBufferTypeNativeHandle : kSecureBufferTypeOpaque;
+            } else if (mSecureBufferType[portIndex] == kSecureBufferTypeUnknown) {
+                mSecureBufferType[portIndex] = kSecureBufferTypeOpaque;
+            }
+        }
+    } else {
         CLOG_ERROR_IF(enable, getExtensionIndex, err, "%s", name);
-        return StatusFromOMXError(err);
-    }
-
-    EnableAndroidNativeBuffersParams params;
-    InitOMXParams(&params);
-    params.nPortIndex = portIndex;
-    params.enable = enable;
-
-    err = OMX_SetParameter(mHandle, index, &params);
-    CLOG_IF_ERROR(setParameter, err, "%s(%#x): %s:%u en=%d", name, index,
-            portString(portIndex), portIndex, enable);
-    if (!graphic) {
-        if (err == OK) {
-            mSecureBufferType[portIndex] =
-                enable ? kSecureBufferTypeNativeHandle : kSecureBufferTypeOpaque;
-        } else if (mSecureBufferType[portIndex] == kSecureBufferTypeUnknown) {
-
-            // BEGIN ALTERNATE SIGNALING FOR USING NATIVE HANDLES
+        if (!graphic) {
+            // Extension not supported, check for manual override with system property
+            // This is a temporary workaround until partners support the OMX extension
             char value[PROPERTY_VALUE_MAX];
             if (property_get("media.mediadrmservice.enable", value, NULL)
-                    && (!strcmp("1", value) || !strcasecmp("true", value))) {
+                && (!strcmp("1", value) || !strcasecmp("true", value))) {
                 CLOG_CONFIG(enableNativeBuffers, "system property override: using native-handles");
                 mSecureBufferType[portIndex] = kSecureBufferTypeNativeHandle;
-                return OK;
+            } else if (mSecureBufferType[portIndex] == kSecureBufferTypeUnknown) {
+                mSecureBufferType[portIndex] = kSecureBufferTypeOpaque;
             }
-            // END ALTERNATE SIGNALING FOR USING NATIVE HANDLES
-
-            mSecureBufferType[portIndex] = kSecureBufferTypeOpaque;
+            err = OMX_ErrorNone;
         }
     }
+
     return StatusFromOMXError(err);
 }
 
