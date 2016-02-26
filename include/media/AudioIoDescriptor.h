@@ -56,13 +56,13 @@ public:
         return AUDIO_PORT_HANDLE_NONE;
     }
 
-    audio_io_handle_t mIoHandle;
-    struct audio_patch mPatch;
-    uint32_t mSamplingRate;
-    audio_format_t mFormat;
-    audio_channel_mask_t mChannelMask;
-    size_t mFrameCount;
-    uint32_t mLatency;
+    audio_io_handle_t       mIoHandle;
+    struct audio_patch      mPatch;
+    uint32_t                mSamplingRate;
+    audio_format_t          mFormat;
+    audio_channel_mask_t    mChannelMask;
+    size_t                  mFrameCount;
+    uint32_t                mLatency;   // only valid for output
 };
 
 

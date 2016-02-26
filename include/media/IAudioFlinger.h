@@ -97,14 +97,14 @@ public:
                                 sp<IMemory>& buffers,   // return value 0 means it follows cblk
                                 status_t *status) = 0;
 
-    // FIXME Surprisingly, sampleRate/format/frameCount/latency don't work for input handles
+    // FIXME Surprisingly, format/latency don't work for input handles
 
     /* query the audio hardware state. This state never changes,
      * and therefore can be cached.
      */
-    virtual     uint32_t    sampleRate(audio_io_handle_t output) const = 0;
+    virtual     uint32_t    sampleRate(audio_io_handle_t ioHandle) const = 0;
     virtual     audio_format_t format(audio_io_handle_t output) const = 0;
-    virtual     size_t      frameCount(audio_io_handle_t output) const = 0;
+    virtual     size_t      frameCount(audio_io_handle_t ioHandle) const = 0;
 
     // return estimated latency in milliseconds
     virtual     uint32_t    latency(audio_io_handle_t output) const = 0;

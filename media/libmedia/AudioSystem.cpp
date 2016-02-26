@@ -264,25 +264,23 @@ status_t AudioSystem::getOutputSamplingRate(uint32_t* samplingRate, audio_stream
     return getSamplingRate(output, samplingRate);
 }
 
-status_t AudioSystem::getSamplingRate(audio_io_handle_t output,
+status_t AudioSystem::getSamplingRate(audio_io_handle_t ioHandle,
                                       uint32_t* samplingRate)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
-    sp<AudioIoDescriptor> outputDesc = getIoDescriptor(output);
-    if (outputDesc == 0) {
-        ALOGV("getOutputSamplingRate() no output descriptor for output %d in gOutputs", output);
-        *samplingRate = af->sampleRate(output);
+    sp<AudioIoDescriptor> desc = getIoDescriptor(ioHandle);
+    if (desc == 0) {
+        *samplingRate = af->sampleRate(ioHandle);
     } else {
-        ALOGV("getOutputSamplingRate() reading from output desc");
-        *samplingRate = outputDesc->mSamplingRate;
+        *samplingRate = desc->mSamplingRate;
     }
     if (*samplingRate == 0) {
-        ALOGE("AudioSystem::getSamplingRate failed for output %d", output);
+        ALOGE("AudioSystem::getSamplingRate failed for ioHandle %d", ioHandle);
         return BAD_VALUE;
     }
 
-    ALOGV("getSamplingRate() output %d, sampling rate %u", output, *samplingRate);
+    ALOGV("getSamplingRate() ioHandle %d, sampling rate %u", ioHandle, *samplingRate);
 
     return NO_ERROR;
 }
@@ -303,23 +301,23 @@ status_t AudioSystem::getOutputFrameCount(size_t* frameCount, audio_stream_type_
     return getFrameCount(output, frameCount);
 }
 
-status_t AudioSystem::getFrameCount(audio_io_handle_t output,
+status_t AudioSystem::getFrameCount(audio_io_handle_t ioHandle,
                                     size_t* frameCount)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af == 0) return PERMISSION_DENIED;
-    sp<AudioIoDescriptor> outputDesc = getIoDescriptor(output);
-    if (outputDesc == 0) {
-        *frameCount = af->frameCount(output);
+    sp<AudioIoDescriptor> desc = getIoDescriptor(ioHandle);
+    if (desc == 0) {
+        *frameCount = af->frameCount(ioHandle);
     } else {
-        *frameCount = outputDesc->mFrameCount;
+        *frameCount = desc->mFrameCount;
     }
     if (*frameCount == 0) {
-        ALOGE("AudioSystem::getFrameCount failed for output %d", output);
+        ALOGE("AudioSystem::getFrameCount failed for ioHandle %d", ioHandle);
         return BAD_VALUE;
     }
 
-    ALOGV("getFrameCount() output %d, frameCount %zu", output, *frameCount);
+    ALOGV("getFrameCount() ioHandle %d, frameCount %zu", ioHandle, *frameCount);
 
     return NO_ERROR;
 }

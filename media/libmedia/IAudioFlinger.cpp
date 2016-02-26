@@ -265,11 +265,11 @@ public:
         return record;
     }
 
-    virtual uint32_t sampleRate(audio_io_handle_t output) const
+    virtual uint32_t sampleRate(audio_io_handle_t ioHandle) const
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32((int32_t) output);
+        data.writeInt32((int32_t) ioHandle);
         remote()->transact(SAMPLE_RATE, data, &reply);
         return reply.readInt32();
     }
@@ -283,11 +283,11 @@ public:
         return (audio_format_t) reply.readInt32();
     }
 
-    virtual size_t frameCount(audio_io_handle_t output) const
+    virtual size_t frameCount(audio_io_handle_t ioHandle) const
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
-        data.writeInt32((int32_t) output);
+        data.writeInt32((int32_t) ioHandle);
         remote()->transact(FRAME_COUNT, data, &reply);
         return reply.readInt64();
     }

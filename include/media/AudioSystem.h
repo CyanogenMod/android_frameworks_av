@@ -114,11 +114,12 @@ public:
     // FIXME This API assumes a route, and so should be deprecated.
     static status_t getOutputLatency(uint32_t* latency,
             audio_stream_type_t stream);
-    static status_t getSamplingRate(audio_io_handle_t output,
+    // returns the audio HAL sample rate
+    static status_t getSamplingRate(audio_io_handle_t ioHandle,
                                           uint32_t* samplingRate);
-    // returns the number of frames per audio HAL write buffer. Corresponds to
-    // audio_stream->get_buffer_size()/audio_stream_out_frame_size()
-    static status_t getFrameCount(audio_io_handle_t output,
+    // returns the number of frames per audio HAL buffer. Corresponds to
+    // audio_stream->get_buffer_size()/audio_stream_out/in_frame_size()
+    static status_t getFrameCount(audio_io_handle_t ioHandle,
                                   size_t* frameCount);
     // returns the audio output latency in ms. Corresponds to
     // audio_stream_out->get_latency()
