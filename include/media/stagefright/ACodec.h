@@ -290,6 +290,8 @@ private:
 
     bool mTunneled;
 
+    OMX_INDEXTYPE mDescribeColorAspectsIndex;
+
     status_t setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode);
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
     status_t freeBuffersOnPort(OMX_U32 portIndex);
@@ -341,15 +343,21 @@ private:
     status_t setSupportedOutputFormat(bool getLegacyFlexibleFormat);
 
     status_t setupVideoDecoder(
-            const char *mime, const sp<AMessage> &msg, bool usingNativeBuffers);
+            const char *mime, const sp<AMessage> &msg, bool usingNativeBuffers,
+            sp<AMessage> &outputformat);
 
     status_t setupVideoEncoder(
-            const char *mime, const sp<AMessage> &msg);
+            const char *mime, const sp<AMessage> &msg, sp<AMessage> &outputformat);
 
     status_t setVideoFormatOnPort(
             OMX_U32 portIndex,
             int32_t width, int32_t height,
             OMX_VIDEO_CODINGTYPE compressionFormat, float frameRate = -1.0);
+
+    status_t setColorAspects(
+        OMX_U32 portIndex, int32_t width, int32_t height, const sp<AMessage> &msg,
+        sp<AMessage> &format);
+    status_t getColorAspects(OMX_U32 portIndex, sp<AMessage> &format);
 
     typedef struct drcParams {
         int32_t drcCut;
