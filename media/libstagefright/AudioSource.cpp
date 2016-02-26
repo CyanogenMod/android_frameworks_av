@@ -184,6 +184,7 @@ sp<MetaData> AudioSource::getFormat() {
     meta->setInt32(kKeySampleRate, mSampleRate);
     meta->setInt32(kKeyChannelCount, mRecord->channelCount());
     meta->setInt32(kKeyMaxInputSize, kMaxBufferSize);
+    meta->setInt32(kKeyPcmEncoding, kAudioEncodingPcm16bit);
 
     return meta;
 }

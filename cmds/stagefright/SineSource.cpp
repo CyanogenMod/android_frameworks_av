@@ -53,6 +53,7 @@ sp<MetaData> SineSource::getFormat() {
     meta->setInt32(kKeyChannelCount, mNumChannels);
     meta->setInt32(kKeySampleRate, mSampleRate);
     meta->setInt32(kKeyMaxInputSize, kBufferSize);
+    meta->setInt32(kKeyPcmEncoding, kAudioEncodingPcm16bit);
 
     return meta;
 }
