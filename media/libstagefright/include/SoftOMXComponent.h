@@ -168,6 +168,54 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(SoftOMXComponent);
 };
 
+// minimal implementations of is_same and static_assert that work on K,
+// though error messages are minimal
+
+// a type that has a member constant of a specified type and value
+template<typename T, T somevalue>
+struct compat_integral_constant
+{
+    static const T value = somevalue;
+};
+
+// types to hold true and false
+typedef compat_integral_constant<bool, true> compat_true_type;
+typedef compat_integral_constant<bool, false> compat_false_type;
+
+// a type that indicates two other types are different
+template<typename, typename> struct compat_is_same : public compat_false_type { };
+
+// a type that indicates two other types are the same
+template<typename sametype> struct compat_is_same<sametype, sametype> : public compat_true_type { };
+// for the specific use below, we want to consider "const type" and "type" to be the same
+template<typename sametype> struct compat_is_same<const sametype, sametype> : public compat_true_type { };
+
+
+// Compile time assert. Note that the message is ignored. Instead, the
+// compiler will report a division by zero and/or a non-constant expression
+// when the assertion triggers.
+#define STATIC_ASSERT(e, m) \
+    do { \
+        enum { STATIC_ASSERT__ = 1/(e) }; \
+    } while (0)
+
+template<typename T>
+bool isValidOMXParam(T *a) {
+  STATIC_ASSERT(offsetof(typeof(*a), nSize) == 0, "nSize not at offset 0");
+  const bool isSame1 = compat_is_same<typeof(a->nSize), OMX_U32>::value;
+  STATIC_ASSERT(isSame1, "nSize has wrong type");
+  STATIC_ASSERT(offsetof(typeof(*a), nVersion) == 4, "nVersion not at offset 4");
+  const bool isSame2 = compat_is_same<typeof(a->nVersion), OMX_VERSIONTYPE>::value;
+  STATIC_ASSERT(isSame2, "nVersion has wrong type");
+
+  if (a->nSize < sizeof(*a)) {
+      ALOGE("b/27207275: need %zu, got %lu", sizeof(*a), a->nSize);
+      android_errorWriteLog(0x534e4554, "27207275");
+      return false;
+  }
+  return true;
+}
+
 }  // namespace android
 
 #endif  // SOFT_OMX_COMPONENT_H_

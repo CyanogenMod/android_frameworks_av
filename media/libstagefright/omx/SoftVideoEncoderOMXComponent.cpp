@@ -170,6 +170,11 @@ void SoftVideoEncoderOMXComponent::updatePortParams() {
 
 OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetPortParams(
         const OMX_PARAM_PORTDEFINITIONTYPE *port) {
+
+    if (!isValidOMXParam(port)) {
+        return OMX_ErrorBadParameter;
+    }
+
     if (port->nPortIndex == kInputPortIndex) {
         mWidth = port->format.video.nFrameWidth;
         mHeight = port->format.video.nFrameHeight;
@@ -216,6 +221,10 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetParameter(
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
                 (const OMX_PARAM_COMPONENTROLETYPE *)param;
 
+            if (!isValidOMXParam(roleParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (strncmp((const char *)roleParams->cRole,
                         mComponentRole,
                         OMX_MAX_STRINGNAME_SIZE - 1)) {
@@ -240,6 +249,10 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetParameter(
         {
             const OMX_VIDEO_PARAM_PORTFORMATTYPE* format =
                 (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
+
+            if (!isValidOMXParam(format)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (format->nPortIndex == kInputPortIndex) {
                 if (format->eColorFormat == OMX_COLOR_FormatYUV420Planar ||
@@ -269,6 +282,10 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalSetParameter(
             // storeMetaDataInBuffers
             const StoreMetaDataInBuffersParams *storeParam =
                 (const StoreMetaDataInBuffersParams *)param;
+
+            if (!isValidOMXParam(storeParam)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (storeParam->nPortIndex == kOutputPortIndex) {
                 return storeParam->bStoreMetaData ? OMX_ErrorUnsupportedSetting : OMX_ErrorNone;
@@ -304,6 +321,10 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
             OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
 
+            if (!isValidOMXParam(formatParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (formatParams->nPortIndex == kInputPortIndex) {
                 if (formatParams->nIndex >= NELEM(kSupportedColorFormats)) {
                     return OMX_ErrorNoMore;
@@ -328,6 +349,10 @@ OMX_ERRORTYPE SoftVideoEncoderOMXComponent::internalGetParameter(
         {
             OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
                   (OMX_VIDEO_PARAM_PROFILELEVELTYPE *) param;
+
+            if (!isValidOMXParam(profileLevel)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (profileLevel->nPortIndex != kOutputPortIndex) {
                 ALOGE("Invalid port index: %u", profileLevel->nPortIndex);
