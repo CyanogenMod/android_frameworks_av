@@ -330,6 +330,9 @@ status_t BnMediaSource::onTransact(
                     reply->writeInt32(offset);
                     reply->writeInt32(usedSize);
                     buf->meta_data()->writeToParcel(*reply);
+                    if (buf->mMemory == NULL) {
+                        buf->release();
+                    }
                 } else {
                     // buffer is small: copy it
                     if (buf->mMemory != NULL) {
