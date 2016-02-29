@@ -438,7 +438,7 @@ void SoftAVC::onPortFlushCompleted(OMX_U32 portIndex) {
         uint32_t bufferSize = displayStride * displayHeight * 3 / 2;
         mFlushOutBuffer = (uint8_t *)memalign(128, bufferSize);
         if (NULL == mFlushOutBuffer) {
-            ALOGE("Could not allocate flushOutputBuffer of size %zu", bufferSize);
+            ALOGE("Could not allocate flushOutputBuffer of size %u", bufferSize);
             return;
         }
 
