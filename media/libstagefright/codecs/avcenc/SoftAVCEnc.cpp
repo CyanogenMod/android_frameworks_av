@@ -925,6 +925,10 @@ OMX_ERRORTYPE SoftAVC::internalGetParameter(OMX_INDEXTYPE index, OMX_PTR params)
             OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
                 (OMX_VIDEO_PARAM_BITRATETYPE *)params;
 
+            if (!isValidOMXParam(bitRate)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (bitRate->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
             }
@@ -937,6 +941,10 @@ OMX_ERRORTYPE SoftAVC::internalGetParameter(OMX_INDEXTYPE index, OMX_PTR params)
         case OMX_IndexParamVideoAvc:
         {
             OMX_VIDEO_PARAM_AVCTYPE *avcParams = (OMX_VIDEO_PARAM_AVCTYPE *)params;
+
+            if (!isValidOMXParam(avcParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (avcParams->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
@@ -975,13 +983,23 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
     switch (indexFull) {
         case OMX_IndexParamVideoBitrate:
         {
-            return internalSetBitrateParams(
-                    (const OMX_VIDEO_PARAM_BITRATETYPE *)params);
+            OMX_VIDEO_PARAM_BITRATETYPE *bitRate =
+                (OMX_VIDEO_PARAM_BITRATETYPE *)params;
+
+            if (!isValidOMXParam(bitRate)) {
+                return OMX_ErrorBadParameter;
+            }
+
+            return internalSetBitrateParams(bitRate);
         }
 
         case OMX_IndexParamVideoAvc:
         {
             OMX_VIDEO_PARAM_AVCTYPE *avcType = (OMX_VIDEO_PARAM_AVCTYPE *)params;
+
+            if (!isValidOMXParam(avcType)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (avcType->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
@@ -1034,6 +1052,10 @@ OMX_ERRORTYPE SoftAVC::setConfig(
             OMX_CONFIG_INTRAREFRESHVOPTYPE *params =
                 (OMX_CONFIG_INTRAREFRESHVOPTYPE *)_params;
 
+            if (!isValidOMXParam(params)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (params->nPortIndex != kOutputPortIndex) {
                 return OMX_ErrorBadPortIndex;
             }
@@ -1046,6 +1068,10 @@ OMX_ERRORTYPE SoftAVC::setConfig(
         {
             OMX_VIDEO_CONFIG_BITRATETYPE *params =
                 (OMX_VIDEO_CONFIG_BITRATETYPE *)_params;
+
+            if (!isValidOMXParam(params)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (params->nPortIndex != kOutputPortIndex) {
                 return OMX_ErrorBadPortIndex;
