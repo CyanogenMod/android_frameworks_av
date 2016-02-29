@@ -40,6 +40,7 @@ struct MPEG2PSExtractor : public MediaExtractor {
     virtual sp<MetaData> getMetaData();
 
     virtual uint32_t flags() const;
+    virtual const char * name() { return "MPEG2PSExtractor"; }
 
 protected:
     virtual ~MPEG2PSExtractor();

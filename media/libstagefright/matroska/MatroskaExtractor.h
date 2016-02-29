@@ -46,6 +46,8 @@ struct MatroskaExtractor : public MediaExtractor {
 
     virtual uint32_t flags() const;
 
+    virtual const char * name() { return "MatroskaExtractor"; }
+
 protected:
     virtual ~MatroskaExtractor();
 
