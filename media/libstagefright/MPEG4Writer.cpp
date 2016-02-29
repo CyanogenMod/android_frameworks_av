@@ -2404,10 +2404,14 @@ status_t MPEG4Writer::Track::threadEntry() {
         updateTrackSizeEstimate();
 
         if (mOwner->exceedsFileSizeLimit()) {
+            ALOGW("Recorded file size exceeds limit %" PRId64 "bytes",
+                    mOwner->mMaxFileSizeLimitBytes);
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED, 0);
             break;
         }
         if (mOwner->exceedsFileDurationLimit()) {
+            ALOGW("Recorded file duration exceeds limit %" PRId64 "microseconds",
+                    mOwner->mMaxFileDurationLimitUs);
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_DURATION_REACHED, 0);
             break;
         }
