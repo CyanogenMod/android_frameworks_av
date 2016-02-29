@@ -168,6 +168,22 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(SoftOMXComponent);
 };
 
+template<typename T>
+bool isValidOMXParam(T *a) {
+  static_assert(offsetof(typeof(*a), nSize) == 0, "nSize not at offset 0");
+  static_assert(std::is_same< decltype(a->nSize), OMX_U32>::value, "nSize has wrong type");
+  static_assert(offsetof(typeof(*a), nVersion) == 4, "nVersion not at offset 4");
+  static_assert(std::is_same< decltype(a->nVersion), OMX_VERSIONTYPE>::value,
+          "nVersion has wrong type");
+
+  if (a->nSize < sizeof(*a)) {
+      ALOGE("b/27207275: need %zu, got %u", sizeof(*a), a->nSize);
+      android_errorWriteLog(0x534e4554, "27207275");
+      return false;
+  }
+  return true;
+}
+
 }  // namespace android
 
 #endif  // SOFT_OMX_COMPONENT_H_
