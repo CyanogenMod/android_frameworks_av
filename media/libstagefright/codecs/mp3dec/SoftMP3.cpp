@@ -128,6 +128,10 @@ OMX_ERRORTYPE SoftMP3::internalGetParameter(
             OMX_AUDIO_PARAM_PCMMODETYPE *pcmParams =
                 (OMX_AUDIO_PARAM_PCMMODETYPE *)params;
 
+            if (!isValidOMXParam(pcmParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (pcmParams->nPortIndex > 1) {
                 return OMX_ErrorUndefined;
             }
@@ -150,6 +154,10 @@ OMX_ERRORTYPE SoftMP3::internalGetParameter(
         {
             OMX_AUDIO_PARAM_MP3TYPE *mp3Params =
                 (OMX_AUDIO_PARAM_MP3TYPE *)params;
+
+            if (!isValidOMXParam(mp3Params)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (mp3Params->nPortIndex > 1) {
                 return OMX_ErrorUndefined;
@@ -176,6 +184,10 @@ OMX_ERRORTYPE SoftMP3::internalSetParameter(
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
                 (const OMX_PARAM_COMPONENTROLETYPE *)params;
 
+            if (!isValidOMXParam(roleParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (strncmp((const char *)roleParams->cRole,
                         "audio_decoder.mp3",
                         OMX_MAX_STRINGNAME_SIZE - 1)) {
@@ -189,6 +201,10 @@ OMX_ERRORTYPE SoftMP3::internalSetParameter(
         {
             const OMX_AUDIO_PARAM_PCMMODETYPE *pcmParams =
                 (const OMX_AUDIO_PARAM_PCMMODETYPE *)params;
+
+            if (!isValidOMXParam(pcmParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (pcmParams->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
