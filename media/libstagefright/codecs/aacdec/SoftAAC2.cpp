@@ -162,6 +162,10 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
             OMX_AUDIO_PARAM_AACPROFILETYPE *aacParams =
                 (OMX_AUDIO_PARAM_AACPROFILETYPE *)params;
 
+            if (!isValidOMXParam(aacParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (aacParams->nPortIndex != 0) {
                 return OMX_ErrorUndefined;
             }
@@ -196,6 +200,10 @@ OMX_ERRORTYPE SoftAAC2::internalGetParameter(
         {
             OMX_AUDIO_PARAM_PCMMODETYPE *pcmParams =
                 (OMX_AUDIO_PARAM_PCMMODETYPE *)params;
+
+            if (!isValidOMXParam(pcmParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (pcmParams->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
@@ -237,6 +245,10 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
                 (const OMX_PARAM_COMPONENTROLETYPE *)params;
 
+            if (!isValidOMXParam(roleParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (strncmp((const char *)roleParams->cRole,
                         "audio_decoder.aac",
                         OMX_MAX_STRINGNAME_SIZE - 1)) {
@@ -250,6 +262,10 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
         {
             const OMX_AUDIO_PARAM_AACPROFILETYPE *aacParams =
                 (const OMX_AUDIO_PARAM_AACPROFILETYPE *)params;
+
+            if (!isValidOMXParam(aacParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (aacParams->nPortIndex != 0) {
                 return OMX_ErrorUndefined;
@@ -271,6 +287,10 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
         {
             const OMX_AUDIO_PARAM_PCMMODETYPE *pcmParams =
                 (OMX_AUDIO_PARAM_PCMMODETYPE *)params;
+
+            if (!isValidOMXParam(pcmParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (pcmParams->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
