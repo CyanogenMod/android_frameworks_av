@@ -7,6 +7,7 @@ LOCAL_SRC_FILES:=                     \
         OMX.cpp                       \
         OMXMaster.cpp                 \
         OMXNodeInstance.cpp           \
+        OMXUtils.cpp                  \
         SimpleSoftOMXComponent.cpp    \
         SoftOMXComponent.cpp          \
         SoftOMXPlugin.cpp             \

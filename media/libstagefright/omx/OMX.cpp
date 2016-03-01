@@ -31,6 +31,7 @@
 #include <utils/threads.h>
 
 #include "OMXMaster.h"
+#include "OMXUtils.h"
 
 #include <OMX_AsString.h>
 #include <OMX_Component.h>

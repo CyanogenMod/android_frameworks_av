@@ -22,6 +22,7 @@
 
 #include "../include/OMXNodeInstance.h"
 #include "OMXMaster.h"
+#include "OMXUtils.h"
 #include "GraphicBufferSource.h"
 
 #include <OMX_Component.h>
@@ -88,16 +89,6 @@ static const OMX_U32 kPortIndexOutput = 1;
     mOutputBuffersWithCodec.size(), mNumPortBuffers[kPortIndexOutput]
 // TRICKY: this is needed so formatting macros expand before substitution
 #define WITH_STATS(fmt, ...) WITH_STATS_WRAPPER(fmt, ##__VA_ARGS__)
-
-template<class T>
-static void InitOMXParams(T *params) {
-    memset(params, 0, sizeof(T));
-    params->nSize = sizeof(T);
-    params->nVersion.s.nVersionMajor = 1;
-    params->nVersion.s.nVersionMinor = 0;
-    params->nVersion.s.nRevision = 0;
-    params->nVersion.s.nStep = 0;
-}
 
 namespace android {
 
@@ -243,20 +234,6 @@ sp<IOMXObserver> OMXNodeInstance::observer() {
 
 OMX::node_id OMXNodeInstance::nodeID() {
     return mNodeID;
-}
-
-status_t StatusFromOMXError(OMX_ERRORTYPE err) {
-    switch (err) {
-        case OMX_ErrorNone:
-            return OK;
-        case OMX_ErrorUnsupportedSetting:
-        case OMX_ErrorUnsupportedIndex:
-            return ERROR_UNSUPPORTED;
-        case OMX_ErrorInsufficientResources:
-            return NO_MEMORY;
-        default:
-            return UNKNOWN_ERROR;
-    }
 }
 
 status_t OMXNodeInstance::freeNode(OMXMaster *master) {

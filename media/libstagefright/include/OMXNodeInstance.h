@@ -29,8 +29,6 @@ class IOMXObserver;
 struct OMXMaster;
 class GraphicBufferSource;
 
-status_t StatusFromOMXError(OMX_ERRORTYPE err);
-
 struct OMXNodeInstance {
     OMXNodeInstance(
             OMX *owner, const sp<IOMXObserver> &observer, const char *name);
