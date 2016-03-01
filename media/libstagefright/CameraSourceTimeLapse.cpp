@@ -308,4 +308,12 @@ void CameraSourceTimeLapse::dataCallbackTimestamp(int64_t timestampUs, int32_t m
     CameraSource::dataCallbackTimestamp(timestampUs, msgType, data);
 }
 
+void CameraSourceTimeLapse::processBufferQueueFrame(BufferItem& buffer) {
+    ALOGV("processBufferQueueFrame");
+    int64_t timestampUs = buffer.mTimestamp / 1000;
+    mSkipCurrentFrame = skipFrameAndModifyTimeStamp(&timestampUs);
+    buffer.mTimestamp = timestampUs * 1000;
+    CameraSource::processBufferQueueFrame(buffer);
+}
+
 }  // namespace android

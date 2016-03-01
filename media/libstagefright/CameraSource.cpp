@@ -1114,7 +1114,7 @@ bool CameraSource::BufferQueueListener::threadLoop() {
     return true;
 }
 
-void CameraSource::processBufferQueueFrame(const BufferItem& buffer) {
+void CameraSource::processBufferQueueFrame(BufferItem& buffer) {
     Mutex::Autolock autoLock(mLock);
 
     int64_t timestampUs = buffer.mTimestamp / 1000;

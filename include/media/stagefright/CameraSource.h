@@ -219,6 +219,9 @@ protected:
     virtual void dataCallbackTimestamp(int64_t timestampUs, int32_t msgType,
             const sp<IMemory> &data);
 
+    // Process a buffer item received in BufferQueueListener.
+    virtual void processBufferQueueFrame(BufferItem& buffer);
+
     void releaseCamera();
 
 private:
@@ -260,8 +263,6 @@ private:
 
     void releaseQueuedFrames();
     void releaseOneRecordingFrame(const sp<IMemory>& frame);
-    // Process a buffer item received in BufferQueueListener.
-    void processBufferQueueFrame(const BufferItem& buffer);
 
     status_t init(const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy,
                   int32_t cameraId, const String16& clientName, uid_t clientUid, pid_t clientPid,
