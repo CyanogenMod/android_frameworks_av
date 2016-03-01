@@ -14,8 +14,10 @@ include $(BUILD_SHARED_LIBRARY)
 
 # service executable
 include $(CLEAR_VARS)
-LOCAL_SRC_FILES := main_codecservice.cpp
-LOCAL_SHARED_LIBRARIES := libmedia libmediacodecservice libbinder libutils liblog
+LOCAL_REQUIRED_MODULES_arm := mediacodec-seccomp.policy
+LOCAL_SRC_FILES := main_codecservice.cpp minijail/minijail.cpp
+LOCAL_SHARED_LIBRARIES := libmedia libmediacodecservice libbinder libutils \
+	liblog libminijail
 LOCAL_C_INCLUDES := \
     $(TOP)/frameworks/av/media/libstagefright \
     $(TOP)/frameworks/native/include/media/openmax
@@ -24,4 +26,5 @@ LOCAL_32_BIT_ONLY := true
 LOCAL_INIT_RC := mediacodec.rc
 include $(BUILD_EXECUTABLE)
 
+include $(call all-makefiles-under, $(LOCAL_PATH))
 

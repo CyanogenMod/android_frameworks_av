@@ -1,6 +1,6 @@
 /*
 **
-** Copyright 2015, The Android Open Source Project
+** Copyright 2016, The Android Open Source Project
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 
 // from LOCAL_C_INCLUDES
 #include "MediaCodecService.h"
+#include "minijail/minijail.h"
 
 using namespace android;
 
@@ -35,6 +36,7 @@ int main(int argc __unused, char** argv)
 {
     ALOGI("@@@ mediacodecservice starting");
     signal(SIGPIPE, SIG_IGN);
+    MiniJail();
 
     strcpy(argv[0], "media.codec");
     sp<ProcessState> proc(ProcessState::self());
