@@ -141,13 +141,22 @@ status_t Engine::setForceUse(audio_policy_force_use_t usage, audio_policy_forced
     case AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO:
         if (config != AUDIO_POLICY_FORCE_NONE &&
             config != AUDIO_POLICY_FORCE_HDMI_SYSTEM_AUDIO_ENFORCED) {
-            ALOGW("setForceUse() invalid config %d forHDMI_SYSTEM_AUDIO", config);
+            ALOGW("setForceUse() invalid config %d for HDMI_SYSTEM_AUDIO", config);
+        }
+        mForceUse[usage] = config;
+        break;
+    case AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND:
+        if (config != AUDIO_POLICY_FORCE_NONE &&
+                config != AUDIO_POLICY_FORCE_ENCODED_SURROUND_NEVER &&
+                config != AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS) {
+            ALOGW("setForceUse() invalid config %d for ENCODED_SURROUND", config);
+            return BAD_VALUE;
         }
         mForceUse[usage] = config;
         break;
     default:
         ALOGW("setForceUse() invalid usage %d", usage);
-        break;
+        break; // TODO return BAD_VALUE?
     }
     return NO_ERROR;
 }

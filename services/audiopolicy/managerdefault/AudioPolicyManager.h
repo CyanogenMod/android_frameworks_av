@@ -582,6 +582,9 @@ protected:
         // Audio Policy Engine Interface.
         AudioPolicyManagerInterface *mEngine;
 private:
+        // Add or remove AC3 DTS encodings based on user preferences.
+        void filterSurroundFormats(FormatVector &formats);
+
         // If any, resolve any "dynamic" fields of an Audio Profiles collection
         void updateAudioProfiles(audio_io_handle_t ioHandle, AudioProfileVector &profiles);
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "APM::AudioPolicyManager"
+#define LOG_TAG "AudioPolicyManager"
 //#define LOG_NDEBUG 0
 
 //#define VERY_VERBOSE_LOGGING
@@ -567,6 +567,7 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
 {
     ALOGV("setForceUse() usage %d, config %d, mPhoneState %d", usage, config, mEngine->getPhoneState());
 
+    audio_policy_forced_cfg_t originalConfig = mEngine->getForceUse(usage);
     if (mEngine->setForceUse(usage, config) != NO_ERROR) {
         ALOGW("setForceUse() could not set force cfg %d for usage %d", config, usage);
         return;
@@ -579,6 +580,33 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
     checkA2dpSuspend();
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
+
+    // Did surround forced use change?
+    if ((usage == AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND)
+            && (originalConfig != config)) {
+        const char *device_address  = "";
+        // Is it currently connected? If so then cycle the connection
+        // so that the supported surround formats will be reloaded.
+        //
+        // FIXME As S/PDIF is not a removable device we have to handle this differently.
+        // Probably by updating the device descriptor directly and manually
+        // tearing down active playback on S/PDIF
+        if (getDeviceConnectionState(AUDIO_DEVICE_OUT_HDMI, device_address) ==
+                                             AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
+            // Disconnect and reconnect output devices so that the surround
+            // encodings can be updated.
+            const char *device_name = "";
+            // disconnect
+            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_HDMI,
+                        AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+                        device_address, device_name);
+            // reconnect
+            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_HDMI,
+                        AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+                        device_address, device_name);
+        }
+    }
+
     if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
         audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
         updateCallRouting(newDevice);
@@ -2114,6 +2142,9 @@ status_t AudioPolicyManager::dump(int fd)
     result.append(buffer);
     snprintf(buffer, SIZE, " Force use for hdmi system audio %d\n",
             mEngine->getForceUse(AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO));
+    result.append(buffer);
+    snprintf(buffer, SIZE, " Force use for encoded surround output %d\n",
+            mEngine->getForceUse(AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND));
     result.append(buffer);
     snprintf(buffer, SIZE, " TTS output %s\n", mTtsOutputAvailable ? "available" : "not available");
     result.append(buffer);
@@ -5144,6 +5175,84 @@ void AudioPolicyManager::cleanUpForDevice(const sp<DeviceDescriptor>& deviceDesc
     }
 }
 
+// Modify the list of surround sound formats supported.
+void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
+
+    audio_policy_forced_cfg_t forceUse = mEngine->getForceUse(
+            AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND);
+    ALOGI("%s: forced use = %d", __FUNCTION__, forceUse);
+
+    // Analyze original support for various formats.
+    bool supportsRawSurround = false;
+    bool supportsIEC61937 = false;
+    for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
+        audio_format_t format = formats[formatIndex];
+        ALOGI("%s: original formats: #%x", __FUNCTION__, format);
+        switch (format) {
+            case AUDIO_FORMAT_AC3:
+            case AUDIO_FORMAT_E_AC3:
+            case AUDIO_FORMAT_DTS:
+            case AUDIO_FORMAT_DTS_HD:
+                supportsRawSurround = true;
+                break;
+            case AUDIO_FORMAT_IEC61937:
+                supportsIEC61937 = true;
+                break;
+            default:
+                break;
+        }
+    }
+    ALOGI("%s: supportsRawSurround = %d, supportsIEC61937 = %d",
+            __FUNCTION__, supportsRawSurround, supportsIEC61937);
+
+    // Modify formats based on surround preferences.
+    // If NEVER, remove support for surround formats.
+    if ((forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_NEVER)
+            && (supportsRawSurround || supportsIEC61937)) {
+        // Remove surround sound related formats.
+        for (size_t formatIndex = 0; formatIndex < formats.size(); ) {
+            audio_format_t format = formats[formatIndex];
+            switch(format) {
+                case AUDIO_FORMAT_AC3:
+                case AUDIO_FORMAT_E_AC3:
+                case AUDIO_FORMAT_DTS:
+                case AUDIO_FORMAT_DTS_HD:
+                case AUDIO_FORMAT_IEC61937:
+                    ALOGI("%s: remove #%x", __FUNCTION__, format);
+                    formats.removeAt(formatIndex);
+                    break;
+                default:
+                    formatIndex++; // keep it
+                    break;
+            }
+        }
+        supportsRawSurround = false;
+        supportsIEC61937 = false;
+    }
+    // If ALWAYS, add support for raw surround formats if all are missing.
+    // This assumes that if any of these formats are reported by the HAL
+    // then the report is valid and should not be modified.
+    if ((forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS)
+            && !supportsRawSurround) {
+        formats.add(AUDIO_FORMAT_AC3);
+        formats.add(AUDIO_FORMAT_E_AC3);
+        formats.add(AUDIO_FORMAT_DTS);
+        formats.add(AUDIO_FORMAT_DTS_HD);
+        supportsRawSurround = true;
+    }
+    // Add support for IEC61937 if raw surround supported.
+    // The HAL could do this but add it here, just in case.
+    if (supportsRawSurround && !supportsIEC61937) {
+        formats.add(AUDIO_FORMAT_IEC61937);
+        // supportsIEC61937 = true;
+    }
+    // Just for debugging.
+    for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
+        audio_format_t format = formats[formatIndex];
+        ALOGI("%s: final formats: #%x", __FUNCTION__, format);
+    }
+}
+
 void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
                                              AudioProfileVector &profiles)
 {
@@ -5153,14 +5262,16 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
     if (profiles.hasDynamicFormat()) {
         reply = mpClientInterface->getParameters(ioHandle,
                                                  String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
-        ALOGV("%s: supported formats %s", __FUNCTION__, reply.string());
+        ALOGI("%s: supported formats %s", __FUNCTION__, reply.string());
         AudioParameter repliedParameters(reply);
         if (repliedParameters.get(
                 String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS), reply) != NO_ERROR) {
             ALOGE("%s: failed to retrieve format, bailing out", __FUNCTION__);
             return;
         }
-        profiles.setFormats(formatsFromString(reply.string()));
+        FormatVector formats = formatsFromString(reply.string());
+        filterSurroundFormats(formats);
+        profiles.setFormats(formats);
     }
     const FormatVector &supportedFormats = profiles.getSupportedFormats();
 
