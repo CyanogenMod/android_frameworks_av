@@ -72,8 +72,10 @@ LOCAL_C_INCLUDES:= \
         $(TOP)/external/tremolo \
         $(TOP)/external/libvpx/libwebm \
         $(TOP)/system/netd/include \
+        $(call include-path-for, audio-utils)
 
 LOCAL_SHARED_LIBRARIES := \
+        libaudioutils \
         libbinder \
         libcamera_client \
         libcutils \
