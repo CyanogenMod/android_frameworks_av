@@ -66,6 +66,7 @@ public:
     virtual void attach(const sp<HwModule>& module);
     bool isAttached() { return mModule != 0; }
 
+    // Audio port IDs are in a different namespace than AudioFlinger unique IDs
     static audio_port_handle_t getNextUniqueId();
 
     virtual void toAudioPort(struct audio_port *port) const;

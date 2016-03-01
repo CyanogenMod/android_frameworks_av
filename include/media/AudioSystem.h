@@ -150,9 +150,9 @@ public:
     // Allocate a new unique ID for use as an audio session ID or I/O handle.
     // If unable to contact AudioFlinger, returns AUDIO_UNIQUE_ID_ALLOCATE instead.
     // FIXME If AudioFlinger were to ever exhaust the unique ID namespace,
-    //       this method could fail by returning either AUDIO_UNIQUE_ID_ALLOCATE
+    //       this method could fail by returning either a reserved ID like AUDIO_UNIQUE_ID_ALLOCATE
     //       or an unspecified existing unique ID.
-    static audio_unique_id_t newAudioUniqueId();
+    static audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
 
     static void acquireAudioSessionId(int audioSession, pid_t pid);
     static void releaseAudioSessionId(int audioSession, pid_t pid);

@@ -438,7 +438,7 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
     if (sessionId == AUDIO_SESSION_ALLOCATE) {
-        mSessionId = AudioSystem::newAudioUniqueId();
+        mSessionId = AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
     } else {
         mSessionId = sessionId;
     }

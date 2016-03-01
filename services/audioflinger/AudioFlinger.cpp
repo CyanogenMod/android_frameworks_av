@@ -175,7 +175,7 @@ AudioFlinger::AudioFlinger()
       mHardwareStatus(AUDIO_HW_IDLE),
       mMasterVolume(1.0f),
       mMasterMute(false),
-      mNextUniqueId(1),
+      mNextUniqueId(AUDIO_UNIQUE_ID_USE_MAX),   // zero has a special meaning, so unavailable
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false),
       mIsLowRamDevice(true),
@@ -611,6 +611,11 @@ sp<IAudioTrack> AudioFlinger::createTrack(
 
         PlaybackThread *effectThread = NULL;
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
+            if (audio_unique_id_get_use(*sessionId) != AUDIO_UNIQUE_ID_USE_SESSION) {
+                ALOGE("createTrack() invalid session ID %d", *sessionId);
+                lStatus = BAD_VALUE;
+                goto Exit;
+            }
             lSessionId = *sessionId;
             // check if an effect chain with the same session ID is present on another
             // output thread and move it here.
@@ -626,7 +631,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             }
         } else {
             // if no audio session id is provided, create one here
-            lSessionId = nextUniqueId();
+            lSessionId = nextUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
@@ -1481,10 +1486,14 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         client = registerPid(pid);
 
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {
+            if (audio_unique_id_get_use(*sessionId) != AUDIO_UNIQUE_ID_USE_SESSION) {
+                lStatus = BAD_VALUE;
+                goto Exit;
+            }
             lSessionId = *sessionId;
         } else {
             // if no audio session id is provided, create one here
-            lSessionId = nextUniqueId();
+            lSessionId = nextUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
             if (sessionId != NULL) {
                 *sessionId = lSessionId;
             }
@@ -1617,7 +1626,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 
-    audio_module_handle_t handle = nextUniqueId();
+    audio_module_handle_t handle = nextUniqueId(AUDIO_UNIQUE_ID_USE_MODULE);
     mAudioHwDevs.add(handle, new AudioHwDevice(handle, name, dev, flags));
 
     ALOGI("loadHwModule() Loaded %s audio interface from %s (%s) handle %d",
@@ -1762,8 +1771,14 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
     }
 
     audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
+
     if (*output == AUDIO_IO_HANDLE_NONE) {
-        *output = nextUniqueId();
+        *output = nextUniqueId(AUDIO_UNIQUE_ID_USE_OUTPUT);
+    } else {
+        // Audio Policy does not currently request a specific output handle.
+        // If this is ever needed, see openInput_l() for example code.
+        ALOGE("openOutput_l requested output handle %d is not AUDIO_IO_HANDLE_NONE", *output);
+        return 0;
     }
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
@@ -1880,7 +1895,7 @@ audio_io_handle_t AudioFlinger::openDuplicateOutput(audio_io_handle_t output1,
         return AUDIO_IO_HANDLE_NONE;
     }
 
-    audio_io_handle_t id = nextUniqueId();
+    audio_io_handle_t id = nextUniqueId(AUDIO_UNIQUE_ID_USE_OUTPUT);
     DuplicatingThread *thread = new DuplicatingThread(this, thread1, id, mSystemReady);
     thread->addOutputTrack(thread2);
     mPlaybackThreads.add(id, thread);
@@ -2034,8 +2049,18 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
         return 0;
     }
 
+    // Audio Policy can request a specific handle for hardware hotword.
+    // The goal here is not to re-open an already opened input.
+    // It is to use a pre-assigned I/O handle.
     if (*input == AUDIO_IO_HANDLE_NONE) {
-        *input = nextUniqueId();
+        *input = nextUniqueId(AUDIO_UNIQUE_ID_USE_INPUT);
+    } else if (audio_unique_id_get_use(*input) != AUDIO_UNIQUE_ID_USE_INPUT) {
+        ALOGE("openInput_l() requested input handle %d is invalid", *input);
+        return 0;
+    } else if (mRecordThreads.indexOfKey(*input) >= 0) {
+        // This should not happen in a transient state with current design.
+        ALOGE("openInput_l() requested input handle %d is already assigned", *input);
+        return 0;
     }
 
     audio_config_t halconfig = *config;
@@ -2239,9 +2264,9 @@ status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)
 }
 
 
-audio_unique_id_t AudioFlinger::newAudioUniqueId()
+audio_unique_id_t AudioFlinger::newAudioUniqueId(audio_unique_id_use_t use)
 {
-    return nextUniqueId();
+    return nextUniqueId(use);
 }
 
 void AudioFlinger::acquireAudioSessionId(int audioSession, pid_t pid)
@@ -2363,6 +2388,23 @@ void AudioFlinger::purgeStaleEffects_l() {
     return;
 }
 
+// checkThread_l() must be called with AudioFlinger::mLock held
+AudioFlinger::ThreadBase *AudioFlinger::checkThread_l(audio_io_handle_t ioHandle) const
+{
+    ThreadBase *thread = NULL;
+    switch (audio_unique_id_get_use(ioHandle)) {
+    case AUDIO_UNIQUE_ID_USE_OUTPUT:
+        thread = checkPlaybackThread_l(ioHandle);
+        break;
+    case AUDIO_UNIQUE_ID_USE_INPUT:
+        thread = checkRecordThread_l(ioHandle);
+        break;
+    default:
+        break;
+    }
+    return thread;
+}
+
 // checkPlaybackThread_l() must be called with AudioFlinger::mLock held
 AudioFlinger::PlaybackThread *AudioFlinger::checkPlaybackThread_l(audio_io_handle_t output) const
 {
@@ -2382,9 +2424,14 @@ AudioFlinger::RecordThread *AudioFlinger::checkRecordThread_l(audio_io_handle_t 
     return mRecordThreads.valueFor(input).get();
 }
 
-uint32_t AudioFlinger::nextUniqueId()
+audio_unique_id_t AudioFlinger::nextUniqueId(audio_unique_id_use_t use)
 {
-    return (uint32_t) android_atomic_inc(&mNextUniqueId);
+    int32_t base = android_atomic_add(AUDIO_UNIQUE_ID_USE_MAX, &mNextUniqueId);
+    // We have no way of recovering from wraparound
+    LOG_ALWAYS_FATAL_IF(base == 0, "unique ID overflow");
+    LOG_ALWAYS_FATAL_IF((unsigned) use >= (unsigned) AUDIO_UNIQUE_ID_USE_MAX);
+    ALOG_ASSERT(audio_unique_id_get_use(base) == AUDIO_UNIQUE_ID_USE_UNSPECIFIED);
+    return (audio_unique_id_t) (base | use);
 }
 
 AudioFlinger::PlaybackThread *AudioFlinger::primaryPlaybackThread_l() const

@@ -612,10 +612,11 @@ public:
         return (uint32_t) reply.readInt32();
     }
 
-    virtual audio_unique_id_t newAudioUniqueId()
+    virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int32_t) use);
         status_t status = remote()->transact(NEW_AUDIO_SESSION_ID, data, &reply);
         audio_unique_id_t id = AUDIO_SESSION_ALLOCATE;
         if (status == NO_ERROR) {
@@ -1208,7 +1209,7 @@ status_t BnAudioFlinger::onTransact(
         } break;
         case NEW_AUDIO_SESSION_ID: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
-            reply->writeInt32(newAudioUniqueId());
+            reply->writeInt32(newAudioUniqueId((audio_unique_id_use_t) data.readInt32()));
             return NO_ERROR;
         } break;
         case ACQUIRE_AUDIO_SESSION_ID: {

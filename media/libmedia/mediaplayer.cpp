@@ -63,7 +63,7 @@ MediaPlayer::MediaPlayer()
     mLeftVolume = mRightVolume = 1.0;
     mVideoWidth = mVideoHeight = 0;
     mLockThreadId = 0;
-    mAudioSessionId = AudioSystem::newAudioUniqueId();
+    mAudioSessionId = AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
     AudioSystem::acquireAudioSessionId(mAudioSessionId, -1);
     mSendLevel = 0;
     mRetransmitEndpointValid = false;

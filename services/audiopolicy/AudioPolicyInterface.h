@@ -332,7 +332,7 @@ public:
 
     virtual void onAudioPatchListUpdate() = 0;
 
-    virtual audio_unique_id_t newAudioUniqueId() = 0;
+    virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use) = 0;
 
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
 

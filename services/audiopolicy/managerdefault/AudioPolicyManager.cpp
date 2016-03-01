@@ -2815,8 +2815,8 @@ status_t AudioPolicyManager::acquireSoundTriggerSession(audio_session_t *session
                                        audio_io_handle_t *ioHandle,
                                        audio_devices_t *device)
 {
-    *session = (audio_session_t)mpClientInterface->newAudioUniqueId();
-    *ioHandle = (audio_io_handle_t)mpClientInterface->newAudioUniqueId();
+    *session = (audio_session_t)mpClientInterface->newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
+    *ioHandle = (audio_io_handle_t)mpClientInterface->newAudioUniqueId(AUDIO_UNIQUE_ID_USE_INPUT);
     *device = getDeviceAndMixForInputSource(AUDIO_SOURCE_HOTWORD);
 
     return mSoundTriggerSessions.acquireSession(*session, *ioHandle);
