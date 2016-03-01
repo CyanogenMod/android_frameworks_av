@@ -244,12 +244,15 @@ private:
      * The following variables are used in VIDEO_BUFFER_MODE_BUFFER_QUEUE mode.
      */
     static const size_t kConsumerBufferCount = 8;
+    static const nsecs_t kMemoryBaseAvailableTimeoutNs = 200000000; // 200ms
     // Consumer and producer of the buffer queue between this class and camera.
     sp<BufferItemConsumer> mVideoBufferConsumer;
     sp<IGraphicBufferProducer> mVideoBufferProducer;
     // Memory used to send the buffers to encoder, where sp<IMemory> stores VideoNativeMetadata.
     sp<IMemoryHeap> mMemoryHeapBase;
     List<sp<IMemory>> mMemoryBases;
+    // The condition that will be signaled when there is an entry available in mMemoryBases.
+    Condition mMemoryBaseAvailableCond;
     // A mapping from ANativeWindowBuffer sent to encoder to BufferItem received from camera.
     // This is protected by mLock.
     KeyedVector<ANativeWindowBuffer*, BufferItem> mReceivedBufferItemMap;
