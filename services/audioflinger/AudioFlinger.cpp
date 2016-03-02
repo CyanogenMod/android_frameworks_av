@@ -691,12 +691,12 @@ Exit:
     return trackHandle;
 }
 
-uint32_t AudioFlinger::sampleRate(audio_io_handle_t output) const
+uint32_t AudioFlinger::sampleRate(audio_io_handle_t ioHandle) const
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = checkPlaybackThread_l(output);
+    ThreadBase *thread = checkThread_l(ioHandle);
     if (thread == NULL) {
-        ALOGW("sampleRate() unknown thread %d", output);
+        ALOGW("sampleRate() unknown thread %d", ioHandle);
         return 0;
     }
     return thread->sampleRate();
@@ -713,12 +713,12 @@ audio_format_t AudioFlinger::format(audio_io_handle_t output) const
     return thread->format();
 }
 
-size_t AudioFlinger::frameCount(audio_io_handle_t output) const
+size_t AudioFlinger::frameCount(audio_io_handle_t ioHandle) const
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = checkPlaybackThread_l(output);
+    ThreadBase *thread = checkThread_l(ioHandle);
     if (thread == NULL) {
-        ALOGW("frameCount() unknown thread %d", output);
+        ALOGW("frameCount() unknown thread %d", ioHandle);
         return 0;
     }
     // FIXME currently returns the normal mixer's frame count to avoid confusing legacy callers;
