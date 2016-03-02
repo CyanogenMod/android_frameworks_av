@@ -1192,6 +1192,7 @@ status_t AudioTrack::createTrack_l()
         mSampleRate = mAfSampleRate;
         mOriginalSampleRate = mAfSampleRate;
     }
+
     // Client can only express a preference for FAST.  Server will perform additional tests.
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         bool useCaseAllowed =
@@ -1207,20 +1208,13 @@ status_t AudioTrack::createTrack_l()
         // sample rates must also match
         bool fastAllowed = useCaseAllowed && (mSampleRate == mAfSampleRate);
         if (!fastAllowed) {
-            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d,"
+            ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by client; transfer %d, "
                 "track %u Hz, output %u Hz",
                 mTransfer, mSampleRate, mAfSampleRate);
             // once denied, do not request again if IAudioTrack is re-created
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
         }
     }
-
-    // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
-    //  n = 1   fast track with single buffering; nBuffering is ignored
-    //  n = 2   fast track with double buffering
-    //  n = 2   normal track, (including those with sample rate conversion)
-    //  n >= 3  very high latency or very small notification interval (unused).
-    const uint32_t nBuffering = 2;
 
     mNotificationFramesAct = mNotificationFramesReq;
 
@@ -1320,6 +1314,7 @@ status_t AudioTrack::createTrack_l()
     // AudioFlinger now owns the reference to the I/O handle,
     // so we are no longer responsible for releasing it.
 
+    // FIXME compare to AudioRecord
     sp<IMemory> iMem = track->getCblk();
     if (iMem == 0) {
         ALOGE("Could not get control block");
@@ -1383,14 +1378,25 @@ status_t AudioTrack::createTrack_l()
             //return NO_INIT;
         }
     }
-    // Make sure that application is notified with sufficient margin before underrun
+
+    // Make sure that application is notified with sufficient margin before underrun.
+    // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
+    //  n = 1   fast track with single buffering; nBuffering is ignored
+    //  n = 2   fast track with double buffering
+    //  n = 2   normal track, (including those with sample rate conversion)
+    //  n >= 3  very high latency or very small notification interval (unused).
+    // FIXME Move the computation from client side to server side,
+    //       and allow nBuffering to be larger than 1 for OpenSL ES, like it can be for Java.
     if (mSharedBuffer == 0 && audio_is_linear_pcm(mFormat)) {
-        // Theoretically double-buffering is not required for fast tracks,
-        // due to tighter scheduling.  But in practice, to accommodate kernels with
-        // scheduling jitter, and apps with computation jitter, we use double-buffering
-        // for fast tracks just like normal streaming tracks.
-        if (mNotificationFramesAct == 0 || mNotificationFramesAct > frameCount / nBuffering) {
-            mNotificationFramesAct = frameCount / nBuffering;
+        size_t maxNotificationFrames = frameCount;
+        if (!(trackFlags & IAudioFlinger::TRACK_FAST)) {
+            const uint32_t nBuffering = 2;
+            maxNotificationFrames /= nBuffering;
+        }
+        if (mNotificationFramesAct == 0 || mNotificationFramesAct > maxNotificationFrames) {
+            ALOGW("Client adjusted notificationFrames from %u to %zu for frameCount %zu",
+                    mNotificationFramesAct, maxNotificationFrames, frameCount);
+            mNotificationFramesAct = (uint32_t) maxNotificationFrames;
         }
     }
 

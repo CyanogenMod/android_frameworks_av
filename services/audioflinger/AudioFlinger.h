@@ -564,6 +564,7 @@ private:
                                      PlaybackThread *srcThread,
                                      PlaybackThread *dstThread,
                                      bool reRegister);
+
               // return thread associated with primary hardware device, or NULL
               PlaybackThread *primaryPlaybackThread_l() const;
               audio_devices_t primaryOutputDevice_l() const;

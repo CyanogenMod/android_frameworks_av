@@ -167,7 +167,10 @@ public:
      *
      * streamType:         Select the type of audio stream this track is attached to
      *                     (e.g. AUDIO_STREAM_MUSIC).
-     * sampleRate:         Data source sampling rate in Hz.
+     * sampleRate:         Data source sampling rate in Hz.  Zero means to use the sink sample rate.
+     *                     A non-zero value must be specified if AUDIO_OUTPUT_FLAG_DIRECT is set.
+     *                     0 will not work with current policy implementation for direct output
+     *                     selection where an exact match is needed for sampling rate.
      * format:             Audio format. For mixed tracks, any PCM format supported by server is OK.
      *                     For direct and offloaded tracks, the possible format(s) depends on the
      *                     output sink.
@@ -395,11 +398,14 @@ public:
             status_t    setAuxEffectSendLevel(float level);
             void        getAuxEffectSendLevel(float* level) const;
 
-    /* Set source sample rate for this track in Hz, mostly used for games' sound effects
+    /* Set source sample rate for this track in Hz, mostly used for games' sound effects.
+     * Zero is not permitted.
      */
             status_t    setSampleRate(uint32_t sampleRate);
 
-    /* Return current source sample rate in Hz */
+    /* Return current source sample rate in Hz.
+     * If specified as zero in constructor or set(), this will be the sink sample rate.
+     */
             uint32_t    getSampleRate() const;
 
     /* Return the original source sample rate in Hz. This corresponds to the sample rate

@@ -191,10 +191,6 @@ status_t AudioRecord::set(
               mAttributes.source, mAttributes.flags, mAttributes.tags);
     }
 
-    if (sampleRate == 0) {
-        ALOGE("Invalid sample rate %u", sampleRate);
-        return BAD_VALUE;
-    }
     mSampleRate = sampleRate;
 
     // these below should probably come from the audioFlinger too...
@@ -517,27 +513,71 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
         return NO_INIT;
     }
 
-    // Fast tracks must be at the primary _output_ [sic] sampling rate,
-    // because there is currently no concept of a primary input sampling rate
-    uint32_t afSampleRate = AudioSystem::getPrimaryOutputSamplingRate();
-    if (afSampleRate == 0) {
-        ALOGW("getPrimaryOutputSamplingRate failed");
+    if (mDeviceCallback != 0 && mInput != AUDIO_IO_HANDLE_NONE) {
+        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
+    }
+    audio_io_handle_t input;
+
+    status_t status;
+    status = AudioSystem::getInputForAttr(&mAttributes, &input,
+                                        (audio_session_t)mSessionId,
+                                        // FIXME compare to AudioTrack
+                                        IPCThreadState::self()->getCallingUid(),
+                                        mSampleRate, mFormat, mChannelMask,
+                                        mFlags, mSelectedDeviceId);
+
+    if (status != NO_ERROR || input == AUDIO_IO_HANDLE_NONE) {
+        ALOGE("Could not get audio input for session %d, record source %d, sample rate %u, "
+              "format %#x, channel mask %#x, flags %#x",
+              mSessionId, mAttributes.source, mSampleRate, mFormat, mChannelMask, mFlags);
+        return BAD_VALUE;
+    }
+    {
+    // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
+    // we must release it ourselves if anything goes wrong.
+
+#if 0
+    size_t afFrameCount;
+    status = AudioSystem::getFrameCount(input, &afFrameCount);
+    if (status != NO_ERROR) {
+        ALOGE("getFrameCount(input=%d) status %d", input, status);
+        goto release;
+    }
+#endif
+
+    uint32_t afSampleRate;
+    status = AudioSystem::getSamplingRate(input, &afSampleRate);
+    if (status != NO_ERROR) {
+        ALOGE("getSamplingRate(input=%d) status %d", input, status);
+        goto release;
+    }
+    if (mSampleRate == 0) {
+        mSampleRate = afSampleRate;
     }
 
     // Client can only express a preference for FAST.  Server will perform additional tests.
-    if ((mFlags & AUDIO_INPUT_FLAG_FAST) && !((
+    if (mFlags & AUDIO_INPUT_FLAG_FAST) {
+        bool useCaseAllowed =
             // either of these use cases:
             // use case 1: callback transfer mode
             (mTransfer == TRANSFER_CALLBACK) ||
             // use case 2: obtain/release mode
-            (mTransfer == TRANSFER_OBTAIN)) &&
-            // matching sample rate
-            (mSampleRate == afSampleRate))) {
-        ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, track %u Hz, primary %u Hz",
+            (mTransfer == TRANSFER_OBTAIN);
+        // sample rates must also match
+        bool fastAllowed = useCaseAllowed && (mSampleRate == afSampleRate);
+        if (!fastAllowed) {
+            ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, "
+                "track %u Hz, input %u Hz",
                 mTransfer, mSampleRate, afSampleRate);
-        // once denied, do not request again if IAudioRecord is re-created
-        mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
+            // once denied, do not request again if IAudioRecord is re-created
+            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
+        }
     }
+
+    // The notification frame count is the period between callbacks, as suggested by the client
+    // but moderated by the server.  For record, the calculations are done entirely on server side.
+    size_t notificationFrames = mNotificationFramesReq;
+    size_t frameCount = mReqFrameCount;
 
     IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
 
@@ -549,34 +589,9 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
         }
     }
 
-    if (mDeviceCallback != 0 && mInput != AUDIO_IO_HANDLE_NONE) {
-        AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mInput);
-    }
-
-    audio_io_handle_t input;
-    status_t status = AudioSystem::getInputForAttr(&mAttributes, &input,
-                                        (audio_session_t)mSessionId,
-                                        IPCThreadState::self()->getCallingUid(),
-                                        mSampleRate, mFormat, mChannelMask,
-                                        mFlags, mSelectedDeviceId);
-
-    if (status != NO_ERROR) {
-        ALOGE("Could not get audio input for record source %d, sample rate %u, format %#x, "
-              "channel mask %#x, session %d, flags %#x",
-              mAttributes.source, mSampleRate, mFormat, mChannelMask, mSessionId, mFlags);
-        return BAD_VALUE;
-    }
-    {
-    // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
-    // we must release it ourselves if anything goes wrong.
-
-    size_t frameCount = mReqFrameCount;
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
     int originalSessionId = mSessionId;
-
-    // The notification frame count is the period between callbacks, as suggested by the server.
-    size_t notificationFrames = mNotificationFramesReq;
 
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
@@ -660,11 +675,13 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
         }
     }
 
-    // Make sure that application is notified with sufficient margin before overrun
-    if (notificationFrames == 0 || notificationFrames > frameCount) {
-        ALOGW("Received notificationFrames %zu for frameCount %zu", notificationFrames, frameCount);
+    // Make sure that application is notified with sufficient margin before overrun.
+    // The computation is done on server side.
+    if (mNotificationFramesReq > 0 && notificationFrames != mNotificationFramesReq) {
+        ALOGW("Server adjusted notificationFrames from %u to %zu for frameCount %zu",
+                mNotificationFramesReq, notificationFrames, frameCount);
     }
-    mNotificationFramesAct = notificationFrames;
+    mNotificationFramesAct = (uint32_t) notificationFrames;
 
     // We retain a copy of the I/O handle, but don't own the reference
     mInput = input;

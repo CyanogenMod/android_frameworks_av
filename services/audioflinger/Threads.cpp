@@ -6249,11 +6249,11 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             ((frameCount == 0) || (frameCount == mPipeFramesP2)) &&
             // PCM data
             audio_is_linear_pcm(format) &&
-            // native format
+            // hardware format
             (format == mFormat) &&
-            // native channel mask
+            // hardware channel mask
             (channelMask == mChannelMask) &&
-            // native hardware sample rate
+            // hardware sample rate
             (sampleRate == mSampleRate) &&
             // record thread has an associated fast capture
             hasFastCapture() &&

@@ -145,7 +145,7 @@ public:
      * Parameters:
      *
      * inputSource:        Select the audio input to record from (e.g. AUDIO_SOURCE_DEFAULT).
-     * sampleRate:         Data sink sampling rate in Hz.
+     * sampleRate:         Data sink sampling rate in Hz.  Zero means to use the source sample rate.
      * format:             Audio format (e.g AUDIO_FORMAT_PCM_16_BIT for signed
      *                     16 bits per sample).
      * channelMask:        Channel mask, such that audio_is_input_channel(channelMask) is true.
@@ -258,6 +258,7 @@ public:
             bool        stopped() const;
 
     /* Return the sink sample rate for this record track in Hz.
+     * If specified as zero in constructor or set(), this will be the source sample rate.
      * Unlike AudioTrack, the sample rate is const after initialization, so doesn't need a lock.
      */
             uint32_t    getSampleRate() const   { return mSampleRate; }
