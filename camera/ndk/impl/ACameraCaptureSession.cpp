@@ -39,6 +39,15 @@ ACameraCaptureSession::~ACameraCaptureSession() {
 
 void
 ACameraCaptureSession::closeByApp() {
+    {
+        Mutex::Autolock _l(mSessionLock);
+        if (mClosedByApp) {
+            // Do not close twice
+            return;
+        }
+        mClosedByApp = true;
+    }
+
     sp<CameraDevice> dev = getDeviceSp();
     if (dev != nullptr) {
         dev->lockDeviceForSessionOps();

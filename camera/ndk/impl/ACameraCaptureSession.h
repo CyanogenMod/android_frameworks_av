@@ -103,6 +103,7 @@ struct ACameraCaptureSession : public RefBase {
     const ACameraCaptureSession_stateCallbacks mUserSessionCallback;
     const wp<CameraDevice> mDevice;
     bool  mIsClosed = false;
+    bool  mClosedByApp = false;
     bool  mIdle = true;
     Mutex mSessionLock;
 };
