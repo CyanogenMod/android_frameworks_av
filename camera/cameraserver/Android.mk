@@ -23,14 +23,13 @@ LOCAL_SHARED_LIBRARIES := \
 	libcameraservice \
 	libcutils \
 	libutils \
-	libbinder
-
-LOCAL_C_INCLUDES := \
-    frameworks/av/services/camera/libcameraservice \
-    system/media/camera/include
+	libbinder \
+	libcamera_client
 
 LOCAL_MODULE:= cameraserver
 LOCAL_32_BIT_ONLY := true
+
+LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 
 LOCAL_INIT_RC := cameraserver.rc
 

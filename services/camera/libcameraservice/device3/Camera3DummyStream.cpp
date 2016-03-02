@@ -36,26 +36,26 @@ Camera3DummyStream::~Camera3DummyStream() {
 
 }
 
-status_t Camera3DummyStream::getBufferLocked(camera3_stream_buffer *buffer) {
+status_t Camera3DummyStream::getBufferLocked(camera3_stream_buffer *) {
     ATRACE_CALL();
     ALOGE("%s: Stream %d: Dummy stream cannot produce buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
 }
 
 status_t Camera3DummyStream::returnBufferLocked(
-        const camera3_stream_buffer &buffer,
-        nsecs_t timestamp) {
+        const camera3_stream_buffer &,
+        nsecs_t) {
     ATRACE_CALL();
     ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
 }
 
 status_t Camera3DummyStream::returnBufferCheckedLocked(
-            const camera3_stream_buffer &buffer,
-            nsecs_t timestamp,
-            bool output,
+            const camera3_stream_buffer &,
+            nsecs_t,
+            bool,
             /*out*/
-            sp<Fence> *releaseFenceOut) {
+            sp<Fence>*) {
     ATRACE_CALL();
     ALOGE("%s: Stream %d: Dummy stream cannot return buffers!", __FUNCTION__, mId);
     return INVALID_OPERATION;
@@ -70,7 +70,7 @@ void Camera3DummyStream::dump(int fd, const Vector<String16> &args) const {
     Camera3IOStreamBase::dump(fd, args);
 }
 
-status_t Camera3DummyStream::setTransform(int transform) {
+status_t Camera3DummyStream::setTransform(int) {
     ATRACE_CALL();
     // Do nothing
     return OK;

@@ -24,7 +24,6 @@
 #include <utils/Timers.h>
 #include <utils/List.h>
 
-#include <camera/camera2/ICameraDeviceCallbacks.h>
 #include "hardware/camera2.h"
 #include "hardware/camera3.h"
 #include "camera/CameraMetadata.h"
@@ -32,6 +31,7 @@
 #include "common/CameraModule.h"
 #include "gui/IGraphicBufferProducer.h"
 #include "device3/Camera3StreamInterface.h"
+#include "binder/Status.h"
 
 namespace android {
 
@@ -195,7 +195,7 @@ class CameraDeviceBase : public virtual RefBase {
         // API1 and API2.
 
         // Required for API 1 and 2
-        virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        virtual void notifyError(int32_t errorCode,
                                  const CaptureResultExtras &resultExtras) = 0;
 
         // Required only for API2

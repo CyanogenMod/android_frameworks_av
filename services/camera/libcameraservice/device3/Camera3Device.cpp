@@ -43,6 +43,8 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 
+#include <android/hardware/camera2/ICameraDeviceUser.h>
+
 #include "utils/CameraTraces.h"
 #include "mediautils/SchedulingPolicyService.h"
 #include "device3/Camera3Device.h"
@@ -132,8 +134,7 @@ status_t Camera3Device::initialize(CameraModule *module)
     }
 
     camera_info info;
-    res = CameraService::filterGetInfoErrorCode(module->getCameraInfo(
-        mId, &info));
+    res = module->getCameraInfo(mId, &info);
     if (res != OK) return res;
 
     if (info.device_version != device->common.version) {
@@ -453,7 +454,7 @@ ssize_t Camera3Device::getPointCloudBufferSize() const {
     return maxBytesForPointCloud;
 }
 
-ssize_t Camera3Device::getRawOpaqueBufferSize(uint32_t width, uint32_t height) const {
+ssize_t Camera3Device::getRawOpaqueBufferSize(int32_t width, int32_t height) const {
     const int PER_CONFIGURATION_SIZE = 3;
     const int WIDTH_OFFSET = 0;
     const int HEIGHT_OFFSET = 1;
@@ -462,7 +463,7 @@ ssize_t Camera3Device::getRawOpaqueBufferSize(uint32_t width, uint32_t height) c
         mDeviceInfo.find(ANDROID_SENSOR_OPAQUE_RAW_SIZE);
     size_t count = rawOpaqueSizes.count;
     if (count == 0 || (count % PER_CONFIGURATION_SIZE)) {
-        ALOGE("%s: Camera %d: bad opaque RAW size static metadata length(%d)!",
+        ALOGE("%s: Camera %d: bad opaque RAW size static metadata length(%zu)!",
                 __FUNCTION__, mId, count);
         return BAD_VALUE;
     }
@@ -2021,7 +2022,7 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
 
     // Notify upstream about a device error
     if (mListener != NULL) {
-        mListener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+        mListener->notifyError(hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
                 CaptureResultExtras());
     }
 
@@ -2587,25 +2588,24 @@ void Camera3Device::notifyError(const camera3_error_msg_t &msg,
 
     // Map camera HAL error codes to ICameraDeviceCallback error codes
     // Index into this with the HAL error code
-    static const ICameraDeviceCallbacks::CameraErrorCode
-            halErrorMap[CAMERA3_MSG_NUM_ERRORS] = {
+    static const int32_t halErrorMap[CAMERA3_MSG_NUM_ERRORS] = {
         // 0 = Unused error code
-        ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR,
+        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR,
         // 1 = CAMERA3_MSG_ERROR_DEVICE
-        ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
         // 2 = CAMERA3_MSG_ERROR_REQUEST
-        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
         // 3 = CAMERA3_MSG_ERROR_RESULT
-        ICameraDeviceCallbacks::ERROR_CAMERA_RESULT,
+        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_RESULT,
         // 4 = CAMERA3_MSG_ERROR_BUFFER
-        ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER
+        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER
     };
 
-    ICameraDeviceCallbacks::CameraErrorCode errorCode =
+    int32_t errorCode =
             ((msg.error_code >= 0) &&
                     (msg.error_code < CAMERA3_MSG_NUM_ERRORS)) ?
             halErrorMap[msg.error_code] :
-            ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR;
+            hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_INVALID_ERROR;
 
     int streamId = 0;
     if (msg.error_stream != NULL) {
@@ -2619,13 +2619,13 @@ void Camera3Device::notifyError(const camera3_error_msg_t &msg,
 
     CaptureResultExtras resultExtras;
     switch (errorCode) {
-        case ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
             // SET_ERR calls notifyError
             SET_ERR("Camera HAL reported serious device error");
             break;
-        case ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
-        case ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
-        case ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_RESULT:
+        case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER:
             {
                 Mutex::Autolock l(mInFlightLock);
                 ssize_t idx = mInFlightMap.indexOfKey(msg.frame_number);
@@ -2749,7 +2749,8 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mLatestRequestId(NAME_NOT_FOUND),
         mCurrentAfTriggerId(0),
         mCurrentPreCaptureTriggerId(0),
-        mRepeatingLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES),
+        mRepeatingLastFrameNumber(
+            hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES),
         mAeLockAvailable(aeLockAvailable) {
     mStatusId = statusTracker->addComponent();
 }
@@ -2857,7 +2858,7 @@ status_t Camera3Device::RequestThread::setRepeatingRequests(
 
     unpauseForNewRequests();
 
-    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
+    mRepeatingLastFrameNumber = hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
@@ -2878,7 +2879,7 @@ status_t Camera3Device::RequestThread::clearRepeatingRequests(/*out*/int64_t *la
     if (lastFrameNumber != NULL) {
         *lastFrameNumber = mRepeatingLastFrameNumber;
     }
-    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
+    mRepeatingLastFrameNumber = hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
@@ -2915,7 +2916,7 @@ status_t Camera3Device::RequestThread::clear(
             // The requestId and burstId fields were set when the request was
             // submitted originally (in convertMetadataListToRequestListLocked)
             (*it)->mResultExtras.frameNumber = mFrameNumber++;
-            listener->notifyError(ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+            listener->notifyError(hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
                     (*it)->mResultExtras);
         }
     }
@@ -2924,7 +2925,7 @@ status_t Camera3Device::RequestThread::clear(
     if (lastFrameNumber != NULL) {
         *lastFrameNumber = mRepeatingLastFrameNumber;
     }
-    mRepeatingLastFrameNumber = NO_IN_FLIGHT_REPEATING_FRAMES;
+    mRepeatingLastFrameNumber = hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES;
     return OK;
 }
 
@@ -3344,7 +3345,7 @@ void Camera3Device::RequestThread::cleanUpFailedRequests(bool sendRequestError) 
             Mutex::Autolock l(mRequestLock);
             if (mListener != NULL) {
                 mListener->notifyError(
-                        ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
                         captureRequest->mResultExtras);
             }
         }
@@ -3484,7 +3485,7 @@ sp<Camera3Device::CaptureRequest>
                         " %s (%d)", __FUNCTION__, strerror(-res), res);
                 if (mListener != NULL) {
                     mListener->notifyError(
-                            ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
+                            hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
                             nextRequest->mResultExtras);
                 }
                 return NULL;

@@ -23,7 +23,8 @@
 
 #include <utils/Log.h>
 #include <binder/Parcel.h>
-#include <camera/ICamera.h>
+#include <camera/android/hardware/ICamera.h>
+#include <camera/ICameraRecordingProxy.h>
 #include <media/IMediaRecorderClient.h>
 #include <media/IMediaRecorder.h>
 #include <gui/Surface.h>
@@ -67,7 +68,7 @@ public:
     {
     }
 
-    status_t setCamera(const sp<ICamera>& camera, const sp<ICameraRecordingProxy>& proxy)
+    status_t setCamera(const sp<hardware::ICamera>& camera, const sp<ICameraRecordingProxy>& proxy)
     {
         ALOGV("setCamera(%p,%p)", camera.get(), proxy.get());
         Parcel data, reply;
@@ -479,9 +480,10 @@ status_t BnMediaRecorder::onTransact(
         case SET_CAMERA: {
             ALOGV("SET_CAMERA");
             CHECK_INTERFACE(IMediaRecorder, data, reply);
-            sp<ICamera> camera = interface_cast<ICamera>(data.readStrongBinder());
+            sp<hardware::ICamera> camera =
+                    interface_cast<hardware::ICamera>(data.readStrongBinder());
             sp<ICameraRecordingProxy> proxy =
-                interface_cast<ICameraRecordingProxy>(data.readStrongBinder());
+                    interface_cast<ICameraRecordingProxy>(data.readStrongBinder());
             reply->writeInt32(setCamera(camera, proxy));
             return NO_ERROR;
         } break;

@@ -55,9 +55,9 @@ Camera3Stream::Camera3Stream(int id,
     mMaxSize(maxSize),
     mState(STATE_CONSTRUCTED),
     mStatusId(StatusTracker::NO_STATUS_ID),
-    oldUsage(0),
-    oldMaxBuffers(0),
     mStreamUnpreparable(false),
+    mOldUsage(0),
+    mOldMaxBuffers(0),
     mPrepared(false),
     mPreparedBufferIdx(0),
     mLastMaxCount(Camera3StreamInterface::ALLOCATE_PIPELINE_MAX) {
@@ -118,7 +118,7 @@ camera3_stream* Camera3Stream::startConfiguration() {
         case STATE_IN_CONFIG:
         case STATE_IN_RECONFIG:
             // Can start config again with no trouble; but don't redo
-            // oldUsage/oldMaxBuffers
+            // mOldUsage/mOldMaxBuffers
             return this;
         case STATE_CONFIGURED:
             if (hasOutstandingBuffersLocked()) {
@@ -132,8 +132,8 @@ camera3_stream* Camera3Stream::startConfiguration() {
             return NULL;
     }
 
-    oldUsage = camera3_stream::usage;
-    oldMaxBuffers = camera3_stream::max_buffers;
+    mOldUsage = camera3_stream::usage;
+    mOldMaxBuffers = camera3_stream::max_buffers;
 
     res = getEndpointUsage(&(camera3_stream::usage));
     if (res != OK) {
@@ -196,8 +196,8 @@ status_t Camera3Stream::finishConfiguration(camera3_device *hal3Device) {
     // Check if the stream configuration is unchanged, and skip reallocation if
     // so. As documented in hardware/camera3.h:configure_streams().
     if (mState == STATE_IN_RECONFIG &&
-            oldUsage == camera3_stream::usage &&
-            oldMaxBuffers == camera3_stream::max_buffers) {
+            mOldUsage == camera3_stream::usage &&
+            mOldMaxBuffers == camera3_stream::max_buffers) {
         mState = STATE_CONFIGURED;
         return OK;
     }
@@ -250,8 +250,8 @@ status_t Camera3Stream::cancelConfiguration() {
             return INVALID_OPERATION;
     }
 
-    camera3_stream::usage = oldUsage;
-    camera3_stream::max_buffers = oldMaxBuffers;
+    camera3_stream::usage = mOldUsage;
+    camera3_stream::max_buffers = mOldMaxBuffers;
 
     mState = (mState == STATE_IN_RECONFIG) ? STATE_CONFIGURED : STATE_CONSTRUCTED;
     return OK;
@@ -268,7 +268,6 @@ status_t Camera3Stream::startPrepare(int maxCount) {
     ATRACE_CALL();
 
     Mutex::Autolock l(mLock);
-    status_t res = OK;
 
     if (maxCount < 0) {
         ALOGE("%s: Stream %d: Can't prepare stream if max buffer count (%d) is < 0",
@@ -340,7 +339,7 @@ status_t Camera3Stream::prepareNextBuffer() {
     // Get next buffer - this may allocate, and take a while for large buffers
     res = getBufferLocked( &mPreparedBuffers.editItemAt(mPreparedBufferIdx) );
     if (res != OK) {
-        ALOGE("%s: Stream %d: Unable to allocate buffer %d during preparation",
+        ALOGE("%s: Stream %d: Unable to allocate buffer %zu during preparation",
                 __FUNCTION__, mId, mPreparedBufferIdx);
         return NO_INIT;
     }
@@ -719,7 +718,7 @@ status_t Camera3Stream::returnInputBufferLocked(
     ALOGE("%s: This type of stream does not support input", __FUNCTION__);
     return INVALID_OPERATION;
 }
-status_t Camera3Stream::getInputBufferProducerLocked(sp<IGraphicBufferProducer> *producer) {
+status_t Camera3Stream::getInputBufferProducerLocked(sp<IGraphicBufferProducer>*) {
     ALOGE("%s: This type of stream does not support input", __FUNCTION__);
     return INVALID_OPERATION;
 }

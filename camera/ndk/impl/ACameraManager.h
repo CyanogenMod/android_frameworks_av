@@ -19,9 +19,9 @@
 
 #include "NdkCameraManager.h"
 
+#include <android/hardware/ICameraService.h>
+#include <android/hardware/BnCameraServiceListener.h>
 #include <camera/CameraMetadata.h>
-#include <camera/ICameraService.h>
-#include <camera/ICameraServiceListener.h>
 #include <binder/IServiceManager.h>
 #include <utils/StrongPointer.h>
 #include <utils/Mutex.h>
@@ -32,8 +32,6 @@
 
 #include <set>
 #include <map>
-
-using namespace android;
 
 namespace android {
 
@@ -47,7 +45,7 @@ namespace android {
 class CameraManagerGlobal final : public RefBase {
   public:
     static CameraManagerGlobal& getInstance();
-    sp<ICameraService> getCameraService();
+    sp<hardware::ICameraService> getCameraService();
 
     void registerAvailabilityCallback(
             const ACameraManager_AvailabilityCallbacks *callback);
@@ -55,7 +53,7 @@ class CameraManagerGlobal final : public RefBase {
             const ACameraManager_AvailabilityCallbacks *callback);
 
   private:
-    sp<ICameraService> mCameraService;
+    sp<hardware::ICameraService> mCameraService;
     const int          kCameraServicePollDelay = 500000; // 0.5s
     const char*        kCameraServiceName      = "media.camera";
     Mutex              mLock;
@@ -71,13 +69,16 @@ class CameraManagerGlobal final : public RefBase {
     };
     sp<DeathNotifier> mDeathNotifier;
 
-    class CameraServiceListener final : public BnCameraServiceListener {
+    class CameraServiceListener final : public hardware::BnCameraServiceListener {
       public:
         CameraServiceListener(CameraManagerGlobal* cm) : mCameraManager(cm) {}
-        virtual void onStatusChanged(Status status, int32_t cameraId);
+        virtual binder::Status onStatusChanged(int32_t status, int32_t cameraId);
 
         // Torch API not implemented yet
-        virtual void onTorchStatusChanged(TorchStatus, const String16&) {};
+        virtual binder::Status onTorchStatusChanged(int32_t, const String16&) {
+            return binder::Status::ok();
+        }
+
       private:
         const wp<CameraManagerGlobal> mCameraManager;
     };
@@ -132,15 +133,14 @@ class CameraManagerGlobal final : public RefBase {
     sp<CallbackHandler> mHandler;
     sp<ALooper>         mCbLooper; // Looper thread where callbacks actually happen on
 
-    typedef ICameraServiceListener::Status Status;
-    void onStatusChanged(Status status, int32_t cameraId);
-    void onStatusChangedLocked(Status status, int32_t cameraId);
+    void onStatusChanged(int32_t status, int32_t cameraId);
+    void onStatusChangedLocked(int32_t status, int32_t cameraId);
     // Utils for status
-    static bool validStatus(Status status);
-    static bool isStatusAvailable(Status status);
+    static bool validStatus(int32_t status);
+    static bool isStatusAvailable(int32_t status);
 
     // Map camera_id -> status
-    std::map<int32_t, Status> mDeviceStatusMap;
+    std::map<int32_t, int32_t> mDeviceStatusMap;
 
     // For the singleton instance
     static Mutex sLock;
@@ -158,7 +158,7 @@ class CameraManagerGlobal final : public RefBase {
 struct ACameraManager {
     ACameraManager() :
             mCachedCameraIdList({kCameraIdListNotInit, nullptr}),
-            mGlobalManager(&(CameraManagerGlobal::getInstance())) {}
+            mGlobalManager(&(android::CameraManagerGlobal::getInstance())) {}
     ~ACameraManager();
     camera_status_t getCameraIdList(ACameraIdList** cameraIdList);
     static void     deleteCameraIdList(ACameraIdList* cameraIdList);
@@ -175,10 +175,10 @@ struct ACameraManager {
     enum {
         kCameraIdListNotInit = -1
     };
-    Mutex         mLock;
+    android::Mutex         mLock;
     std::set<int> mCameraIds;          // Init by getOrCreateCameraIdListLocked
     ACameraIdList mCachedCameraIdList; // Init by getOrCreateCameraIdListLocked
-    sp<CameraManagerGlobal> mGlobalManager;
+    android::sp<android::CameraManagerGlobal> mGlobalManager;
 };
 
 #endif //_ACAMERA_MANAGER_H

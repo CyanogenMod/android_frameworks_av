@@ -102,7 +102,9 @@ public:
         ALOGI("Opening camera %s", mName.string());
         camera_info info;
         status_t res = module->getCameraInfo(atoi(mName.string()), &info);
-        if (res != OK) return res;
+        if (res != OK) {
+            return res;
+        }
 
         int rc = OK;
         if (module->getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_3 &&

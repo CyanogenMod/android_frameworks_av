@@ -20,14 +20,14 @@
 #include "system/camera_metadata.h"
 #include <utils/String8.h>
 #include <utils/Vector.h>
+#include <binder/Parcelable.h>
 
 namespace android {
-class Parcel;
 
 /**
  * A convenience wrapper around the C-based camera_metadata_t library.
  */
-class CameraMetadata {
+class CameraMetadata: public Parcelable {
   public:
     /** Creates an empty object; best used when expecting to acquire contents
      * from elsewhere */
@@ -186,8 +186,8 @@ class CameraMetadata {
      */
 
     // Metadata object is unchanged when reading from parcel fails.
-    status_t readFromParcel(Parcel *parcel);
-    status_t writeToParcel(Parcel *parcel) const;
+    virtual status_t readFromParcel(const Parcel *parcel) override;
+    virtual status_t writeToParcel(Parcel *parcel) const override;
 
     /**
       * Caller becomes the owner of the new metadata
@@ -227,6 +227,15 @@ class CameraMetadata {
 
 };
 
-}; // namespace android
+namespace hardware {
+namespace camera2 {
+namespace impl {
+using ::android::CameraMetadata;
+typedef CameraMetadata CameraMetadataNative;
+}
+}
+}
+
+} // namespace android
 
 #endif

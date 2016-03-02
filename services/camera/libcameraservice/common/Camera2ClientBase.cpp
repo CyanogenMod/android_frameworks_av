@@ -169,14 +169,15 @@ status_t Camera2ClientBase<TClientBase>::dumpDevice(
 
 
 template <typename TClientBase>
-void Camera2ClientBase<TClientBase>::disconnect() {
+binder::Status Camera2ClientBase<TClientBase>::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock icl(mBinderSerializationLock);
 
+    binder::Status res = binder::Status::ok();
     // Allow both client and the media server to disconnect at all times
     int callingPid = getCallingPid();
     if (callingPid != TClientBase::mClientPid &&
-        callingPid != TClientBase::mServicePid) return;
+        callingPid != TClientBase::mServicePid) return res;
 
     ALOGV("Camera %d: Shutting down", TClientBase::mCameraId);
 
@@ -185,6 +186,8 @@ void Camera2ClientBase<TClientBase>::disconnect() {
     CameraService::BasicClient::disconnect();
 
     ALOGV("Camera %d: Shut down complete complete", TClientBase::mCameraId);
+
+    return res;
 }
 
 template <typename TClientBase>
@@ -228,7 +231,7 @@ status_t Camera2ClientBase<TClientBase>::connect(
 
 template <typename TClientBase>
 void Camera2ClientBase<TClientBase>::notifyError(
-        ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        int32_t errorCode,
         const CaptureResultExtras& resultExtras) {
     ALOGE("Error condition %d reported by HAL, requestId %" PRId32, errorCode,
           resultExtras.requestId);

@@ -621,7 +621,7 @@ status_t CameraMetadata::writeToParcel(Parcel& data,
     return res;
 }
 
-status_t CameraMetadata::readFromParcel(Parcel *parcel) {
+status_t CameraMetadata::readFromParcel(const Parcel *parcel) {
 
     ALOGV("%s: parcel = %p", __FUNCTION__, parcel);
 

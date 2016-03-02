@@ -53,8 +53,8 @@ public:
      * ICamera interface (see ICamera for details)
      */
 
-    virtual void            disconnect();
-    virtual status_t        connect(const sp<ICameraClient>& client);
+    virtual binder::Status  disconnect();
+    virtual status_t        connect(const sp<hardware::ICameraClient>& client);
     virtual status_t        lock();
     virtual status_t        unlock();
     virtual status_t        setPreviewTarget(
@@ -77,7 +77,7 @@ public:
     virtual status_t        setParameters(const String8& params);
     virtual String8         getParameters() const;
     virtual status_t        sendCommand(int32_t cmd, int32_t arg1, int32_t arg2);
-    virtual void            notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+    virtual void            notifyError(int32_t errorCode,
                                         const CaptureResultExtras& resultExtras);
     virtual status_t        setVideoTarget(const sp<IGraphicBufferProducer>& bufferProducer);
 
@@ -86,7 +86,7 @@ public:
      */
 
     Camera2Client(const sp<CameraService>& cameraService,
-            const sp<ICameraClient>& cameraClient,
+            const sp<hardware::ICameraClient>& cameraClient,
             const String16& clientPackageName,
             int cameraId,
             int cameraFacing,

@@ -38,8 +38,8 @@ public:
     /**
      * Base binder interface (see ICamera/ICameraDeviceUser for details)
      */
-    virtual status_t      connect(const sp<TCamCallbacks>& callbacks);
-    virtual void          disconnect();
+    virtual status_t       connect(const sp<TCamCallbacks>& callbacks);
+    virtual binder::Status disconnect();
 
     /**
      * Interface used by CameraService
@@ -63,7 +63,7 @@ public:
      * CameraDeviceBase::NotificationListener implementation
      */
 
-    virtual void          notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+    virtual void          notifyError(int32_t errorCode,
                                       const CaptureResultExtras& resultExtras);
     virtual void          notifyIdle();
     virtual void          notifyShutter(const CaptureResultExtras& resultExtras,

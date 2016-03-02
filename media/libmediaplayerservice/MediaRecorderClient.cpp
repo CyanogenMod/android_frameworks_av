@@ -76,7 +76,7 @@ sp<IGraphicBufferProducer> MediaRecorderClient::querySurfaceMediaSource()
 
 
 
-status_t MediaRecorderClient::setCamera(const sp<ICamera>& camera,
+status_t MediaRecorderClient::setCamera(const sp<hardware::ICamera>& camera,
                                         const sp<ICameraRecordingProxy>& proxy)
 {
     ALOGV("setCamera");

@@ -17,9 +17,10 @@
 #ifndef ANDROID_SERVERS_CAMERA_PHOTOGRAPHY_CAMERADEVICECLIENT_H
 #define ANDROID_SERVERS_CAMERA_PHOTOGRAPHY_CAMERADEVICECLIENT_H
 
-#include <camera/camera2/ICameraDeviceUser.h>
-#include <camera/camera2/ICameraDeviceCallbacks.h>
+#include <android/hardware/camera2/BnCameraDeviceUser.h>
+#include <android/hardware/camera2/ICameraDeviceCallbacks.h>
 #include <camera/camera2/OutputConfiguration.h>
+#include <camera/camera2/SubmitInfo.h>
 
 #include "CameraService.h"
 #include "common/FrameProcessorBase.h"
@@ -27,17 +28,19 @@
 
 namespace android {
 
-struct CameraDeviceClientBase : public CameraService::BasicClient, public BnCameraDeviceUser
+struct CameraDeviceClientBase :
+         public CameraService::BasicClient,
+         public hardware::camera2::BnCameraDeviceUser
 {
-    typedef ICameraDeviceCallbacks TCamCallbacks;
+    typedef hardware::camera2::ICameraDeviceCallbacks TCamCallbacks;
 
-    const sp<ICameraDeviceCallbacks>& getRemoteCallback() {
+    const sp<hardware::camera2::ICameraDeviceCallbacks>& getRemoteCallback() {
         return mRemoteCallback;
     }
 
 protected:
     CameraDeviceClientBase(const sp<CameraService>& cameraService,
-            const sp<ICameraDeviceCallbacks>& remoteCallback,
+            const sp<hardware::camera2::ICameraDeviceCallbacks>& remoteCallback,
             const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
@@ -45,7 +48,7 @@ protected:
             uid_t clientUid,
             int servicePid);
 
-    sp<ICameraDeviceCallbacks> mRemoteCallback;
+    sp<hardware::camera2::ICameraDeviceCallbacks> mRemoteCallback;
 };
 
 /**
@@ -63,66 +66,77 @@ public:
      */
 
     // Note that the callee gets a copy of the metadata.
-    virtual status_t           submitRequest(sp<CaptureRequest> request,
-                                             bool streaming = false,
-                                             /*out*/
-                                             int64_t* lastFrameNumber = NULL);
+    virtual binder::Status submitRequest(
+            const hardware::camera2::CaptureRequest& request,
+            bool streaming = false,
+            /*out*/
+            hardware::camera2::utils::SubmitInfo *submitInfo = nullptr);
     // List of requests are copied.
-    virtual status_t           submitRequestList(List<sp<CaptureRequest> > requests,
-                                                 bool streaming = false,
-                                                 /*out*/
-                                                 int64_t* lastFrameNumber = NULL);
-    virtual status_t      cancelRequest(int requestId,
-                                        /*out*/
-                                        int64_t* lastFrameNumber = NULL);
+    virtual binder::Status submitRequestList(
+            const std::vector<hardware::camera2::CaptureRequest>& requests,
+            bool streaming = false,
+            /*out*/
+            hardware::camera2::utils::SubmitInfo *submitInfo = nullptr);
+    virtual binder::Status cancelRequest(int requestId,
+            /*out*/
+            int64_t* lastFrameNumber = NULL);
 
-    virtual status_t beginConfigure();
+    virtual binder::Status beginConfigure();
 
-    virtual status_t endConfigure(bool isConstrainedHighSpeed = false);
+    virtual binder::Status endConfigure(bool isConstrainedHighSpeed = false);
 
     // Returns -EBUSY if device is not idle
-    virtual status_t      deleteStream(int streamId);
+    virtual binder::Status deleteStream(int streamId);
 
-    virtual status_t      createStream(const OutputConfiguration &outputConfiguration);
+    virtual binder::Status createStream(
+            const hardware::camera2::params::OutputConfiguration &outputConfiguration,
+            /*out*/
+            int32_t* newStreamId = NULL);
 
     // Create an input stream of width, height, and format.
-    virtual status_t      createInputStream(int width, int height, int format);
+    virtual binder::Status createInputStream(int width, int height, int format,
+            /*out*/
+            int32_t* newStreamId = NULL);
 
     // Get the buffer producer of the input stream
-    virtual status_t      getInputBufferProducer(
-                                /*out*/sp<IGraphicBufferProducer> *producer);
+    virtual binder::Status getInputSurface(
+            /*out*/
+            view::Surface *inputSurface);
 
     // Create a request object from a template.
-    virtual status_t      createDefaultRequest(int templateId,
-                                               /*out*/
-                                               CameraMetadata* request);
+    virtual binder::Status createDefaultRequest(int templateId,
+            /*out*/
+            hardware::camera2::impl::CameraMetadataNative* request);
 
     // Get the static metadata for the camera
     // -- Caller owns the newly allocated metadata
-    virtual status_t      getCameraInfo(/*out*/CameraMetadata* info);
+    virtual binder::Status getCameraInfo(
+            /*out*/
+            hardware::camera2::impl::CameraMetadataNative* cameraCharacteristics);
 
     // Wait until all the submitted requests have finished processing
-    virtual status_t      waitUntilIdle();
+    virtual binder::Status waitUntilIdle();
 
     // Flush all active and pending requests as fast as possible
-    virtual status_t      flush(/*out*/
-                                int64_t* lastFrameNumber = NULL);
+    virtual binder::Status flush(
+            /*out*/
+            int64_t* lastFrameNumber = NULL);
 
     // Prepare stream by preallocating its buffers
-    virtual status_t      prepare(int streamId);
+    virtual binder::Status prepare(int32_t streamId);
 
     // Tear down stream resources by freeing its unused buffers
-    virtual status_t      tearDown(int streamId);
+    virtual binder::Status tearDown(int32_t streamId);
 
     // Prepare stream by preallocating up to maxCount of its buffers
-    virtual status_t      prepare2(int maxCount, int streamId);
+    virtual binder::Status prepare2(int32_t maxCount, int32_t streamId);
 
     /**
      * Interface used by CameraService
      */
 
     CameraDeviceClient(const sp<CameraService>& cameraService,
-            const sp<ICameraDeviceCallbacks>& remoteCallback,
+            const sp<hardware::camera2::ICameraDeviceCallbacks>& remoteCallback,
             const String16& clientPackageName,
             int cameraId,
             int cameraFacing,
@@ -142,7 +156,7 @@ public:
      */
 
     virtual void notifyIdle();
-    virtual void notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCode,
+    virtual void notifyError(int32_t errorCode,
                              const CaptureResultExtras& resultExtras);
     virtual void notifyShutter(const CaptureResultExtras& resultExtras, nsecs_t timestamp);
     virtual void notifyPrepared(int streamId);
@@ -167,6 +181,7 @@ private:
     static const int32_t FRAME_PROCESSOR_LISTENER_MAX_ID = 0x7fffffffL;
 
     /** Utility members */
+    binder::Status checkPidStatus(const char* checkLocation);
     bool enforceRequestPermissions(CameraMetadata& metadata);
 
     // Find the square of the euclidean distance between two points

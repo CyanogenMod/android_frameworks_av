@@ -25,12 +25,10 @@
 #include <system/camera.h>
 
 namespace android {
+namespace hardware {
 
 class ICameraClient: public IInterface
 {
-    /**
-     * Keep up-to-date with ICameraClient.aidl in frameworks/base
-     */
 public:
     DECLARE_META_INTERFACE(CameraClient);
 
@@ -51,6 +49,7 @@ public:
                                     uint32_t flags = 0);
 };
 
-}; // namespace android
+} // namespace hardware
+} // namespace android
 
 #endif

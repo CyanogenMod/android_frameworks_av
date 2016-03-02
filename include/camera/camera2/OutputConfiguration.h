@@ -18,12 +18,17 @@
 #define ANDROID_HARDWARE_CAMERA2_OUTPUTCONFIGURATION_H
 
 #include <gui/IGraphicBufferProducer.h>
+#include <binder/Parcelable.h>
 
 namespace android {
 
 class Surface;
 
-class OutputConfiguration {
+namespace hardware {
+namespace camera2 {
+namespace params {
+
+class OutputConfiguration : public android::Parcelable {
 public:
 
     static const int INVALID_ROTATION;
@@ -35,9 +40,18 @@ public:
     /**
      * Keep impl up-to-date with OutputConfiguration.java in frameworks/base
      */
-    status_t                   writeToParcel(Parcel& parcel) const;
+    virtual status_t           writeToParcel(Parcel* parcel) const override;
+
+    virtual status_t           readFromParcel(const Parcel* parcel) override;
+
+    // getGraphicBufferProducer will be NULL
+    // getRotation will be INVALID_ROTATION
+    // getSurfaceSetID will be INVALID_SET_ID
+    OutputConfiguration();
+
     // getGraphicBufferProducer will be NULL if error occurred
     // getRotation will be INVALID_ROTATION if error occurred
+    // getSurfaceSetID will be INVALID_SET_ID if error occurred
     OutputConfiguration(const Parcel& parcel);
 
     OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int rotation,
@@ -45,7 +59,8 @@ public:
 
     bool operator == (const OutputConfiguration& other) const {
         return (mGbp == other.mGbp &&
-                mRotation == other.mRotation);
+                mRotation == other.mRotation &&
+                mSurfaceSetID == other.mSurfaceSetID);
     }
     bool operator != (const OutputConfiguration& other) const {
         return !(*this == other);
@@ -53,6 +68,9 @@ public:
     bool operator < (const OutputConfiguration& other) const {
         if (*this == other) return false;
         if (mGbp != other.mGbp) return mGbp < other.mGbp;
+        if (mSurfaceSetID != other.mSurfaceSetID) {
+            return mSurfaceSetID < other.mSurfaceSetID;
+        }
         return mRotation < other.mRotation;
     }
     bool operator > (const OutputConfiguration& other) const {
@@ -64,8 +82,15 @@ private:
     int                        mRotation;
     int                        mSurfaceSetID;
     // helper function
-    static String16 readMaybeEmptyString16(const Parcel& parcel);
+    static String16 readMaybeEmptyString16(const Parcel* parcel);
 };
+} // namespace params
+} // namespace camera2
+} // namespace hardware
+
+
+using hardware::camera2::params::OutputConfiguration;
+
 }; // namespace android
 
 #endif

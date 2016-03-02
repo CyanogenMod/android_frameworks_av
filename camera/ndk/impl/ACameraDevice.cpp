@@ -20,6 +20,8 @@
 #include <vector>
 #include <utility>
 #include <inttypes.h>
+#include <android/hardware/ICameraService.h>
+#include <camera2/SubmitInfo.h>
 #include <gui/Surface.h>
 #include "ACameraDevice.h"
 #include "ACameraMetadata.h"
@@ -62,10 +64,15 @@ CameraDevice::CameraDevice(
     // Setup looper thread to perfrom device callbacks to app
     mCbLooper = new ALooper;
     mCbLooper->setName("C2N-dev-looper");
-    status_t ret = mCbLooper->start(
+    status_t err = mCbLooper->start(
             /*runOnCallingThread*/false,
             /*canCallJava*/       true,
             PRIORITY_DEFAULT);
+    if (err != OK) {
+        ALOGE("%s: Unable to start camera device callback looper: %s (%d)",
+                __FUNCTION__, strerror(-err), err);
+        setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_DEVICE);
+    }
     mHandler = new CallbackHandler();
     mCbLooper->registerHandler(mHandler);
 
@@ -117,13 +124,14 @@ CameraDevice::createCaptureRequest(
         return ACAMERA_ERROR_CAMERA_DISCONNECTED;
     }
     CameraMetadata rawRequest;
-    status_t remoteRet = mRemote->createDefaultRequest(templateId, &rawRequest);
-    if (remoteRet == BAD_VALUE) {
+    binder::Status remoteRet = mRemote->createDefaultRequest(templateId, &rawRequest);
+    if (remoteRet.serviceSpecificErrorCode() ==
+            hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT) {
         ALOGW("Create capture request failed! template %d is not supported on this device",
             templateId);
         return ACAMERA_ERROR_UNSUPPORTED;
-    } else if (remoteRet != OK) {
-        ALOGE("Create capture request failed! error %d", remoteRet);
+    } else if (!remoteRet.isOk()) {
+        ALOGE("Create capture request failed: %s", remoteRet.toString8().string());
         return ACAMERA_ERROR_UNKNOWN;
     }
     ACaptureRequest* outReq = new ACaptureRequest();
@@ -158,8 +166,6 @@ CameraDevice::createCaptureSession(
 
     ACameraCaptureSession* newSession = new ACameraCaptureSession(
             mNextSessionId++, outputs, callbacks, this);
-
-    bool configureSucceeded = (ret == ACAMERA_OK);
 
     // set new session as current session
     newSession->incStrong((void *) ACameraDevice_createCaptureSession);
@@ -201,8 +207,8 @@ CameraDevice::submitRequestsLocked(
         return ret;
     }
 
-    // Form List/Vector of capture request
-    List<sp<CaptureRequest> > requestList;
+    // Form two vectors of capture request, one for internal tracking
+    std::vector<hardware::camera2::CaptureRequest> requestList;
     Vector<sp<CaptureRequest> > requestsV;
     requestsV.setCapacity(numRequests);
     for (int i = 0; i < numRequests; i++) {
@@ -216,7 +222,7 @@ CameraDevice::submitRequestsLocked(
             ALOGE("Capture request without output target cannot be submitted!");
             return ACAMERA_ERROR_INVALID_PARAMETER;
         }
-        requestList.push_back(req);
+        requestList.push_back(*(req.get()));
         requestsV.push_back(req);
     }
 
@@ -228,10 +234,11 @@ CameraDevice::submitRequestsLocked(
         }
     }
 
-    int sequenceId;
-    int64_t lastFrameNumber;
-
-    sequenceId = mRemote->submitRequestList(requestList, isRepeating, &lastFrameNumber);
+    binder::Status remoteRet;
+    hardware::camera2::utils::SubmitInfo info;
+    remoteRet = mRemote->submitRequestList(requestList, isRepeating, &info);
+    int sequenceId = info.mRequestId;
+    int64_t lastFrameNumber = info.mLastFrameNumber;
     if (sequenceId < 0) {
         ALOGE("Camera %s submit request remote failure: ret %d", getId(), sequenceId);
         return ACAMERA_ERROR_UNKNOWN;
@@ -371,9 +378,9 @@ CameraDevice::stopRepeatingLocked() {
         mRepeatingSequenceId = REQUEST_ID_NONE;
 
         int64_t lastFrameNumber;
-        status_t remoteRet = mRemote->cancelRequest(repeatingSequenceId, &lastFrameNumber);
-        if (remoteRet != OK) {
-            ALOGE("Stop repeating request fails in remote! ret %d", remoteRet);
+        binder::Status remoteRet = mRemote->cancelRequest(repeatingSequenceId, &lastFrameNumber);
+        if (!remoteRet.isOk()) {
+            ALOGE("Stop repeating request fails in remote: %s", remoteRet.toString8().string());
             return ACAMERA_ERROR_UNKNOWN;
         }
         checkRepeatingSequenceCompleteLocked(repeatingSequenceId, lastFrameNumber);
@@ -394,9 +401,9 @@ CameraDevice::waitUntilIdleLocked() {
         return ACAMERA_ERROR_INVALID_OPERATION;
     }
 
-    status_t remoteRet = mRemote->waitUntilIdle();
-    if (remoteRet != OK) {
-        ALOGE("Camera device %s waitUntilIdle failed! ret %d", getId(), remoteRet);
+    binder::Status remoteRet = mRemote->waitUntilIdle();
+    if (!remoteRet.isOk()) {
+        ALOGE("Camera device %s waitUntilIdle failed: %s", getId(), remoteRet.toString8().string());
         // TODO: define a function to convert status_t -> camera_status_t
         return ACAMERA_ERROR_UNKNOWN;
     }
@@ -415,7 +422,7 @@ CameraDevice::getIGBPfromSessionOutput(
     }
     int value;
     int err = (*anw->query)(anw, NATIVE_WINDOW_CONCRETE_TYPE, &value);
-    if (value != NATIVE_WINDOW_SURFACE) {
+    if (err != OK || value != NATIVE_WINDOW_SURFACE) {
         ALOGE("Error: ANativeWindow is not backed by Surface!");
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -433,7 +440,7 @@ CameraDevice::getSurfaceFromANativeWindow(
     }
     int value;
     int err = (*anw->query)(anw, NATIVE_WINDOW_CONCRETE_TYPE, &value);
-    if (value != NATIVE_WINDOW_SURFACE) {
+    if (err != OK || value != NATIVE_WINDOW_SURFACE) {
         ALOGE("Error: ANativeWindow is not backed by Surface!");
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
@@ -449,7 +456,6 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
         outputs = &emptyOutput;
     }
 
-    bool success = false;
     camera_status_t ret = checkCameraClosedOrErrorLocked();
     if (ret != ACAMERA_OK) {
         return ret;
@@ -508,17 +514,18 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
     }
     mIdle = true;
 
-    status_t remoteRet = mRemote->beginConfigure();
-    if (remoteRet != ACAMERA_OK) {
-        ALOGE("Camera device %s begin configure failed, ret %d", getId(), remoteRet);
+    binder::Status remoteRet = mRemote->beginConfigure();
+    if (!remoteRet.isOk()) {
+        ALOGE("Camera device %s begin configure failed: %s", getId(), remoteRet.toString8().string());
         return ACAMERA_ERROR_UNKNOWN;
     }
 
     // delete to-be-deleted streams
     for (auto streamId : deleteList) {
         remoteRet = mRemote->deleteStream(streamId);
-        if (remoteRet != ACAMERA_OK) {
-            ALOGE("Camera device %s fails to remove stream %d", getId(), streamId);
+        if (!remoteRet.isOk()) {
+            ALOGE("Camera device %s failed to remove stream %d: %s", getId(), streamId,
+                    remoteRet.toString8().string());
             return ACAMERA_ERROR_UNKNOWN;
         }
         mConfiguredOutputs.erase(streamId);
@@ -526,21 +533,23 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
 
     // add new streams
     for (auto outConfig : addSet) {
-        remoteRet = mRemote->createStream(outConfig);
-        if (remoteRet < 0) {
-            ALOGE("Camera device %s fails to create stream", getId());
+        int streamId;
+        remoteRet = mRemote->createStream(outConfig, &streamId);
+        if (!remoteRet.isOk()) {
+            ALOGE("Camera device %s failed to create stream: %s", getId(),
+                    remoteRet.toString8().string());
             return ACAMERA_ERROR_UNKNOWN;
         }
-        int streamId = remoteRet; // Weird, right?
         mConfiguredOutputs.insert(std::make_pair(streamId, outConfig));
     }
 
-    remoteRet = mRemote->endConfigure();
-    if (remoteRet == BAD_VALUE) {
-        ALOGE("Camera device %s cannnot support app output configuration", getId());
+    remoteRet = mRemote->endConfigure(/*isConstrainedHighSpeed*/ false);
+    if (remoteRet.serviceSpecificErrorCode() == hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT) {
+        ALOGE("Camera device %s cannnot support app output configuration: %s", getId(),
+                remoteRet.toString8().string());
         return ACAMERA_ERROR_STREAM_CONFIGURE_FAIL;
-    } else if (remoteRet != ACAMERA_OK) {
-        ALOGE("Camera device %s end configure failed, ret %d", getId(), remoteRet);
+    } else if (!remoteRet.isOk()) {
+        ALOGE("Camera device %s end configure failed: %s", getId(), remoteRet.toString8().string());
         return ACAMERA_ERROR_UNKNOWN;
     }
 
@@ -548,7 +557,7 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
 }
 
 void
-CameraDevice::setRemoteDevice(sp<ICameraDeviceUser> remote) {
+CameraDevice::setRemoteDevice(sp<hardware::camera2::ICameraDeviceUser> remote) {
     Mutex::Autolock _l(mDeviceLock);
     mRemote = remote;
 }
@@ -615,14 +624,14 @@ CameraDevice::FrameNumberTracker::update() {
 
 void
 CameraDevice::onCaptureErrorLocked(
-        ICameraDeviceCallbacks::CameraErrorCode errorCode,
+        int32_t errorCode,
         const CaptureResultExtras& resultExtras) {
     int sequenceId = resultExtras.requestId;
     int64_t frameNumber = resultExtras.frameNumber;
     int32_t burstId = resultExtras.burstId;
 
     // No way to report buffer error now
-    if (errorCode == ICameraDeviceCallbacks::CameraErrorCode::ERROR_CAMERA_BUFFER) {
+    if (errorCode == hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER) {
         ALOGE("Camera %s Lost output buffer for frame %" PRId64,
                 getId(), frameNumber);
         return;
@@ -646,7 +655,7 @@ CameraDevice::onCaptureErrorLocked(
         failure->reason      = CAPTURE_FAILURE_REASON_ERROR;
         failure->sequenceId  = sequenceId;
         failure->wasImageCaptured = (errorCode ==
-                ICameraDeviceCallbacks::CameraErrorCode::ERROR_CAMERA_RESULT);
+                hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_RESULT);
 
         sp<AMessage> msg = new AMessage(kWhatCaptureFail, mHandler);
         msg->setPointer(kContextKey, cbh.mCallbacks.context);
@@ -999,21 +1008,21 @@ CameraDevice::checkAndFireSequenceCompleteLocked() {
 /**
   * Camera service callback implementation
   */
-void
+binder::Status
 CameraDevice::ServiceCallback::onDeviceError(
-        CameraErrorCode errorCode,
+        int32_t errorCode,
         const CaptureResultExtras& resultExtras) {
     ALOGD("Device error received, code %d, frame number %" PRId64 ", request ID %d, subseq ID %d",
             errorCode, resultExtras.frameNumber, resultExtras.requestId, resultExtras.burstId);
-
+    binder::Status ret = binder::Status::ok();
     sp<CameraDevice> dev = mDevice.promote();
     if (dev == nullptr) {
-        return; // device has been closed
+        return ret; // device has been closed
     }
 
     Mutex::Autolock _l(dev->mDeviceLock);
     if (dev->mRemote == nullptr) {
-        return; // device has been closed
+        return ret; // device has been closed
     }
     switch (errorCode) {
         case ERROR_CAMERA_DISCONNECTED:
@@ -1061,24 +1070,26 @@ CameraDevice::ServiceCallback::onDeviceError(
             dev->onCaptureErrorLocked(errorCode, resultExtras);
             break;
     }
+    return ret;
 }
 
-void
+binder::Status
 CameraDevice::ServiceCallback::onDeviceIdle() {
     ALOGV("Camera is now idle");
+    binder::Status ret = binder::Status::ok();
     sp<CameraDevice> dev = mDevice.promote();
     if (dev == nullptr) {
-        return; // device has been closed
+        return ret; // device has been closed
     }
 
     Mutex::Autolock _l(dev->mDeviceLock);
     if (dev->isClosed() || dev->mRemote == nullptr) {
-        return;
+        return ret;
     }
 
     if (dev->mIdle) {
         // Already in idle state. Possibly other thread did waitUntilIdle
-        return;
+        return ret;
     }
 
     if (dev->mCurrentSession != nullptr) {
@@ -1086,7 +1097,7 @@ CameraDevice::ServiceCallback::onDeviceIdle() {
         if (dev->mBusySession != dev->mCurrentSession) {
             ALOGE("Current session != busy session");
             dev->setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_DEVICE);
-            return;
+            return ret;
         }
         sp<AMessage> msg = new AMessage(kWhatSessionStateCb, dev->mHandler);
         msg->setPointer(kContextKey, dev->mBusySession->mUserSessionCallback.context);
@@ -1098,23 +1109,25 @@ CameraDevice::ServiceCallback::onDeviceIdle() {
         msg->post();
     }
     dev->mIdle = true;
+    return ret;
 }
 
-void
+binder::Status
 CameraDevice::ServiceCallback::onCaptureStarted(
         const CaptureResultExtras& resultExtras,
         int64_t timestamp) {
+    binder::Status ret = binder::Status::ok();
+
     sp<CameraDevice> dev = mDevice.promote();
     if (dev == nullptr) {
-        return; // device has been closed
+        return ret; // device has been closed
     }
     Mutex::Autolock _l(dev->mDeviceLock);
     if (dev->isClosed() || dev->mRemote == nullptr) {
-        return;
+        return ret;
     }
 
     int sequenceId = resultExtras.requestId;
-    int64_t frameNumber = resultExtras.frameNumber;
     int32_t burstId = resultExtras.burstId;
 
     auto it = dev->mSequenceCallbackMap.find(sequenceId);
@@ -1136,15 +1149,18 @@ CameraDevice::ServiceCallback::onCaptureStarted(
         msg->setInt64(kTimeStampKey, timestamp);
         msg->post();
     }
+    return ret;
 }
 
-void
+binder::Status
 CameraDevice::ServiceCallback::onResultReceived(
         const CameraMetadata& metadata,
         const CaptureResultExtras& resultExtras) {
+    binder::Status ret = binder::Status::ok();
+
     sp<CameraDevice> dev = mDevice.promote();
     if (dev == nullptr) {
-        return; // device has been closed
+        return ret; // device has been closed
     }
     int sequenceId = resultExtras.requestId;
     int64_t frameNumber = resultExtras.frameNumber;
@@ -1157,7 +1173,7 @@ CameraDevice::ServiceCallback::onResultReceived(
 
     Mutex::Autolock _l(dev->mDeviceLock);
     if (dev->mRemote == nullptr) {
-        return; // device has been disconnected
+        return ret; // device has been disconnected
     }
 
     if (dev->isClosed()) {
@@ -1165,7 +1181,7 @@ CameraDevice::ServiceCallback::onResultReceived(
             dev->mFrameNumberTracker.updateTracker(frameNumber, /*isError*/false);
         }
         // early return to avoid callback sent to closed devices
-        return;
+        return ret;
     }
 
     CameraMetadata metadataCopy = metadata;
@@ -1201,12 +1217,14 @@ CameraDevice::ServiceCallback::onResultReceived(
         dev->mFrameNumberTracker.updateTracker(frameNumber, /*isError*/false);
         dev->checkAndFireSequenceCompleteLocked();
     }
+
+    return ret;
 }
 
-void
+binder::Status
 CameraDevice::ServiceCallback::onPrepared(int) {
     // Prepare not yet implemented in NDK
-    return;
+    return binder::Status::ok();
 }
 
 } // namespace android

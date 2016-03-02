@@ -26,7 +26,7 @@ bool CaptureResultExtras::isValid() {
     return requestId >= 0;
 }
 
-status_t CaptureResultExtras::readFromParcel(Parcel *parcel) {
+status_t CaptureResultExtras::readFromParcel(const Parcel *parcel) {
     if (parcel == NULL) {
         ALOGE("%s: Null parcel", __FUNCTION__);
         return BAD_VALUE;

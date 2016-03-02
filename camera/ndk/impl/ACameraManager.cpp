@@ -71,7 +71,7 @@ CameraManagerGlobal::~CameraManagerGlobal() {
     mCameraService.clear();
 }
 
-sp<ICameraService> CameraManagerGlobal::getCameraService() {
+sp<hardware::ICameraService> CameraManagerGlobal::getCameraService() {
     Mutex::Autolock _l(mLock);
     if (mCameraService.get() == nullptr) {
         sp<IServiceManager> sm = defaultServiceManager();
@@ -88,16 +88,22 @@ sp<ICameraService> CameraManagerGlobal::getCameraService() {
             mDeathNotifier = new DeathNotifier(this);
         }
         binder->linkToDeath(mDeathNotifier);
-        mCameraService = interface_cast<ICameraService>(binder);
+        mCameraService = interface_cast<hardware::ICameraService>(binder);
 
         // Setup looper thread to perfrom availiability callbacks
         if (mCbLooper == nullptr) {
             mCbLooper = new ALooper;
             mCbLooper->setName("C2N-mgr-looper");
-            status_t ret = mCbLooper->start(
+            status_t err = mCbLooper->start(
                     /*runOnCallingThread*/false,
                     /*canCallJava*/       true,
                     PRIORITY_DEFAULT);
+            if (err != OK) {
+                ALOGE("%s: Unable to start camera service listener looper: %s (%d)",
+                        __FUNCTION__, strerror(-err), err);
+                mCbLooper.clear();
+                return nullptr;
+            }
             if (mHandler == nullptr) {
                 mHandler = new CallbackHandler();
             }
@@ -111,22 +117,23 @@ sp<ICameraService> CameraManagerGlobal::getCameraService() {
         mCameraService->addListener(mCameraServiceListener);
 
         // setup vendor tags
-        sp<VendorTagDescriptor> desc;
-        status_t ret = mCameraService->getCameraVendorTagDescriptor(/*out*/desc);
+        sp<VendorTagDescriptor> desc = new VendorTagDescriptor();
+        binder::Status ret = mCameraService->getCameraVendorTagDescriptor(/*out*/desc.get());
 
-        if (ret == OK) {
-            ret = VendorTagDescriptor::setAsGlobalVendorTagDescriptor(desc);
-            if (ret != OK) {
+        if (ret.isOk()) {
+            status_t err = VendorTagDescriptor::setAsGlobalVendorTagDescriptor(desc);
+            if (err != OK) {
                 ALOGE("%s: Failed to set vendor tag descriptors, received error %s (%d)",
-                        __FUNCTION__, strerror(-ret), ret);
+                        __FUNCTION__, strerror(-err), err);
             }
-        } else if (ret == -EOPNOTSUPP) {
+        } else if (ret.serviceSpecificErrorCode() ==
+                hardware::ICameraService::ERROR_DEPRECATED_HAL) {
             ALOGW("%s: Camera HAL too old; does not support vendor tags",
                     __FUNCTION__);
             VendorTagDescriptor::clearGlobalVendorTagDescriptor();
         } else {
-            ALOGE("%s: Failed to get vendor tag descriptors, received error %s (%d)",
-                    __FUNCTION__, strerror(-ret), ret);
+            ALOGE("%s: Failed to get vendor tag descriptors: %s",
+                    __FUNCTION__, ret.toString8().string());
         }
     }
     ALOGE_IF(mCameraService == nullptr, "no CameraService!?");
@@ -142,7 +149,7 @@ void CameraManagerGlobal::DeathNotifier::binderDied(const wp<IBinder>&)
         for (auto pair : cm->mDeviceStatusMap) {
             int32_t cameraId = pair.first;
             cm->onStatusChangedLocked(
-                    ICameraServiceListener::STATUS_NOT_PRESENT, cameraId);
+                    CameraServiceListener::STATUS_NOT_PRESENT, cameraId);
         }
         cm->mCameraService.clear();
         // TODO: consider adding re-connect call here?
@@ -158,7 +165,7 @@ void CameraManagerGlobal::registerAvailabilityCallback(
     if (pair.second) {
         for (auto pair : mDeviceStatusMap) {
             int32_t cameraId = pair.first;
-            Status status = pair.second;
+            int32_t status = pair.second;
 
             sp<AMessage> msg = new AMessage(kWhatSendSingleCallback, mHandler);
             ACameraManager_AvailabilityCallback cb = isStatusAvailable(status) ?
@@ -178,21 +185,21 @@ void CameraManagerGlobal::unregisterAvailabilityCallback(
     mCallbacks.erase(cb);
 }
 
-bool CameraManagerGlobal::validStatus(Status status) {
+bool CameraManagerGlobal::validStatus(int32_t status) {
     switch (status) {
-        case ICameraServiceListener::STATUS_NOT_PRESENT:
-        case ICameraServiceListener::STATUS_PRESENT:
-        case ICameraServiceListener::STATUS_ENUMERATING:
-        case ICameraServiceListener::STATUS_NOT_AVAILABLE:
+        case hardware::ICameraServiceListener::STATUS_NOT_PRESENT:
+        case hardware::ICameraServiceListener::STATUS_PRESENT:
+        case hardware::ICameraServiceListener::STATUS_ENUMERATING:
+        case hardware::ICameraServiceListener::STATUS_NOT_AVAILABLE:
             return true;
         default:
             return false;
     }
 }
 
-bool CameraManagerGlobal::isStatusAvailable(Status status) {
+bool CameraManagerGlobal::isStatusAvailable(int32_t status) {
     switch (status) {
-        case ICameraServiceListener::STATUS_PRESENT:
+        case hardware::ICameraServiceListener::STATUS_PRESENT:
             return true;
         default:
             return false;
@@ -239,31 +246,32 @@ void CameraManagerGlobal::CallbackHandler::onMessageReceived(
     }
 }
 
-void CameraManagerGlobal::CameraServiceListener::onStatusChanged(
-        Status status, int32_t cameraId) {
+binder::Status CameraManagerGlobal::CameraServiceListener::onStatusChanged(
+        int32_t status, int32_t cameraId) {
     sp<CameraManagerGlobal> cm = mCameraManager.promote();
-    if (cm == nullptr) {
+    if (cm != nullptr) {
+        cm->onStatusChanged(status, cameraId);
+    } else {
         ALOGE("Cannot deliver status change. Global camera manager died");
-        return;
     }
-    cm->onStatusChanged(status, cameraId);
+    return binder::Status::ok();
 }
 
 void CameraManagerGlobal::onStatusChanged(
-        Status status, int32_t cameraId) {
+        int32_t status, int32_t cameraId) {
     Mutex::Autolock _l(mLock);
     onStatusChangedLocked(status, cameraId);
 }
 
 void CameraManagerGlobal::onStatusChangedLocked(
-        Status status, int32_t cameraId) {
+        int32_t status, int32_t cameraId) {
         if (!validStatus(status)) {
             ALOGE("%s: Invalid status %d", __FUNCTION__, status);
             return;
         }
 
         bool firstStatus = (mDeviceStatusMap.count(cameraId) == 0);
-        Status oldStatus = firstStatus ?
+        int32_t oldStatus = firstStatus ?
                 status : // first status
                 mDeviceStatusMap[cameraId];
 
@@ -296,19 +304,28 @@ ACameraManager::getOrCreateCameraIdListLocked(ACameraIdList** cameraIdList) {
     if (mCachedCameraIdList.numCameras == kCameraIdListNotInit) {
         int numCameras = 0;
         Vector<char *> cameraIds;
-        sp<ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
+        sp<hardware::ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
         if (cs == nullptr) {
             ALOGE("%s: Cannot reach camera service!", __FUNCTION__);
             return ACAMERA_ERROR_CAMERA_DISCONNECTED;
         }
         // Get number of cameras
-        int numAllCameras = cs->getNumberOfCameras(ICameraService::CAMERA_TYPE_ALL);
+        int numAllCameras = 0;
+        binder::Status serviceRet = cs->getNumberOfCameras(hardware::ICameraService::CAMERA_TYPE_ALL,
+                &numAllCameras);
+        if (!serviceRet.isOk()) {
+            ALOGE("%s: Error getting camera count: %s", __FUNCTION__,
+                    serviceRet.toString8().string());
+            numAllCameras = 0;
+        }
         // Filter API2 compatible cameras and push to cameraIds
         for (int i = 0; i < numAllCameras; i++) {
             // TODO: Only suppot HALs that supports API2 directly now
-            status_t camera2Support = cs->supportsCameraApi(i, ICameraService::API_VERSION_2);
+            bool camera2Support = false;
+            serviceRet = cs->supportsCameraApi(i, hardware::ICameraService::API_VERSION_2,
+                    &camera2Support);
             char buf[kMaxCameraIdLen];
-            if (camera2Support == OK) {
+            if (camera2Support) {
                 numCameras++;
                 mCameraIds.insert(i);
                 snprintf(buf, sizeof(buf), "%d", i);
@@ -401,15 +418,16 @@ camera_status_t ACameraManager::getCameraCharacteristics(
         ALOGE("%s: Camera ID %s does not exist!", __FUNCTION__, cameraIdStr);
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
-    sp<ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
+    sp<hardware::ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
     if (cs == nullptr) {
         ALOGE("%s: Cannot reach camera service!", __FUNCTION__);
         return ACAMERA_ERROR_CAMERA_DISCONNECTED;
     }
     CameraMetadata rawMetadata;
-    status_t serviceRet = cs->getCameraCharacteristics(cameraId, &rawMetadata);
-    if (serviceRet != OK) {
-        ALOGE("Get camera characteristics from camera service failed! Err %d", ret);
+    binder::Status serviceRet = cs->getCameraCharacteristics(cameraId, &rawMetadata);
+    if (!serviceRet.isOk()) {
+        ALOGE("Get camera characteristics from camera service failed: %s",
+                serviceRet.toString8().string());
         return ACAMERA_ERROR_UNKNOWN; // should not reach here
     }
 
@@ -436,24 +454,23 @@ ACameraManager::openCamera(
 
     ACameraDevice* device = new ACameraDevice(cameraId, callback, std::move(chars));
 
-    sp<ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
+    sp<hardware::ICameraService> cs = CameraManagerGlobal::getInstance().getCameraService();
     if (cs == nullptr) {
         ALOGE("%s: Cannot reach camera service!", __FUNCTION__);
         return ACAMERA_ERROR_CAMERA_DISCONNECTED;
     }
 
     int id = atoi(cameraId);
-    sp<ICameraDeviceCallbacks> callbacks = device->getServiceCallback();
-    sp<ICameraDeviceUser> deviceRemote;
+    sp<hardware::camera2::ICameraDeviceCallbacks> callbacks = device->getServiceCallback();
+    sp<hardware::camera2::ICameraDeviceUser> deviceRemote;
     // No way to get package name from native.
     // Send a zero length package name and let camera service figure it out from UID
-    status_t serviceRet = cs->connectDevice(
+    binder::Status serviceRet = cs->connectDevice(
             callbacks, id, String16(""),
-            ICameraService::USE_CALLING_UID, /*out*/deviceRemote);
+            hardware::ICameraService::USE_CALLING_UID, /*out*/&deviceRemote);
 
-    if (serviceRet != OK) {
-        ALOGE("%s: connect camera device failed! err %d", __FUNCTION__, serviceRet);
-        // TODO: generate better error message here
+    if (!serviceRet.isOk()) {
+        ALOGE("%s: connect camera device failed: %s", __FUNCTION__, serviceRet.toString8().string());
         delete device;
         return ACAMERA_ERROR_CAMERA_DISCONNECTED;
     }
@@ -476,4 +493,3 @@ ACameraManager::~ACameraManager() {
         delete[] mCachedCameraIdList.cameraIds;
     }
 }
-

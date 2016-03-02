@@ -23,7 +23,9 @@
 namespace android {
 
 class Surface;
+namespace hardware {
 class ICamera;
+}
 class ICameraRecordingProxy;
 class IMediaRecorderClient;
 class IGraphicBufferConsumer;
@@ -34,7 +36,7 @@ class IMediaRecorder: public IInterface
 public:
     DECLARE_META_INTERFACE(MediaRecorder);
 
-    virtual status_t setCamera(const sp<ICamera>& camera,
+    virtual status_t setCamera(const sp<hardware::ICamera>& camera,
                                const sp<ICameraRecordingProxy>& proxy) = 0;
     virtual status_t setPreviewSurface(const sp<IGraphicBufferProducer>& surface) = 0;
     virtual status_t setVideoSource(int vs) = 0;
