@@ -203,10 +203,14 @@ AImageReader::init() {
 
     mCbLooper = new ALooper;
     mCbLooper->setName(consumerName.string());
-    status_t ret = mCbLooper->start(
+    res = mCbLooper->start(
             /*runOnCallingThread*/false,
             /*canCallJava*/       true,
             PRIORITY_DEFAULT);
+    if (res != OK) {
+        ALOGE("Failed to start the looper");
+        return AMEDIA_ERROR_UNKNOWN;
+    }
     mHandler = new CallbackHandler(this);
     mCbLooper->registerHandler(mHandler);
 

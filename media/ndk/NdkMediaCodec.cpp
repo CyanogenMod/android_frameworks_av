@@ -145,10 +145,14 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
     AMediaCodec *mData = new AMediaCodec();
     mData->mLooper = new ALooper;
     mData->mLooper->setName("NDK MediaCodec_looper");
-    status_t ret = mData->mLooper->start(
+    size_t res = mData->mLooper->start(
             false,      // runOnCallingThread
             true,       // canCallJava XXX
             PRIORITY_FOREGROUND);
+    if (res != OK) {
+        ALOGE("Failed to start the looper");
+        return NULL;
+    }
     if (name_is_type) {
         mData->mCodec = android::MediaCodec::CreateByType(mData->mLooper, name, encoder);
     } else {

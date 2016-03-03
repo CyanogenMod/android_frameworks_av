@@ -23,6 +23,7 @@
 #include "NdkMediaFormatPriv.h"
 
 
+#include <inttypes.h>
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <media/hardware/CryptoAPI.h>
@@ -72,7 +73,7 @@ media_status_t AMediaExtractor_delete(AMediaExtractor *mData) {
 EXPORT
 media_status_t AMediaExtractor_setDataSourceFd(AMediaExtractor *mData, int fd, off64_t offset,
         off64_t length) {
-    ALOGV("setDataSource(%d, %lld, %lld)", fd, offset, length);
+    ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
     return translate_error(mData->mImpl->setDataSource(fd, offset, length));
 }
 

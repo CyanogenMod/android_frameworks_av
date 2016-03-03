@@ -40,6 +40,8 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS += -fvisibility=hidden -D EXPORT='__attribute__ ((visibility ("default")))'
 
+LOCAL_CFLAGS += -Werror
+
 LOCAL_SHARED_LIBRARIES := \
     libbinder \
     libmedia \
