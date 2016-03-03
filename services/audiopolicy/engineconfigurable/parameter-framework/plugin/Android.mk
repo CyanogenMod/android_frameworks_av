@@ -30,6 +30,8 @@ LOCAL_SHARED_LIBRARIES := \
     libparameter \
     liblog \
 
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+
 LOCAL_STATIC_LIBRARIES := libpfw_utility
 
 LOCAL_MODULE_TAGS := optional
