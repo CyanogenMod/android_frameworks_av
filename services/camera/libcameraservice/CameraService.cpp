@@ -658,8 +658,10 @@ Status CameraService::getCameraVendorTagDescriptor(
         ALOGE("%s: camera hardware module doesn't exist", __FUNCTION__);
         return STATUS_ERROR(ERROR_DISCONNECTED, "Camera subsystem not available");
     }
-
-    *desc = *(VendorTagDescriptor::getGlobalVendorTagDescriptor().get());
+    sp<VendorTagDescriptor> globalDescriptor = VendorTagDescriptor::getGlobalVendorTagDescriptor();
+    if (globalDescriptor != nullptr) {
+        *desc = *(globalDescriptor.get());
+    }
     return Status::ok();
 }
 
