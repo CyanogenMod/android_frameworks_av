@@ -3325,13 +3325,11 @@ MPEG4Source::MPEG4Source(
 
         const uint8_t *ptr = (const uint8_t *)data;
 
-        if (size < 7 || ptr[0] != 1) {
-            ALOGE("Invalid AVCC atom, size %d, configurationVersion: %d",
-                    size, ptr[0]);
-        } else {
-            // The number of bytes used to encode the length of a NAL unit.
-            mNALLengthSize = 1 + (ptr[4] & 3);
-        }
+        CHECK(size >= 7);
+        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
+
+        // The number of bytes used to encode the length of a NAL unit.
+        mNALLengthSize = 1 + (ptr[4] & 3);
     } else if (mIsHEVC) {
         uint32_t type;
         const void *data;
