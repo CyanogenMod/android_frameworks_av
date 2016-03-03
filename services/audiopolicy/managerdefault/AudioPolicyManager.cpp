@@ -871,7 +871,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
     // skip direct output selection if the request can obviously be attached to a mixed output
     // and not explicitly requested
     if (((flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
-            audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE &&
+            audio_is_linear_pcm(format) && samplingRate <= SAMPLE_RATE_HZ_MAX &&
             audio_channel_count_from_out_mask(channelMask) <= 2) {
         goto non_direct_output;
     }
@@ -962,7 +962,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
                 mpClientInterface->closeOutput(output);
             }
             // fall back to mixer output if possible when the direct output could not be open
-            if (audio_is_linear_pcm(format) && samplingRate <= MAX_MIXER_SAMPLING_RATE) {
+            if (audio_is_linear_pcm(format) && samplingRate <= SAMPLE_RATE_HZ_MAX) {
                 goto non_direct_output;
             }
             return AUDIO_IO_HANDLE_NONE;
@@ -1485,7 +1485,7 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
     // find a compatible input profile (not necessarily identical in parameters)
     sp<IOProfile> profile;
     // samplingRate and flags may be updated by getInputProfile
-    uint32_t profileSamplingRate = samplingRate;
+    uint32_t profileSamplingRate = (samplingRate == 0) ? SAMPLE_RATE_HZ_DEFAULT : samplingRate;
     audio_format_t profileFormat = format;
     audio_channel_mask_t profileChannelMask = channelMask;
     audio_input_flags_t profileFlags = flags;
@@ -1503,6 +1503,10 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
                     device, samplingRate, format, channelMask, flags);
             return input;
         }
+    }
+    // Pick input sampling rate if not specified by client
+    if (samplingRate == 0) {
+        samplingRate = profileSamplingRate;
     }
 
     if (profile->getModuleHandle() == 0) {

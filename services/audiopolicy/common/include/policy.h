@@ -22,11 +22,14 @@ static const audio_format_t gDynamicFormat = AUDIO_FORMAT_DEFAULT;
 
 // For mixed output and inputs, the policy will use max mixer sampling rates.
 // Do not limit sampling rate otherwise
-#define MAX_MIXER_SAMPLING_RATE 192000
+#define SAMPLE_RATE_HZ_MAX 192000
+
+// Used when a client opens a capture stream, without specifying a desired sample rate.
+#define SAMPLE_RATE_HZ_DEFAULT 48000
 
 // For mixed output and inputs, the policy will use max mixer channel count.
 // Do not limit channel count otherwise
-#define MAX_MIXER_CHANNEL_COUNT 8
+#define MAX_MIXER_CHANNEL_COUNT FCC_8
 
 /**
  * A device mask for all audio input devices that are considered "virtual" when evaluating

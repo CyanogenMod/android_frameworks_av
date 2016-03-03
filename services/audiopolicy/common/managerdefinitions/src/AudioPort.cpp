@@ -165,7 +165,7 @@ void AudioPort::pickSamplingRate(uint32_t &pickedRate,const SampleRateVector &sa
         }
         pickedRate = (samplingRate == UINT_MAX) ? 0 : samplingRate;
     } else {
-        uint32_t maxRate = MAX_MIXER_SAMPLING_RATE;
+        uint32_t maxRate = SAMPLE_RATE_HZ_MAX;
 
         // For mixed output and inputs, use max mixer sampling rates. Do not
         // limit sampling rate otherwise

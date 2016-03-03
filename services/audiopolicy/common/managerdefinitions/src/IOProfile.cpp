@@ -55,8 +55,8 @@ bool IOProfile::isCompatibleProfile(audio_devices_t device,
         }
     }
 
-    if (samplingRate == 0 || !audio_is_valid_format(format) ||
-            (isPlaybackThread && (!audio_is_output_channel(channelMask))) ||
+    if (!audio_is_valid_format(format) ||
+            (isPlaybackThread && (samplingRate == 0 || !audio_is_output_channel(channelMask))) ||
             (isRecordThread && (!audio_is_input_channel(channelMask)))) {
          return false;
     }
