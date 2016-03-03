@@ -49,6 +49,7 @@ LOCAL_SHARED_LIBRARIES := \
     libcamera_client \
     libstagefright_foundation \
     libcutils \
+    libcamera_metadata
 
 LOCAL_CLANG := true
 

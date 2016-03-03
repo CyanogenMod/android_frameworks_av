@@ -162,6 +162,8 @@ ACameraMetadata::getConstEntry(uint32_t tag, ACameraMetadata_const_entry* entry)
         return ACAMERA_ERROR_INVALID_PARAMETER;
     }
 
+    Mutex::Autolock _l(mLock);
+
     camera_metadata_ro_entry rawEntry = mData.find(tag);
     if (rawEntry.count == 0) {
         ALOGE("%s: cannot find metadata tag %d", __FUNCTION__, tag);
@@ -204,6 +206,38 @@ ACameraMetadata::update(uint32_t tag, uint32_t count, const ACameraMetadata_rati
     return updateImpl<camera_metadata_rational_t>(tag, count, data);
 }
 
+camera_status_t
+ACameraMetadata::getTags(/*out*/int32_t* numTags,
+                         /*out*/const uint32_t** tags) const {
+    Mutex::Autolock _l(mLock);
+    if (mTags.size() == 0) {
+        size_t entry_count = mData.entryCount();
+        mTags.setCapacity(entry_count);
+        const camera_metadata_t* rawMetadata = mData.getAndLock();
+        for (size_t i = 0; i < entry_count; i++) {
+            camera_metadata_ro_entry_t entry;
+            int ret = get_camera_metadata_ro_entry(rawMetadata, i, &entry);
+            if (ret != 0) {
+                ALOGE("%s: error reading metadata index %zu", __FUNCTION__, i);
+                return ACAMERA_ERROR_UNKNOWN;
+            }
+            // Hide system key from users
+            if (sSystemTags.count(entry.tag) == 0) {
+                mTags.push_back(entry.tag);
+            }
+        }
+        mData.unlock(rawMetadata);
+    }
+
+    *numTags = mTags.size();
+    *tags = mTags.array();
+    return ACAMERA_OK;
+}
+
+const CameraMetadata&
+ACameraMetadata::getInternalData() {
+    return mData;
+}
 
 // TODO: some of key below should be hidden from user
 // ex: ACAMERA_REQUEST_ID and ACAMERA_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR
@@ -285,6 +319,49 @@ ACameraMetadata::isCaptureRequestTag(const uint32_t tag) {
             return false;
     }
 }
+
+// System tags that should be hidden from users
+std::unordered_set<uint32_t> ACameraMetadata::sSystemTags ({
+    ANDROID_CONTROL_SCENE_MODE_OVERRIDES,
+    ANDROID_CONTROL_AE_PRECAPTURE_ID,
+    ANDROID_CONTROL_AF_TRIGGER_ID,
+    ANDROID_DEMOSAIC_MODE,
+    ANDROID_EDGE_STRENGTH,
+    ANDROID_FLASH_FIRING_POWER,
+    ANDROID_FLASH_FIRING_TIME,
+    ANDROID_FLASH_COLOR_TEMPERATURE,
+    ANDROID_FLASH_MAX_ENERGY,
+    ANDROID_FLASH_INFO_CHARGE_DURATION,
+    ANDROID_JPEG_MAX_SIZE,
+    ANDROID_JPEG_SIZE,
+    ANDROID_NOISE_REDUCTION_STRENGTH,
+    ANDROID_QUIRKS_METERING_CROP_REGION,
+    ANDROID_QUIRKS_TRIGGER_AF_WITH_AUTO,
+    ANDROID_QUIRKS_USE_ZSL_FORMAT,
+    ANDROID_REQUEST_INPUT_STREAMS,
+    ANDROID_REQUEST_METADATA_MODE,
+    ANDROID_REQUEST_OUTPUT_STREAMS,
+    ANDROID_REQUEST_TYPE,
+    ANDROID_REQUEST_MAX_NUM_REPROCESS_STREAMS,
+    ANDROID_SCALER_AVAILABLE_RAW_MIN_DURATIONS,
+    ANDROID_SCALER_AVAILABLE_RAW_SIZES,
+    ANDROID_SENSOR_BASE_GAIN_FACTOR,
+    ANDROID_SENSOR_PROFILE_HUE_SAT_MAP_DIMENSIONS,
+    ANDROID_SENSOR_TEMPERATURE,
+    ANDROID_SENSOR_PROFILE_HUE_SAT_MAP,
+    ANDROID_SENSOR_PROFILE_TONE_CURVE,
+    ANDROID_SENSOR_OPAQUE_RAW_SIZE,
+    ANDROID_SHADING_STRENGTH,
+    ANDROID_STATISTICS_HISTOGRAM_MODE,
+    ANDROID_STATISTICS_SHARPNESS_MAP_MODE,
+    ANDROID_STATISTICS_HISTOGRAM,
+    ANDROID_STATISTICS_SHARPNESS_MAP,
+    ANDROID_STATISTICS_INFO_HISTOGRAM_BUCKET_COUNT,
+    ANDROID_STATISTICS_INFO_MAX_HISTOGRAM_COUNT,
+    ANDROID_STATISTICS_INFO_MAX_SHARPNESS_MAP_VALUE,
+    ANDROID_STATISTICS_INFO_SHARPNESS_MAP_SIZE,
+    ANDROID_DEPTH_MAX_DEPTH_SAMPLES,
+});
 
 /*~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~@~
  * End generated code

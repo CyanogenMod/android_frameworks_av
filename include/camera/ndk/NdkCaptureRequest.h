@@ -54,6 +54,19 @@ camera_status_t ACaptureRequest_removeTarget(ACaptureRequest*, const ACameraOutp
  */
 camera_status_t ACaptureRequest_getConstEntry(
         const ACaptureRequest*, uint32_t tag, ACameraMetadata_const_entry* entry);
+
+/*
+ * List all the entry tags in this capture request.
+ * The memory of tags is managed by ACaptureRequest itself and must NOT be free/delete
+ * by application. Calling ACaptureRequest_setEntry_* API will invalidate previous
+ * output of ACaptureRequest_getAllTags. Do not access tags after calling
+ * ACaptureRequest_setEntry_*. To get new list of tags after updating capture request,
+ * application must call ACaptureRequest_getAllTags again.
+ * Do NOT access tags after calling ACaptureRequest_free.
+ */
+camera_status_t ACaptureRequest_getAllTags(
+        const ACaptureRequest*, /*out*/int32_t* numTags, /*out*/const uint32_t** tags);
+
 /*
  * Set an entry of corresponding type.
  * The entry tag's type must match corresponding set API or an

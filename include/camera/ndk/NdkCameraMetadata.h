@@ -93,7 +93,13 @@ typedef struct ACameraMetadata_const_entry {
 camera_status_t ACameraMetadata_getConstEntry(
         const ACameraMetadata*, uint32_t tag, ACameraMetadata_const_entry* entry);
 
-// TODO: need an API to list all tags in the metadata. Same for ACaptureRequest
+/*
+ * List all the entry tags in this metadata.
+ * The memory of tags is managed by ACameraMetadata itself and must NOT be free/delete
+ * by application. Do NOT access tags after calling ACameraMetadata_free
+ */
+camera_status_t ACameraMetadata_getAllTags(
+        const ACameraMetadata*, /*out*/int32_t* numTags, /*out*/const uint32_t** tags);
 
 /**
  * Copy a metadata. Duplicates a metadata structure.

@@ -76,8 +76,8 @@ CameraDevice::CameraDevice(
     mHandler = new CallbackHandler();
     mCbLooper->registerHandler(mHandler);
 
-    CameraMetadata metadata = mChars->mData;
-    camera_metadata_entry entry = metadata.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
+    const CameraMetadata& metadata = mChars->getInternalData();
+    camera_metadata_ro_entry entry = metadata.find(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
     if (entry.count != 1) {
         ALOGW("%s: bad count %zu for partial result count", __FUNCTION__, entry.count);
         mPartialResultCount = 1;
@@ -279,7 +279,7 @@ CameraDevice::allocateCaptureRequest(
         const ACaptureRequest* request, /*out*/sp<CaptureRequest>& outReq) {
     camera_status_t ret;
     sp<CaptureRequest> req(new CaptureRequest());
-    req->mMetadata = request->settings->mData;
+    req->mMetadata = request->settings->getInternalData();
     req->mIsReprocess = false; // NDK does not support reprocessing yet
 
     for (auto outputTarget : request->targets->mOutputs) {

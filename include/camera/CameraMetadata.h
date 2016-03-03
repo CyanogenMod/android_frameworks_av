@@ -64,7 +64,7 @@ class CameraMetadata: public Parcelable {
      * from getAndLock must be provided to guarantee that the right object is
      * being unlocked.
      */
-    status_t unlock(const camera_metadata_t *buffer);
+    status_t unlock(const camera_metadata_t *buffer) const;
 
     /**
      * Release a raw metadata buffer to the caller. After this call,
