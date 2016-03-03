@@ -94,6 +94,8 @@ struct OMXNodeInstance {
 
     status_t signalEndOfInputStream();
 
+    void signalEvent(OMX_EVENTTYPE event, OMX_U32 arg1, OMX_U32 arg2);
+
     status_t allocateSecureBuffer(
             OMX_U32 portIndex, size_t size, OMX::buffer_id *buffer,
             void **buffer_data, native_handle_t **native_handle);

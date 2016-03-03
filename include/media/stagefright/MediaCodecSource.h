@@ -115,8 +115,8 @@ private:
     bool mStopping;
     bool mDoMoreWorkPending;
     bool mSetEncoderFormat;
-    int mEncoderFormat;
-    int mEncoderDataSpace;
+    int32_t mEncoderFormat;
+    int32_t mEncoderDataSpace;
     sp<AMessage> mEncoderActivityNotify;
     sp<IGraphicBufferProducer> mGraphicBufferProducer;
     sp<IGraphicBufferConsumer> mGraphicBufferConsumer;

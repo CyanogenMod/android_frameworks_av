@@ -1571,6 +1571,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
 
     if (cameraSource == NULL) {
         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
+    } else {
+        // require dataspace setup even if not using surface input
+        format->setInt32("android._using-recorder", 1);
     }
 
     sp<MediaCodecSource> encoder = MediaCodecSource::Create(

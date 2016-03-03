@@ -40,8 +40,9 @@
 
 namespace android {
 
-const int kDefaultSwVideoEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
-const int kDefaultSwVideoEncoderDataSpace = HAL_DATASPACE_BT709;
+const int32_t kDefaultSwVideoEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
+const int32_t kDefaultHwVideoEncoderFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+const int32_t kDefaultVideoEncoderDataSpace = HAL_DATASPACE_BT709;
 
 const int kStopTimeoutUs = 300000; // allow 1 sec for shutting down encoder
 
@@ -515,13 +516,19 @@ status_t MediaCodecSource::initEncoder() {
     sp<AMessage> inputFormat;
     int32_t usingSwReadOften;
     mSetEncoderFormat = false;
-    if (mEncoder->getInputFormat(&inputFormat) == OK
-            && inputFormat->findInt32("using-sw-read-often", &usingSwReadOften)
-            && usingSwReadOften) {
-        // this is a SW encoder; signal source to allocate SW readable buffers
+    if (mEncoder->getInputFormat(&inputFormat) == OK) {
         mSetEncoderFormat = true;
-        mEncoderFormat = kDefaultSwVideoEncoderFormat;
-        mEncoderDataSpace = kDefaultSwVideoEncoderDataSpace;
+        if (inputFormat->findInt32("using-sw-read-often", &usingSwReadOften)
+                && usingSwReadOften) {
+            // this is a SW encoder; signal source to allocate SW readable buffers
+            mEncoderFormat = kDefaultSwVideoEncoderFormat;
+        } else {
+            mEncoderFormat = kDefaultHwVideoEncoderFormat;
+        }
+        if (!inputFormat->findInt32("android._dataspace", &mEncoderDataSpace)) {
+            mEncoderDataSpace = kDefaultVideoEncoderDataSpace;
+        }
+        ALOGV("setting dataspace %#x, format %#x", mEncoderDataSpace, mEncoderFormat);
     }
 
     err = mEncoder->start();

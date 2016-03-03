@@ -54,6 +54,7 @@ private:
     int32_t mCropLeft, mCropTop, mCropRight, mCropBottom;
     int32_t mCropWidth, mCropHeight;
     int32_t mRotationDegrees;
+    android_dataspace mDataSpace;
     FrameRenderTracker mRenderTracker;
 
     SoftwareRenderer(const SoftwareRenderer &);

@@ -20,12 +20,16 @@
 //#define LOG_NDEBUG 0
 #include <utils/Log.h>
 
+#define STRINGIFY_ENUMS // for asString in HardwareAPI.h/VideoAPI.h
+
 #include "GraphicBufferSource.h"
+#include "OMXUtils.h"
 
 #include <OMX_Core.h>
 #include <OMX_IndexExt.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ColorUtils.h>
 
 #include <media/hardware/MetadataBufferType.h>
 #include <ui/GraphicBuffer.h>
@@ -38,6 +42,8 @@
 namespace android {
 
 static const bool EXTRA_CHECK = true;
+
+static const OMX_U32 kPortIndexInput = 0;
 
 GraphicBufferSource::PersistentProxyListener::PersistentProxyListener(
         const wp<IGraphicBufferConsumer> &consumer,
@@ -218,6 +224,8 @@ void GraphicBufferSource::omxExecuting() {
             mNumFramesAvailable, mCodecBuffers.size());
     CHECK(!mExecuting);
     mExecuting = true;
+    mLastDataSpace = HAL_DATASPACE_UNKNOWN;
+    ALOGV("clearing last dataSpace");
 
     // Start by loading up as many buffers as possible.  We want to do this,
     // rather than just submit the first buffer, to avoid a degenerate case:
@@ -498,6 +506,76 @@ void GraphicBufferSource::suspend(bool suspend) {
     }
 }
 
+void GraphicBufferSource::onDataSpaceChanged_l(
+        android_dataspace dataSpace, android_pixel_format pixelFormat) {
+    ALOGD("got buffer with new dataSpace #%x", dataSpace);
+    mLastDataSpace = dataSpace;
+
+    if (ColorUtils::convertDataSpaceToV0(dataSpace)) {
+        ColorAspects aspects = mColorAspects; // initially requested aspects
+
+        // request color aspects to encode
+        OMX_INDEXTYPE index;
+        status_t err = mNodeInstance->getExtensionIndex(
+                "OMX.google.android.index.describeColorAspects", &index);
+        if (err == OK) {
+            // V0 dataspace
+            DescribeColorAspectsParams params;
+            InitOMXParams(&params);
+            params.nPortIndex = kPortIndexInput;
+            params.nDataSpace = mLastDataSpace;
+            params.nPixelFormat = pixelFormat;
+            params.bDataSpaceChanged = OMX_TRUE;
+            params.sAspects = mColorAspects;
+
+            err = mNodeInstance->getConfig(index, &params, sizeof(params));
+            if (err == OK) {
+                aspects = params.sAspects;
+                ALOGD("Codec resolved it to (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) err=%d(%s)",
+                        params.sAspects.mRange, asString(params.sAspects.mRange),
+                        params.sAspects.mPrimaries, asString(params.sAspects.mPrimaries),
+                        params.sAspects.mMatrixCoeffs, asString(params.sAspects.mMatrixCoeffs),
+                        params.sAspects.mTransfer, asString(params.sAspects.mTransfer),
+                        err, asString(err));
+            } else {
+                params.sAspects = aspects;
+                err = OK;
+            }
+            params.bDataSpaceChanged = OMX_FALSE;
+            for (int triesLeft = 2; --triesLeft >= 0; ) {
+                status_t err = mNodeInstance->setConfig(index, &params, sizeof(params));
+                if (err == OK) {
+                    err = mNodeInstance->getConfig(index, &params, sizeof(params));
+                }
+                if (err != OK || !ColorUtils::checkIfAspectsChangedAndUnspecifyThem(
+                        params.sAspects, aspects)) {
+                    // if we can't set or get color aspects, still communicate dataspace to client
+                    break;
+                }
+
+                ALOGW_IF(triesLeft == 0, "Codec repeatedly changed requested ColorAspects.");
+            }
+        }
+
+        ALOGV("Set color aspects to (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) err=%d(%s)",
+                aspects.mRange, asString(aspects.mRange),
+                aspects.mPrimaries, asString(aspects.mPrimaries),
+                aspects.mMatrixCoeffs, asString(aspects.mMatrixCoeffs),
+                aspects.mTransfer, asString(aspects.mTransfer),
+                err, asString(err));
+
+        // signal client that the dataspace has changed; this will update the output format
+        // TODO: we should tie this to an output buffer somehow, and signal the change
+        // just before the output buffer is returned to the client, but there are many
+        // ways this could fail (e.g. flushing), and we are not yet supporting this scenario.
+
+        mNodeInstance->signalEvent(
+                OMX_EventDataSpaceChanged, dataSpace,
+                (aspects.mRange << 24) | (aspects.mPrimaries << 16)
+                        | (aspects.mMatrixCoeffs << 8) | aspects.mTransfer);
+    }
+}
+
 bool GraphicBufferSource::fillCodecBuffer_l() {
     CHECK(mExecuting && mNumFramesAvailable > 0);
 
@@ -536,6 +614,12 @@ bool GraphicBufferSource::fillCodecBuffer_l() {
         ALOGV("fillCodecBuffer_l: setting mBufferSlot %d", item.mSlot);
         mBufferSlot[item.mSlot] = item.mGraphicBuffer;
     }
+
+    if (item.mDataSpace != mLastDataSpace) {
+        onDataSpaceChanged_l(
+                item.mDataSpace, (android_pixel_format)mBufferSlot[item.mSlot]->getPixelFormat());
+    }
+
 
     err = UNKNOWN_ERROR;
 
@@ -929,6 +1013,7 @@ void GraphicBufferSource::onSidebandStreamChanged() {
 }
 
 void GraphicBufferSource::setDefaultDataSpace(android_dataspace dataSpace) {
+    // no need for mutex as we are not yet running
     ALOGD("setting dataspace: %#x", dataSpace);
     mConsumer->setDefaultBufferDataSpace(dataSpace);
     mLastDataSpace = dataSpace;
@@ -999,6 +1084,11 @@ status_t GraphicBufferSource::setTimeLapseConfig(const TimeLapseConfig &config) 
 void GraphicBufferSource::setColorAspects(const ColorAspects &aspects) {
     Mutex::Autolock autoLock(mMutex);
     mColorAspects = aspects;
+    ALOGD("requesting color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s))",
+            aspects.mRange, asString(aspects.mRange),
+            aspects.mPrimaries, asString(aspects.mPrimaries),
+            aspects.mMatrixCoeffs, asString(aspects.mMatrixCoeffs),
+            aspects.mTransfer, asString(aspects.mTransfer));
 }
 
 void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {

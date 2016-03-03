@@ -488,6 +488,7 @@ void ACodec::BufferInfo::checkReadFence(const char *dbg) {
 ACodec::ACodec()
     : mQuirks(0),
       mNode(0),
+      mUsingNativeWindow(false),
       mNativeWindowUsageBits(0),
       mIsVideo(false),
       mIsEncoder(false),
@@ -1647,6 +1648,7 @@ status_t ACodec::configureCodec(
 
     sp<AMessage> inputFormat = new AMessage;
     sp<AMessage> outputFormat = new AMessage;
+    mConfigFormat = msg;
 
     mIsEncoder = encoder;
 
@@ -1764,6 +1766,7 @@ status_t ACodec::configureCodec(
     sp<RefBase> obj;
     bool haveNativeWindow = msg->findObject("native-window", &obj)
             && obj != NULL && video && !encoder;
+    mUsingNativeWindow = haveNativeWindow;
     mLegacyAdaptiveExperiment = false;
     if (video && !encoder) {
         inputFormat->setInt32("adaptive-playback", false);
@@ -1940,9 +1943,9 @@ status_t ACodec::configureCodec(
         }
 
         if (encoder) {
-            err = setupVideoEncoder(mime, msg, outputFormat);
+            err = setupVideoEncoder(mime, msg, outputFormat, inputFormat);
         } else {
-            err = setupVideoDecoder(mime, msg, haveNativeWindow, outputFormat);
+            err = setupVideoDecoder(mime, msg, haveNativeWindow, usingSwRenderer, outputFormat);
         }
 
         if (err != OK) {
@@ -2003,7 +2006,8 @@ status_t ACodec::configureCodec(
                         // fallback is not supported for protected playback
                         err = PERMISSION_DENIED;
                     } else if (err == OK) {
-                        err = setupVideoDecoder(mime, msg, false, outputFormat);
+                        err = setupVideoDecoder(
+                                mime, msg, haveNativeWindow, usingSwRenderer, outputFormat);
                     }
                 }
             }
@@ -3013,7 +3017,7 @@ static status_t GetMimeTypeForVideoCoding(
 
 status_t ACodec::setupVideoDecoder(
         const char *mime, const sp<AMessage> &msg, bool haveNativeWindow,
-        sp<AMessage> &outputFormat) {
+        bool usingSwRenderer, sp<AMessage> &outputFormat) {
     int32_t width, height;
     if (!msg->findInt32("width", &width)
             || !msg->findInt32("height", &height)) {
@@ -3076,113 +3080,262 @@ status_t ACodec::setupVideoDecoder(
         return err;
     }
 
-    err = setColorAspects(
-            kPortIndexOutput, width, height, msg, outputFormat);
-    if (err != OK) {
-        ALOGI("Falling back to presets as component does not describe color aspects.");
+    err = setColorAspectsForVideoDecoder(
+            width, height, haveNativeWindow | usingSwRenderer, msg, outputFormat);
+    if (err == ERROR_UNSUPPORTED) { // support is optional
         err = OK;
+    }
+    return err;
+}
+
+status_t ACodec::initDescribeColorAspectsIndex() {
+    status_t err = mOMX->getExtensionIndex(
+            mNode, "OMX.google.android.index.describeColorAspects", &mDescribeColorAspectsIndex);
+    if (err != OK) {
+        mDescribeColorAspectsIndex = (OMX_INDEXTYPE)0;
+    }
+    return err;
+}
+
+status_t ACodec::setCodecColorAspects(DescribeColorAspectsParams &params, bool verify) {
+    status_t err = ERROR_UNSUPPORTED;
+    if (mDescribeColorAspectsIndex) {
+        err = mOMX->setConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
+    }
+    ALOGV("[%s] setting color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) err=%d(%s)",
+            mComponentName.c_str(),
+            params.sAspects.mRange, asString(params.sAspects.mRange),
+            params.sAspects.mPrimaries, asString(params.sAspects.mPrimaries),
+            params.sAspects.mMatrixCoeffs, asString(params.sAspects.mMatrixCoeffs),
+            params.sAspects.mTransfer, asString(params.sAspects.mTransfer),
+            err, asString(err));
+
+    if (verify && err == OK) {
+        err = getCodecColorAspects(params);
+    }
+
+    ALOGW_IF(err == ERROR_UNSUPPORTED && mDescribeColorAspectsIndex,
+            "[%s] getting color aspects failed even though codec advertises support",
+            mComponentName.c_str());
+    return err;
+}
+
+status_t ACodec::setColorAspectsForVideoDecoder(
+        int32_t width, int32_t height, bool usingNativeWindow,
+        const sp<AMessage> &configFormat, sp<AMessage> &outputFormat) {
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+
+    getColorAspectsFromFormat(configFormat, params.sAspects);
+    if (usingNativeWindow) {
+        setDefaultCodecColorAspectsIfNeeded(params.sAspects, width, height);
+        // The default aspects will be set back to the output format during the
+        // getFormat phase of configure(). Set non-Unspecified values back into the
+        // format, in case component does not support this enumeration.
+        setColorAspectsIntoFormat(params.sAspects, outputFormat);
+    }
+
+    (void)initDescribeColorAspectsIndex();
+
+    // communicate color aspects to codec
+    return setCodecColorAspects(params);
+}
+
+status_t ACodec::getCodecColorAspects(DescribeColorAspectsParams &params) {
+    status_t err = ERROR_UNSUPPORTED;
+    if (mDescribeColorAspectsIndex) {
+        err = mOMX->getConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
+    }
+    ALOGV("[%s] got color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) err=%d(%s)",
+            mComponentName.c_str(),
+            params.sAspects.mRange, asString(params.sAspects.mRange),
+            params.sAspects.mPrimaries, asString(params.sAspects.mPrimaries),
+            params.sAspects.mMatrixCoeffs, asString(params.sAspects.mMatrixCoeffs),
+            params.sAspects.mTransfer, asString(params.sAspects.mTransfer),
+            err, asString(err));
+    if (params.bRequestingDataSpace) {
+        ALOGV("for dataspace %#x", params.nDataSpace);
+    }
+    if (err == ERROR_UNSUPPORTED && mDescribeColorAspectsIndex
+            && !params.bRequestingDataSpace && !params.bDataSpaceChanged) {
+        ALOGW("[%s] getting color aspects failed even though codec advertises support",
+                mComponentName.c_str());
+    }
+    return err;
+}
+
+status_t ACodec::getInputColorAspectsForVideoEncoder(sp<AMessage> &format) {
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexInput;
+    status_t err = getCodecColorAspects(params);
+    if (err == OK) {
+        // we only set encoder input aspects if codec supports them
+        setColorAspectsIntoFormat(params.sAspects, format, true /* force */);
+    }
+    return err;
+}
+
+status_t ACodec::getDataSpace(
+        DescribeColorAspectsParams &params, android_dataspace *dataSpace /* nonnull */,
+        bool tryCodec) {
+    status_t err = OK;
+    if (tryCodec) {
+        // request dataspace guidance from codec.
+        params.bRequestingDataSpace = OMX_TRUE;
+        err = getCodecColorAspects(params);
+        params.bRequestingDataSpace = OMX_FALSE;
+        if (err == OK && params.nDataSpace != HAL_DATASPACE_UNKNOWN) {
+            *dataSpace = (android_dataspace)params.nDataSpace;
+            return err;
+        } else if (err == ERROR_UNSUPPORTED) {
+            // ignore not-implemented error for dataspace requests
+            err = OK;
+        }
+    }
+
+    // this returns legacy versions if available
+    *dataSpace = getDataSpaceForColorAspects(params.sAspects, true /* mayexpand */);
+    ALOGV("[%s] using color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) "
+          "and dataspace %#x",
+            mComponentName.c_str(),
+            params.sAspects.mRange, asString(params.sAspects.mRange),
+            params.sAspects.mPrimaries, asString(params.sAspects.mPrimaries),
+            params.sAspects.mMatrixCoeffs, asString(params.sAspects.mMatrixCoeffs),
+            params.sAspects.mTransfer, asString(params.sAspects.mTransfer),
+            *dataSpace);
+    return err;
+}
+
+
+status_t ACodec::getColorAspectsAndDataSpaceForVideoDecoder(
+        int32_t width, int32_t height, const sp<AMessage> &configFormat, sp<AMessage> &outputFormat,
+        android_dataspace *dataSpace) {
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+
+    // reset default format and get resulting format
+    getColorAspectsFromFormat(configFormat, params.sAspects);
+    if (dataSpace != NULL) {
+        setDefaultCodecColorAspectsIfNeeded(params.sAspects, width, height);
+    }
+    status_t err = setCodecColorAspects(params, true /* readBack */);
+
+    // we always set specified aspects for decoders
+    setColorAspectsIntoFormat(params.sAspects, outputFormat);
+
+    if (dataSpace != NULL) {
+        status_t res = getDataSpace(params, dataSpace, err == OK /* tryCodec */);
+        if (err == OK) {
+            err = res;
+        }
     }
 
     return err;
 }
 
-status_t ACodec::setColorAspects(
-        OMX_U32 portIndex, int32_t width, int32_t height, const sp<AMessage> &msg,
-        sp<AMessage> &format) {
-    DescribeColorAspectsParams params;
-    InitOMXParams(&params);
-    params.nPortIndex = portIndex;
-
-    // 0 values are unspecified
-    int32_t range = 0, standard = 0, transfer = 0;
-    if (portIndex == kPortIndexInput) {
-        // Encoders allow overriding default aspects with 0 if specified by format. Decoders do not.
-        setDefaultPlatformColorAspectsIfNeeded(range, standard, transfer, width, height);
-    }
-    (void)msg->findInt32("color-range", &range);
-    (void)msg->findInt32("color-standard", &standard);
-    (void)msg->findInt32("color-transfer", &transfer);
-
-    if (convertPlatformColorAspectsToCodecAspects(
-            range, standard, transfer, params.sAspects) != OK) {
-        ALOGW("[%s] Ignoring illegal color aspects(range=%d, standard=%d, transfer=%d)",
-                mComponentName.c_str(), range, standard, transfer);
-        // Invalid values were converted to unspecified !params!, but otherwise were not changed
-        // For encoders, we leave these as is. For decoders, we will use default values.
-    }
-
-    // set defaults for decoders.
-    if (portIndex != kPortIndexInput) {
-        setDefaultCodecColorAspectsIfNeeded(params.sAspects, width, height);
-        convertCodecColorAspectsToPlatformAspects(params.sAspects, &range, &standard, &transfer);
-    }
-
-    // save updated values to base output format (encoder input format will read back actually
-    // supported values by the codec)
-    if (range != 0) {
-        format->setInt32("color-range", range);
-    }
-    if (standard != 0) {
-        format->setInt32("color-standard", standard);
-    }
-    if (transfer != 0) {
-        format->setInt32("color-transfer", transfer);
-    }
-
-    // communicate color aspects to codec
-    status_t err = mOMX->getExtensionIndex(
-            mNode, "OMX.google.android.index.describeColorAspects", &mDescribeColorAspectsIndex);
-    if (err != OK) {
-        mDescribeColorAspectsIndex = (OMX_INDEXTYPE)0;
-        return err;
-    }
-
-    return mOMX->setConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
-}
-
-status_t ACodec::getColorAspects(OMX_U32 portIndex, sp<AMessage> &format) {
-    if (!mDescribeColorAspectsIndex) {
-        return ERROR_UNSUPPORTED;
-    }
+// initial video encoder setup for bytebuffer mode
+status_t ACodec::setColorAspectsForVideoEncoder(
+        const sp<AMessage> &configFormat, sp<AMessage> &outputFormat, sp<AMessage> &inputFormat) {
+    // copy config to output format as this is not exposed via getFormat
+    copyColorConfig(configFormat, outputFormat);
 
     DescribeColorAspectsParams params;
     InitOMXParams(&params);
-    params.nPortIndex = portIndex;
-    ColorAspects &aspects = params.sAspects;
-    aspects.mRange = ColorAspects::RangeUnspecified;
-    aspects.mPrimaries = ColorAspects::PrimariesUnspecified;
-    aspects.mMatrixCoeffs = ColorAspects::MatrixUnspecified;
-    aspects.mTransfer = ColorAspects::TransferUnspecified;
+    params.nPortIndex = kPortIndexInput;
+    getColorAspectsFromFormat(configFormat, params.sAspects);
 
-    status_t err = mOMX->getConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
-    if (err != OK) {
-        return err;
+    (void)initDescribeColorAspectsIndex();
+
+    int32_t usingRecorder;
+    if (configFormat->findInt32("android._using-recorder", &usingRecorder) && usingRecorder) {
+        android_dataspace dataSpace = HAL_DATASPACE_BT709;
+        int32_t width, height;
+        if (configFormat->findInt32("width", &width)
+                && configFormat->findInt32("height", &height)) {
+            setDefaultCodecColorAspectsIfNeeded(params.sAspects, width, height);
+            status_t err = getDataSpace(
+                    params, &dataSpace, mDescribeColorAspectsIndex /* tryCodec */);
+            if (err != OK) {
+                return err;
+            }
+            setColorAspectsIntoFormat(params.sAspects, outputFormat);
+        }
+        inputFormat->setInt32("android._dataspace", (int32_t)dataSpace);
     }
 
-    // keep non-standard codec values in extension ranges
-    int32_t range, standard, transfer;
-    if (convertCodecColorAspectsToPlatformAspects(
-            params.sAspects, &range, &standard, &transfer) != OK) {
-        ALOGW("[%s] Ignoring invalid color aspects(range=%u, primaries=%u, coeffs=%u, transfer=%u)",
-                mComponentName.c_str(),
-                aspects.mRange, aspects.mPrimaries, aspects.mMatrixCoeffs, aspects.mTransfer);
-    }
-
-    // save specified values to format
-    if (range != 0) {
-        format->setInt32("color-range", range);
-    }
-    if (standard != 0) {
-        format->setInt32("color-standard", standard);
-    }
-    if (transfer != 0) {
-        format->setInt32("color-transfer", transfer);
+    // communicate color aspects to codec, but do not allow change of the platform aspects
+    ColorAspects origAspects = params.sAspects;
+    for (int triesLeft = 2; --triesLeft >= 0; ) {
+        status_t err = setCodecColorAspects(params, true /* readBack */);
+        if (err != OK
+                || !ColorUtils::checkIfAspectsChangedAndUnspecifyThem(
+                        params.sAspects, origAspects, true /* usePlatformAspects */)) {
+            return err;
+        }
+        ALOGW_IF(triesLeft == 0, "[%s] Codec repeatedly changed requested ColorAspects.",
+                mComponentName.c_str());
     }
     return OK;
 }
 
+// subsequent initial video encoder setup for surface mode
+status_t ACodec::setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(
+        android_dataspace *dataSpace /* nonnull */) {
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexInput;
+    ColorAspects &aspects = params.sAspects;
+
+    // reset default format and store resulting format into both input and output formats
+    getColorAspectsFromFormat(mConfigFormat, aspects);
+    int32_t width, height;
+    if (mInputFormat->findInt32("width", &width) && mInputFormat->findInt32("height", &height)) {
+        setDefaultCodecColorAspectsIfNeeded(aspects, width, height);
+    }
+    setColorAspectsIntoFormat(aspects, mInputFormat);
+    setColorAspectsIntoFormat(aspects, mOutputFormat);
+
+    // communicate color aspects to codec, but do not allow any change
+    ColorAspects origAspects = aspects;
+    status_t err = OK;
+    for (int triesLeft = 2; mDescribeColorAspectsIndex && --triesLeft >= 0; ) {
+        status_t err = setCodecColorAspects(params, true /* readBack */);
+        if (err != OK || !ColorUtils::checkIfAspectsChangedAndUnspecifyThem(aspects, origAspects)) {
+            break;
+        }
+        ALOGW_IF(triesLeft == 0, "[%s] Codec repeatedly changed requested ColorAspects.",
+                mComponentName.c_str());
+    }
+
+    *dataSpace = HAL_DATASPACE_BT709;
+    aspects = origAspects; // restore desired color aspects
+    status_t res = getDataSpace(
+            params, dataSpace, err == OK && mDescribeColorAspectsIndex /* tryCodec */);
+    if (err == OK) {
+        err = res;
+    }
+    mInputFormat->setInt32("android._dataspace", (int32_t)*dataSpace);
+    mInputFormat->setBuffer(
+            "android._color-aspects", ABuffer::CreateAsCopy(&aspects, sizeof(aspects)));
+
+    // update input format with codec supported color aspects (basically set unsupported
+    // aspects to Unspecified)
+    if (err == OK) {
+        (void)getInputColorAspectsForVideoEncoder(mInputFormat);
+    }
+
+    ALOGV("set default color aspects, updated input format to %s, output format to %s",
+            mInputFormat->debugString(4).c_str(), mOutputFormat->debugString(4).c_str());
+
+    return err;
+}
+
 status_t ACodec::setupVideoEncoder(
-        const char *mime, const sp<AMessage> &msg, sp<AMessage> &outputFormat) {
+        const char *mime, const sp<AMessage> &msg,
+        sp<AMessage> &outputFormat, sp<AMessage> &inputFormat) {
     int32_t tmp;
     if (!msg->findInt32("color-format", &tmp)) {
         return INVALID_OPERATION;
@@ -3355,9 +3508,8 @@ status_t ACodec::setupVideoEncoder(
 
     // Set up color aspects on input, but propagate them to the output format, as they will
     // not be read back from encoder.
-    err = setColorAspects(
-            kPortIndexInput, width, height, msg, outputFormat);
-    if (err != OK) {
+    err = setColorAspectsForVideoEncoder(msg, outputFormat, inputFormat);
+    if (err == ERROR_UNSUPPORTED) {
         ALOGI("[%s] cannot encode color aspects. Ignoring.", mComponentName.c_str());
         err = OK;
     }
@@ -4330,46 +4482,57 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         }
                     }
 
-                    if (portIndex != kPortIndexOutput) {
-                        // TODO: also get input crop
-                        break;
+                    int32_t width = (int32_t)videoDef->nFrameWidth;
+                    int32_t height = (int32_t)videoDef->nFrameHeight;
+
+                    if (portIndex == kPortIndexOutput) {
+                        OMX_CONFIG_RECTTYPE rect;
+                        InitOMXParams(&rect);
+                        rect.nPortIndex = portIndex;
+
+                        if (mOMX->getConfig(
+                                    mNode,
+                                    (portIndex == kPortIndexOutput ?
+                                            OMX_IndexConfigCommonOutputCrop :
+                                            OMX_IndexConfigCommonInputCrop),
+                                    &rect, sizeof(rect)) != OK) {
+                            rect.nLeft = 0;
+                            rect.nTop = 0;
+                            rect.nWidth = videoDef->nFrameWidth;
+                            rect.nHeight = videoDef->nFrameHeight;
+                        }
+
+                        if (rect.nLeft < 0 ||
+                            rect.nTop < 0 ||
+                            rect.nLeft + rect.nWidth > videoDef->nFrameWidth ||
+                            rect.nTop + rect.nHeight > videoDef->nFrameHeight) {
+                            ALOGE("Wrong cropped rect (%d, %d) - (%u, %u) vs. frame (%u, %u)",
+                                    rect.nLeft, rect.nTop,
+                                    rect.nLeft + rect.nWidth, rect.nTop + rect.nHeight,
+                                    videoDef->nFrameWidth, videoDef->nFrameHeight);
+                            return BAD_VALUE;
+                        }
+
+                        notify->setRect(
+                                "crop",
+                                rect.nLeft,
+                                rect.nTop,
+                                rect.nLeft + rect.nWidth - 1,
+                                rect.nTop + rect.nHeight - 1);
+
+                        width = rect.nWidth;
+                        height = rect.nHeight;
+
+                        android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
+                        (void)getColorAspectsAndDataSpaceForVideoDecoder(
+                                width, height, mConfigFormat, notify,
+                                mUsingNativeWindow ? &dataSpace : NULL);
+                        if (mUsingNativeWindow) {
+                            notify->setInt32("android._dataspace", dataSpace);
+                        }
+                    } else {
+                        (void)getInputColorAspectsForVideoEncoder(notify);
                     }
-
-                    (void)getColorAspects(portIndex, notify);
-
-                    OMX_CONFIG_RECTTYPE rect;
-                    InitOMXParams(&rect);
-                    rect.nPortIndex = portIndex;
-
-                    if (mOMX->getConfig(
-                                mNode,
-                                (portIndex == kPortIndexOutput ?
-                                        OMX_IndexConfigCommonOutputCrop :
-                                        OMX_IndexConfigCommonInputCrop),
-                                &rect, sizeof(rect)) != OK) {
-                        rect.nLeft = 0;
-                        rect.nTop = 0;
-                        rect.nWidth = videoDef->nFrameWidth;
-                        rect.nHeight = videoDef->nFrameHeight;
-                    }
-
-                    if (rect.nLeft < 0 ||
-                        rect.nTop < 0 ||
-                        rect.nLeft + rect.nWidth > videoDef->nFrameWidth ||
-                        rect.nTop + rect.nHeight > videoDef->nFrameHeight) {
-                        ALOGE("Wrong cropped rect (%d, %d) - (%u, %u) vs. frame (%u, %u)",
-                                rect.nLeft, rect.nTop,
-                                rect.nLeft + rect.nWidth, rect.nTop + rect.nHeight,
-                                videoDef->nFrameWidth, videoDef->nFrameHeight);
-                        return BAD_VALUE;
-                    }
-
-                    notify->setRect(
-                            "crop",
-                            rect.nLeft,
-                            rect.nTop,
-                            rect.nLeft + rect.nWidth - 1,
-                            rect.nTop + rect.nHeight - 1);
 
                     break;
                 }
@@ -4703,6 +4866,45 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
     return OK;
 }
 
+void ACodec::onDataSpaceChanged(android_dataspace dataSpace, const ColorAspects &aspects) {
+    // aspects are normally communicated in ColorAspects
+    int32_t range, standard, transfer;
+    convertCodecColorAspectsToPlatformAspects(aspects, &range, &standard, &transfer);
+
+    // if some aspects are unspecified, use dataspace fields
+    if (range != 0) {
+        range = (dataSpace & HAL_DATASPACE_RANGE_MASK) >> HAL_DATASPACE_RANGE_SHIFT;
+    }
+    if (standard != 0) {
+        standard = (dataSpace & HAL_DATASPACE_STANDARD_MASK) >> HAL_DATASPACE_STANDARD_SHIFT;
+    }
+    if (transfer != 0) {
+        transfer = (dataSpace & HAL_DATASPACE_TRANSFER_MASK) >> HAL_DATASPACE_TRANSFER_SHIFT;
+    }
+
+    mOutputFormat = mOutputFormat->dup(); // trigger an output format changed event
+    if (range != 0) {
+        mOutputFormat->setInt32("color-range", range);
+    }
+    if (standard != 0) {
+        mOutputFormat->setInt32("color-standard", standard);
+    }
+    if (transfer != 0) {
+        mOutputFormat->setInt32("color-transfer", transfer);
+    }
+
+    ALOGD("dataspace changed to %#x (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) "
+          "(R:%d(%s), S:%d(%s), T:%d(%s))",
+            dataSpace,
+            aspects.mRange, asString(aspects.mRange),
+            aspects.mPrimaries, asString(aspects.mPrimaries),
+            aspects.mMatrixCoeffs, asString(aspects.mMatrixCoeffs),
+            aspects.mTransfer, asString(aspects.mTransfer),
+            range, asString((ColorRange)range),
+            standard, asString((ColorStandard)standard),
+            transfer, asString((ColorTransfer)transfer));
+}
+
 void ACodec::onOutputFormatChanged() {
     // store new output format
     mOutputFormat = mBaseOutputFormat->dup();
@@ -4717,17 +4919,22 @@ void ACodec::onOutputFormatChanged() {
     }
 }
 
-void ACodec::addKeyFormatChangesToRenderBufferNotification(sp<AMessage> &reply) {
+void ACodec::addKeyFormatChangesToRenderBufferNotification(sp<AMessage> &notify) {
     AString mime;
     CHECK(mOutputFormat->findString("mime", &mime));
 
-    int32_t left, top, right, bottom;
-    if (mime == MEDIA_MIMETYPE_VIDEO_RAW &&
-        mNativeWindow != NULL &&
-        mOutputFormat->findRect("crop", &left, &top, &right, &bottom)) {
-        // notify renderer of the crop change
+    if (mime == MEDIA_MIMETYPE_VIDEO_RAW && mNativeWindow != NULL) {
+        // notify renderer of the crop change and dataspace change
         // NOTE: native window uses extended right-bottom coordinate
-        reply->setRect("crop", left, top, right + 1, bottom + 1);
+        int32_t left, top, right, bottom;
+        if (mOutputFormat->findRect("crop", &left, &top, &right, &bottom)) {
+            notify->setRect("crop", left, top, right + 1, bottom + 1);
+        }
+
+        int32_t dataSpace;
+        if (mOutputFormat->findInt32("android._dataspace", &dataSpace)) {
+            notify->setInt32("dataspace", dataSpace);
+        }
     }
 }
 
@@ -5054,6 +5261,17 @@ bool ACodec::BaseState::onOMXFrameRendered(
 
 bool ACodec::BaseState::onOMXEvent(
         OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
+    if (event == OMX_EventDataSpaceChanged) {
+        ColorAspects aspects;
+        aspects.mRange = (ColorAspects::Range)((data2 >> 24) & 0xFF);
+        aspects.mPrimaries = (ColorAspects::Primaries)((data2 >> 16) & 0xFF);
+        aspects.mMatrixCoeffs = (ColorAspects::MatrixCoeffs)((data2 >> 8) & 0xFF);
+        aspects.mTransfer = (ColorAspects::Transfer)(data2 & 0xFF);
+
+        mCodec->onDataSpaceChanged((android_dataspace)data1, aspects);
+        return true;
+    }
+
     if (event != OMX_EventError) {
         ALOGV("[%s] EVENT(%d, 0x%08x, 0x%08x)",
              mCodec->mComponentName.c_str(), event, data1, data2);
@@ -5559,6 +5777,13 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
         ALOGW_IF(err != NO_ERROR, "failed to set crop: %d", err);
     }
 
+    int32_t dataSpace;
+    if (msg->findInt32("dataspace", &dataSpace)) {
+        status_t err = native_window_set_buffers_data_space(
+                mCodec->mNativeWindow.get(), (android_dataspace)dataSpace);
+        ALOGW_IF(err != NO_ERROR, "failed to set dataspace: %d", err);
+    }
+
     int32_t render;
     if (mCodec->mNativeWindow != NULL
             && msg->findInt32("render", &render) && render != 0
@@ -5682,6 +5907,7 @@ void ACodec::UninitializedState::stateEntered() {
         mDeathNotifier.clear();
     }
 
+    mCodec->mUsingNativeWindow = false;
     mCodec->mNativeWindow.clear();
     mCodec->mNativeWindowUsageBits = 0;
     mCodec->mNode = 0;
@@ -6114,6 +6340,17 @@ status_t ACodec::LoadedState::setupInputSurface() {
                 "using-sw-read-often", !!(usageBits & GRALLOC_USAGE_SW_READ_OFTEN));
     }
 
+    sp<ABuffer> colorAspectsBuffer;
+    if (mCodec->mInputFormat->findBuffer("android._color-aspects", &colorAspectsBuffer)) {
+        err = mCodec->mOMX->setInternalOption(
+                mCodec->mNode, kPortIndexInput, IOMX::INTERNAL_OPTION_COLOR_ASPECTS,
+                colorAspectsBuffer->base(), colorAspectsBuffer->capacity());
+        if (err != OK) {
+            ALOGE("[%s] Unable to configure color aspects (err %d)",
+                  mCodec->mComponentName.c_str(), err);
+            return err;
+        }
+    }
     return OK;
 }
 
@@ -6124,11 +6361,17 @@ void ACodec::LoadedState::onCreateInputSurface(
     sp<AMessage> notify = mCodec->mNotify->dup();
     notify->setInt32("what", CodecBase::kWhatInputSurfaceCreated);
 
-    android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
+    android_dataspace dataSpace;
+    status_t err =
+        mCodec->setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(&dataSpace);
+    notify->setMessage("input-format", mCodec->mInputFormat);
+    notify->setMessage("output-format", mCodec->mOutputFormat);
 
     sp<IGraphicBufferProducer> bufferProducer;
-    status_t err = mCodec->mOMX->createInputSurface(
-            mCodec->mNode, kPortIndexInput, dataSpace, &bufferProducer, &mCodec->mInputMetadataType);
+    if (err == OK) {
+        err = mCodec->mOMX->createInputSurface(
+                mCodec->mNode, kPortIndexInput, dataSpace, &bufferProducer, &mCodec->mInputMetadataType);
+    }
 
     if (err == OK) {
         err = setupInputSurface();
@@ -6159,11 +6402,20 @@ void ACodec::LoadedState::onSetInputSurface(
     CHECK(msg->findObject("input-surface", &obj));
     sp<PersistentSurface> surface = static_cast<PersistentSurface *>(obj.get());
 
-    status_t err = mCodec->mOMX->setInputSurface(
-            mCodec->mNode, kPortIndexInput, surface->getBufferConsumer(),
-            &mCodec->mInputMetadataType);
+    android_dataspace dataSpace;
+    status_t err =
+        mCodec->setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(&dataSpace);
+    notify->setMessage("input-format", mCodec->mInputFormat);
+    notify->setMessage("output-format", mCodec->mOutputFormat);
 
     if (err == OK) {
+        err = mCodec->mOMX->setInputSurface(
+                mCodec->mNode, kPortIndexInput, surface->getBufferConsumer(),
+                &mCodec->mInputMetadataType);
+    }
+
+    if (err == OK) {
+        surface->getBufferConsumer()->setDefaultBufferDataSpace(dataSpace);
         err = setupInputSurface();
     }
 

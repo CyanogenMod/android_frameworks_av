@@ -248,6 +248,9 @@ private:
     bool repeatLatestBuffer_l();
     int64_t getTimestamp(const BufferItem &item);
 
+    // called when the data space of the input buffer changes
+    void onDataSpaceChanged_l(android_dataspace dataSpace, android_pixel_format pixelFormat);
+
     // Lock, covers all member variables.
     mutable Mutex mMutex;
 

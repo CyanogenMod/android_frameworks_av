@@ -242,8 +242,10 @@ private:
     IOMX::node_id mNode;
     sp<MemoryDealer> mDealer[2];
 
+    bool mUsingNativeWindow;
     sp<ANativeWindow> mNativeWindow;
     int mNativeWindowUsageBits;
+    sp<AMessage> mConfigFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mOutputFormat;
     sp<AMessage> mBaseOutputFormat;
@@ -343,21 +345,72 @@ private:
     status_t setSupportedOutputFormat(bool getLegacyFlexibleFormat);
 
     status_t setupVideoDecoder(
-            const char *mime, const sp<AMessage> &msg, bool usingNativeBuffers,
+            const char *mime, const sp<AMessage> &msg, bool usingNativeBuffers, bool haveSwRenderer,
             sp<AMessage> &outputformat);
 
     status_t setupVideoEncoder(
-            const char *mime, const sp<AMessage> &msg, sp<AMessage> &outputformat);
+            const char *mime, const sp<AMessage> &msg,
+            sp<AMessage> &outputformat, sp<AMessage> &inputformat);
 
     status_t setVideoFormatOnPort(
             OMX_U32 portIndex,
             int32_t width, int32_t height,
             OMX_VIDEO_CODINGTYPE compressionFormat, float frameRate = -1.0);
 
-    status_t setColorAspects(
-        OMX_U32 portIndex, int32_t width, int32_t height, const sp<AMessage> &msg,
-        sp<AMessage> &format);
-    status_t getColorAspects(OMX_U32 portIndex, sp<AMessage> &format);
+    // gets index or sets it to 0 on error. Returns error from codec.
+    status_t initDescribeColorAspectsIndex();
+
+    // sets |params|. If |readBack| is true, it re-gets them afterwards if set succeeded.
+    // returns the codec error.
+    status_t setCodecColorAspects(DescribeColorAspectsParams &params, bool readBack = false);
+
+    // gets |params|; returns the codec error. |param| should not change on error.
+    status_t getCodecColorAspects(DescribeColorAspectsParams &params);
+
+    // gets dataspace guidance from codec and platform. |params| should be set up with the color
+    // aspects to use. If |tryCodec| is true, the codec is queried first. If it succeeds, we
+    // return OK. Otherwise, we fall back to the platform guidance and return the codec error;
+    // though, we return OK if the codec failed with UNSUPPORTED, as codec guidance is optional.
+    status_t getDataSpace(
+            DescribeColorAspectsParams &params, android_dataspace *dataSpace /* nonnull */,
+            bool tryCodec);
+
+    // sets color aspects for the encoder for certain |width/height| based on |configFormat|, and
+    // set resulting color config into |outputFormat|. If |usingNativeWindow| is true, we use
+    // video defaults if config is unspecified. Returns error from the codec.
+    status_t setColorAspectsForVideoDecoder(
+            int32_t width, int32_t height, bool usingNativeWindow,
+            const sp<AMessage> &configFormat, sp<AMessage> &outputFormat);
+
+    // gets color aspects for the encoder for certain |width/height| based on |configFormat|, and
+    // set resulting color config into |outputFormat|. If |dataSpace| is non-null, it requests
+    // dataspace guidance from the codec and platform and sets it into |dataSpace|. Returns the
+    // error from the codec.
+    status_t getColorAspectsAndDataSpaceForVideoDecoder(
+            int32_t width, int32_t height, const sp<AMessage> &configFormat,
+            sp<AMessage> &outputFormat, android_dataspace *dataSpace);
+
+    // sets color aspects for the video encoder assuming bytebuffer mode for certain |configFormat|
+    // and sets resulting color config into |outputFormat|. For mediarecorder, also set dataspace
+    // into |inputFormat|. Returns the error from the codec.
+    status_t setColorAspectsForVideoEncoder(
+            const sp<AMessage> &configFormat,
+            sp<AMessage> &outputFormat, sp<AMessage> &inputFormat);
+
+    // sets color aspects for the video encoder in surface mode. This basically sets the default
+    // video values for unspecified aspects and sets the dataspace to use in the input format.
+    // Also sets the dataspace into |dataSpace|.
+    // Returns any codec errors during this configuration, except for optional steps.
+    status_t setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(
+            android_dataspace *dataSpace /* nonnull */);
+
+    // gets color aspects for the video encoder input port and sets them into the |format|.
+    // Returns any codec errors.
+    status_t getInputColorAspectsForVideoEncoder(sp<AMessage> &format);
+
+    // updates the encoder output format with |aspects| defaulting to |dataSpace| for
+    // unspecified values.
+    void onDataSpaceChanged(android_dataspace dataSpace, const ColorAspects &aspects);
 
     typedef struct drcParams {
         int32_t drcCut;

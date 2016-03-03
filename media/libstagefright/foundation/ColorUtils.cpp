@@ -244,33 +244,6 @@ status_t ColorUtils::convertCodecColorAspectsToPlatformAspects(
 }
 
 // static
-void ColorUtils::setDefaultPlatformColorAspectsIfNeeded(
-        int32_t &range, int32_t &standard, int32_t &transfer,
-        int32_t width, int32_t height) {
-    if (range == ColorUtils::kColorRangeUnspecified) {
-        range = ColorUtils::kColorRangeLimited;
-    }
-
-    if (standard == ColorUtils::kColorStandardUnspecified) {
-        // Default to BT2020, BT709 or BT601 based on size. Allow 2.35:1 aspect ratio. Limit BT601
-        // to PAL or smaller, BT2020 to 4K or larger, leaving BT709 for all resolutions in between.
-        if (width >= 3840 || height >= 3840 || width * (int64_t)height >= 3840 * 1634) {
-            standard = ColorUtils::kColorStandardBT2020;
-        } else if ((width <= 720 && height > 480) || (height <= 720 && width > 480)) {
-            standard = ColorUtils::kColorStandardBT601_625;
-        } else if ((width <= 720 && height <= 480) || (height <= 720 && width <= 480)) {
-            standard = ColorUtils::kColorStandardBT601_525;
-        } else {
-            standard = ColorUtils::kColorStandardBT709;
-        }
-    }
-
-    if (transfer == ColorUtils::kColorTransferUnspecified) {
-        transfer = ColorUtils::kColorTransferSMPTE_170M;
-    }
-}
-
-// static
 void ColorUtils::setDefaultCodecColorAspectsIfNeeded(
         ColorAspects &aspects, int32_t width, int32_t height) {
     ColorAspects::MatrixCoeffs coeffs;
@@ -306,6 +279,209 @@ void ColorUtils::setDefaultCodecColorAspectsIfNeeded(
     if (aspects.mTransfer == ColorAspects::TransferUnspecified) {
         aspects.mTransfer = ColorAspects::TransferSMPTE170M;
     }
+}
+
+// TODO: move this into a Video HAL
+ALookup<CU::ColorStandard, std::pair<CA::Primaries, CA::MatrixCoeffs>> sStandardFallbacks {
+    {
+        { CU::kColorStandardBT601_625, { CA::PrimariesBT709_5, CA::MatrixBT470_6M } },
+        { CU::kColorStandardBT601_625, { CA::PrimariesBT709_5, CA::MatrixBT601_6 } },
+        { CU::kColorStandardBT709,     { CA::PrimariesBT709_5, CA::MatrixSMPTE240M } },
+        { CU::kColorStandardBT709,     { CA::PrimariesBT709_5, CA::MatrixBT2020 } },
+        { CU::kColorStandardBT601_525, { CA::PrimariesBT709_5, CA::MatrixBT2020Constant } },
+
+        { CU::kColorStandardBT2020Constant,
+                                       { CA::PrimariesBT470_6M, CA::MatrixBT2020Constant } },
+
+        { CU::kColorStandardBT601_625, { CA::PrimariesBT601_6_625, CA::MatrixBT470_6M } },
+        { CU::kColorStandardBT601_525, { CA::PrimariesBT601_6_625, CA::MatrixBT2020Constant } },
+
+        { CU::kColorStandardBT601_525, { CA::PrimariesBT601_6_525, CA::MatrixBT470_6M } },
+        { CU::kColorStandardBT601_525, { CA::PrimariesBT601_6_525, CA::MatrixBT2020Constant } },
+
+        { CU::kColorStandardBT2020Constant,
+                                       { CA::PrimariesGenericFilm, CA::MatrixBT2020Constant } },
+    }
+};
+
+ALookup<CU::ColorStandard, CA::Primaries> sStandardPrimariesFallbacks {
+    {
+        { CU::kColorStandardFilm,                 CA::PrimariesGenericFilm },
+        { CU::kColorStandardBT470M,               CA::PrimariesBT470_6M },
+        { CU::kColorStandardBT2020,               CA::PrimariesBT2020 },
+        { CU::kColorStandardBT601_525_Unadjusted, CA::PrimariesBT601_6_525 },
+        { CU::kColorStandardBT601_625_Unadjusted, CA::PrimariesBT601_6_625 },
+    }
+};
+
+static ALookup<android_dataspace, android_dataspace> sLegacyDataSpaceToV0 {
+    {
+        { HAL_DATASPACE_SRGB, HAL_DATASPACE_V0_SRGB },
+        { HAL_DATASPACE_BT709, HAL_DATASPACE_V0_BT709 },
+        { HAL_DATASPACE_SRGB_LINEAR, HAL_DATASPACE_V0_SRGB_LINEAR },
+        { HAL_DATASPACE_BT601_525, HAL_DATASPACE_V0_BT601_525 },
+        { HAL_DATASPACE_BT601_625, HAL_DATASPACE_V0_BT601_625 },
+        { HAL_DATASPACE_JFIF, HAL_DATASPACE_V0_JFIF },
+    }
+};
+
+bool ColorUtils::convertDataSpaceToV0(android_dataspace &dataSpace) {
+    (void)sLegacyDataSpaceToV0.lookup(dataSpace, &dataSpace);
+    return (dataSpace & 0xC000FFFF) == 0;
+}
+
+bool ColorUtils::checkIfAspectsChangedAndUnspecifyThem(
+        ColorAspects &aspects, const ColorAspects &orig, bool usePlatformAspects) {
+    // remove changed aspects (change them to Unspecified)
+    bool changed = false;
+    if (aspects.mRange && aspects.mRange != orig.mRange) {
+        aspects.mRange = ColorAspects::RangeUnspecified;
+        changed = true;
+    }
+    if (aspects.mPrimaries && aspects.mPrimaries != orig.mPrimaries) {
+        aspects.mPrimaries = ColorAspects::PrimariesUnspecified;
+        if (usePlatformAspects) {
+            aspects.mMatrixCoeffs = ColorAspects::MatrixUnspecified;
+        }
+        changed = true;
+    }
+    if (aspects.mMatrixCoeffs && aspects.mMatrixCoeffs != orig.mMatrixCoeffs) {
+        aspects.mMatrixCoeffs = ColorAspects::MatrixUnspecified;
+        if (usePlatformAspects) {
+            aspects.mPrimaries = ColorAspects::PrimariesUnspecified;
+        }
+        changed = true;
+    }
+    if (aspects.mTransfer && aspects.mTransfer != orig.mTransfer) {
+        aspects.mTransfer = ColorAspects::TransferUnspecified;
+        changed = true;
+    }
+    return changed;
+}
+
+// static
+android_dataspace ColorUtils::getDataSpaceForColorAspects(ColorAspects &aspects, bool mayExpand) {
+    // This platform implementation never expands color space (e.g. returns an expanded
+    // dataspace to use where the codec does in-the-background color space conversion)
+    mayExpand = false;
+
+    if (aspects.mRange == ColorAspects::RangeUnspecified
+            || aspects.mPrimaries == ColorAspects::PrimariesUnspecified
+            || aspects.mMatrixCoeffs == ColorAspects::MatrixUnspecified
+            || aspects.mTransfer == ColorAspects::TransferUnspecified) {
+        ALOGW("expected specified color aspects (%u:%u:%u:%u)",
+                aspects.mRange, aspects.mPrimaries, aspects.mMatrixCoeffs, aspects.mTransfer);
+    }
+
+    // default to video range and transfer
+    ColorRange range = kColorRangeLimited;
+    ColorTransfer transfer = kColorTransferSMPTE_170M;
+    (void)sRanges.map(aspects.mRange, &range);
+    (void)sTransfers.map(aspects.mTransfer, &transfer);
+
+    ColorStandard standard = kColorStandardBT709;
+    auto pair = std::make_pair(aspects.mPrimaries, aspects.mMatrixCoeffs);
+    if (!sStandards.map(pair, &standard)) {
+        if (!sStandardFallbacks.map(pair, &standard)) {
+            (void)sStandardPrimariesFallbacks.map(aspects.mPrimaries, &standard);
+
+            if (aspects.mMatrixCoeffs == ColorAspects::MatrixBT2020Constant) {
+                range = kColorRangeFull;
+            }
+        }
+    }
+
+    android_dataspace dataSpace = (android_dataspace)(
+            (range << HAL_DATASPACE_RANGE_SHIFT) | (standard << HAL_DATASPACE_STANDARD_SHIFT) |
+            (transfer << HAL_DATASPACE_TRANSFER_SHIFT));
+    (void)sLegacyDataSpaceToV0.rlookup(dataSpace, &dataSpace);
+
+    if (!mayExpand) {
+        // update codec aspects based on dataspace
+        convertPlatformColorAspectsToCodecAspects(range, standard, transfer, aspects);
+    }
+    return dataSpace;
+}
+
+// static
+void ColorUtils::getColorConfigFromFormat(
+        const sp<AMessage> &format, int32_t *range, int32_t *standard, int32_t *transfer) {
+    if (!format->findInt32("color-range", range)) {
+        *range = kColorRangeUnspecified;
+    }
+    if (!format->findInt32("color-standard", standard)) {
+        *standard = kColorStandardUnspecified;
+    }
+    if (!format->findInt32("color-transfer", transfer)) {
+        *transfer = kColorTransferUnspecified;
+    }
+}
+
+// static
+void ColorUtils::copyColorConfig(const sp<AMessage> &source, sp<AMessage> &target) {
+    // 0 values are unspecified
+    int32_t value;
+    if (source->findInt32("color-range", &value)) {
+        target->setInt32("color-range", value);
+    }
+    if (source->findInt32("color-standard", &value)) {
+        target->setInt32("color-standard", value);
+    }
+    if (source->findInt32("color-transfer", &value)) {
+        target->setInt32("color-transfer", value);
+    }
+}
+
+// static
+void ColorUtils::getColorAspectsFromFormat(const sp<AMessage> &format, ColorAspects &aspects) {
+    int32_t range, standard, transfer;
+    getColorConfigFromFormat(format, &range, &standard, &transfer);
+
+    if (convertPlatformColorAspectsToCodecAspects(
+            range, standard, transfer, aspects) != OK) {
+        ALOGW("Ignoring illegal color aspects(R:%d(%s), S:%d(%s), T:%d(%s))",
+                range, asString((ColorRange)range),
+                standard, asString((ColorStandard)standard),
+                transfer, asString((ColorTransfer)transfer));
+        // Invalid values were converted to unspecified !params!, but otherwise were not changed
+        // For encoders, we leave these as is. For decoders, we will use default values.
+    }
+    ALOGV("Got color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) "
+          "from format (out:R:%d(%s), S:%d(%s), T:%d(%s))",
+            aspects.mRange, asString(aspects.mRange),
+            aspects.mPrimaries, asString(aspects.mPrimaries),
+            aspects.mMatrixCoeffs, asString(aspects.mMatrixCoeffs),
+            aspects.mTransfer, asString(aspects.mTransfer),
+            range, asString((ColorRange)range),
+            standard, asString((ColorStandard)standard),
+            transfer, asString((ColorTransfer)transfer));
+}
+
+// static
+void ColorUtils::setColorAspectsIntoFormat(
+        const ColorAspects &aspects, sp<AMessage> &format, bool force) {
+    int32_t range = 0, standard = 0, transfer = 0;
+    convertCodecColorAspectsToPlatformAspects(aspects, &range, &standard, &transfer);
+    // save set values to base output format
+    // (encoder input format will read back actually supported values by the codec)
+    if (range != 0 || force) {
+        format->setInt32("color-range", range);
+    }
+    if (standard != 0 || force) {
+        format->setInt32("color-standard", standard);
+    }
+    if (transfer != 0 || force) {
+        format->setInt32("color-transfer", transfer);
+    }
+    ALOGV("Setting color aspects (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) "
+          "into format (out:R:%d(%s), S:%d(%s), T:%d(%s))",
+            aspects.mRange, asString(aspects.mRange),
+            aspects.mPrimaries, asString(aspects.mPrimaries),
+            aspects.mMatrixCoeffs, asString(aspects.mMatrixCoeffs),
+            aspects.mTransfer, asString(aspects.mTransfer),
+            range, asString((ColorRange)range),
+            standard, asString((ColorStandard)standard),
+            transfer, asString((ColorTransfer)transfer));
 }
 
 }  // namespace android

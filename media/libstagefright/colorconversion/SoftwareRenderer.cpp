@@ -363,6 +363,16 @@ skip_copying:
         }
     }
 
+    // TODO: propagate color aspects to software renderer to allow better
+    // color conversion to RGB. For now, just mark dataspace for YUV rendering.
+    android_dataspace dataSpace;
+    if (format->findInt32("android._dataspace", (int32_t *)&dataSpace) && dataSpace != mDataSpace) {
+        ALOGD("setting dataspace on output surface to #%x", dataSpace);
+        if ((err = native_window_set_buffers_data_space(mNativeWindow.get(), dataSpace))) {
+            ALOGW("failed to set dataspace on surface (%d)", err);
+        }
+        mDataSpace = dataSpace;
+    }
     if ((err = mNativeWindow->queueBuffer(mNativeWindow.get(), buf, -1)) != 0) {
         ALOGW("Surface::queueBuffer returned error %d", err);
     } else {

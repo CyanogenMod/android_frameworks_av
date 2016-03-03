@@ -991,6 +991,10 @@ status_t OMXNodeInstance::setInputSurface(
     return createGraphicBufferSource(portIndex, bufferConsumer, type);
 }
 
+void OMXNodeInstance::signalEvent(OMX_EVENTTYPE event, OMX_U32 arg1, OMX_U32 arg2) {
+    mOwner->OnEvent(mNodeID, event, arg1, arg2, NULL);
+}
+
 status_t OMXNodeInstance::signalEndOfInputStream() {
     // For non-Surface input, the MediaCodec should convert the call to a
     // pair of requests (dequeue input buffer, queue input buffer with EOS

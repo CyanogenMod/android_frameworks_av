@@ -774,10 +774,10 @@ status_t CameraSource::start(MetaData *meta) {
 
         // apply encoder color format if specified
         if (meta->findInt32(kKeyPixelFormat, &mEncoderFormat)) {
-            ALOGV("Using encoder format: %#x", mEncoderFormat);
+            ALOGI("Using encoder format: %#x", mEncoderFormat);
         }
         if (meta->findInt32(kKeyColorSpace, &mEncoderDataSpace)) {
-            ALOGV("Using encoder data space: %#x", mEncoderDataSpace);
+            ALOGI("Using encoder data space: %#x", mEncoderDataSpace);
         }
     }
 

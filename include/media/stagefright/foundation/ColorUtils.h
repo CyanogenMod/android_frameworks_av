@@ -129,11 +129,37 @@ struct ColorUtils {
     static status_t convertCodecColorAspectsToPlatformAspects(
             const ColorAspects &aspects, int32_t *range, int32_t *standard, int32_t *transfer);
 
-    // updates unspecified range, standard and transfer values to their defaults
-    static void setDefaultPlatformColorAspectsIfNeeded(
-            int32_t &range, int32_t &standard, int32_t &transfer, int32_t width, int32_t height);
+    // updates Unspecified color aspects to their defaults based on the video size
     static void setDefaultCodecColorAspectsIfNeeded(
             ColorAspects &aspects, int32_t width, int32_t height);
+
+    // it returns the closest dataSpace for given color |aspects|. if |mayExpand| is true, it allows
+    // returning a larger dataSpace that contains the color space given by |aspects|, and is better
+    // suited to blending. This requires implicit color space conversion on part of the device.
+    static android_dataspace getDataSpaceForColorAspects(ColorAspects &aspects, bool mayExpand);
+
+    // converts |dataSpace| to a V0 enum, and returns true if dataSpace is an aspect-only value
+    static bool convertDataSpaceToV0(android_dataspace &dataSpace);
+
+    // compares |aspect| to |orig|. Returns |true| if any aspects have changed, except if they
+    // changed to Unspecified value. It also sets the changed values to Unspecified in |aspect|.
+    static bool checkIfAspectsChangedAndUnspecifyThem(
+            ColorAspects &aspects, const ColorAspects &orig, bool usePlatformAspects = false);
+
+    // finds color config in format, defaulting them to 0.
+    static void getColorConfigFromFormat(
+            const sp<AMessage> &format, int *range, int *standard, int *transfer);
+
+    // copies existing color config from |source| to |target|.
+    static void copyColorConfig(const sp<AMessage> &source, sp<AMessage> &target);
+
+    // finds color config in format as ColorAspects, defaulting them to 0.
+    static void getColorAspectsFromFormat(const sp<AMessage> &format, ColorAspects &aspects);
+
+    // writes |aspects| into format. iff |force| is false, Unspecified values are not
+    // written.
+    static void setColorAspectsIntoFormat(
+            const ColorAspects &aspects, sp<AMessage> &format, bool force = false);
 };
 
 inline static const char *asString(android::ColorUtils::ColorStandard i, const char *def = "??") {

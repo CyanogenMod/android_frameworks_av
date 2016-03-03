@@ -1266,7 +1266,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     CHECK(msg->findMessage("input-format", &mInputFormat));
                     CHECK(msg->findMessage("output-format", &mOutputFormat));
-
+                    ALOGV("[%s] configured as input format: %s, output format: %s",
+                            mComponentName.c_str(),
+                            mInputFormat->debugString(4).c_str(),
+                            mOutputFormat->debugString(4).c_str());
                     int32_t usingSwRenderer;
                     if (mOutputFormat->findInt32("using-sw-renderer", &usingSwRenderer)
                             && usingSwRenderer) {
@@ -1285,6 +1288,12 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     if (!msg->findInt32("err", &err)) {
                         sp<RefBase> obj;
                         msg->findObject("input-surface", &obj);
+                        CHECK(msg->findMessage("input-format", &mInputFormat));
+                        CHECK(msg->findMessage("output-format", &mOutputFormat));
+                        ALOGV("[%s] input surface created as input format: %s, output format: %s",
+                                mComponentName.c_str(),
+                                mInputFormat->debugString(4).c_str(),
+                                mOutputFormat->debugString(4).c_str());
                         CHECK(obj != NULL);
                         response->setObject("input-surface", obj);
                         mHaveInputSurface = true;
@@ -1398,15 +1407,28 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                 case CodecBase::kWhatOutputFormatChanged:
                 {
-                    ALOGV("codec output format changed");
-
                     CHECK(msg->findMessage("format", &mOutputFormat));
+
+                    ALOGV("[%s] output format changed to: %s",
+                            mComponentName.c_str(), mOutputFormat->debugString(4).c_str());
 
                     if (mSoftRenderer == NULL &&
                             mSurface != NULL &&
                             (mFlags & kFlagUsesSoftwareRenderer)) {
                         AString mime;
                         CHECK(mOutputFormat->findString("mime", &mime));
+
+                        // TODO: propagate color aspects to software renderer to allow better
+                        // color conversion to RGB. For now, just mark dataspace for YUV
+                        // rendering.
+                        int32_t dataSpace;
+                        if (mOutputFormat->findInt32("android._dataspace", &dataSpace)) {
+                            ALOGD("[%s] setting dataspace on output surface to #%x",
+                                    mComponentName.c_str(), dataSpace);
+                            int err = native_window_set_buffers_data_space(
+                                    mSurface.get(), (android_dataspace)dataSpace);
+                            ALOGW_IF(err != 0, "failed to set dataspace on surface (%d)", err);
+                        }
 
                         if (mime.startsWithIgnoreCase("video/")) {
                             mSoftRenderer = new SoftwareRenderer(mSurface, mRotationDegrees);
