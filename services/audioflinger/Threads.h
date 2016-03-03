@@ -479,14 +479,9 @@ public:
         // suspend by audio policy manager is orthogonal to mixer state
     };
 
-    // retry count before removing active track in case of underrun on offloaded thread:
-    // we need to make sure that AudioTrack client has enough time to send large buffers
-//FIXME may be more appropriate if expressed in time units. Need to revise how underrun is handled
-    // for offloaded tracks
-    static const int8_t kMaxTrackRetriesOffload = 20;
-
     PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                   audio_io_handle_t id, audio_devices_t device, type_t type, bool systemReady);
+                   audio_io_handle_t id, audio_devices_t device, type_t type, bool systemReady,
+                   uint32_t bitRate = 0);
     virtual             ~PlaybackThread();
 
                 void        dump(int fd, const Vector<String16>& args);
@@ -841,6 +836,8 @@ protected:
                 bool        mHwSupportsPause;
                 bool        mHwPaused;
                 bool        mFlushPending;
+                uint32_t    mBufferDurationUs;      // estimated duration of an audio HAL buffer
+                                                    // based on initial bit rate (offload only)
 };
 
 class MixerThread : public PlaybackThread {
@@ -931,7 +928,8 @@ class DirectOutputThread : public PlaybackThread {
 public:
 
     DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                       audio_io_handle_t id, audio_devices_t device, bool systemReady);
+                       audio_io_handle_t id, audio_devices_t device, bool systemReady,
+                       uint32_t bitRate = 0);
     virtual                 ~DirectOutputThread();
 
     // Thread virtuals
@@ -964,7 +962,7 @@ protected:
 
     DirectOutputThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                         audio_io_handle_t id, uint32_t device, ThreadBase::type_t type,
-                        bool systemReady);
+                        bool systemReady, uint32_t bitRate = 0);
     void processVolume_l(Track *track, bool lastTrack);
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
@@ -980,7 +978,8 @@ class OffloadThread : public DirectOutputThread {
 public:
 
     OffloadThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
-                        audio_io_handle_t id, uint32_t device, bool systemReady);
+                        audio_io_handle_t id, uint32_t device,
+                        bool systemReady, uint32_t bitRate);
     virtual                 ~OffloadThread() {};
     virtual     void        flushHw_l();
 
@@ -988,6 +987,8 @@ protected:
     // threadLoop snippets
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
     virtual     void        threadLoop_exit();
+
+    virtual     uint32_t    activeSleepTimeUs() const;
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();

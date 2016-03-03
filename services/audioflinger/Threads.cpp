@@ -108,6 +108,13 @@ static const int8_t kMaxTrackStartupRetries = 50;
 // direct outputs can be a scarce resource in audio hardware and should
 // be released as quickly as possible.
 static const int8_t kMaxTrackRetriesDirect = 2;
+// retry count before removing active track in case of underrun on offloaded thread:
+// we need to make sure that AudioTrack client has enough time to send large buffers
+//FIXME may be more appropriate if expressed in time units. Need to revise how underrun is handled
+// for offloaded tracks
+static const int8_t kMaxTrackRetriesOffload = 10;
+static const int8_t kMaxTrackStartupRetriesOffload = 100;
+
 
 // don't warn about blocked writes or record buffer overflows more often than this
 static const nsecs_t kWarningThrottleNs = seconds(5);
@@ -135,6 +142,14 @@ static const uint32_t kMinNormalCaptureBufferSizeMs = 12;
 
 // Offloaded output thread standby delay: allows track transition without going to standby
 static const nsecs_t kOffloadStandbyDelayNs = seconds(1);
+
+// Direct output thread minimum sleep time in idle or active(underrun) state
+static const nsecs_t kDirectMinSleepTimeUs = 10000;
+
+// Offloaded output bit rate in bits per second when unknown.
+// Used for sleep time calculation, so use a high default bitrate to be conservative on sleep time.
+static const uint32_t kOffloadDefaultBitRateBps = 1500000;
+
 
 // Whether to use fast mixer
 static const enum {
@@ -1553,7 +1568,8 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
                                              audio_io_handle_t id,
                                              audio_devices_t device,
                                              type_t type,
-                                             bool systemReady)
+                                             bool systemReady,
+                                             uint32_t bitRate)
     :   ThreadBase(audioFlinger, id, device, AUDIO_DEVICE_NONE, type, systemReady),
         mNormalFrameCount(0), mSinkBuffer(NULL),
         mMixerBufferEnabled(AudioFlinger::kEnableExtendedPrecision),
@@ -1615,6 +1631,13 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
             stream = (audio_stream_type_t) (stream + 1)) {
         mStreamTypes[stream].volume = mAudioFlinger->streamVolume_l(stream);
         mStreamTypes[stream].mute = mAudioFlinger->streamMute_l(stream);
+    }
+
+    if (audio_has_proportional_frames(mFormat)) {
+        mBufferDurationUs = (uint32_t)((mNormalFrameCount * 1000000LL) / mSampleRate);
+    } else {
+        bitRate = bitRate != 0 ? bitRate : kOffloadDefaultBitRateBps;
+        mBufferDurationUs = (uint32_t)((mBufferSize * 8 * 1000000LL) / bitRate);
     }
 }
 
@@ -2008,8 +2031,6 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
 {
     status_t status = ALREADY_EXISTS;
 
-    // set retry count for buffer fill
-    track->mRetryCount = kMaxTrackStartupRetries;
     if (mActiveTracks.indexOf(track) < 0) {
         // the track is newly added, make sure it fills up all its
         // buffers before playing. This is to ensure the client will
@@ -2038,6 +2059,13 @@ status_t AudioFlinger::PlaybackThread::addTrack_l(const sp<Track>& track)
             // to track the speaker usage
             addBatteryData(IMediaPlayerService::kBatteryDataAudioFlingerStart);
 #endif
+        }
+
+        // set retry count for buffer fill
+        if (track->isOffloaded()) {
+            track->mRetryCount = kMaxTrackStartupRetriesOffload;
+        } else {
+            track->mRetryCount = kMaxTrackStartupRetries;
         }
 
         track->mFillingUpStatus = track->sharedBuffer() != 0 ? Track::FS_FILLED : Track::FS_FILLING;
@@ -2572,6 +2600,7 @@ ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
         // FIXME We should have an implementation of timestamps for direct output threads.
         // They are used e.g for multichannel PCM playback over HDMI.
         bytesWritten = mOutput->write((char *)mSinkBuffer + offset, mBytesRemaining);
+
         if (mUseAsyncWrite &&
                 ((bytesWritten < 0) || (bytesWritten == (ssize_t)mBytesRemaining))) {
             // do not wait for async callback in case of error of full write
@@ -3137,7 +3166,30 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
             } else {
                 ATRACE_BEGIN("sleep");
-                usleep(mSleepTimeUs);
+                if ((mType == OFFLOAD) && !audio_has_proportional_frames(mFormat)) {
+                    Mutex::Autolock _l(mLock);
+                    if (!mSignalPending && !exitPending()) {
+                        // Do not sleep more than one buffer duration since last write and not
+                        // less than kDirectMinSleepTimeUs
+                        // Wake up if a command is received
+                        nsecs_t now = systemTime();
+                        uint32_t deltaUs = (uint32_t)((now - mLastWriteTime) / 1000);
+                        uint32_t timeoutUs = mSleepTimeUs;
+                        if (timeoutUs + deltaUs > mBufferDurationUs) {
+                            if (mBufferDurationUs > deltaUs) {
+                                timeoutUs = mBufferDurationUs - deltaUs;
+                                if (timeoutUs < kDirectMinSleepTimeUs) {
+                                    timeoutUs = kDirectMinSleepTimeUs;
+                                }
+                            } else {
+                                timeoutUs = kDirectMinSleepTimeUs;
+                            }
+                        }
+                        mWaitWorkCV.waitRelative(mLock, microseconds((nsecs_t)timeoutUs));
+                    }
+                } else {
+                    usleep(mSleepTimeUs);
+                }
                 ATRACE_END();
             }
         }
@@ -4583,16 +4635,17 @@ void AudioFlinger::MixerThread::cacheParameters_l()
 // ----------------------------------------------------------------------------
 
 AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& audioFlinger,
-        AudioStreamOut* output, audio_io_handle_t id, audio_devices_t device, bool systemReady)
-    :   PlaybackThread(audioFlinger, output, id, device, DIRECT, systemReady)
+        AudioStreamOut* output, audio_io_handle_t id, audio_devices_t device, bool systemReady,
+        uint32_t bitRate)
+    :   PlaybackThread(audioFlinger, output, id, device, DIRECT, systemReady, bitRate)
         // mLeftVolFloat, mRightVolFloat
 {
 }
 
 AudioFlinger::DirectOutputThread::DirectOutputThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device,
-        ThreadBase::type_t type, bool systemReady)
-    :   PlaybackThread(audioFlinger, output, id, device, type, systemReady)
+        ThreadBase::type_t type, bool systemReady, uint32_t bitRate)
+    :   PlaybackThread(audioFlinger, output, id, device, type, systemReady, bitRate)
         // mLeftVolFloat, mRightVolFloat
 {
 }
@@ -4871,7 +4924,10 @@ void AudioFlinger::DirectOutputThread::threadLoop_mix()
         buffer.frameCount = frameCount;
         status_t status = mActiveTrack->getNextBuffer(&buffer);
         if (status != NO_ERROR || buffer.raw == NULL) {
-            memset(curBuf, 0, frameCount * mFrameSize);
+            // no need to pad with 0 for compressed audio
+            if (audio_has_proportional_frames(mFormat)) {
+                memset(curBuf, 0, frameCount * mFrameSize);
+            }
             break;
         }
         memcpy(curBuf, buffer.raw, buffer.frameCount * mFrameSize);
@@ -4894,7 +4950,14 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
     }
     if (mSleepTimeUs == 0) {
         if (mMixerStatus == MIXER_TRACKS_ENABLED) {
-            mSleepTimeUs = mActiveSleepTimeUs;
+            // For compressed offload, use faster sleep time when underruning until more than an
+            // entire buffer was written to the audio HAL
+            if (!audio_has_proportional_frames(mFormat) &&
+                    (mType == OFFLOAD) && (mBytesWritten < mBufferSize)) {
+                mSleepTimeUs = kDirectMinSleepTimeUs;
+            } else {
+                mSleepTimeUs = mActiveSleepTimeUs;
+            }
         } else {
             mSleepTimeUs = mIdleSleepTimeUs;
         }
@@ -5008,7 +5071,7 @@ uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const
     if (audio_has_proportional_frames(mFormat)) {
         time = PlaybackThread::activeSleepTimeUs();
     } else {
-        time = 10000;
+        time = kDirectMinSleepTimeUs;
     }
     return time;
 }
@@ -5019,7 +5082,7 @@ uint32_t AudioFlinger::DirectOutputThread::idleSleepTimeUs() const
     if (audio_has_proportional_frames(mFormat)) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000) / 2;
     } else {
-        time = 10000;
+        time = kDirectMinSleepTimeUs;
     }
     return time;
 }
@@ -5030,7 +5093,7 @@ uint32_t AudioFlinger::DirectOutputThread::suspendSleepTimeUs() const
     if (audio_has_proportional_frames(mFormat)) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000);
     } else {
-        time = 10000;
+        time = kDirectMinSleepTimeUs;
     }
     return time;
 }
@@ -5162,8 +5225,9 @@ void AudioFlinger::AsyncCallbackThread::resetDraining()
 
 // ----------------------------------------------------------------------------
 AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
-        AudioStreamOut* output, audio_io_handle_t id, uint32_t device, bool systemReady)
-    :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD, systemReady),
+        AudioStreamOut* output, audio_io_handle_t id, uint32_t device, bool systemReady,
+        uint32_t bitRate)
+    :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD, systemReady, bitRate),
         mPausedBytesRemaining(0)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
@@ -5244,6 +5308,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             }
             tracksToRemove->add(track);
         } else if (track->isFlushPending()) {
+            track->mRetryCount = kMaxTrackRetriesOffload;
             track->flushAck();
             if (last) {
                 mFlushPending = true;
@@ -5422,6 +5487,20 @@ void AudioFlinger::OffloadThread::flushHw_l()
         mCallbackThread->setWriteBlocked(mWriteAckSequence);
         mCallbackThread->setDraining(mDrainSequence);
     }
+}
+
+uint32_t AudioFlinger::OffloadThread::activeSleepTimeUs() const
+{
+    uint32_t time;
+    if (audio_has_proportional_frames(mFormat)) {
+        time = PlaybackThread::activeSleepTimeUs();
+    } else {
+        // sleep time is half the duration of an audio HAL buffer.
+        // Note: This can be problematic in case of underrun with variable bit rate and
+        // current rate is much less than initial rate.
+        time = (uint32_t)max(kDirectMinSleepTimeUs, mBufferDurationUs / 2);
+    }
+    return time;
 }
 
 // ----------------------------------------------------------------------------
