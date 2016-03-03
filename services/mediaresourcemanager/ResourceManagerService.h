@@ -79,22 +79,22 @@ private:
     // Gets the list of all the clients who own the specified resource type.
     // Returns false if any client belongs to a process with higher priority than the
     // calling process. The clients will remain unchanged if returns false.
-    bool getAllClients_l(int callingPid, const String8 &type,
+    bool getAllClients_l(int callingPid, MediaResource::Type type,
             Vector<sp<IResourceManagerClient>> *clients);
 
     // Gets the client who owns specified resource type from lowest possible priority process.
     // Returns false if the calling process priority is not higher than the lowest process
     // priority. The client will remain unchanged if returns false.
-    bool getLowestPriorityBiggestClient_l(int callingPid, const String8 &type,
+    bool getLowestPriorityBiggestClient_l(int callingPid, MediaResource::Type type,
             sp<IResourceManagerClient> *client);
 
     // Gets lowest priority process that has the specified resource type.
     // Returns false if failed. The output parameters will remain unchanged if failed.
-    bool getLowestPriorityPid_l(const String8 &type, int *pid, int *priority);
+    bool getLowestPriorityPid_l(MediaResource::Type type, int *pid, int *priority);
 
     // Gets the client who owns biggest piece of specified resource type from pid.
     // Returns false if failed. The client will remain unchanged if failed.
-    bool getBiggestClient_l(int pid, const String8 &type, sp<IResourceManagerClient> *client);
+    bool getBiggestClient_l(int pid, MediaResource::Type type, sp<IResourceManagerClient> *client);
 
     bool isCallingPriorityHigher_l(int callingPid, int pid);
 

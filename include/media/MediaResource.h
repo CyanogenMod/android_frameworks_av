@@ -23,17 +23,24 @@
 
 namespace android {
 
-extern const char kResourceSecureCodec[];
-extern const char kResourceNonSecureCodec[];
-extern const char kResourceAudioCodec[];
-extern const char kResourceVideoCodec[];
-extern const char kResourceGraphicMemory[];
-
 class MediaResource {
 public:
+    enum Type {
+        kUnspecified = 0,
+        kSecureCodec,
+        kNonSecureCodec,
+        kGraphicMemory
+    };
+
+    enum SubType {
+        kUnspecifiedSubType = 0,
+        kAudioCodec,
+        kVideoCodec
+    };
+
     MediaResource();
-    MediaResource(String8 type, uint64_t value);
-    MediaResource(String8 type, String8 subType, uint64_t value);
+    MediaResource(Type type, uint64_t value);
+    MediaResource(Type type, SubType subType, uint64_t value);
 
     void readFromParcel(const Parcel &parcel);
     void writeToParcel(Parcel *parcel) const;
@@ -43,10 +50,29 @@ public:
     bool operator==(const MediaResource &other) const;
     bool operator!=(const MediaResource &other) const;
 
-    String8 mType;
-    String8 mSubType;
+    Type mType;
+    SubType mSubType;
     uint64_t mValue;
 };
+
+inline static const char *asString(MediaResource::Type i, const char *def = "??") {
+    switch (i) {
+        case MediaResource::kUnspecified:    return "unspecified";
+        case MediaResource::kSecureCodec:    return "secure-codec";
+        case MediaResource::kNonSecureCodec: return "non-secure-codec";
+        case MediaResource::kGraphicMemory:  return "graphic-memory";
+        default:                             return def;
+    }
+}
+
+inline static const char *asString(MediaResource::SubType i, const char *def = "??") {
+    switch (i) {
+        case MediaResource::kUnspecifiedSubType: return "unspecified";
+        case MediaResource::kAudioCodec:         return "audio-codec";
+        case MediaResource::kVideoCodec:         return "video-codec";
+        default:                                 return def;
+    }
+}
 
 }; // namespace android
 

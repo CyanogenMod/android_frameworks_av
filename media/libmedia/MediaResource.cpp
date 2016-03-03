@@ -21,38 +21,36 @@
 
 namespace android {
 
-const char kResourceSecureCodec[] = "secure-codec";
-const char kResourceNonSecureCodec[] = "non-secure-codec";
-const char kResourceAudioCodec[] = "audio-codec";
-const char kResourceVideoCodec[] = "video-codec";
-const char kResourceGraphicMemory[] = "graphic-memory";
+MediaResource::MediaResource()
+        : mType(kUnspecified),
+          mSubType(kUnspecifiedSubType),
+          mValue(0) {}
 
-MediaResource::MediaResource() : mValue(0) {}
-
-MediaResource::MediaResource(String8 type, uint64_t value)
+MediaResource::MediaResource(Type type, uint64_t value)
         : mType(type),
+          mSubType(kUnspecifiedSubType),
           mValue(value) {}
 
-MediaResource::MediaResource(String8 type, String8 subType, uint64_t value)
+MediaResource::MediaResource(Type type, SubType subType, uint64_t value)
         : mType(type),
           mSubType(subType),
           mValue(value) {}
 
 void MediaResource::readFromParcel(const Parcel &parcel) {
-    mType = parcel.readString8();
-    mSubType = parcel.readString8();
+    mType = static_cast<Type>(parcel.readInt32());
+    mSubType = static_cast<SubType>(parcel.readInt32());
     mValue = parcel.readUint64();
 }
 
 void MediaResource::writeToParcel(Parcel *parcel) const {
-    parcel->writeString8(mType);
-    parcel->writeString8(mSubType);
+    parcel->writeInt32(static_cast<int32_t>(mType));
+    parcel->writeInt32(static_cast<int32_t>(mSubType));
     parcel->writeUint64(mValue);
 }
 
 String8 MediaResource::toString() const {
     String8 str;
-    str.appendFormat("%s/%s:%llu", mType.string(), mSubType.string(), (unsigned long long)mValue);
+    str.appendFormat("%s/%s:%llu", asString(mType), asString(mSubType), (unsigned long long)mValue);
     return str;
 }
 

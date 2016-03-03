@@ -394,7 +394,7 @@ private:
     bool isExecuting() const;
 
     uint64_t getGraphicBufferSize();
-    void addResource(const String8 &type, const String8 &subtype, uint64_t value);
+    void addResource(MediaResource::Type type, MediaResource::SubType subtype, uint64_t value);
 
     bool hasPendingBuffer(int portIndex);
     bool hasPendingBuffer();
