@@ -567,7 +567,6 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
 {
     ALOGV("setForceUse() usage %d, config %d, mPhoneState %d", usage, config, mEngine->getPhoneState());
 
-    audio_policy_forced_cfg_t originalConfig = mEngine->getForceUse(usage);
     if (mEngine->setForceUse(usage, config) != NO_ERROR) {
         ALOGW("setForceUse() could not set force cfg %d for usage %d", config, usage);
         return;
@@ -580,32 +579,6 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
     checkA2dpSuspend();
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
-
-    // Did surround forced use change?
-    if ((usage == AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND)
-            && (originalConfig != config)) {
-        const char *device_address  = "";
-        // Is it currently connected? If so then cycle the connection
-        // so that the supported surround formats will be reloaded.
-        //
-        // FIXME As S/PDIF is not a removable device we have to handle this differently.
-        // Probably by updating the device descriptor directly and manually
-        // tearing down active playback on S/PDIF
-        if (getDeviceConnectionState(AUDIO_DEVICE_OUT_HDMI, device_address) ==
-                                             AUDIO_POLICY_DEVICE_STATE_AVAILABLE) {
-            // Disconnect and reconnect output devices so that the surround
-            // encodings can be updated.
-            const char *device_name = "";
-            // disconnect
-            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_HDMI,
-                        AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-                        device_address, device_name);
-            // reconnect
-            setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_HDMI,
-                        AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                        device_address, device_name);
-        }
-    }
 
     if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
         audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
