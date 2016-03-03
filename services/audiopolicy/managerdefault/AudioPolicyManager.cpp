@@ -3637,6 +3637,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                     output = AUDIO_IO_HANDLE_NONE;
                 } else if (profile->hasDynamicAudioProfile()) {
                     mpClientInterface->closeOutput(output);
+                    output = AUDIO_IO_HANDLE_NONE;
                     profile->pickAudioProfile(config.sample_rate, config.channel_mask, config.format);
                     config.offload_info.sample_rate = config.sample_rate;
                     config.offload_info.channel_mask = config.channel_mask;
