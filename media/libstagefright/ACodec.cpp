@@ -511,7 +511,8 @@ ACodec::ACodec()
       mTimePerFrameUs(-1ll),
       mTimePerCaptureUs(-1ll),
       mCreateInputBuffersSuspended(false),
-      mTunneled(false) {
+      mTunneled(false),
+      mDescribeColorAspectsIndex((OMX_INDEXTYPE)0) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -1940,9 +1941,9 @@ status_t ACodec::configureCodec(
         }
 
         if (encoder) {
-            err = setupVideoEncoder(mime, msg);
+            err = setupVideoEncoder(mime, msg, outputFormat);
         } else {
-            err = setupVideoDecoder(mime, msg, haveNativeWindow);
+            err = setupVideoDecoder(mime, msg, haveNativeWindow, outputFormat);
         }
 
         if (err != OK) {
@@ -2003,7 +2004,7 @@ status_t ACodec::configureCodec(
                         // fallback is not supported for protected playback
                         err = PERMISSION_DENIED;
                     } else if (err == OK) {
-                        err = setupVideoDecoder(mime, msg, false);
+                        err = setupVideoDecoder(mime, msg, false, outputFormat);
                     }
                 }
             }
@@ -3010,7 +3011,8 @@ static status_t GetMimeTypeForVideoCoding(
 }
 
 status_t ACodec::setupVideoDecoder(
-        const char *mime, const sp<AMessage> &msg, bool haveNativeWindow) {
+        const char *mime, const sp<AMessage> &msg, bool haveNativeWindow,
+        sp<AMessage> &outputFormat) {
     int32_t width, height;
     if (!msg->findInt32("width", &width)
             || !msg->findInt32("height", &height)) {
@@ -3073,10 +3075,113 @@ status_t ACodec::setupVideoDecoder(
         return err;
     }
 
+    err = setColorAspects(
+            kPortIndexOutput, width, height, msg, outputFormat);
+    if (err != OK) {
+        ALOGI("Falling back to presets as component does not describe color aspects.");
+        err = OK;
+    }
+
+    return err;
+}
+
+status_t ACodec::setColorAspects(
+        OMX_U32 portIndex, int32_t width, int32_t height, const sp<AMessage> &msg,
+        sp<AMessage> &format) {
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = portIndex;
+
+    // 0 values are unspecified
+    int32_t range = 0, standard = 0, transfer = 0;
+    if (portIndex == kPortIndexInput) {
+        // Encoders allow overriding default aspects with 0 if specified by format. Decoders do not.
+        setDefaultPlatformColorAspectsIfNeeded(range, standard, transfer, width, height);
+    }
+    (void)msg->findInt32("color-range", &range);
+    (void)msg->findInt32("color-standard", &standard);
+    (void)msg->findInt32("color-transfer", &transfer);
+
+    if (convertPlatformColorAspectsToCodecAspects(
+            range, standard, transfer, params.sAspects) != OK) {
+        ALOGW("[%s] Ignoring illegal color aspects(range=%d, standard=%d, transfer=%d)",
+                mComponentName.c_str(), range, standard, transfer);
+        // Invalid values were converted to unspecified !params!, but otherwise were not changed
+        // For encoders, we leave these as is. For decoders, we will use default values.
+    }
+
+    // set defaults for decoders.
+    if (portIndex != kPortIndexInput) {
+        setDefaultCodecColorAspectsIfNeeded(params.sAspects, width, height);
+        convertCodecColorAspectsToPlatformAspects(params.sAspects, &range, &standard, &transfer);
+    }
+
+    // save updated values to base output format (encoder input format will read back actually
+    // supported values by the codec)
+    if (range != 0) {
+        format->setInt32("color-range", range);
+    }
+    if (standard != 0) {
+        format->setInt32("color-standard", standard);
+    }
+    if (transfer != 0) {
+        format->setInt32("color-transfer", transfer);
+    }
+
+    // communicate color aspects to codec
+    status_t err = mOMX->getExtensionIndex(
+            mNode, "OMX.google.android.index.describeColorAspects", &mDescribeColorAspectsIndex);
+    if (err != OK) {
+        mDescribeColorAspectsIndex = (OMX_INDEXTYPE)0;
+        return err;
+    }
+
+    return mOMX->setConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
+}
+
+status_t ACodec::getColorAspects(OMX_U32 portIndex, sp<AMessage> &format) {
+    if (!mDescribeColorAspectsIndex) {
+        return ERROR_UNSUPPORTED;
+    }
+
+    DescribeColorAspectsParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = portIndex;
+    ColorAspects &aspects = params.sAspects;
+    aspects.mRange = ColorAspects::RangeUnspecified;
+    aspects.mPrimaries = ColorAspects::PrimariesUnspecified;
+    aspects.mMatrixCoeffs = ColorAspects::MatrixUnspecified;
+    aspects.mTransfer = ColorAspects::TransferUnspecified;
+
+    status_t err = mOMX->getConfig(mNode, mDescribeColorAspectsIndex, &params, sizeof(params));
+    if (err != OK) {
+        return err;
+    }
+
+    // keep non-standard codec values in extension ranges
+    int32_t range, standard, transfer;
+    if (convertCodecColorAspectsToPlatformAspects(
+            params.sAspects, &range, &standard, &transfer) != OK) {
+        ALOGW("[%s] Ignoring invalid color aspects(range=%u, primaries=%u, coeffs=%u, transfer=%u)",
+                mComponentName.c_str(),
+                aspects.mRange, aspects.mPrimaries, aspects.mMatrixCoeffs, aspects.mTransfer);
+    }
+
+    // save specified values to format
+    if (range != 0) {
+        format->setInt32("color-range", range);
+    }
+    if (standard != 0) {
+        format->setInt32("color-standard", standard);
+    }
+    if (transfer != 0) {
+        format->setInt32("color-transfer", transfer);
+    }
     return OK;
 }
 
-status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
+status_t ACodec::setupVideoEncoder(
+        const char *mime, const sp<AMessage> &msg, sp<AMessage> &outputFormat) {
     int32_t tmp;
     if (!msg->findInt32("color-format", &tmp)) {
         return INVALID_OPERATION;
@@ -3245,6 +3350,15 @@ status_t ACodec::setupVideoEncoder(const char *mime, const sp<AMessage> &msg) {
 
         default:
             break;
+    }
+
+    // Set up color aspects on input, but propagate them to the output format, as they will
+    // not be read back from encoder.
+    err = setColorAspects(
+            kPortIndexInput, width, height, msg, outputFormat);
+    if (err != OK) {
+        ALOGI("[%s] cannot encode color aspects. Ignoring.", mComponentName.c_str());
+        err = OK;
     }
 
     if (err == OK) {
@@ -4219,6 +4333,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         // TODO: also get input crop
                         break;
                     }
+
+                    (void)getColorAspects(portIndex, notify);
 
                     OMX_CONFIG_RECTTYPE rect;
                     InitOMXParams(&rect);
