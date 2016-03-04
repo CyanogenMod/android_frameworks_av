@@ -18,6 +18,8 @@
 #define LOG_TAG "IOMX"
 #include <utils/Log.h>
 
+#include <sys/mman.h>
+
 #include <binder/IMemory.h>
 #include <binder/Parcel.h>
 #include <media/IOMX.h>
@@ -692,38 +694,70 @@ status_t BnOMX::onTransact(
 
             size_t size = data.readInt64();
 
-            status_t err = NO_MEMORY;
-            void *params = calloc(size, 1);
-            if (params) {
-                err = data.read(params, size);
-                if (err != OK) {
-                    android_errorWriteLog(0x534e4554, "26914474");
+            status_t err = NOT_ENOUGH_DATA;
+            void *params = NULL;
+            size_t pageSize = 0;
+            size_t allocSize = 0;
+            if (code != SET_INTERNAL_OPTION && size < 8) {
+                // we expect the structure to contain at least the size and
+                // version, 8 bytes total
+                ALOGE("b/27207275 (%zu)", size);
+                android_errorWriteLog(0x534e4554, "27207275");
+            } else {
+                err = NO_MEMORY;
+                pageSize = (size_t) sysconf(_SC_PAGE_SIZE);
+                if (size > SIZE_MAX - (pageSize * 2)) {
+                    ALOGE("requested param size too big");
                 } else {
-                    switch (code) {
-                        case GET_PARAMETER:
-                            err = getParameter(node, index, params, size);
-                            break;
-                        case SET_PARAMETER:
-                            err = setParameter(node, index, params, size);
-                            break;
-                        case GET_CONFIG:
-                            err = getConfig(node, index, params, size);
-                            break;
-                        case SET_CONFIG:
-                            err = setConfig(node, index, params, size);
-                            break;
-                        case SET_INTERNAL_OPTION:
-                        {
-                            InternalOptionType type =
-                                (InternalOptionType)data.readInt32();
+                    allocSize = (size + pageSize * 2) & ~(pageSize - 1);
+                    params = mmap(NULL, allocSize, PROT_READ | PROT_WRITE,
+                            MAP_PRIVATE | MAP_ANONYMOUS, -1 /* fd */, 0 /* offset */);
+                }
+                if (params != MAP_FAILED) {
+                    err = data.read(params, size);
+                    if (err != OK) {
+                        android_errorWriteLog(0x534e4554, "26914474");
+                    } else {
+                        err = NOT_ENOUGH_DATA;
+                        OMX_U32 declaredSize = *(OMX_U32*)params;
+                        if (code != SET_INTERNAL_OPTION && declaredSize > size) {
+                            // the buffer says it's bigger than it actually is
+                            ALOGE("b/27207275 (%u/%zu)", declaredSize, size);
+                            android_errorWriteLog(0x534e4554, "27207275");
+                        } else {
+                            // mark the last page as inaccessible, to avoid exploitation
+                            // of codecs that access past the end of the allocation because
+                            // they didn't check the size
+                            mprotect((char*)params + allocSize - pageSize, pageSize, PROT_NONE);
+                            switch (code) {
+                                case GET_PARAMETER:
+                                    err = getParameter(node, index, params, size);
+                                    break;
+                                case SET_PARAMETER:
+                                    err = setParameter(node, index, params, size);
+                                    break;
+                                case GET_CONFIG:
+                                    err = getConfig(node, index, params, size);
+                                    break;
+                                case SET_CONFIG:
+                                    err = setConfig(node, index, params, size);
+                                    break;
+                                case SET_INTERNAL_OPTION:
+                                {
+                                    InternalOptionType type =
+                                        (InternalOptionType)data.readInt32();
 
-                            err = setInternalOption(node, index, type, params, size);
-                            break;
+                                    err = setInternalOption(node, index, type, params, size);
+                                    break;
+                                }
+
+                                default:
+                                    TRESPASS();
+                            }
                         }
-
-                        default:
-                            TRESPASS();
                     }
+                } else {
+                    ALOGE("couldn't map: %s", strerror(errno));
                 }
             }
 
@@ -733,7 +767,9 @@ status_t BnOMX::onTransact(
                 reply->write(params, size);
             }
 
-            free(params);
+            if (params) {
+                munmap(params, allocSize);
+            }
             params = NULL;
 
             return NO_ERROR;
