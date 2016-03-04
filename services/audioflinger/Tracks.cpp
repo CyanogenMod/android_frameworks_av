@@ -617,7 +617,7 @@ bool AudioFlinger::PlaybackThread::Track::isReady() const {
         return true;
     }
 
-    if (framesReady() >= mFrameCount ||
+    if (framesReady() >= mServerProxy->getBufferSizeInFrames() ||
             (mCblk->mFlags & CBLK_FORCEREADY)) {
         mFillingUpStatus = FS_FILLED;
         android_atomic_and(~CBLK_FORCEREADY, &mCblk->mFlags);

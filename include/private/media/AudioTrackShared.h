@@ -177,6 +177,10 @@ private:
                 // server write-only, client read
                 ExtendedTimestampQueue::Shared mExtendedTimestampQueue;
 
+                // This is set by AudioTrack.setBufferSizeInFrames().
+                // A write will not fill the buffer above this limit.
+    volatile    uint32_t   mBufferSizeInFrames;  // effective size of the buffer
+
 public:
 
     volatile    int32_t     mFlags;         // combinations of CBLK_*
@@ -312,9 +316,9 @@ public:
         return mEpoch;
     }
 
-    size_t      getBufferSizeInFrames() const { return mBufferSizeInFrames; }
-    // See documentation for AudioTrack.setBufferSizeInFrames()
-    size_t      setBufferSizeInFrames(size_t requestedSize);
+    uint32_t      getBufferSizeInFrames() const { return mBufferSizeInFrames; }
+    // See documentation for AudioTrack::setBufferSizeInFrames()
+    uint32_t      setBufferSizeInFrames(uint32_t requestedSize);
 
     status_t    getTimestamp(ExtendedTimestamp *timestamp) {
         if (timestamp == nullptr) {
@@ -329,12 +333,10 @@ public:
         mTimestamp.clear();
     }
 
-protected:
-    // This is set by AudioTrack.setBufferSizeInFrames().
-    // A write will not fill the buffer above this limit.
-    size_t      mBufferSizeInFrames;      // effective size of the buffer
-
 private:
+    // This is a copy of mCblk->mBufferSizeInFrames
+    uint32_t   mBufferSizeInFrames;  // effective size of the buffer
+
     Modulo<uint32_t> mEpoch;
 
     // The shared buffer contents referred to by the timestamp observer
@@ -516,6 +518,11 @@ public:
     // Expose timestamp to client proxy. Should only be called by a single thread.
     virtual void        setTimestamp(const ExtendedTimestamp &timestamp) {
         mTimestampMutator.push(timestamp);
+    }
+
+    // Get dynamic buffer size from the shared control block.
+    uint32_t            getBufferSizeInFrames() const {
+        return android_atomic_acquire_load((int32_t *)&mCblk->mBufferSizeInFrames);
     }
 
 protected:
