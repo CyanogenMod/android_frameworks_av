@@ -38,6 +38,7 @@ lseek: 1
 sched_get_priority_max: 1
 sched_get_priority_min: 1
 statfs64: 1
+sched_setscheduler: 1
 
 # for attaching to debuggerd on process crash
 sigaction: 1
