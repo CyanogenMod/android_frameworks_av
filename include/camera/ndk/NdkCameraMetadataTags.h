@@ -98,273 +98,382 @@ typedef enum acamera_metadata_section_start {
 typedef enum acamera_metadata_tag {
     ACAMERA_COLOR_CORRECTION_MODE =                             // byte (enum)
             ACAMERA_COLOR_CORRECTION_START,
-    ACAMERA_COLOR_CORRECTION_TRANSFORM,                         // rational[3*3]
-    ACAMERA_COLOR_CORRECTION_GAINS,                             // float[4]
-    ACAMERA_COLOR_CORRECTION_ABERRATION_MODE,                   // byte (enum)
-    ACAMERA_COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES,        // byte[n]
+    ACAMERA_COLOR_CORRECTION_TRANSFORM =                        // rational[3*3]
+            ACAMERA_COLOR_CORRECTION_START + 1,
+    ACAMERA_COLOR_CORRECTION_GAINS =                            // float[4]
+            ACAMERA_COLOR_CORRECTION_START + 2,
+    ACAMERA_COLOR_CORRECTION_ABERRATION_MODE =                  // byte (enum)
+            ACAMERA_COLOR_CORRECTION_START + 3,
+    ACAMERA_COLOR_CORRECTION_AVAILABLE_ABERRATION_MODES =       // byte[n]
+            ACAMERA_COLOR_CORRECTION_START + 4,
     ACAMERA_COLOR_CORRECTION_END,
 
     ACAMERA_CONTROL_AE_ANTIBANDING_MODE =                       // byte (enum)
             ACAMERA_CONTROL_START,
-    ACAMERA_CONTROL_AE_EXPOSURE_COMPENSATION,                   // int32
-    ACAMERA_CONTROL_AE_LOCK,                                    // byte (enum)
-    ACAMERA_CONTROL_AE_MODE,                                    // byte (enum)
-    ACAMERA_CONTROL_AE_REGIONS,                                 // int32[5*area_count]
-    ACAMERA_CONTROL_AE_TARGET_FPS_RANGE,                        // int32[2]
-    ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER,                      // byte (enum)
-    ACAMERA_CONTROL_AF_MODE,                                    // byte (enum)
-    ACAMERA_CONTROL_AF_REGIONS,                                 // int32[5*area_count]
-    ACAMERA_CONTROL_AF_TRIGGER,                                 // byte (enum)
-    ACAMERA_CONTROL_AWB_LOCK,                                   // byte (enum)
-    ACAMERA_CONTROL_AWB_MODE,                                   // byte (enum)
-    ACAMERA_CONTROL_AWB_REGIONS,                                // int32[5*area_count]
-    ACAMERA_CONTROL_CAPTURE_INTENT,                             // byte (enum)
-    ACAMERA_CONTROL_EFFECT_MODE,                                // byte (enum)
-    ACAMERA_CONTROL_MODE,                                       // byte (enum)
-    ACAMERA_CONTROL_SCENE_MODE,                                 // byte (enum)
-    ACAMERA_CONTROL_VIDEO_STABILIZATION_MODE,                   // byte (enum)
-    ACAMERA_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,             // byte[n]
-    ACAMERA_CONTROL_AE_AVAILABLE_MODES,                         // byte[n]
-    ACAMERA_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES,             // int32[2*n]
-    ACAMERA_CONTROL_AE_COMPENSATION_RANGE,                      // int32[2]
-    ACAMERA_CONTROL_AE_COMPENSATION_STEP,                       // rational
-    ACAMERA_CONTROL_AF_AVAILABLE_MODES,                         // byte[n]
-    ACAMERA_CONTROL_AVAILABLE_EFFECTS,                          // byte[n]
-    ACAMERA_CONTROL_AVAILABLE_SCENE_MODES,                      // byte[n]
-    ACAMERA_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES,        // byte[n]
-    ACAMERA_CONTROL_AWB_AVAILABLE_MODES,                        // byte[n]
-    ACAMERA_CONTROL_MAX_REGIONS,                                // int32[3]
-    ACAMERA_CONTROL_RESERVED_29,
-    ACAMERA_CONTROL_RESERVED_30,
-    ACAMERA_CONTROL_AE_STATE,                                   // byte (enum)
-    ACAMERA_CONTROL_AF_STATE,                                   // byte (enum)
-    ACAMERA_CONTROL_RESERVED_33,
-    ACAMERA_CONTROL_AWB_STATE,                                  // byte (enum)
-    ACAMERA_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS,  // int32[5*n]
-    ACAMERA_CONTROL_AE_LOCK_AVAILABLE,                          // byte (enum)
-    ACAMERA_CONTROL_AWB_LOCK_AVAILABLE,                         // byte (enum)
-    ACAMERA_CONTROL_AVAILABLE_MODES,                            // byte[n]
-    ACAMERA_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE,           // int32[2]
-    ACAMERA_CONTROL_POST_RAW_SENSITIVITY_BOOST,                 // int32
+    ACAMERA_CONTROL_AE_EXPOSURE_COMPENSATION =                  // int32
+            ACAMERA_CONTROL_START + 1,
+    ACAMERA_CONTROL_AE_LOCK =                                   // byte (enum)
+            ACAMERA_CONTROL_START + 2,
+    ACAMERA_CONTROL_AE_MODE =                                   // byte (enum)
+            ACAMERA_CONTROL_START + 3,
+    ACAMERA_CONTROL_AE_REGIONS =                                // int32[5*area_count]
+            ACAMERA_CONTROL_START + 4,
+    ACAMERA_CONTROL_AE_TARGET_FPS_RANGE =                       // int32[2]
+            ACAMERA_CONTROL_START + 5,
+    ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER =                     // byte (enum)
+            ACAMERA_CONTROL_START + 6,
+    ACAMERA_CONTROL_AF_MODE =                                   // byte (enum)
+            ACAMERA_CONTROL_START + 7,
+    ACAMERA_CONTROL_AF_REGIONS =                                // int32[5*area_count]
+            ACAMERA_CONTROL_START + 8,
+    ACAMERA_CONTROL_AF_TRIGGER =                                // byte (enum)
+            ACAMERA_CONTROL_START + 9,
+    ACAMERA_CONTROL_AWB_LOCK =                                  // byte (enum)
+            ACAMERA_CONTROL_START + 10,
+    ACAMERA_CONTROL_AWB_MODE =                                  // byte (enum)
+            ACAMERA_CONTROL_START + 11,
+    ACAMERA_CONTROL_AWB_REGIONS =                               // int32[5*area_count]
+            ACAMERA_CONTROL_START + 12,
+    ACAMERA_CONTROL_CAPTURE_INTENT =                            // byte (enum)
+            ACAMERA_CONTROL_START + 13,
+    ACAMERA_CONTROL_EFFECT_MODE =                               // byte (enum)
+            ACAMERA_CONTROL_START + 14,
+    ACAMERA_CONTROL_MODE =                                      // byte (enum)
+            ACAMERA_CONTROL_START + 15,
+    ACAMERA_CONTROL_SCENE_MODE =                                // byte (enum)
+            ACAMERA_CONTROL_START + 16,
+    ACAMERA_CONTROL_VIDEO_STABILIZATION_MODE =                  // byte (enum)
+            ACAMERA_CONTROL_START + 17,
+    ACAMERA_CONTROL_AE_AVAILABLE_ANTIBANDING_MODES =            // byte[n]
+            ACAMERA_CONTROL_START + 18,
+    ACAMERA_CONTROL_AE_AVAILABLE_MODES =                        // byte[n]
+            ACAMERA_CONTROL_START + 19,
+    ACAMERA_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES =            // int32[2*n]
+            ACAMERA_CONTROL_START + 20,
+    ACAMERA_CONTROL_AE_COMPENSATION_RANGE =                     // int32[2]
+            ACAMERA_CONTROL_START + 21,
+    ACAMERA_CONTROL_AE_COMPENSATION_STEP =                      // rational
+            ACAMERA_CONTROL_START + 22,
+    ACAMERA_CONTROL_AF_AVAILABLE_MODES =                        // byte[n]
+            ACAMERA_CONTROL_START + 23,
+    ACAMERA_CONTROL_AVAILABLE_EFFECTS =                         // byte[n]
+            ACAMERA_CONTROL_START + 24,
+    ACAMERA_CONTROL_AVAILABLE_SCENE_MODES =                     // byte[n]
+            ACAMERA_CONTROL_START + 25,
+    ACAMERA_CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES =       // byte[n]
+            ACAMERA_CONTROL_START + 26,
+    ACAMERA_CONTROL_AWB_AVAILABLE_MODES =                       // byte[n]
+            ACAMERA_CONTROL_START + 27,
+    ACAMERA_CONTROL_MAX_REGIONS =                               // int32[3]
+            ACAMERA_CONTROL_START + 28,
+    ACAMERA_CONTROL_AE_STATE =                                  // byte (enum)
+            ACAMERA_CONTROL_START + 31,
+    ACAMERA_CONTROL_AF_STATE =                                  // byte (enum)
+            ACAMERA_CONTROL_START + 32,
+    ACAMERA_CONTROL_AWB_STATE =                                 // byte (enum)
+            ACAMERA_CONTROL_START + 34,
+    ACAMERA_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS = // int32[5*n]
+            ACAMERA_CONTROL_START + 35,
+    ACAMERA_CONTROL_AE_LOCK_AVAILABLE =                         // byte (enum)
+            ACAMERA_CONTROL_START + 36,
+    ACAMERA_CONTROL_AWB_LOCK_AVAILABLE =                        // byte (enum)
+            ACAMERA_CONTROL_START + 37,
+    ACAMERA_CONTROL_AVAILABLE_MODES =                           // byte[n]
+            ACAMERA_CONTROL_START + 38,
+    ACAMERA_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE =          // int32[2]
+            ACAMERA_CONTROL_START + 39,
+    ACAMERA_CONTROL_POST_RAW_SENSITIVITY_BOOST =                // int32
+            ACAMERA_CONTROL_START + 40,
     ACAMERA_CONTROL_END,
-
-    ACAMERA_DEMOSAIC_RESERVED_0 =
-            ACAMERA_DEMOSAIC_START,
-    ACAMERA_DEMOSAIC_END,
 
     ACAMERA_EDGE_MODE =                                         // byte (enum)
             ACAMERA_EDGE_START,
-    ACAMERA_EDGE_RESERVED_1,
-    ACAMERA_EDGE_AVAILABLE_EDGE_MODES,                          // byte[n]
+    ACAMERA_EDGE_AVAILABLE_EDGE_MODES =                         // byte[n]
+            ACAMERA_EDGE_START + 2,
     ACAMERA_EDGE_END,
 
-    ACAMERA_FLASH_RESERVED_0 =
-            ACAMERA_FLASH_START,
-    ACAMERA_FLASH_RESERVED_1,
-    ACAMERA_FLASH_MODE,                                         // byte (enum)
-    ACAMERA_FLASH_RESERVED_3,
-    ACAMERA_FLASH_RESERVED_4,
-    ACAMERA_FLASH_STATE,                                        // byte (enum)
+    ACAMERA_FLASH_MODE =                                        // byte (enum)
+            ACAMERA_FLASH_START + 2,
+    ACAMERA_FLASH_STATE =                                       // byte (enum)
+            ACAMERA_FLASH_START + 5,
     ACAMERA_FLASH_END,
 
     ACAMERA_FLASH_INFO_AVAILABLE =                              // byte (enum)
             ACAMERA_FLASH_INFO_START,
-    ACAMERA_FLASH_INFO_RESERVED_1,
     ACAMERA_FLASH_INFO_END,
 
     ACAMERA_HOT_PIXEL_MODE =                                    // byte (enum)
             ACAMERA_HOT_PIXEL_START,
-    ACAMERA_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES,                // byte[n]
+    ACAMERA_HOT_PIXEL_AVAILABLE_HOT_PIXEL_MODES =               // byte[n]
+            ACAMERA_HOT_PIXEL_START + 1,
     ACAMERA_HOT_PIXEL_END,
 
     ACAMERA_JPEG_GPS_COORDINATES =                              // double[3]
             ACAMERA_JPEG_START,
-    ACAMERA_JPEG_GPS_PROCESSING_METHOD,                         // byte
-    ACAMERA_JPEG_GPS_TIMESTAMP,                                 // int64
-    ACAMERA_JPEG_ORIENTATION,                                   // int32
-    ACAMERA_JPEG_QUALITY,                                       // byte
-    ACAMERA_JPEG_THUMBNAIL_QUALITY,                             // byte
-    ACAMERA_JPEG_THUMBNAIL_SIZE,                                // int32[2]
-    ACAMERA_JPEG_AVAILABLE_THUMBNAIL_SIZES,                     // int32[2*n]
-    ACAMERA_JPEG_RESERVED_8,
-    ACAMERA_JPEG_RESERVED_9,
+    ACAMERA_JPEG_GPS_PROCESSING_METHOD =                        // byte
+            ACAMERA_JPEG_START + 1,
+    ACAMERA_JPEG_GPS_TIMESTAMP =                                // int64
+            ACAMERA_JPEG_START + 2,
+    ACAMERA_JPEG_ORIENTATION =                                  // int32
+            ACAMERA_JPEG_START + 3,
+    ACAMERA_JPEG_QUALITY =                                      // byte
+            ACAMERA_JPEG_START + 4,
+    ACAMERA_JPEG_THUMBNAIL_QUALITY =                            // byte
+            ACAMERA_JPEG_START + 5,
+    ACAMERA_JPEG_THUMBNAIL_SIZE =                               // int32[2]
+            ACAMERA_JPEG_START + 6,
+    ACAMERA_JPEG_AVAILABLE_THUMBNAIL_SIZES =                    // int32[2*n]
+            ACAMERA_JPEG_START + 7,
     ACAMERA_JPEG_END,
 
     ACAMERA_LENS_APERTURE =                                     // float
             ACAMERA_LENS_START,
-    ACAMERA_LENS_FILTER_DENSITY,                                // float
-    ACAMERA_LENS_FOCAL_LENGTH,                                  // float
-    ACAMERA_LENS_FOCUS_DISTANCE,                                // float
-    ACAMERA_LENS_OPTICAL_STABILIZATION_MODE,                    // byte (enum)
-    ACAMERA_LENS_FACING,                                        // byte (enum)
-    ACAMERA_LENS_POSE_ROTATION,                                 // float[4]
-    ACAMERA_LENS_POSE_TRANSLATION,                              // float[3]
-    ACAMERA_LENS_FOCUS_RANGE,                                   // float[2]
-    ACAMERA_LENS_STATE,                                         // byte (enum)
-    ACAMERA_LENS_INTRINSIC_CALIBRATION,                         // float[5]
-    ACAMERA_LENS_RADIAL_DISTORTION,                             // float[6]
+    ACAMERA_LENS_FILTER_DENSITY =                               // float
+            ACAMERA_LENS_START + 1,
+    ACAMERA_LENS_FOCAL_LENGTH =                                 // float
+            ACAMERA_LENS_START + 2,
+    ACAMERA_LENS_FOCUS_DISTANCE =                               // float
+            ACAMERA_LENS_START + 3,
+    ACAMERA_LENS_OPTICAL_STABILIZATION_MODE =                   // byte (enum)
+            ACAMERA_LENS_START + 4,
+    ACAMERA_LENS_FACING =                                       // byte (enum)
+            ACAMERA_LENS_START + 5,
+    ACAMERA_LENS_POSE_ROTATION =                                // float[4]
+            ACAMERA_LENS_START + 6,
+    ACAMERA_LENS_POSE_TRANSLATION =                             // float[3]
+            ACAMERA_LENS_START + 7,
+    ACAMERA_LENS_FOCUS_RANGE =                                  // float[2]
+            ACAMERA_LENS_START + 8,
+    ACAMERA_LENS_STATE =                                        // byte (enum)
+            ACAMERA_LENS_START + 9,
+    ACAMERA_LENS_INTRINSIC_CALIBRATION =                        // float[5]
+            ACAMERA_LENS_START + 10,
+    ACAMERA_LENS_RADIAL_DISTORTION =                            // float[6]
+            ACAMERA_LENS_START + 11,
     ACAMERA_LENS_END,
 
     ACAMERA_LENS_INFO_AVAILABLE_APERTURES =                     // float[n]
             ACAMERA_LENS_INFO_START,
-    ACAMERA_LENS_INFO_AVAILABLE_FILTER_DENSITIES,               // float[n]
-    ACAMERA_LENS_INFO_AVAILABLE_FOCAL_LENGTHS,                  // float[n]
-    ACAMERA_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION,          // byte[n]
-    ACAMERA_LENS_INFO_HYPERFOCAL_DISTANCE,                      // float
-    ACAMERA_LENS_INFO_MINIMUM_FOCUS_DISTANCE,                   // float
-    ACAMERA_LENS_INFO_SHADING_MAP_SIZE,                         // int32[2]
-    ACAMERA_LENS_INFO_FOCUS_DISTANCE_CALIBRATION,               // byte (enum)
+    ACAMERA_LENS_INFO_AVAILABLE_FILTER_DENSITIES =              // float[n]
+            ACAMERA_LENS_INFO_START + 1,
+    ACAMERA_LENS_INFO_AVAILABLE_FOCAL_LENGTHS =                 // float[n]
+            ACAMERA_LENS_INFO_START + 2,
+    ACAMERA_LENS_INFO_AVAILABLE_OPTICAL_STABILIZATION =         // byte[n]
+            ACAMERA_LENS_INFO_START + 3,
+    ACAMERA_LENS_INFO_HYPERFOCAL_DISTANCE =                     // float
+            ACAMERA_LENS_INFO_START + 4,
+    ACAMERA_LENS_INFO_MINIMUM_FOCUS_DISTANCE =                  // float
+            ACAMERA_LENS_INFO_START + 5,
+    ACAMERA_LENS_INFO_SHADING_MAP_SIZE =                        // int32[2]
+            ACAMERA_LENS_INFO_START + 6,
+    ACAMERA_LENS_INFO_FOCUS_DISTANCE_CALIBRATION =              // byte (enum)
+            ACAMERA_LENS_INFO_START + 7,
     ACAMERA_LENS_INFO_END,
 
     ACAMERA_NOISE_REDUCTION_MODE =                              // byte (enum)
             ACAMERA_NOISE_REDUCTION_START,
-    ACAMERA_NOISE_REDUCTION_RESERVED_1,
-    ACAMERA_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES,    // byte[n]
+    ACAMERA_NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES =   // byte[n]
+            ACAMERA_NOISE_REDUCTION_START + 2,
     ACAMERA_NOISE_REDUCTION_END,
 
-    ACAMERA_QUIRKS_RESERVED_0 =
-            ACAMERA_QUIRKS_START,
-    ACAMERA_QUIRKS_RESERVED_1,
-    ACAMERA_QUIRKS_RESERVED_2,
-    ACAMERA_QUIRKS_USE_PARTIAL_RESULT,                          // Deprecated! DO NOT USE
-    ACAMERA_QUIRKS_PARTIAL_RESULT,                              // Deprecated! DO NOT USE
+    ACAMERA_QUIRKS_USE_PARTIAL_RESULT =                         // Deprecated! DO NOT USE
+            ACAMERA_QUIRKS_START + 3,
+    ACAMERA_QUIRKS_PARTIAL_RESULT =                             // Deprecated! DO NOT USE
+            ACAMERA_QUIRKS_START + 4,
     ACAMERA_QUIRKS_END,
 
     ACAMERA_REQUEST_FRAME_COUNT =                               // Deprecated! DO NOT USE
             ACAMERA_REQUEST_START,
-    ACAMERA_REQUEST_ID,                                         // int32
-    ACAMERA_REQUEST_RESERVED_2,
-    ACAMERA_REQUEST_RESERVED_3,
-    ACAMERA_REQUEST_RESERVED_4,
-    ACAMERA_REQUEST_RESERVED_5,
-    ACAMERA_REQUEST_MAX_NUM_OUTPUT_STREAMS,                     // int32[3]
-    ACAMERA_REQUEST_RESERVED_7,
-    ACAMERA_REQUEST_MAX_NUM_INPUT_STREAMS,                      // int32
-    ACAMERA_REQUEST_PIPELINE_DEPTH,                             // byte
-    ACAMERA_REQUEST_PIPELINE_MAX_DEPTH,                         // byte
-    ACAMERA_REQUEST_PARTIAL_RESULT_COUNT,                       // int32
-    ACAMERA_REQUEST_AVAILABLE_CAPABILITIES,                     // byte[n] (enum)
-    ACAMERA_REQUEST_AVAILABLE_REQUEST_KEYS,                     // int32[n]
-    ACAMERA_REQUEST_AVAILABLE_RESULT_KEYS,                      // int32[n]
-    ACAMERA_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS,             // int32[n]
+    ACAMERA_REQUEST_ID =                                        // int32
+            ACAMERA_REQUEST_START + 1,
+    ACAMERA_REQUEST_MAX_NUM_OUTPUT_STREAMS =                    // int32[3]
+            ACAMERA_REQUEST_START + 6,
+    ACAMERA_REQUEST_MAX_NUM_INPUT_STREAMS =                     // int32
+            ACAMERA_REQUEST_START + 8,
+    ACAMERA_REQUEST_PIPELINE_DEPTH =                            // byte
+            ACAMERA_REQUEST_START + 9,
+    ACAMERA_REQUEST_PIPELINE_MAX_DEPTH =                        // byte
+            ACAMERA_REQUEST_START + 10,
+    ACAMERA_REQUEST_PARTIAL_RESULT_COUNT =                      // int32
+            ACAMERA_REQUEST_START + 11,
+    ACAMERA_REQUEST_AVAILABLE_CAPABILITIES =                    // byte[n] (enum)
+            ACAMERA_REQUEST_START + 12,
+    ACAMERA_REQUEST_AVAILABLE_REQUEST_KEYS =                    // int32[n]
+            ACAMERA_REQUEST_START + 13,
+    ACAMERA_REQUEST_AVAILABLE_RESULT_KEYS =                     // int32[n]
+            ACAMERA_REQUEST_START + 14,
+    ACAMERA_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS =            // int32[n]
+            ACAMERA_REQUEST_START + 15,
     ACAMERA_REQUEST_END,
 
     ACAMERA_SCALER_CROP_REGION =                                // int32[4]
             ACAMERA_SCALER_START,
-    ACAMERA_SCALER_AVAILABLE_FORMATS,                           // Deprecated! DO NOT USE
-    ACAMERA_SCALER_AVAILABLE_JPEG_MIN_DURATIONS,                // Deprecated! DO NOT USE
-    ACAMERA_SCALER_AVAILABLE_JPEG_SIZES,                        // Deprecated! DO NOT USE
-    ACAMERA_SCALER_AVAILABLE_MAX_DIGITAL_ZOOM,                  // float
-    ACAMERA_SCALER_AVAILABLE_PROCESSED_MIN_DURATIONS,           // Deprecated! DO NOT USE
-    ACAMERA_SCALER_AVAILABLE_PROCESSED_SIZES,                   // Deprecated! DO NOT USE
-    ACAMERA_SCALER_RESERVED_7,
-    ACAMERA_SCALER_RESERVED_8,
-    ACAMERA_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP,          // int32
-    ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,             // int32[n*4] (enum)
-    ACAMERA_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,               // int64[4*n]
-    ACAMERA_SCALER_AVAILABLE_STALL_DURATIONS,                   // int64[4*n]
-    ACAMERA_SCALER_CROPPING_TYPE,                               // byte (enum)
+    ACAMERA_SCALER_AVAILABLE_FORMATS =                          // Deprecated! DO NOT USE
+            ACAMERA_SCALER_START + 1,
+    ACAMERA_SCALER_AVAILABLE_JPEG_MIN_DURATIONS =               // Deprecated! DO NOT USE
+            ACAMERA_SCALER_START + 2,
+    ACAMERA_SCALER_AVAILABLE_JPEG_SIZES =                       // Deprecated! DO NOT USE
+            ACAMERA_SCALER_START + 3,
+    ACAMERA_SCALER_AVAILABLE_MAX_DIGITAL_ZOOM =                 // float
+            ACAMERA_SCALER_START + 4,
+    ACAMERA_SCALER_AVAILABLE_PROCESSED_MIN_DURATIONS =          // Deprecated! DO NOT USE
+            ACAMERA_SCALER_START + 5,
+    ACAMERA_SCALER_AVAILABLE_PROCESSED_SIZES =                  // Deprecated! DO NOT USE
+            ACAMERA_SCALER_START + 6,
+    ACAMERA_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP =         // int32
+            ACAMERA_SCALER_START + 9,
+    ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS =            // int32[n*4] (enum)
+            ACAMERA_SCALER_START + 10,
+    ACAMERA_SCALER_AVAILABLE_MIN_FRAME_DURATIONS =              // int64[4*n]
+            ACAMERA_SCALER_START + 11,
+    ACAMERA_SCALER_AVAILABLE_STALL_DURATIONS =                  // int64[4*n]
+            ACAMERA_SCALER_START + 12,
+    ACAMERA_SCALER_CROPPING_TYPE =                              // byte (enum)
+            ACAMERA_SCALER_START + 13,
     ACAMERA_SCALER_END,
 
     ACAMERA_SENSOR_EXPOSURE_TIME =                              // int64
             ACAMERA_SENSOR_START,
-    ACAMERA_SENSOR_FRAME_DURATION,                              // int64
-    ACAMERA_SENSOR_SENSITIVITY,                                 // int32
-    ACAMERA_SENSOR_REFERENCE_ILLUMINANT1,                       // byte (enum)
-    ACAMERA_SENSOR_REFERENCE_ILLUMINANT2,                       // byte
-    ACAMERA_SENSOR_CALIBRATION_TRANSFORM1,                      // rational[3*3]
-    ACAMERA_SENSOR_CALIBRATION_TRANSFORM2,                      // rational[3*3]
-    ACAMERA_SENSOR_COLOR_TRANSFORM1,                            // rational[3*3]
-    ACAMERA_SENSOR_COLOR_TRANSFORM2,                            // rational[3*3]
-    ACAMERA_SENSOR_FORWARD_MATRIX1,                             // rational[3*3]
-    ACAMERA_SENSOR_FORWARD_MATRIX2,                             // rational[3*3]
-    ACAMERA_SENSOR_RESERVED_11,
-    ACAMERA_SENSOR_BLACK_LEVEL_PATTERN,                         // int32[4]
-    ACAMERA_SENSOR_MAX_ANALOG_SENSITIVITY,                      // int32
-    ACAMERA_SENSOR_ORIENTATION,                                 // int32
-    ACAMERA_SENSOR_RESERVED_15,
-    ACAMERA_SENSOR_TIMESTAMP,                                   // int64
-    ACAMERA_SENSOR_RESERVED_17,
-    ACAMERA_SENSOR_NEUTRAL_COLOR_POINT,                         // rational[3]
-    ACAMERA_SENSOR_NOISE_PROFILE,                               // double[2*CFA Channels]
-    ACAMERA_SENSOR_RESERVED_20,
-    ACAMERA_SENSOR_RESERVED_21,
-    ACAMERA_SENSOR_GREEN_SPLIT,                                 // float
-    ACAMERA_SENSOR_TEST_PATTERN_DATA,                           // int32[4]
-    ACAMERA_SENSOR_TEST_PATTERN_MODE,                           // int32 (enum)
-    ACAMERA_SENSOR_AVAILABLE_TEST_PATTERN_MODES,                // int32[n]
-    ACAMERA_SENSOR_ROLLING_SHUTTER_SKEW,                        // int64
-    ACAMERA_SENSOR_OPTICAL_BLACK_REGIONS,                       // int32[4*num_regions]
-    ACAMERA_SENSOR_DYNAMIC_BLACK_LEVEL,                         // float[4]
-    ACAMERA_SENSOR_DYNAMIC_WHITE_LEVEL,                         // int32
-    ACAMERA_SENSOR_RESERVED_30,
+    ACAMERA_SENSOR_FRAME_DURATION =                             // int64
+            ACAMERA_SENSOR_START + 1,
+    ACAMERA_SENSOR_SENSITIVITY =                                // int32
+            ACAMERA_SENSOR_START + 2,
+    ACAMERA_SENSOR_REFERENCE_ILLUMINANT1 =                      // byte (enum)
+            ACAMERA_SENSOR_START + 3,
+    ACAMERA_SENSOR_REFERENCE_ILLUMINANT2 =                      // byte
+            ACAMERA_SENSOR_START + 4,
+    ACAMERA_SENSOR_CALIBRATION_TRANSFORM1 =                     // rational[3*3]
+            ACAMERA_SENSOR_START + 5,
+    ACAMERA_SENSOR_CALIBRATION_TRANSFORM2 =                     // rational[3*3]
+            ACAMERA_SENSOR_START + 6,
+    ACAMERA_SENSOR_COLOR_TRANSFORM1 =                           // rational[3*3]
+            ACAMERA_SENSOR_START + 7,
+    ACAMERA_SENSOR_COLOR_TRANSFORM2 =                           // rational[3*3]
+            ACAMERA_SENSOR_START + 8,
+    ACAMERA_SENSOR_FORWARD_MATRIX1 =                            // rational[3*3]
+            ACAMERA_SENSOR_START + 9,
+    ACAMERA_SENSOR_FORWARD_MATRIX2 =                            // rational[3*3]
+            ACAMERA_SENSOR_START + 10,
+    ACAMERA_SENSOR_BLACK_LEVEL_PATTERN =                        // int32[4]
+            ACAMERA_SENSOR_START + 12,
+    ACAMERA_SENSOR_MAX_ANALOG_SENSITIVITY =                     // int32
+            ACAMERA_SENSOR_START + 13,
+    ACAMERA_SENSOR_ORIENTATION =                                // int32
+            ACAMERA_SENSOR_START + 14,
+    ACAMERA_SENSOR_TIMESTAMP =                                  // int64
+            ACAMERA_SENSOR_START + 16,
+    ACAMERA_SENSOR_NEUTRAL_COLOR_POINT =                        // rational[3]
+            ACAMERA_SENSOR_START + 18,
+    ACAMERA_SENSOR_NOISE_PROFILE =                              // double[2*CFA Channels]
+            ACAMERA_SENSOR_START + 19,
+    ACAMERA_SENSOR_GREEN_SPLIT =                                // float
+            ACAMERA_SENSOR_START + 22,
+    ACAMERA_SENSOR_TEST_PATTERN_DATA =                          // int32[4]
+            ACAMERA_SENSOR_START + 23,
+    ACAMERA_SENSOR_TEST_PATTERN_MODE =                          // int32 (enum)
+            ACAMERA_SENSOR_START + 24,
+    ACAMERA_SENSOR_AVAILABLE_TEST_PATTERN_MODES =               // int32[n]
+            ACAMERA_SENSOR_START + 25,
+    ACAMERA_SENSOR_ROLLING_SHUTTER_SKEW =                       // int64
+            ACAMERA_SENSOR_START + 26,
+    ACAMERA_SENSOR_OPTICAL_BLACK_REGIONS =                      // int32[4*num_regions]
+            ACAMERA_SENSOR_START + 27,
+    ACAMERA_SENSOR_DYNAMIC_BLACK_LEVEL =                        // float[4]
+            ACAMERA_SENSOR_START + 28,
+    ACAMERA_SENSOR_DYNAMIC_WHITE_LEVEL =                        // int32
+            ACAMERA_SENSOR_START + 29,
     ACAMERA_SENSOR_END,
 
     ACAMERA_SENSOR_INFO_ACTIVE_ARRAY_SIZE =                     // int32[4]
             ACAMERA_SENSOR_INFO_START,
-    ACAMERA_SENSOR_INFO_SENSITIVITY_RANGE,                      // int32[2]
-    ACAMERA_SENSOR_INFO_COLOR_FILTER_ARRANGEMENT,               // byte (enum)
-    ACAMERA_SENSOR_INFO_EXPOSURE_TIME_RANGE,                    // int64[2]
-    ACAMERA_SENSOR_INFO_MAX_FRAME_DURATION,                     // int64
-    ACAMERA_SENSOR_INFO_PHYSICAL_SIZE,                          // float[2]
-    ACAMERA_SENSOR_INFO_PIXEL_ARRAY_SIZE,                       // int32[2]
-    ACAMERA_SENSOR_INFO_WHITE_LEVEL,                            // int32
-    ACAMERA_SENSOR_INFO_TIMESTAMP_SOURCE,                       // byte (enum)
-    ACAMERA_SENSOR_INFO_LENS_SHADING_APPLIED,                   // byte (enum)
-    ACAMERA_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE,       // int32[4]
+    ACAMERA_SENSOR_INFO_SENSITIVITY_RANGE =                     // int32[2]
+            ACAMERA_SENSOR_INFO_START + 1,
+    ACAMERA_SENSOR_INFO_COLOR_FILTER_ARRANGEMENT =              // byte (enum)
+            ACAMERA_SENSOR_INFO_START + 2,
+    ACAMERA_SENSOR_INFO_EXPOSURE_TIME_RANGE =                   // int64[2]
+            ACAMERA_SENSOR_INFO_START + 3,
+    ACAMERA_SENSOR_INFO_MAX_FRAME_DURATION =                    // int64
+            ACAMERA_SENSOR_INFO_START + 4,
+    ACAMERA_SENSOR_INFO_PHYSICAL_SIZE =                         // float[2]
+            ACAMERA_SENSOR_INFO_START + 5,
+    ACAMERA_SENSOR_INFO_PIXEL_ARRAY_SIZE =                      // int32[2]
+            ACAMERA_SENSOR_INFO_START + 6,
+    ACAMERA_SENSOR_INFO_WHITE_LEVEL =                           // int32
+            ACAMERA_SENSOR_INFO_START + 7,
+    ACAMERA_SENSOR_INFO_TIMESTAMP_SOURCE =                      // byte (enum)
+            ACAMERA_SENSOR_INFO_START + 8,
+    ACAMERA_SENSOR_INFO_LENS_SHADING_APPLIED =                  // byte (enum)
+            ACAMERA_SENSOR_INFO_START + 9,
+    ACAMERA_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE =      // int32[4]
+            ACAMERA_SENSOR_INFO_START + 10,
     ACAMERA_SENSOR_INFO_END,
 
     ACAMERA_SHADING_MODE =                                      // byte (enum)
             ACAMERA_SHADING_START,
-    ACAMERA_SHADING_RESERVED_1,
-    ACAMERA_SHADING_AVAILABLE_MODES,                            // byte[n]
+    ACAMERA_SHADING_AVAILABLE_MODES =                           // byte[n]
+            ACAMERA_SHADING_START + 2,
     ACAMERA_SHADING_END,
 
     ACAMERA_STATISTICS_FACE_DETECT_MODE =                       // byte (enum)
             ACAMERA_STATISTICS_START,
-    ACAMERA_STATISTICS_RESERVED_1,
-    ACAMERA_STATISTICS_RESERVED_2,
-    ACAMERA_STATISTICS_HOT_PIXEL_MAP_MODE,                      // byte (enum)
-    ACAMERA_STATISTICS_FACE_IDS,                                // int32[n]
-    ACAMERA_STATISTICS_FACE_LANDMARKS,                          // int32[n*6]
-    ACAMERA_STATISTICS_FACE_RECTANGLES,                         // int32[n*4]
-    ACAMERA_STATISTICS_FACE_SCORES,                             // byte[n]
-    ACAMERA_STATISTICS_RESERVED_8,
-    ACAMERA_STATISTICS_RESERVED_9,
-    ACAMERA_STATISTICS_LENS_SHADING_CORRECTION_MAP,             // byte
-    ACAMERA_STATISTICS_LENS_SHADING_MAP,                        // float[4*n*m]
-    ACAMERA_STATISTICS_PREDICTED_COLOR_GAINS,                   // Deprecated! DO NOT USE
-    ACAMERA_STATISTICS_PREDICTED_COLOR_TRANSFORM,               // Deprecated! DO NOT USE
-    ACAMERA_STATISTICS_SCENE_FLICKER,                           // byte (enum)
-    ACAMERA_STATISTICS_HOT_PIXEL_MAP,                           // int32[2*n]
-    ACAMERA_STATISTICS_LENS_SHADING_MAP_MODE,                   // byte (enum)
+    ACAMERA_STATISTICS_HOT_PIXEL_MAP_MODE =                     // byte (enum)
+            ACAMERA_STATISTICS_START + 3,
+    ACAMERA_STATISTICS_FACE_IDS =                               // int32[n]
+            ACAMERA_STATISTICS_START + 4,
+    ACAMERA_STATISTICS_FACE_LANDMARKS =                         // int32[n*6]
+            ACAMERA_STATISTICS_START + 5,
+    ACAMERA_STATISTICS_FACE_RECTANGLES =                        // int32[n*4]
+            ACAMERA_STATISTICS_START + 6,
+    ACAMERA_STATISTICS_FACE_SCORES =                            // byte[n]
+            ACAMERA_STATISTICS_START + 7,
+    ACAMERA_STATISTICS_LENS_SHADING_CORRECTION_MAP =            // byte
+            ACAMERA_STATISTICS_START + 10,
+    ACAMERA_STATISTICS_LENS_SHADING_MAP =                       // float[4*n*m]
+            ACAMERA_STATISTICS_START + 11,
+    ACAMERA_STATISTICS_PREDICTED_COLOR_GAINS =                  // Deprecated! DO NOT USE
+            ACAMERA_STATISTICS_START + 12,
+    ACAMERA_STATISTICS_PREDICTED_COLOR_TRANSFORM =              // Deprecated! DO NOT USE
+            ACAMERA_STATISTICS_START + 13,
+    ACAMERA_STATISTICS_SCENE_FLICKER =                          // byte (enum)
+            ACAMERA_STATISTICS_START + 14,
+    ACAMERA_STATISTICS_HOT_PIXEL_MAP =                          // int32[2*n]
+            ACAMERA_STATISTICS_START + 15,
+    ACAMERA_STATISTICS_LENS_SHADING_MAP_MODE =                  // byte (enum)
+            ACAMERA_STATISTICS_START + 16,
     ACAMERA_STATISTICS_END,
 
     ACAMERA_STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES =       // byte[n]
             ACAMERA_STATISTICS_INFO_START,
-    ACAMERA_STATISTICS_INFO_RESERVED_1,
-    ACAMERA_STATISTICS_INFO_MAX_FACE_COUNT,                     // int32
-    ACAMERA_STATISTICS_INFO_RESERVED_3,
-    ACAMERA_STATISTICS_INFO_RESERVED_4,
-    ACAMERA_STATISTICS_INFO_RESERVED_5,
-    ACAMERA_STATISTICS_INFO_AVAILABLE_HOT_PIXEL_MAP_MODES,      // byte[n]
-    ACAMERA_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES,   // byte[n]
+    ACAMERA_STATISTICS_INFO_MAX_FACE_COUNT =                    // int32
+            ACAMERA_STATISTICS_INFO_START + 2,
+    ACAMERA_STATISTICS_INFO_AVAILABLE_HOT_PIXEL_MAP_MODES =     // byte[n]
+            ACAMERA_STATISTICS_INFO_START + 6,
+    ACAMERA_STATISTICS_INFO_AVAILABLE_LENS_SHADING_MAP_MODES =  // byte[n]
+            ACAMERA_STATISTICS_INFO_START + 7,
     ACAMERA_STATISTICS_INFO_END,
 
     ACAMERA_TONEMAP_CURVE_BLUE =                                // float[n*2]
             ACAMERA_TONEMAP_START,
-    ACAMERA_TONEMAP_CURVE_GREEN,                                // float[n*2]
-    ACAMERA_TONEMAP_CURVE_RED,                                  // float[n*2]
-    ACAMERA_TONEMAP_MODE,                                       // byte (enum)
-    ACAMERA_TONEMAP_MAX_CURVE_POINTS,                           // int32
-    ACAMERA_TONEMAP_AVAILABLE_TONE_MAP_MODES,                   // byte[n]
-    ACAMERA_TONEMAP_GAMMA,                                      // float
-    ACAMERA_TONEMAP_PRESET_CURVE,                               // byte (enum)
+    ACAMERA_TONEMAP_CURVE_GREEN =                               // float[n*2]
+            ACAMERA_TONEMAP_START + 1,
+    ACAMERA_TONEMAP_CURVE_RED =                                 // float[n*2]
+            ACAMERA_TONEMAP_START + 2,
+    ACAMERA_TONEMAP_MODE =                                      // byte (enum)
+            ACAMERA_TONEMAP_START + 3,
+    ACAMERA_TONEMAP_MAX_CURVE_POINTS =                          // int32
+            ACAMERA_TONEMAP_START + 4,
+    ACAMERA_TONEMAP_AVAILABLE_TONE_MAP_MODES =                  // byte[n]
+            ACAMERA_TONEMAP_START + 5,
+    ACAMERA_TONEMAP_GAMMA =                                     // float
+            ACAMERA_TONEMAP_START + 6,
+    ACAMERA_TONEMAP_PRESET_CURVE =                              // byte (enum)
+            ACAMERA_TONEMAP_START + 7,
     ACAMERA_TONEMAP_END,
 
     ACAMERA_LED_TRANSMIT =                                      // byte (enum)
             ACAMERA_LED_START,
-    ACAMERA_LED_AVAILABLE_LEDS,                                 // byte[n] (enum)
+    ACAMERA_LED_AVAILABLE_LEDS =                                // byte[n] (enum)
+            ACAMERA_LED_START + 1,
     ACAMERA_LED_END,
 
     ACAMERA_INFO_SUPPORTED_HARDWARE_LEVEL =                     // byte (enum)
@@ -377,20 +486,24 @@ typedef enum acamera_metadata_tag {
 
     ACAMERA_SYNC_FRAME_NUMBER =                                 // int64 (enum)
             ACAMERA_SYNC_START,
-    ACAMERA_SYNC_MAX_LATENCY,                                   // int32 (enum)
+    ACAMERA_SYNC_MAX_LATENCY =                                  // int32 (enum)
+            ACAMERA_SYNC_START + 1,
     ACAMERA_SYNC_END,
 
     ACAMERA_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR =               // float
             ACAMERA_REPROCESS_START,
-    ACAMERA_REPROCESS_MAX_CAPTURE_STALL,                        // int32
+    ACAMERA_REPROCESS_MAX_CAPTURE_STALL =                       // int32
+            ACAMERA_REPROCESS_START + 1,
     ACAMERA_REPROCESS_END,
 
-    ACAMERA_DEPTH_RESERVED_0 =
-            ACAMERA_DEPTH_START,
-    ACAMERA_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS,        // int32[n*4] (enum)
-    ACAMERA_DEPTH_AVAILABLE_DEPTH_MIN_FRAME_DURATIONS,          // int64[4*n]
-    ACAMERA_DEPTH_AVAILABLE_DEPTH_STALL_DURATIONS,              // int64[4*n]
-    ACAMERA_DEPTH_DEPTH_IS_EXCLUSIVE,                           // byte (enum)
+    ACAMERA_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS =       // int32[n*4] (enum)
+            ACAMERA_DEPTH_START + 1,
+    ACAMERA_DEPTH_AVAILABLE_DEPTH_MIN_FRAME_DURATIONS =         // int64[4*n]
+            ACAMERA_DEPTH_START + 2,
+    ACAMERA_DEPTH_AVAILABLE_DEPTH_STALL_DURATIONS =             // int64[4*n]
+            ACAMERA_DEPTH_START + 3,
+    ACAMERA_DEPTH_DEPTH_IS_EXCLUSIVE =                          // byte (enum)
+            ACAMERA_DEPTH_START + 4,
     ACAMERA_DEPTH_END,
 
 } acamera_metadata_tag_t;
