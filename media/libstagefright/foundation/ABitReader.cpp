@@ -114,7 +114,7 @@ bool NALBitReader::atLeastNumBitsLeft(size_t n) const {
         return false;
     }
 
-    ssize_t numBitsRemaining = n - mNumBitsLeft;
+    ssize_t numBitsRemaining = (ssize_t)n - (ssize_t)mNumBitsLeft;
 
     size_t size = mSize;
     const uint8_t *data = mData;
