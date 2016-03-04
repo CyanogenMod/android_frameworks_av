@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 
+#include <vector>
 #include <math.h>
 
 namespace android {
@@ -63,10 +64,17 @@ status_t OpcodeListBuilder::addGainMapsForMetadata(uint32_t lsmWidth,
     double spacingV = 1.0 / lsmHeight;
     double spacingH = 1.0 / lsmWidth;
 
-    float redMap[lsmWidth * lsmHeight];
-    float greenEvenMap[lsmWidth * lsmHeight];
-    float greenOddMap[lsmWidth * lsmHeight];
-    float blueMap[lsmWidth * lsmHeight];
+    std::vector<float> redMapVector(lsmWidth * lsmHeight);
+    float *redMap = redMapVector.data();
+
+    std::vector<float> greenEvenMapVector(lsmWidth * lsmHeight);
+    float *greenEvenMap = greenEvenMapVector.data();
+
+    std::vector<float> greenOddMapVector(lsmWidth * lsmHeight);
+    float *greenOddMap = greenOddMapVector.data();
+
+    std::vector<float> blueMapVector(lsmWidth * lsmHeight);
+    float *blueMap = blueMapVector.data();
 
     size_t lsmMapSize = lsmWidth * lsmHeight * 4;
 

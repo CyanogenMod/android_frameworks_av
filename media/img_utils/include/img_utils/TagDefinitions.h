@@ -193,6 +193,18 @@ enum {
 };
 
 /**
+ * Convenience values for tags with enumerated values
+ */
+
+enum {
+    TAG_ORIENTATION_NORMAL = 1,
+    TAG_ORIENTATION_ROTATE_180 = 3,
+    TAG_ORIENTATION_ROTATE_90 = 6,
+    TAG_ORIENTATION_ROTATE_270 = 8,
+    TAG_ORIENTATION_UNKNOWN = 9
+};
+
+/**
  * TIFF_EP_TAG_DEFINITIONS contains tags defined in the TIFF EP spec
  */
 const TagDefinition_t TIFF_EP_TAG_DEFINITIONS[] =  {
@@ -731,7 +743,7 @@ const TagDefinition_t DNG_TAG_DEFINITIONS[] = {
     { // BlackLevel
         "BlackLevel",
         0xC61Au,
-        LONG,
+        RATIONAL,
         RAW_IFD,
         0,
         UNDEFINED_ENDIAN
