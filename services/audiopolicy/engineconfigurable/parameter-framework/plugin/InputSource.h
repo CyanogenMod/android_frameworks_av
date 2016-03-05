@@ -28,8 +28,9 @@ class InputSource : public CFormattedSubsystemObject
 {
 public:
     InputSource(const std::string &mappingValue,
-             CInstanceConfigurableElement *instanceConfigurableElement,
-             const CMappingContext &context);
+                CInstanceConfigurableElement *instanceConfigurableElement,
+                const CMappingContext &context,
+                core::log::Logger& logger);
 
 protected:
     virtual bool sendToHW(std::string &error);

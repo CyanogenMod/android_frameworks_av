@@ -6,7 +6,6 @@ supDomain: DeviceForStrategy
 			conf: Calibration
 				component: /Policy/policy/strategies/enforced_audible/selected_output_devices/mask
 					# no enforced_audible on remote submix (e.g. WFD)
-					remote_submix = 0
 					hdmi_arc = 0
 					spdif = 0
 					aux_line = 0
@@ -78,7 +77,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: BluetoothA2dp
 				AvailableOutputDevices Includes BluetoothA2dp
@@ -103,7 +101,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: BluetoothA2dpHeadphones
 				AvailableOutputDevices Includes BluetoothA2dpHeadphones
@@ -128,7 +125,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: BluetoothA2dpSpeaker
 				AvailableOutputDevices Includes BluetoothA2dpSpeaker
@@ -153,7 +149,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: WiredHeadphone
 				ForceUseForMedia IsNot ForceSpeaker
@@ -178,7 +173,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: Line
 				ForceUseForMedia IsNot ForceSpeaker
@@ -203,7 +197,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 1
 					fm = 0
-					speaker_safe = 0
 
 			conf: WiredHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -228,7 +221,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: UsbAccessory
 				ForceUseForMedia IsNot ForceSpeaker
@@ -253,7 +245,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: UsbDevice
 				ForceUseForMedia IsNot ForceSpeaker
@@ -278,7 +269,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: DgtlDockHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -303,7 +293,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: Hdmi
 				ForceUseForMedia IsNot ForceSpeaker
@@ -328,7 +317,6 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 
 			conf: AnlgDockHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -354,5 +342,4 @@ supDomain: DeviceForStrategy
 					telephony_tx = 0
 					line = 0
 					fm = 0
-					speaker_safe = 0
 

@@ -218,7 +218,6 @@ supDomain: DeviceForInputSource
 				dgtl_dock_headset = 0
 				usb_accessory = 0
 				usb_device = 0
-				fm_tuner = 0
 				tv_tuner = 0
 				line = 0
 				spdif = 0

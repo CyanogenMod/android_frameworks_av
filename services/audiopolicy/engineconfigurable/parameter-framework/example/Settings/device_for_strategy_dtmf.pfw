@@ -599,10 +599,10 @@ supDomain: DeviceForStrategy
 				TelephonyMode IsNot InCommunication
 				AvailableOutputDevices Includes HdmiArc
 
-				/Policy/policy/strategies/media/selected_output_devices/mask/hdmi_arc = 1
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/hdmi_arc = 1
 
 			conf: NotSelected
-				/Policy/policy/strategies/media/selected_output_devices/mask/hdmi_arc = 0
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/hdmi_arc = 0
 
 		domain: Spdif
 			#
@@ -615,10 +615,10 @@ supDomain: DeviceForStrategy
 				TelephonyMode IsNot InCommunication
 				AvailableOutputDevices Includes Spdif
 
-				/Policy/policy/strategies/media/selected_output_devices/mask/spdif = 1
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/spdif = 1
 
 			conf: NotSelected
-				/Policy/policy/strategies/media/selected_output_devices/mask/spdif = 0
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/spdif = 0
 
 		domain: AuxLine
 			#
@@ -631,7 +631,7 @@ supDomain: DeviceForStrategy
 				TelephonyMode IsNot InCommunication
 				AvailableOutputDevices Includes AuxLine
 
-				/Policy/policy/strategies/media/selected_output_devices/mask/aux_line = 1
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/aux_line = 1
 
 			conf: NotSelected
-				/Policy/policy/strategies/media/selected_output_devices/mask/aux_line = 0
+				/Policy/policy/strategies/dtmf/selected_output_devices/mask/aux_line = 0

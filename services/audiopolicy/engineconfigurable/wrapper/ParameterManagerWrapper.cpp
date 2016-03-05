@@ -46,15 +46,13 @@ class ParameterMgrPlatformConnectorLogger : public CParameterMgrPlatformConnecto
 public:
     ParameterMgrPlatformConnectorLogger() {}
 
-    virtual void log(bool isWarning, const string &log)
+    virtual void info(const string &log)
     {
-        const static string format("policy-parameter-manager: ");
-
-        if (isWarning) {
-            ALOGW("%s %s", format.c_str(), log.c_str());
-        } else {
-            ALOGD("%s %s", format.c_str(), log.c_str());
-        }
+        ALOGD("policy-parameter-manager: %s", log.c_str());
+    }
+    virtual void warning(const string &log)
+    {
+        ALOGW("policy-parameter-manager: %s", log.c_str());
     }
 };
 
@@ -134,7 +132,8 @@ void ParameterManagerWrapper::addCriterionTypeValuePair(
     ALOGV("%s: Adding new value pair (%d,%s) for criterionType %s", __FUNCTION__,
           numericValue, literalValue.c_str(), typeName.c_str());
     ISelectionCriterionTypeInterface *criterionType = mPolicyCriterionTypes[typeName];
-    criterionType->addValuePair(numericValue, literalValue.c_str());
+    std::string error;
+    criterionType->addValuePair(numericValue, literalValue, error);
 }
 
 void ParameterManagerWrapper::loadCriterionType(cnode *root, bool isInclusive)

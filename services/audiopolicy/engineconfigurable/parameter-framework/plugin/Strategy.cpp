@@ -23,8 +23,10 @@ using android::routing_strategy;
 
 Strategy::Strategy(const string &mappingValue,
                    CInstanceConfigurableElement *instanceConfigurableElement,
-                   const CMappingContext &context)
+                   const CMappingContext &context,
+                   core::log::Logger& logger)
     : CFormattedSubsystemObject(instanceConfigurableElement,
+                                logger,
                                 mappingValue,
                                 MappingKeyAmend1,
                                 (MappingKeyAmendEnd - MappingKeyAmend1 + 1),

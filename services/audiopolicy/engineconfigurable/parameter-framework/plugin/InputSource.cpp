@@ -21,9 +21,10 @@
 using std::string;
 
 InputSource::InputSource(const string &mappingValue,
-                   CInstanceConfigurableElement *instanceConfigurableElement,
-                   const CMappingContext &context)
+                         CInstanceConfigurableElement *instanceConfigurableElement,
+                         const CMappingContext &context, core::log::Logger &logger)
     : CFormattedSubsystemObject(instanceConfigurableElement,
+                                logger,
                                 mappingValue,
                                 MappingKeyAmend1,
                                 (MappingKeyAmendEnd - MappingKeyAmend1 + 1),
