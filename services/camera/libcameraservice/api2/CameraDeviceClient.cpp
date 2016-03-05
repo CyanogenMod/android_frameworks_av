@@ -310,6 +310,15 @@ binder::Status CameraDeviceClient::endConfigure(bool isConstrainedHighSpeed) {
     ALOGV("%s: ending configure (%d input stream, %zu output streams)",
             __FUNCTION__, mInputStream.configured ? 1 : 0, mStreamMap.size());
 
+    binder::Status res;
+    if (!(res = checkPidStatus(__FUNCTION__)).isOk()) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    if (!mDevice.get()) {
+        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
+    }
+
     // Sanitize the high speed session against necessary capability bit.
     if (isConstrainedHighSpeed) {
         CameraMetadata staticInfo = mDevice->info();
@@ -330,15 +339,6 @@ binder::Status CameraDeviceClient::endConfigure(bool isConstrainedHighSpeed) {
             return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT,
                     msg.string());
         }
-    }
-
-    binder::Status res;
-    if (!(res = checkPidStatus(__FUNCTION__)).isOk()) return res;
-
-    Mutex::Autolock icl(mBinderSerializationLock);
-
-    if (!mDevice.get()) {
-        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
     }
 
     status_t err = mDevice->configureStreams(isConstrainedHighSpeed);
