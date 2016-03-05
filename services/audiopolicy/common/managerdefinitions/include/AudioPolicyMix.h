@@ -54,7 +54,7 @@ class AudioPolicyMixCollection : public DefaultKeyedVector<String8, sp<AudioPoli
 public:
     status_t getAudioPolicyMix(String8 address, sp<AudioPolicyMix> &policyMix) const;
 
-    status_t registerMix(String8 address, AudioMix mix);
+    status_t registerMix(String8 address, AudioMix mix, sp<SwAudioOutputDescriptor> desc);
 
     status_t unregisterMix(String8 address);
 

@@ -315,14 +315,14 @@ void SwAudioOutputDescriptor::changeRefCount(audio_stream_type_t stream,
     if ((oldGlobalRefCount == 0) && (mGlobalRefCount > 0)) {
         if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
         {
-            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mDeviceAddress,
                     MIX_STATE_MIXING);
         }
 
     } else if ((oldGlobalRefCount > 0) && (mGlobalRefCount == 0)) {
         if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
         {
-            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mDeviceAddress,
                     MIX_STATE_IDLE);
         }
     }

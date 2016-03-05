@@ -79,7 +79,7 @@ uint32_t AudioSession::changeActiveCount(int delta)
         // if input maps to a dynamic policy with an activity listener, notify of state change
         if ((mPolicyMix != NULL) && ((mPolicyMix->mCbFlags & AudioMix::kCbFlagNotifyActivity) != 0))
         {
-            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mRegistrationId,
+            mClientInterface->onDynamicPolicyMixStateUpdate(mPolicyMix->mDeviceAddress,
                     (event == RECORD_CONFIG_EVENT_START) ? MIX_STATE_MIXING : MIX_STATE_IDLE);
         }
 
