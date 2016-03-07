@@ -38,6 +38,7 @@ status_t CaptureResultExtras::readFromParcel(const Parcel *parcel) {
     parcel->readInt32(&precaptureTriggerId);
     parcel->readInt64(&frameNumber);
     parcel->readInt32(&partialResultCount);
+    parcel->readInt32(&errorStreamId);
 
     return OK;
 }
@@ -54,6 +55,7 @@ status_t CaptureResultExtras::writeToParcel(Parcel *parcel) const {
     parcel->writeInt32(precaptureTriggerId);
     parcel->writeInt64(frameNumber);
     parcel->writeInt32(partialResultCount);
+    parcel->writeInt32(errorStreamId);
 
     return OK;
 }
