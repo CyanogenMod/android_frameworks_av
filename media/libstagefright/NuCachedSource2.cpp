@@ -224,6 +224,8 @@ NuCachedSource2::NuCachedSource2(
     // So whenever we call DataSource::readAt it may end up in a call to
     // IMediaHTTPConnection::readAt and therefore call back into JAVA.
     mLooper->start(false /* runOnCallingThread */, true /* canCallJava */);
+
+    mName = String8::format("NuCachedSource2(%s)", mSource->toString().string());
 }
 
 NuCachedSource2::~NuCachedSource2() {

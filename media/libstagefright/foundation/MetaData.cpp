@@ -316,7 +316,7 @@ void MetaData::typed_data::freeStorage() {
     mSize = 0;
 }
 
-String8 MetaData::typed_data::asString() const {
+String8 MetaData::typed_data::asString(bool verbose) const {
     String8 out;
     const void *data = storage();
     switch(mType) {
@@ -348,7 +348,7 @@ String8 MetaData::typed_data::asString() const {
 
         default:
             out = String8::format("(unknown type %d, size %zu)", mType, mSize);
-            if (mSize <= 48) { // if it's less than three lines of hex data, dump it
+            if (verbose && mSize <= 48) { // if it's less than three lines of hex data, dump it
                 AString foo;
                 hexdump(data, mSize, 0, &foo);
                 out.append("\n");
@@ -367,13 +367,27 @@ static void MakeFourCCString(uint32_t x, char *s) {
     s[4] = '\0';
 }
 
+String8 MetaData::toString() const {
+    String8 s;
+    for (int i = mItems.size(); --i >= 0;) {
+        int32_t key = mItems.keyAt(i);
+        char cc[5];
+        MakeFourCCString(key, cc);
+        const typed_data &item = mItems.valueAt(i);
+        s.appendFormat("%s: %s", cc, item.asString(false).string());
+        if (i != 0) {
+            s.append(", ");
+        }
+    }
+    return s;
+}
 void MetaData::dumpToLog() const {
     for (int i = mItems.size(); --i >= 0;) {
         int32_t key = mItems.keyAt(i);
         char cc[5];
         MakeFourCCString(key, cc);
         const typed_data &item = mItems.valueAt(i);
-        ALOGI("%s: %s", cc, item.asString().string());
+        ALOGI("%s: %s", cc, item.asString(true /* verbose */).string());
     }
 }
 

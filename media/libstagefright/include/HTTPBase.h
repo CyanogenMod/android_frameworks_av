@@ -56,8 +56,13 @@ struct HTTPBase : public DataSource {
     static void RegisterSocketUserMark(int sockfd, uid_t uid);
     static void UnRegisterSocketUserMark(int sockfd);
 
+    virtual String8 toString() {
+        return mName;
+    }
+
 protected:
     virtual void addBandwidthMeasurement(size_t numBytes, int64_t delayUs);
+    String8 mName;
 
 private:
     struct BandwidthEntry {

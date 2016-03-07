@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <binder/IPCThreadState.h>
 #include <binder/Parcel.h>
 #include <media/IMediaExtractor.h>
 #include <media/stagefright/MetaData.h>
@@ -145,7 +146,9 @@ status_t BnMediaExtractor::onTransact(
             CHECK_INTERFACE(IMediaExtractor, data, reply);
             uint32_t idx;
             if (data.readUint32(&idx) == NO_ERROR) {
-                return reply->writeStrongBinder(IInterface::asBinder(getTrack((size_t(idx)))));
+                const sp<IMediaSource> track = getTrack(size_t(idx));
+                registerMediaSource(this, track);
+                return reply->writeStrongBinder(IInterface::asBinder(track));
             }
             return UNKNOWN_ERROR;
         }
@@ -175,6 +178,90 @@ status_t BnMediaExtractor::onTransact(
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }
+}
+
+typedef struct {
+    String8 mime;
+    String8 name;
+    String8 sourceDescription;
+    pid_t owner;
+    wp<IMediaExtractor> extractor;
+    Vector<wp<IMediaSource>> tracks;
+    Vector<String8> trackDescriptions;
+    String8 toString() const;
+} ExtractorInstance;
+
+String8 ExtractorInstance::toString() const {
+    String8 str = name;
+    str.append(" for mime ");
+    str.append(mime);
+    str.append(", source ");
+    str.append(sourceDescription);
+    str.append(String8::format(", pid %d: ", owner));
+    if (extractor.promote() == NULL) {
+        str.append("deleted\n");
+    } else {
+        str.append("active\n");
+    }
+    for (size_t i = 0; i < tracks.size(); i++) {
+        const String8 desc = trackDescriptions.itemAt(i);
+        str.appendFormat("    track {%s} ", desc.string());
+        const sp<IMediaSource> source = tracks.itemAt(i).promote();
+        if (source == NULL) {
+            str.append(": deleted\n");
+        } else {
+            str.appendFormat(": active\n");
+        }
+    }
+    return str;
+}
+
+static Vector<ExtractorInstance> extractors;
+
+void registerMediaSource(
+        const sp<IMediaExtractor> &ex,
+        const sp<IMediaSource> &source) {
+    for (size_t i = 0; i < extractors.size(); i++) {
+        ExtractorInstance &instance = extractors.editItemAt(i);
+        sp<IMediaExtractor> extractor = instance.extractor.promote();
+        if (extractor != NULL && extractor == ex) {
+            if (instance.tracks.size() > 5) {
+                instance.tracks.resize(5);
+            }
+            instance.tracks.push_front(source);
+            instance.trackDescriptions.add(source->getFormat()->toString());
+            break;
+        }
+    }
+}
+
+void registerMediaExtractor(
+        const sp<IMediaExtractor> &extractor,
+        const sp<IDataSource> &source,
+        const char *mime) {
+    ExtractorInstance ex;
+    ex.mime = mime == NULL ? "NULL" : mime;
+    ex.name = extractor->name();
+    ex.sourceDescription = source->toString();
+    ex.owner = IPCThreadState::self()->getCallingPid();
+    ex.extractor = extractor;
+
+    if (extractors.size() > 10) {
+        extractors.resize(10);
+    }
+    extractors.push_front(ex);
+}
+
+status_t dumpExtractors(int fd, const Vector<String16>&) {
+    String8 out;
+    out.append("Recent extractors, most recent first:\n");
+    for (size_t i = 0; i < extractors.size(); i++) {
+        const ExtractorInstance &instance = extractors.itemAt(i);
+        out.append("  ");
+        out.append(instance.toString());
+    }
+    write(fd, out.string(), out.size());
+    return OK;
 }
 
 

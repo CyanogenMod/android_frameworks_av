@@ -20,6 +20,7 @@
 #include <binder/IInterface.h>
 #include <media/stagefright/foundation/ABase.h>
 #include <utils/Errors.h>
+#include <utils/String8.h>
 
 namespace android {
 
@@ -44,6 +45,8 @@ public:
     // Get the flags of the source.
     // Refer to DataSource:Flags for the definition of the flags.
     virtual uint32_t getFlags() = 0;
+    // get a description of the source, e.g. the url or filename it is based on
+    virtual String8 toString() = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IDataSource);

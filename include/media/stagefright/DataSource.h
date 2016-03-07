@@ -78,6 +78,10 @@ public:
         return 0;
     }
 
+    virtual String8 toString() {
+        return String8("<unspecified>");
+    }
+
     virtual status_t reconnectAtOffset(off64_t offset) {
         return ERROR_UNSUPPORTED;
     }

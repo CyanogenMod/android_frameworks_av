@@ -258,6 +258,7 @@ public:
 
     bool hasData(uint32_t key) const;
 
+    String8 toString() const;
     void dumpToLog() const;
 
     status_t writeToParcel(Parcel &parcel);
@@ -278,7 +279,8 @@ private:
         void clear();
         void setData(uint32_t type, const void *data, size_t size);
         void getData(uint32_t *type, const void **data, size_t *size) const;
-        String8 asString() const;
+        // may include hexdump of binary data if verbose=true
+        String8 asString(bool verbose) const;
 
     private:
         uint32_t mType;

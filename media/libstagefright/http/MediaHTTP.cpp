@@ -65,10 +65,16 @@ status_t MediaHTTP::connect(
 
     mCachedSizeValid = false;
 
+    if (success) {
+        AString sanitized = uriDebugString(uri);
+        mName = String8::format("MediaHTTP(%s)", sanitized.c_str());
+    }
+
     return success ? OK : UNKNOWN_ERROR;
 }
 
 void MediaHTTP::disconnect() {
+    mName = String8("MediaHTTP(<disconnected>)");
     if (mInitCheck != OK) {
         return;
     }

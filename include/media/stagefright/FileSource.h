@@ -43,6 +43,10 @@ public:
 
     virtual void getDrmInfo(sp<DecryptHandle> &handle, DrmManagerClient **client);
 
+    virtual String8 toString() {
+        return mName;
+    }
+
 protected:
     virtual ~FileSource();
 
@@ -51,6 +55,7 @@ private:
     int64_t mOffset;
     int64_t mLength;
     Mutex mLock;
+    String8 mName;
 
     /*for DRM*/
     sp<DecryptHandle> mDecryptHandle;

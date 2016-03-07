@@ -33,6 +33,7 @@ enum {
     GET_SIZE,
     CLOSE,
     GET_FLAGS,
+    TO_STRING,
 };
 
 struct BpDataSource : public BpInterface<IDataSource> {
@@ -76,6 +77,13 @@ struct BpDataSource : public BpInterface<IDataSource> {
         remote()->transact(GET_FLAGS, data, &reply);
         return reply.readUint32();
     }
+
+    virtual String8 toString() {
+        Parcel data, reply;
+        data.writeInterfaceToken(IDataSource::getInterfaceDescriptor());
+        remote()->transact(TO_STRING, data, &reply);
+        return reply.readString8();
+    }
 };
 
 IMPLEMENT_META_INTERFACE(DataSource, "android.media.IDataSource");
@@ -113,6 +121,12 @@ status_t BnDataSource::onTransact(
             reply->writeUint32(getFlags());
             return NO_ERROR;
         } break;
+        case TO_STRING: {
+            CHECK_INTERFACE(IDataSource, data, reply);
+            reply->writeString8(toString());
+            return NO_ERROR;
+        } break;
+
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

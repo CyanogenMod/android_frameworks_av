@@ -34,6 +34,8 @@ CallbackDataSource::CallbackDataSource(
       mIsClosed(false) {
     // Set up the buffer to read into.
     mMemory = mIDataSource->getIMemory();
+    mName = String8::format("CallbackDataSource(%s)", mIDataSource->toString().string());
+
 }
 
 CallbackDataSource::~CallbackDataSource() {
@@ -109,6 +111,7 @@ void CallbackDataSource::close() {
 
 TinyCacheSource::TinyCacheSource(const sp<DataSource>& source)
     : mSource(source), mCachedOffset(0), mCachedSize(0) {
+    mName = String8::format("TinyCacheSource(%s)", mSource->toString().string());
 }
 
 status_t TinyCacheSource::initCheck() const {
