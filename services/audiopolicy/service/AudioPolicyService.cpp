@@ -357,6 +357,13 @@ void AudioPolicyService::binderDied(const wp<IBinder>& who) {
             IPCThreadState::self()->getCallingPid());
 }
 
+void AudioPolicyService::releaseOutputSessionEffectsDelayed(
+        audio_io_handle_t output, audio_stream_type_t stream,
+        audio_unique_id_t sessionId, int delayMs)
+{
+    mAudioCommandThread->releaseOutputSessionEffectsCommand(output, stream, sessionId, delayMs);
+}
+
 static bool tryLock(Mutex& mutex)
 {
     bool locked = false;
@@ -641,6 +648,21 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     svc->doOnOutputSessionEffectsUpdate(data->mStream, data->mSessionId, data->mAdded);
                     mLock.lock();
                     } break;
+                case RELEASE_OUTPUT_SESSION_EFFECTS: {
+                    ReleaseOutputSessionEffectsData *data =
+                            (ReleaseOutputSessionEffectsData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing release output session effects %d %d %d",
+                            data->mOutput, data->mStream, data->mSessionId);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->mAudioPolicyEffects->doReleaseOutputSessionEffects(
+                            data->mOutput, data->mStream, data->mSessionId);
+                    mLock.lock();
+                    } break;
+
 
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
@@ -928,6 +950,23 @@ void AudioPolicyService::AudioCommandThread::effectSessionUpdateCommand(
             stream, sessionId, added);
     sendCommand(command);
 }
+
+void AudioPolicyService::AudioCommandThread::releaseOutputSessionEffectsCommand(
+        audio_io_handle_t output, audio_stream_type_t stream,
+        audio_unique_id_t sessionId, int delayMs)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = RELEASE_OUTPUT_SESSION_EFFECTS;
+    ReleaseOutputSessionEffectsData *data = new ReleaseOutputSessionEffectsData();
+    data->mOutput = output;
+    data->mStream = stream;
+    data->mSessionId = sessionId;
+    command->mParam = data;
+    ALOGV("AudioCommandThread() sending release output session effects (id=%d) for stream %d",
+            sessionId, stream);
+    sendCommand(command, delayMs);
+}
+
 
 status_t AudioPolicyService::AudioCommandThread::sendCommand(sp<AudioCommand>& command, int delayMs)
 {
