@@ -233,6 +233,10 @@ public:
                                               audio_unique_id_t sessionId, bool added);
             void doOnOutputSessionEffectsUpdate(audio_stream_type_t stream,
                                                 audio_unique_id_t sessionId, bool added);
+            void releaseOutputSessionEffectsDelayed(audio_io_handle_t output,
+                                                    audio_stream_type_t stream,
+                                                    audio_unique_id_t sessionId,
+                                                    int delayMs);
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -266,7 +270,8 @@ private:
             UPDATE_AUDIOPATCH_LIST,
             SET_AUDIOPORT_CONFIG,
             DYN_POLICY_MIX_STATE_UPDATE,
-            EFFECT_SESSION_UPDATE
+            EFFECT_SESSION_UPDATE,
+            RELEASE_OUTPUT_SESSION_EFFECTS,
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -311,6 +316,10 @@ private:
                     void        insertCommand_l(AudioCommand *command, int delayMs = 0);
                     void        effectSessionUpdateCommand(audio_stream_type_t stream,
                                                            audio_unique_id_t sessionId, bool added);
+                    void        releaseOutputSessionEffectsCommand(audio_io_handle_t output,
+                                                                   audio_stream_type_t stream,
+                                                                   audio_unique_id_t sessionId,
+                                                                   int delayMs = 0);
 
     private:
         class AudioCommandData;
@@ -412,6 +421,13 @@ private:
             audio_stream_type_t mStream;
             audio_unique_id_t mSessionId;
             bool mAdded;
+        };
+
+        class ReleaseOutputSessionEffectsData : public AudioCommandData {
+        public:
+            audio_io_handle_t mOutput;
+            audio_stream_type_t mStream;
+            audio_unique_id_t mSessionId;
         };
 
         Mutex   mLock;
