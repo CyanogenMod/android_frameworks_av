@@ -1420,6 +1420,14 @@ void CameraService::BasicClient::disconnect() {
     mClientPid = 0;
 }
 
+status_t CameraService::BasicClient::dump(int, const Vector<String16>&) {
+    // No dumping of clients directly over Binder,
+    // must go through CameraService::dump
+    android_errorWriteWithInfoLog(SN_EVENT_LOG_ID, "26265403",
+            IPCThreadState::self()->getCallingUid(), NULL, 0);
+    return OK;
+}
+
 status_t CameraService::BasicClient::startCameraOps() {
     int32_t res;
     // Notify app ops that the camera is not available
@@ -1688,7 +1696,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
             hasClient = true;
             result = String8::format("  Device is open. Client instance dump:\n");
             write(fd, result.string(), result.size());
-            client->dump(fd, args);
+            client->dumpClient(fd, args);
         }
         if (!hasClient) {
             result = String8::format("\nNo active camera clients yet.\n");
