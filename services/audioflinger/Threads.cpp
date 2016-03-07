@@ -4871,6 +4871,10 @@ bool AudioFlinger::DirectOutputThread::shouldStandby_l()
     bool trackPaused = false;
     bool trackStopped = false;
 
+    if ((mType == DIRECT) && audio_is_linear_pcm(mFormat) && !usesHwAvSync()) {
+        return !mStandby;
+    }
+
     // do not put the HAL in standby when paused. AwesomePlayer clear the offloaded AudioTrack
     // after a timeout and we will enter standby then.
     if (mTracks.size() > 0) {
