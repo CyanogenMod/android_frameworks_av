@@ -286,6 +286,7 @@ void MediaCodecSource::Puller::onMessageReceived(const sp<AMessage> &msg) {
                 }
                 if (queue->mPulling && err == OK) {
                     msg->post(); // if simply paused, keep pulling source
+                    break;
                 } else if (err == ERROR_END_OF_STREAM) {
                     ALOGV("stream ended, mbuf %p", mbuf);
                 } else if (err != OK) {
