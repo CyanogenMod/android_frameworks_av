@@ -16,8 +16,12 @@
 #ifndef _ACAMERA_METADATA_H
 #define _ACAMERA_METADATA_H
 
+#include <unordered_set>
+
 #include <sys/types.h>
+#include <utils/Mutex.h>
 #include <utils/RefBase.h>
+#include <utils/Vector.h>
 #include <camera/CameraMetadata.h>
 
 #include "NdkCameraMetadata.h"
@@ -51,11 +55,16 @@ struct ACameraMetadata : public RefBase {
     camera_status_t update(uint32_t tag, uint32_t count, const int64_t* data);
     camera_status_t update(uint32_t tag, uint32_t count, const ACameraMetadata_rational* data);
 
+    camera_status_t getTags(/*out*/int32_t* numTags,
+                            /*out*/const uint32_t** tags) const;
+
     bool isNdkSupportedCapability(const int32_t capability);
-    inline bool isVendorTag(const uint32_t tag);
-    bool isCaptureRequestTag(const uint32_t tag);
+    static inline bool isVendorTag(const uint32_t tag);
+    static bool isCaptureRequestTag(const uint32_t tag);
     void filterUnsupportedFeatures(); // Hide features not yet supported by NDK
     void filterStreamConfigurations(); // Hide input streams, translate hal format to NDK formats
+
+    const CameraMetadata& getInternalData();
 
     template<typename INTERNAL_T, typename NDK_T>
     camera_status_t updateImpl(uint32_t tag, uint32_t count, const NDK_T* data) {
@@ -68,18 +77,27 @@ struct ACameraMetadata : public RefBase {
             return ACAMERA_ERROR_INVALID_PARAMETER;
         }
 
+        Mutex::Autolock _l(mLock);
+
         // Here we have to use reinterpret_cast because the NDK data type is
         // exact copy of internal data type but they do not inherit from each other
         status_t ret = mData.update(tag, reinterpret_cast<const INTERNAL_T*>(data), count);
         if (ret == OK) {
+            mTags.clear();
             return ACAMERA_OK;
         } else {
             return ACAMERA_ERROR_INVALID_PARAMETER;
         }
     }
 
-    CameraMetadata mData;
+  private:
+    // guard access of public APIs: get/update/getTags
+    mutable Mutex    mLock;
+    CameraMetadata   mData;
+    mutable Vector<uint32_t> mTags; // updated in getTags, cleared by update
     const ACAMERA_METADATA_TYPE mType;
+
+    static std::unordered_set<uint32_t> sSystemTags;
 };
 
 #endif // _ACAMERA_METADATA_H

@@ -87,6 +87,18 @@ camera_status_t ACaptureRequest_getConstEntry(
     return req->settings->getConstEntry(tag, entry);
 }
 
+EXPORT
+camera_status_t ACaptureRequest_getAllTags(
+        const ACaptureRequest* req, /*out*/int32_t* numTags, /*out*/const uint32_t** tags) {
+    ATRACE_CALL();
+    if (req == nullptr || numTags == nullptr || tags == nullptr) {
+        ALOGE("%s: invalid argument! request %p, numTags %p, tags %p",
+               __FUNCTION__, req, numTags, tags);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+    return req->settings->getTags(numTags, tags);
+}
+
 #define SET_ENTRY(NAME,NDK_TYPE)                                                        \
 EXPORT                                                                                  \
 camera_status_t ACaptureRequest_setEntry_##NAME(                                        \
