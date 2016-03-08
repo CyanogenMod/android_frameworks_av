@@ -24,8 +24,9 @@
 #include <media/stagefright/foundation/AString.h>
 #include <utils/Log.h>
 
-inline static const char *asString(android::status_t i, const char *def = "??") {
-    using namespace android;
+namespace android {
+
+inline static const char *asString(status_t i, const char *def = "??") {
     switch (i) {
         case NO_ERROR:              return "NO_ERROR";
         case UNKNOWN_ERROR:         return "UNKNOWN_ERROR";
@@ -48,8 +49,6 @@ inline static const char *asString(android::status_t i, const char *def = "??") 
         default:                    return def;
     }
 }
-
-namespace android {
 
 #define LITERAL_TO_STRING_INTERNAL(x)    #x
 #define LITERAL_TO_STRING(x) LITERAL_TO_STRING_INTERNAL(x)
