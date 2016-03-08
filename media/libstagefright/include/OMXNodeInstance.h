@@ -80,7 +80,8 @@ struct OMXNodeInstance {
             OMX::buffer_id buffer);
 
     status_t createInputSurface(
-            OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer,
+            OMX_U32 portIndex, android_dataspace dataSpace,
+            sp<IGraphicBufferProducer> *bufferProducer,
             MetadataBufferType *type);
 
     static status_t createPersistentInputSurface(

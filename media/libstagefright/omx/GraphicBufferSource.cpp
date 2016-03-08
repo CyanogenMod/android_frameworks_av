@@ -117,6 +117,7 @@ GraphicBufferSource::GraphicBufferSource(
     mNodeInstance(nodeInstance),
     mExecuting(false),
     mSuspended(false),
+    mLastDataSpace(HAL_DATASPACE_UNKNOWN),
     mIsPersistent(false),
     mConsumer(consumer),
     mNumFramesAvailable(0),
@@ -923,6 +924,12 @@ void GraphicBufferSource::onBuffersReleased() {
 // BufferQueue::ConsumerListener callback
 void GraphicBufferSource::onSidebandStreamChanged() {
     ALOG_ASSERT(false, "GraphicBufferSource can't consume sideband streams");
+}
+
+void GraphicBufferSource::setDefaultDataSpace(android_dataspace dataSpace) {
+    ALOGD("setting dataspace: %#x", dataSpace);
+    mConsumer->setDefaultBufferDataSpace(dataSpace);
+    mLastDataSpace = dataSpace;
 }
 
 status_t GraphicBufferSource::setRepeatPreviousFrameDelayUs(

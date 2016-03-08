@@ -933,7 +933,8 @@ status_t OMXNodeInstance::createGraphicBufferSource(
 }
 
 status_t OMXNodeInstance::createInputSurface(
-        OMX_U32 portIndex, sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
+        OMX_U32 portIndex, android_dataspace dataSpace,
+        sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
     if (bufferProducer == NULL) {
         ALOGE("b/25884056");
         return BAD_VALUE;
@@ -945,6 +946,8 @@ status_t OMXNodeInstance::createInputSurface(
     if (err != OK) {
         return err;
     }
+
+    mGraphicBufferSource->setDefaultDataSpace(dataSpace);
 
     *bufferProducer = mGraphicBufferSource->getIGraphicBufferProducer();
     return OK;

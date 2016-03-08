@@ -6105,9 +6105,11 @@ void ACodec::LoadedState::onCreateInputSurface(
     sp<AMessage> notify = mCodec->mNotify->dup();
     notify->setInt32("what", CodecBase::kWhatInputSurfaceCreated);
 
+    android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
+
     sp<IGraphicBufferProducer> bufferProducer;
     status_t err = mCodec->mOMX->createInputSurface(
-            mCodec->mNode, kPortIndexInput, &bufferProducer, &mCodec->mInputMetadataType);
+            mCodec->mNode, kPortIndexInput, dataSpace, &bufferProducer, &mCodec->mInputMetadataType);
 
     if (err == OK) {
         err = setupInputSurface();

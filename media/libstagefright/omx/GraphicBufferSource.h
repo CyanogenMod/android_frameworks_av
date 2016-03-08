@@ -73,6 +73,9 @@ public:
         return mProducer;
     }
 
+    // Sets the default buffer data space
+    void setDefaultDataSpace(android_dataspace dataSpace);
+
     // This is called when OMX transitions to OMX_StateExecuting, which means
     // we can start handing it buffers.  If we already have buffers of data
     // sitting in the BufferQueue, this will send them to the codec.
@@ -251,6 +254,9 @@ private:
     bool mExecuting;
 
     bool mSuspended;
+
+    // Last dataspace seen
+    android_dataspace mLastDataSpace;
 
     // Our BufferQueue interfaces. mProducer is passed to the producer through
     // getIGraphicBufferProducer, and mConsumer is used internally to retrieve

@@ -121,7 +121,7 @@ public:
     // This will set *type to resulting metadata buffer type on OMX error (not on binder error) as
     // well as on success.
     virtual status_t createInputSurface(
-            node_id node, OMX_U32 port_index,
+            node_id node, OMX_U32 port_index, android_dataspace dataSpace,
             sp<IGraphicBufferProducer> *bufferProducer,
             MetadataBufferType *type = NULL) = 0;
 
