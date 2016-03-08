@@ -1396,18 +1396,18 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 {
                     ALOGV("codec output format changed");
 
+                    CHECK(msg->findMessage("format", &mOutputFormat));
+
                     if (mSoftRenderer == NULL &&
                             mSurface != NULL &&
                             (mFlags & kFlagUsesSoftwareRenderer)) {
                         AString mime;
-                        CHECK(msg->findString("mime", &mime));
+                        CHECK(mOutputFormat->findString("mime", &mime));
 
                         if (mime.startsWithIgnoreCase("video/")) {
                             mSoftRenderer = new SoftwareRenderer(mSurface, mRotationDegrees);
                         }
                     }
-
-                    mOutputFormat = msg;
 
                     if (mFlags & kFlagIsEncoder) {
                         // Before we announce the format change we should
