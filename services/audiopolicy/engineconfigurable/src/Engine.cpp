@@ -142,6 +142,8 @@ routing_strategy Engine::ManagerInterfaceImpl::getStrategyForUsage(audio_usage_t
 {
     const SwAudioOutputCollection &outputs = mPolicyEngine->mApmObserver->getOutputs();
 
+    //FIXME: getStrategyForUsage() should return STRATEGY_ACCESSIBILITY and getDeviceForStrategy()
+    // should be implemented accordingly for STRATEGY_ACCESSIBILITY
     if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY &&
             (outputs.isStreamActive(AUDIO_STREAM_RING) ||
              outputs.isStreamActive(AUDIO_STREAM_ALARM))) {
