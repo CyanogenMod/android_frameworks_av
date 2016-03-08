@@ -534,9 +534,11 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
         mOutputStreams[i]->dump(fd,args);
     }
 
-    lines = String8("    Camera3 Buffer Manager:\n");
-    write(fd, lines.string(), lines.size());
-    mBufferManager->dump(fd, args);
+    if (mBufferManager != NULL) {
+        lines = String8("    Camera3 Buffer Manager:\n");
+        write(fd, lines.string(), lines.size());
+        mBufferManager->dump(fd, args);
+    }
 
     lines = String8("    In-flight requests:\n");
     if (mInFlightMap.size() == 0) {
