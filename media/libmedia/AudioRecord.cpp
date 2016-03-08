@@ -246,7 +246,7 @@ status_t AudioRecord::set(
         mClientPid = pid;
     }
 
-    mFlags = flags;
+    mOrigFlags = mFlags = flags;
     mCbf = cbf;
 
     if (cbf != NULL) {
@@ -518,6 +518,9 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     }
     audio_io_handle_t input;
 
+    // mFlags (not mOrigFlags) is modified depending on whether fast request is accepted.
+    // After fast request is denied, we will request again if IAudioRecord is re-created.
+
     status_t status;
     status = AudioSystem::getInputForAttr(&mAttributes, &input,
                                         (audio_session_t)mSessionId,
@@ -569,7 +572,6 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
             ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, "
                 "track %u Hz, input %u Hz",
                 mTransfer, mSampleRate, afSampleRate);
-            // once denied, do not request again if IAudioRecord is re-created
             mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
         }
     }
@@ -669,8 +671,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
             ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %zu", frameCount);
             mAwaitBoost = true;
         } else {
-            ALOGV("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
-            // once denied, do not request again if IAudioRecord is re-created
+            ALOGW("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
             mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
         }
     }
@@ -1139,6 +1140,8 @@ status_t AudioRecord::restoreRecord_l(const char *from)
 {
     ALOGW("dead IAudioRecord, creating a new one from %s()", from);
     ++mSequence;
+
+    mFlags = mOrigFlags;
 
     // if the new IAudioRecord is created, openRecord_l() will modify the
     // following member variables: mAudioRecord, mCblkMemory, mCblk, mBufferMemory.
