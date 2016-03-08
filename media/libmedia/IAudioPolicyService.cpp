@@ -247,7 +247,7 @@ public:
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(output);
         data.writeInt32((int32_t) stream);
-        data.writeInt32((int32_t)session);
+        data.writeInt32((int32_t) session);
         remote()->transact(START_OUTPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
@@ -260,7 +260,7 @@ public:
         data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
         data.writeInt32(output);
         data.writeInt32((int32_t) stream);
-        data.writeInt32((int32_t)session);
+        data.writeInt32((int32_t) session);
         remote()->transact(STOP_OUTPUT, data, &reply);
         return static_cast <status_t> (reply.readInt32());
     }
@@ -420,7 +420,7 @@ public:
     virtual status_t registerEffect(const effect_descriptor_t *desc,
                                         audio_io_handle_t io,
                                         uint32_t strategy,
-                                        int session,
+                                        audio_session_t session,
                                         int id)
     {
         Parcel data, reply;
@@ -482,7 +482,7 @@ public:
         return reply.readInt32();
     }
 
-    virtual status_t queryDefaultPreProcessing(int audioSession,
+    virtual status_t queryDefaultPreProcessing(audio_session_t audioSession,
                                                effect_descriptor_t *descriptors,
                                                uint32_t *count)
     {
@@ -1065,7 +1065,7 @@ status_t BnAudioPolicyService::onTransact(
             data.read(&desc, sizeof(effect_descriptor_t));
             audio_io_handle_t io = data.readInt32();
             uint32_t strategy = data.readInt32();
-            int session = data.readInt32();
+            audio_session_t session = (audio_session_t) data.readInt32();
             int id = data.readInt32();
             reply->writeInt32(static_cast <int32_t>(registerEffect(&desc,
                                                                    io,
@@ -1115,7 +1115,7 @@ status_t BnAudioPolicyService::onTransact(
 
         case QUERY_DEFAULT_PRE_PROCESSING: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);
-            int audioSession = data.readInt32();
+            audio_session_t audioSession = (audio_session_t) data.readInt32();
             uint32_t count = data.readInt32();
             if (count > AudioEffect::kMaxPreProcessing) {
                 count = AudioEffect::kMaxPreProcessing;

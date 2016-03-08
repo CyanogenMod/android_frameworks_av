@@ -45,7 +45,7 @@ public:
                     const wp<AudioFlinger::EffectChain>& chain,
                     effect_descriptor_t *desc,
                     int id,
-                    int sessionId);
+                    audio_session_t sessionId);
     virtual ~EffectModule();
 
     enum effect_state {
@@ -76,7 +76,7 @@ public:
     uint32_t status() {
         return mStatus;
     }
-    int sessionId() const {
+    audio_session_t sessionId() const {
         return mSessionId;
     }
     status_t    setEnabled(bool enabled);
@@ -141,7 +141,7 @@ mutable Mutex               mLock;      // mutex for process, commands and handl
     wp<ThreadBase>      mThread;    // parent thread
     wp<EffectChain>     mChain;     // parent effect chain
     const int           mId;        // this instance unique ID
-    const int           mSessionId; // audio session ID
+    const audio_session_t mSessionId; // audio session ID
     const effect_descriptor_t mDescriptor;// effect descriptor received from effect engine
     effect_config_t     mConfig;    // input and output audio configuration
     effect_handle_t  mEffectInterface; // Effect module C API
@@ -235,15 +235,17 @@ protected:
 
 // the EffectChain class represents a group of effects associated to one audio session.
 // There can be any number of EffectChain objects per output mixer thread (PlaybackThread).
-// The EffecChain with session ID 0 contains global effects applied to the output mix.
+// The EffectChain with session ID AUDIO_SESSION_OUTPUT_MIX contains global effects applied
+// to the output mix.
 // Effects in this chain can be insert or auxiliary. Effects in other chains (attached to
 // tracks) are insert only. The EffectChain maintains an ordered list of effect module, the
-// order corresponding in the effect process order. When attached to a track (session ID != 0),
+// order corresponding in the effect process order. When attached to a track (session ID !=
+// AUDIO_SESSION_OUTPUT_MIX),
 // it also provide it's own input buffer used by the track as accumulation buffer.
 class EffectChain : public RefBase {
 public:
-    EffectChain(const wp<ThreadBase>& wThread, int sessionId);
-    EffectChain(ThreadBase *thread, int sessionId);
+    EffectChain(const wp<ThreadBase>& wThread, audio_session_t sessionId);
+    EffectChain(ThreadBase *thread, audio_session_t sessionId);
     virtual ~EffectChain();
 
     // special key used for an entry in mSuspendedEffects keyed vector
@@ -266,8 +268,8 @@ public:
     status_t addEffect_l(const sp<EffectModule>& handle);
     size_t removeEffect_l(const sp<EffectModule>& handle);
 
-    int sessionId() const { return mSessionId; }
-    void setSessionId(int sessionId) { mSessionId = sessionId; }
+    audio_session_t sessionId() const { return mSessionId; }
+    void setSessionId(audio_session_t sessionId) { mSessionId = sessionId; }
 
     sp<EffectModule> getEffectFromDesc_l(effect_descriptor_t *descriptor);
     sp<EffectModule> getEffectFromId_l(int id);
@@ -362,7 +364,7 @@ protected:
     wp<ThreadBase> mThread;     // parent mixer thread
     Mutex mLock;                // mutex protecting effect list
     Vector< sp<EffectModule> > mEffects; // list of effect modules
-    int mSessionId;             // audio session ID
+    audio_session_t mSessionId; // audio session ID
     int16_t *mInBuffer;         // chain input buffer
     int16_t *mOutBuffer;        // chain output buffer
 

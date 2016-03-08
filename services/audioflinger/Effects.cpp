@@ -59,7 +59,7 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
                                         const wp<AudioFlinger::EffectChain>& chain,
                                         effect_descriptor_t *desc,
                                         int id,
-                                        int sessionId)
+                                        audio_session_t sessionId)
     : mPinned(sessionId > AUDIO_SESSION_OUTPUT_MIX),
       mThread(thread), mChain(chain), mId(id), mSessionId(sessionId),
       mDescriptor(*desc),
@@ -1341,7 +1341,7 @@ void AudioFlinger::EffectHandle::dumpToBuffer(char* buffer, size_t size)
 #define LOG_TAG "AudioFlinger::EffectChain"
 
 AudioFlinger::EffectChain::EffectChain(ThreadBase *thread,
-                                        int sessionId)
+                                        audio_session_t sessionId)
     : mThread(thread), mSessionId(sessionId), mActiveTrackCnt(0), mTrackCnt(0), mTailBufferCount(0),
       mOwnInBuffer(false), mVolumeCtrlIdx(-1), mLeftVolume(UINT_MAX), mRightVolume(UINT_MAX),
       mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mForceVolume(false)

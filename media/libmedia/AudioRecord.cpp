@@ -82,7 +82,7 @@ AudioRecord::AudioRecord(
         callback_t cbf,
         void* user,
         uint32_t notificationFrames,
-        int sessionId,
+        audio_session_t sessionId,
         transfer_type transferType,
         audio_input_flags_t flags,
         int uid,
@@ -139,7 +139,7 @@ status_t AudioRecord::set(
         void* user,
         uint32_t notificationFrames,
         bool threadCanCallJava,
-        int sessionId,
+        audio_session_t sessionId,
         transfer_type transferType,
         audio_input_flags_t flags,
         int uid,
@@ -227,7 +227,7 @@ status_t AudioRecord::set(
     // mNotificationFramesAct is initialized in openRecord_l
 
     if (sessionId == AUDIO_SESSION_ALLOCATE) {
-        mSessionId = AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
+        mSessionId = (audio_session_t) AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
     } else {
         mSessionId = sessionId;
     }
@@ -288,7 +288,7 @@ status_t AudioRecord::set(
 
 // -------------------------------------------------------------------------
 
-status_t AudioRecord::start(AudioSystem::sync_event_t event, int triggerSession)
+status_t AudioRecord::start(AudioSystem::sync_event_t event, audio_session_t triggerSession)
 {
     ALOGV("start, sync event %d trigger session %d", event, triggerSession);
 
@@ -531,7 +531,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     for (;;) {
 
     status = AudioSystem::getInputForAttr(&mAttributes, &input,
-                                        (audio_session_t)mSessionId,
+                                        mSessionId,
                                         // FIXME compare to AudioTrack
                                         IPCThreadState::self()->getCallingUid(),
                                         mSampleRate, mFormat, mChannelMask,
@@ -582,7 +582,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
                 mTransfer, mSampleRate, afSampleRate);
             mFlags = (audio_input_flags_t) (mFlags & ~(AUDIO_INPUT_FLAG_FAST |
                     AUDIO_INPUT_FLAG_RAW));
-            AudioSystem::releaseInput(input, (audio_session_t)mSessionId);
+            AudioSystem::releaseInput(input, mSessionId);
             continue;   // retry
         }
     }
@@ -604,7 +604,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
-    int originalSessionId = mSessionId;
+    audio_session_t originalSessionId = mSessionId;
 
     sp<IMemory> iMem;           // for cblk
     sp<IMemory> bufferMem;
@@ -727,7 +727,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     }
 
 // Arrive here on error, via a break
-    AudioSystem::releaseInput(input, (audio_session_t)mSessionId);
+    AudioSystem::releaseInput(input, mSessionId);
     if (status == NO_ERROR) {
         status = NO_INIT;
     }
@@ -1169,7 +1169,7 @@ status_t AudioRecord::restoreRecord_l(const char *from)
         if (mActive) {
             // callback thread or sync event hasn't changed
             // FIXME this fails if we have a new AudioFlinger instance
-            result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, 0);
+            result = mAudioRecord->start(AudioSystem::SYNC_EVENT_SAME, AUDIO_SESSION_NONE);
         }
         mFramesReadServerOffset = mFramesRead; // server resets to zero so we need an offset.
     }

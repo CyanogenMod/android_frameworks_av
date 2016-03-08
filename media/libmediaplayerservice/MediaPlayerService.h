@@ -75,7 +75,7 @@ class MediaPlayerService : public BnMediaPlayerService
         class CallbackData;
 
      public:
-                                AudioOutput(int sessionId, int uid, int pid,
+                                AudioOutput(audio_session_t sessionId, int uid, int pid,
                                         const audio_attributes_t * attr);
         virtual                 ~AudioOutput();
 
@@ -90,7 +90,7 @@ class MediaPlayerService : public BnMediaPlayerService
         virtual status_t        getTimestamp(AudioTimestamp &ts) const;
         virtual int64_t         getPlayedOutDurationUs(int64_t nowUs) const;
         virtual status_t        getFramesWritten(uint32_t *frameswritten) const;
-        virtual int             getSessionId() const;
+        virtual audio_session_t getSessionId() const;
         virtual uint32_t        getSampleRate() const;
 
         virtual status_t        open(
@@ -150,7 +150,7 @@ class MediaPlayerService : public BnMediaPlayerService
         uint32_t                mSampleRateHz; // sample rate of the content, as set in open()
         float                   mMsecsPerFrame;
         size_t                  mFrameSize;
-        int                     mSessionId;
+        audio_session_t         mSessionId;
         int                     mUid;
         int                     mPid;
         float                   mSendLevel;
@@ -214,7 +214,8 @@ public:
     void    removeMediaRecorderClient(wp<MediaRecorderClient> client);
     virtual sp<IMediaMetadataRetriever> createMetadataRetriever();
 
-    virtual sp<IMediaPlayer>    create(const sp<IMediaPlayerClient>& client, int audioSessionId);
+    virtual sp<IMediaPlayer>    create(const sp<IMediaPlayerClient>& client,
+                                       audio_session_t audioSessionId);
 
     virtual sp<IMediaCodecList> getCodecList() const;
     virtual sp<IOMX>            getOMX();
@@ -332,7 +333,7 @@ private:
                 pid_t           pid() const { return mPid; }
         virtual status_t        dump(int fd, const Vector<String16>& args);
 
-                int             getAudioSessionId() { return mAudioSessionId; }
+                audio_session_t getAudioSessionId() { return mAudioSessionId; }
 
     private:
         friend class MediaPlayerService;
@@ -340,7 +341,7 @@ private:
                                         pid_t pid,
                                         int32_t connId,
                                         const sp<IMediaPlayerClient>& client,
-                                        int audioSessionId,
+                                        audio_session_t audioSessionId,
                                         uid_t uid);
                                 Client();
         virtual                 ~Client();
@@ -375,7 +376,7 @@ private:
                     status_t                    mStatus;
                     bool                        mLoop;
                     int32_t                     mConnId;
-                    int                         mAudioSessionId;
+                    audio_session_t             mAudioSessionId;
                     audio_attributes_t *        mAudioAttributes;
                     uid_t                       mUID;
                     sp<ANativeWindow>           mConnectedWindow;

@@ -59,16 +59,16 @@ public:
                                         audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                         const audio_offload_info_t *offloadInfo = NULL) = 0;
     virtual status_t getOutputForAttr(const audio_attributes_t *attr,
-                                        audio_io_handle_t *output,
-                                        audio_session_t session,
-                                        audio_stream_type_t *stream,
-                                        uid_t uid,
-                                        uint32_t samplingRate = 0,
-                                        audio_format_t format = AUDIO_FORMAT_DEFAULT,
-                                        audio_channel_mask_t channelMask = 0,
-                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
-                                        audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
-                                        const audio_offload_info_t *offloadInfo = NULL) = 0;
+                                      audio_io_handle_t *output,
+                                      audio_session_t session,
+                                      audio_stream_type_t *stream,
+                                      uid_t uid,
+                                      uint32_t samplingRate = 0,
+                                      audio_format_t format = AUDIO_FORMAT_DEFAULT,
+                                      audio_channel_mask_t channelMask = 0,
+                                      audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                                      audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
+                                      const audio_offload_info_t *offloadInfo = NULL) = 0;
     virtual status_t startOutput(audio_io_handle_t output,
                                  audio_stream_type_t stream,
                                  audio_session_t session) = 0;
@@ -108,7 +108,7 @@ public:
     virtual status_t registerEffect(const effect_descriptor_t *desc,
                                     audio_io_handle_t io,
                                     uint32_t strategy,
-                                    int session,
+                                    audio_session_t session,
                                     int id) = 0;
     virtual status_t unregisterEffect(int id) = 0;
     virtual status_t setEffectEnabled(int id, bool enabled) = 0;
@@ -116,7 +116,7 @@ public:
     virtual bool     isStreamActiveRemotely(audio_stream_type_t stream, uint32_t inPastMs = 0)
                              const = 0;
     virtual bool     isSourceActive(audio_source_t source) const = 0;
-    virtual status_t queryDefaultPreProcessing(int audioSession,
+    virtual status_t queryDefaultPreProcessing(audio_session_t audioSession,
                                               effect_descriptor_t *descriptors,
                                               uint32_t *count) = 0;
    // Check if offload is possible for given format, stream type, sample rate,

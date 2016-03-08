@@ -252,7 +252,7 @@ int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream)
     return af->invalidateStream(stream);
 }
 
-int aps_move_effects(void *service __unused, int session,
+int aps_move_effects(void *service __unused, audio_session_t session,
                                 audio_io_handle_t src_output,
                                 audio_io_handle_t dst_output)
 {

@@ -61,7 +61,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 size_t frameCount,
                                 void *buffer,
-                                int sessionId,
+                                audio_session_t sessionId,
                                 int uid,
                                 IAudioFlinger::track_flags_t flags,
                                 bool isOut,
@@ -71,11 +71,11 @@ public:
     virtual status_t    initCheck() const;
 
     virtual status_t    start(AudioSystem::sync_event_t event,
-                             int triggerSession) = 0;
+                             audio_session_t triggerSession) = 0;
     virtual void        stop() = 0;
             sp<IMemory> getCblk() const { return mCblkMemory; }
             audio_track_cblk_t* cblk() const { return mCblk; }
-            int         sessionId() const { return mSessionId; }
+            audio_session_t sessionId() const { return mSessionId; }
             int         uid() const { return mUid; }
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
 
@@ -153,7 +153,7 @@ protected:
     const size_t        mFrameCount;// size of track buffer given at createTrack() or
                                     // openRecord(), and then adjusted as needed
 
-    const int           mSessionId;
+    const audio_session_t mSessionId;
     int                 mUid;
     Vector < sp<SyncEvent> >mSyncEvents;
     const IAudioFlinger::track_flags_t mFlags;

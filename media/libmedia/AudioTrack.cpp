@@ -184,7 +184,7 @@ AudioTrack::AudioTrack(
         callback_t cbf,
         void* user,
         uint32_t notificationFrames,
-        int sessionId,
+        audio_session_t sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
@@ -213,7 +213,7 @@ AudioTrack::AudioTrack(
         callback_t cbf,
         void* user,
         uint32_t notificationFrames,
-        int sessionId,
+        audio_session_t sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
@@ -272,7 +272,7 @@ status_t AudioTrack::set(
         uint32_t notificationFrames,
         const sp<IMemory>& sharedBuffer,
         bool threadCanCallJava,
-        int sessionId,
+        audio_session_t sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
         int uid,
@@ -438,7 +438,7 @@ status_t AudioTrack::set(
     mNotificationFramesReq = notificationFrames;
     mNotificationFramesAct = 0;
     if (sessionId == AUDIO_SESSION_ALLOCATE) {
-        mSessionId = AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
+        mSessionId = (audio_session_t) AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
     } else {
         mSessionId = sessionId;
     }
@@ -1158,7 +1158,7 @@ status_t AudioTrack::createTrack_l()
 
     status_t status;
     status = AudioSystem::getOutputForAttr(attr, &output,
-                                           (audio_session_t)mSessionId, &streamType, mClientUid,
+                                           mSessionId, &streamType, mClientUid,
                                            mSampleRate, mFormat, mChannelMask,
                                            mFlags, mSelectedDeviceId, mOffloadInfo);
 
@@ -1291,7 +1291,7 @@ status_t AudioTrack::createTrack_l()
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
                                 // but we will still need the original value also
-    int originalSessionId = mSessionId;
+    audio_session_t originalSessionId = mSessionId;
     sp<IAudioTrack> track = audioFlinger->createTrack(streamType,
                                                       mSampleRate,
                                                       mFormat,
@@ -1451,7 +1451,7 @@ status_t AudioTrack::createTrack_l()
     }
 
 release:
-    AudioSystem::releaseOutput(output, streamType, (audio_session_t)mSessionId);
+    AudioSystem::releaseOutput(output, streamType, mSessionId);
     if (status == NO_ERROR) {
         status = NO_INIT;
     }

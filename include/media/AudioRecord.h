@@ -177,7 +177,7 @@ public:
                                     callback_t cbf = NULL,
                                     void* user = NULL,
                                     uint32_t notificationFrames = 0,
-                                    int sessionId = AUDIO_SESSION_ALLOCATE,
+                                    audio_session_t sessionId = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE,
                                     int uid = -1,
@@ -215,7 +215,7 @@ public:
                             void* user = NULL,
                             uint32_t notificationFrames = 0,
                             bool threadCanCallJava = false,
-                            int sessionId = AUDIO_SESSION_ALLOCATE,
+                            audio_session_t sessionId = AUDIO_SESSION_ALLOCATE,
                             transfer_type transferType = TRANSFER_DEFAULT,
                             audio_input_flags_t flags = AUDIO_INPUT_FLAG_NONE,
                             int uid = -1,
@@ -249,7 +249,7 @@ public:
      * the specified event occurs on the specified trigger session.
      */
             status_t    start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
-                              int triggerSession = 0);
+                              audio_session_t triggerSession = AUDIO_SESSION_NONE);
 
     /* Stop a track.  The callback will cease being called.  Note that obtainBuffer() still
      * works and will drain buffers until the pool is exhausted, and then will return WOULD_BLOCK.
@@ -352,7 +352,7 @@ public:
      *
      * No lock needed because session ID doesn't change after first set().
      */
-            int    getSessionId() const { return mSessionId; }
+            audio_session_t getSessionId() const { return mSessionId; }
 
     /* Public API for TRANSFER_OBTAIN mode.
      * Obtains a buffer of up to "audioBuffer->frameCount" full frames.
@@ -603,7 +603,7 @@ private:
                                                     // held to read or write those bits reliably.
     audio_input_flags_t     mOrigFlags;             // as specified in constructor or set(), const
 
-    int                     mSessionId;
+    audio_session_t         mSessionId;
     transfer_type           mTransfer;
 
     // Next 5 fields may be changed if IAudioRecord is re-created, but always != 0

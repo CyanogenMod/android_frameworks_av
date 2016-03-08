@@ -312,7 +312,7 @@ public:
     virtual status_t setVoiceVolume(float volume, int delayMs = 0) = 0;
 
     // move effect to the specified output
-    virtual status_t moveEffects(int session,
+    virtual status_t moveEffects(audio_session_t session,
                                      audio_io_handle_t srcOutput,
                                      audio_io_handle_t dstOutput) = 0;
 

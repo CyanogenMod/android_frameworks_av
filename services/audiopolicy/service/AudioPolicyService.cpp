@@ -1182,7 +1182,7 @@ audio_io_handle_t aps_open_input_on_module(void *service __unused,
                                                   audio_channel_mask_t *pChannelMask);
 int aps_close_input(void *service __unused, audio_io_handle_t input);
 int aps_invalidate_stream(void *service __unused, audio_stream_type_t stream);
-int aps_move_effects(void *service __unused, int session,
+int aps_move_effects(void *service __unused, audio_session_t session,
                                 audio_io_handle_t src_output,
                                 audio_io_handle_t dst_output);
 char * aps_get_parameters(void *service __unused, audio_io_handle_t io_handle,
