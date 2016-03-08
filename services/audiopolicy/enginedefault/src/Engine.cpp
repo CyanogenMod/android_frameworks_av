@@ -350,6 +350,8 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
             if (device) break;
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_WIRED_HEADSET;
             if (device) break;
+            device = availableOutputDevicesType & AUDIO_DEVICE_OUT_LINE;
+            if (device) break;
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_USB_DEVICE;
             if (device) break;
             if (!isInCall()) {
@@ -391,8 +393,6 @@ audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
                 device = availableOutputDevicesType & AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET;
                 if (device) break;
             }
-            device = availableOutputDevicesType & AUDIO_DEVICE_OUT_LINE;
-            if (device) break;
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER;
             if (device) break;
             device = mApmObserver->getDefaultOutputDevice()->type();
