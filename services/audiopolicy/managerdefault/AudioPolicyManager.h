@@ -506,6 +506,9 @@ protected:
         void clearAudioSources(uid_t uid);
 
 
+        static bool strategiesMatchForvolume(routing_strategy strategy1,
+                                             routing_strategy strategy2);
+
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface
         sp<SwAudioOutputDescriptor> mPrimaryOutput;     // primary output descriptor
