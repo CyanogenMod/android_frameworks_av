@@ -20,9 +20,12 @@
 
 #include <stdint.h>
 
+#define STRINGIFY_ENUMS
+
 #include <media/IOMX.h>
 #include <media/MediaCodecInfo.h>
 #include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/foundation/ColorUtils.h>
 #include <media/hardware/HardwareAPI.h>
 
 #include <utils/NativeHandle.h>
@@ -34,7 +37,7 @@ namespace android {
 struct ABuffer;
 struct PersistentSurface;
 
-struct CodecBase : public AHandler {
+struct CodecBase : public AHandler, /* static */ ColorUtils {
     enum {
         kWhatFillThisBuffer      = 'fill',
         kWhatDrainThisBuffer     = 'drai',
@@ -96,113 +99,6 @@ struct CodecBase : public AHandler {
     /*
      * Codec-related defines
      */
-
-    /**********************************************************************************************/
-
-    /*
-     * Media-platform color constants. MediaCodec uses (an extended version of) platform-defined
-     * constants that are derived from HAL_DATASPACE, since these are directly exposed to the user.
-     * We extend the values to maintain the richer set of information defined inside media
-     * containers and bitstreams that are not supported by the platform. We also expect vendors
-     * to extend some of these values with vendor-specific values. These are separated into a
-     * vendor-extension section so they won't collide with future platform values.
-     */
-
-    enum ColorStandard : uint32_t {
-        kColorStandardUnspecified =
-                HAL_DATASPACE_STANDARD_UNSPECIFIED >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT709 =     HAL_DATASPACE_STANDARD_BT709 >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT601_625 = HAL_DATASPACE_STANDARD_BT601_625 >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT601_625_Unadjusted =
-                HAL_DATASPACE_STANDARD_BT601_625_UNADJUSTED >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT601_525 = HAL_DATASPACE_STANDARD_BT601_525 >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT601_525_Unadjusted =
-                HAL_DATASPACE_STANDARD_BT601_525_UNADJUSTED >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT2020 =    HAL_DATASPACE_STANDARD_BT2020 >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT2020Constant =
-                HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardBT470M =    HAL_DATASPACE_STANDARD_BT470M >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardFilm =      HAL_DATASPACE_STANDARD_FILM >> HAL_DATASPACE_STANDARD_SHIFT,
-        kColorStandardMax =       HAL_DATASPACE_STANDARD_MASK >> HAL_DATASPACE_STANDARD_SHIFT,
-
-        /* This marks a section of color-standard values that are not supported by graphics HAL,
-           but track defined color primaries-matrix coefficient combinations in media.
-           These are stable for a given release. */
-        kColorStandardExtendedStart = kColorStandardMax + 1,
-
-        /* This marks a section of color-standard values that are not supported by graphics HAL
-           nor using media defined color primaries or matrix coefficients. These may differ per
-           device. */
-        kColorStandardVendorStart = 0x10000,
-    };
-
-    enum ColorTransfer : uint32_t  {
-        kColorTransferUnspecified =
-                HAL_DATASPACE_TRANSFER_UNSPECIFIED >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferLinear =      HAL_DATASPACE_TRANSFER_LINEAR >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferSRGB =        HAL_DATASPACE_TRANSFER_SRGB >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferSMPTE_170M =
-                HAL_DATASPACE_TRANSFER_SMPTE_170M >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferGamma22 =     HAL_DATASPACE_TRANSFER_GAMMA2_2 >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferGamma28 =     HAL_DATASPACE_TRANSFER_GAMMA2_8 >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferST2084 =      HAL_DATASPACE_TRANSFER_ST2084 >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferHLG =         HAL_DATASPACE_TRANSFER_HLG >> HAL_DATASPACE_TRANSFER_SHIFT,
-        kColorTransferMax =         HAL_DATASPACE_TRANSFER_MASK >> HAL_DATASPACE_TRANSFER_SHIFT,
-
-        /* This marks a section of color-transfer values that are not supported by graphics HAL,
-           but track media-defined color-transfer. These are stable for a given release. */
-        kColorTransferExtendedStart = kColorTransferMax + 1,
-
-        /* This marks a section of color-transfer values that are not supported by graphics HAL
-           nor defined by media. These may differ per device. */
-        kColorTransferVendorStart = 0x10000,
-    };
-
-    enum ColorRange : uint32_t  {
-        kColorRangeUnspecified = HAL_DATASPACE_RANGE_UNSPECIFIED >> HAL_DATASPACE_RANGE_SHIFT,
-        kColorRangeFull =        HAL_DATASPACE_RANGE_FULL >> HAL_DATASPACE_RANGE_SHIFT,
-        kColorRangeLimited =     HAL_DATASPACE_RANGE_LIMITED >> HAL_DATASPACE_RANGE_SHIFT,
-        kColorRangeMax =         HAL_DATASPACE_RANGE_MASK >> HAL_DATASPACE_RANGE_SHIFT,
-
-        /* This marks a section of color-transfer values that are not supported by graphics HAL,
-           but track media-defined color-transfer. These are stable for a given release. */
-        kColorRangeExtendedStart = kColorRangeMax + 1,
-
-        /* This marks a section of color-transfer values that are not supported by graphics HAL
-           nor defined by media. These may differ per device. */
-        kColorRangeVendorStart = 0x10000,
-    };
-
-    /*
-     * Static utilities for codec support
-     */
-
-    // using int32_t for media range/standard/transfers to denote extended ranges
-    static int32_t wrapColorAspectsIntoColorStandard(
-            ColorAspects::Primaries primaries, ColorAspects::MatrixCoeffs coeffs);
-    static int32_t wrapColorAspectsIntoColorRange(ColorAspects::Range range);
-    static int32_t wrapColorAspectsIntoColorTransfer(ColorAspects::Transfer transfer);
-
-    static status_t unwrapColorAspectsFromColorRange(
-            int32_t range, ColorAspects::Range *aspect);
-    static status_t unwrapColorAspectsFromColorTransfer(
-            int32_t transfer, ColorAspects::Transfer *aspect);
-    static status_t unwrapColorAspectsFromColorStandard(
-            int32_t standard,
-            ColorAspects::Primaries *primaries, ColorAspects::MatrixCoeffs *coeffs);
-
-    static status_t convertPlatformColorAspectsToCodecAspects(
-            int32_t range, int32_t standard, int32_t transfer, ColorAspects &aspects);
-    static status_t convertCodecColorAspectsToPlatformAspects(
-            const ColorAspects &aspects,
-            int32_t *range, int32_t *standard, int32_t *transfer);
-
-    // updates unspecified range, standard and transfer values to their defaults
-    static void setDefaultPlatformColorAspectsIfNeeded(
-            int32_t &range, int32_t &standard, int32_t &transfer,
-            int32_t width, int32_t height);
-    static void setDefaultCodecColorAspectsIfNeeded(
-            ColorAspects &aspects, int32_t width, int32_t height);
 
 protected:
     CodecBase();

@@ -15,6 +15,7 @@ LOCAL_SRC_FILES:=                 \
     AString.cpp                   \
     AStringUtils.cpp              \
     AWakeLock.cpp                 \
+    ColorUtils.cpp                \
     MediaBuffer.cpp               \
     MediaBufferGroup.cpp          \
     MetaData.cpp                  \
