@@ -111,6 +111,10 @@ CameraClient::~CameraClient() {
 }
 
 status_t CameraClient::dump(int fd, const Vector<String16>& args) {
+    return BasicClient::dump(fd, args);
+}
+
+status_t CameraClient::dumpClient(int fd, const Vector<String16>& args) {
     const size_t SIZE = 256;
     char buffer[SIZE];
 
