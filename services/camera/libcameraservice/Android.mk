@@ -79,6 +79,10 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_CFLAGS += -Wall -Wextra
 
+ifeq ($(TARGET_USES_LOGD), false)
+    LOCAL_CFLAGS += -DNO_LOGD
+endif
+
 ifeq ($(BOARD_NEEDS_MEMORYHEAPION),true)
     LOCAL_CFLAGS += -DUSE_MEMORY_HEAP_ION
 endif

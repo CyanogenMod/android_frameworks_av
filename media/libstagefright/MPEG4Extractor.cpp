@@ -4579,7 +4579,9 @@ status_t MPEG4Source::fragmentedRead(
                         dstOffset + 4 > SIZE_MAX - nalLength ||
                         dstOffset + 4 + nalLength > mBuffer->size()) {
                     ALOGE("b/26365349 : %zu %zu", dstOffset, mBuffer->size());
+#ifndef NO_LOGD
                     android_errorWriteLog(0x534e4554, "26365349");
+#endif
                     mBuffer->release();
                     mBuffer = NULL;
                     return ERROR_MALFORMED;
