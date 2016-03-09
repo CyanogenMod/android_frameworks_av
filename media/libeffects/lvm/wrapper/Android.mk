@@ -11,6 +11,10 @@ LOCAL_SRC_FILES:= \
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
+ifeq ($(TARGET_USES_LOGD),false)
+    LOCAL_CFLAGS += -DNO_LOGD
+endif
+
 LOCAL_MODULE:= libbundlewrapper
 
 LOCAL_MODULE_RELATIVE_PATH := soundfx
@@ -39,6 +43,10 @@ LOCAL_SRC_FILES:= \
     Reverb/EffectReverb.cpp
 
 LOCAL_CFLAGS += -fvisibility=hidden
+
+ifeq ($(TARGET_USES_LOGD),false)
+    LOCAL_CFLAGS += -DNO_LOGD
+endif
 
 LOCAL_MODULE:= libreverbwrapper
 
