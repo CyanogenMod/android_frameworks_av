@@ -710,6 +710,11 @@ binder::Status CameraDeviceClient::createDefaultRequest(int templateId,
         request != NULL) {
 
         request->swap(metadata);
+    } else if (err == BAD_VALUE) {
+        res = STATUS_ERROR_FMT(CameraService::ERROR_ILLEGAL_ARGUMENT,
+                "Camera %d: Template ID %d is invalid or not supported: %s (%d)",
+                mCameraId, templateId, strerror(-err), err);
+
     } else {
         res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
                 "Camera %d: Error creating default request for template %d: %s (%d)",
