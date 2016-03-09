@@ -596,7 +596,13 @@ private:
     size_t                  mFrameSize;         // app-level frame size == AudioFlinger frame size
     uint32_t                mLatency;           // in ms
     audio_channel_mask_t    mChannelMask;
-    audio_input_flags_t     mFlags;
+
+    audio_input_flags_t     mFlags;                 // same as mOrigFlags, except for bits that may
+                                                    // be denied by client or server, such as
+                                                    // AUDIO_INPUT_FLAG_FAST.  mLock must be
+                                                    // held to read or write those bits reliably.
+    audio_input_flags_t     mOrigFlags;             // as specified in constructor or set(), const
+
     int                     mSessionId;
     transfer_type           mTransfer;
 
