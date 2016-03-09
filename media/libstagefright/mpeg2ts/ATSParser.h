@@ -69,16 +69,18 @@ struct ATSParser : public RefBase {
         void init(off64_t offset, const sp<MediaSource> &source,
                 int64_t timeUs);
 
-        bool isInit() { return mInit; }
-        off64_t getOffset() { return mOffset; }
-        const sp<MediaSource> &getMediaSource() { return mMediaSource; }
-        int64_t getTimeUs() { return mTimeUs; }
+        bool hasReturnedData() const { return mHasReturnedData; }
+        void reset();
+        off64_t getOffset() const { return mOffset; }
+        const sp<MediaSource> &getMediaSource() const { return mMediaSource; }
+        int64_t getTimeUs() const { return mTimeUs; }
 
     private:
-        bool mInit;
+        bool mHasReturnedData;
         /*
-         * mInit == false: the current offset
-         * mInit == true: the start offset of sync payload
+         * mHasReturnedData == false: the current offset (or undefined if the returned data
+                                      has been invalidated via reset())
+         * mHasReturnedData == true: the start offset of sync payload
          */
         off64_t mOffset;
         /* The media source object for this event. */

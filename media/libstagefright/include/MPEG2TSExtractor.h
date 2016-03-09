@@ -25,6 +25,8 @@
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 
+#include "mpeg2ts/ATSParser.h"
+
 namespace android {
 
 struct AMessage;
@@ -55,6 +57,10 @@ private:
 
     sp<ATSParser> mParser;
 
+    // Used to remember SyncEvent occurred in feedMore() when called from init(),
+    // because init() needs to update |mSourceImpls| before adding SyncPoint.
+    ATSParser::SyncEvent mLastSyncEvent;
+
     Vector<sp<AnotherPacketSource> > mSourceImpls;
 
     Vector<KeyedVector<int64_t, off64_t> > mSyncPoints;
@@ -65,13 +71,23 @@ private:
     off64_t mOffset;
 
     void init();
-    status_t feedMore();
+    // Try to feed more data from source to parser.
+    // |isInit| means this function is called inside init(). This is a signal to
+    // save SyncEvent so that init() can add SyncPoint after it updates |mSourceImpls|.
+    // This function returns OK if expected amount of data is fed from DataSource to
+    // parser and is successfully parsed. Otherwise, various error codes could be
+    // returned, e.g., ERROR_END_OF_STREAM, or no data availalbe from DataSource, or
+    // the data has syntax error during parsing, etc.
+    status_t feedMore(bool isInit = false);
     status_t seek(int64_t seekTimeUs,
             const MediaSource::ReadOptions::SeekMode& seekMode);
     status_t queueDiscontinuityForSeek(int64_t actualSeekTimeUs);
     status_t seekBeyond(int64_t seekTimeUs);
 
     status_t feedUntilBufferAvailable(const sp<AnotherPacketSource> &impl);
+
+    // Add a SynPoint derived from |event|.
+    void addSyncPoint_l(const ATSParser::SyncEvent &event);
 
     DISALLOW_EVIL_CONSTRUCTORS(MPEG2TSExtractor);
 };

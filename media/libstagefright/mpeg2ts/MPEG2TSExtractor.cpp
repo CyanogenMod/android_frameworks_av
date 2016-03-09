@@ -112,6 +112,7 @@ status_t MPEG2TSSource::read(
 MPEG2TSExtractor::MPEG2TSExtractor(const sp<DataSource> &source)
     : mDataSource(source),
       mParser(new ATSParser),
+      mLastSyncEvent(0),
       mOffset(0) {
     init();
 }
@@ -149,8 +150,10 @@ void MPEG2TSExtractor::init() {
     bool haveVideo = false;
     int64_t startTime = ALooper::GetNowUs();
 
-    while (feedMore() == OK) {
+    while (feedMore(true /* isInit */) == OK) {
         if (haveAudio && haveVideo) {
+            addSyncPoint_l(mLastSyncEvent);
+            mLastSyncEvent.reset();
             break;
         }
         if (!haveVideo) {
@@ -180,6 +183,9 @@ void MPEG2TSExtractor::init() {
                 }
             }
         }
+
+        addSyncPoint_l(mLastSyncEvent);
+        mLastSyncEvent.reset();
 
         // Wait only for 2 seconds to detect audio/video streams.
         if (ALooper::GetNowUs() - startTime > 2000000ll) {
@@ -245,7 +251,7 @@ void MPEG2TSExtractor::init() {
             haveAudio, haveVideo, ALooper::GetNowUs() - startTime);
 }
 
-status_t MPEG2TSExtractor::feedMore() {
+status_t MPEG2TSExtractor::feedMore(bool isInit) {
     Mutex::Autolock autoLock(mLock);
 
     uint8_t packet[kTSPacketSize];
@@ -261,27 +267,39 @@ status_t MPEG2TSExtractor::feedMore() {
     ATSParser::SyncEvent event(mOffset);
     mOffset += n;
     status_t err = mParser->feedTSPacket(packet, kTSPacketSize, &event);
-    if (event.isInit()) {
-        for (size_t i = 0; i < mSourceImpls.size(); ++i) {
-            if (mSourceImpls[i].get() == event.getMediaSource().get()) {
-                KeyedVector<int64_t, off64_t> *syncPoints = &mSyncPoints.editItemAt(i);
-                syncPoints->add(event.getTimeUs(), event.getOffset());
-                // We're keeping the size of the sync points at most 5mb per a track.
-                size_t size = syncPoints->size();
-                if (size >= 327680) {
-                    int64_t firstTimeUs = syncPoints->keyAt(0);
-                    int64_t lastTimeUs = syncPoints->keyAt(size - 1);
-                    if (event.getTimeUs() - firstTimeUs > lastTimeUs - event.getTimeUs()) {
-                        syncPoints->removeItemsAt(0, 4096);
-                    } else {
-                        syncPoints->removeItemsAt(size - 4096, 4096);
-                    }
-                }
-                break;
-            }
+    if (event.hasReturnedData()) {
+        if (isInit) {
+            mLastSyncEvent = event;
+        } else {
+            addSyncPoint_l(event);
         }
     }
     return err;
+}
+
+void MPEG2TSExtractor::addSyncPoint_l(const ATSParser::SyncEvent &event) {
+    if (!event.hasReturnedData()) {
+        return;
+    }
+
+    for (size_t i = 0; i < mSourceImpls.size(); ++i) {
+        if (mSourceImpls[i].get() == event.getMediaSource().get()) {
+            KeyedVector<int64_t, off64_t> *syncPoints = &mSyncPoints.editItemAt(i);
+            syncPoints->add(event.getTimeUs(), event.getOffset());
+            // We're keeping the size of the sync points at most 5mb per a track.
+            size_t size = syncPoints->size();
+            if (size >= 327680) {
+                int64_t firstTimeUs = syncPoints->keyAt(0);
+                int64_t lastTimeUs = syncPoints->keyAt(size - 1);
+                if (event.getTimeUs() - firstTimeUs > lastTimeUs - event.getTimeUs()) {
+                    syncPoints->removeItemsAt(0, 4096);
+                } else {
+                    syncPoints->removeItemsAt(size - 4096, 4096);
+                }
+            }
+            break;
+        }
+    }
 }
 
 uint32_t MPEG2TSExtractor::flags() const {
