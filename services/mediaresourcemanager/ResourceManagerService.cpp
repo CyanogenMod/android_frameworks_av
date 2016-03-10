@@ -43,7 +43,7 @@ static String8 getString(const Vector<T> &items) {
     return itemsStr;
 }
 
-static bool hasResourceType(String8 type, Vector<MediaResource> resources) {
+static bool hasResourceType(MediaResource::Type type, Vector<MediaResource> resources) {
     for (size_t i = 0; i < resources.size(); ++i) {
         if (resources[i].mType == type) {
             return true;
@@ -52,7 +52,7 @@ static bool hasResourceType(String8 type, Vector<MediaResource> resources) {
     return false;
 }
 
-static bool hasResourceType(String8 type, ResourceInfos infos) {
+static bool hasResourceType(MediaResource::Type type, ResourceInfos infos) {
     for (size_t i = 0; i < infos.size(); ++i) {
         if (hasResourceType(type, infos[i].resources)) {
             return true;
@@ -96,8 +96,8 @@ static void notifyResourceGranted(int pid, const Vector<MediaResource> &resource
     if (binder != NULL) {
         sp<IMediaResourceMonitor> service = interface_cast<IMediaResourceMonitor>(binder);
         for (size_t i = 0; i < resources.size(); ++i) {
-            service->notifyResourceGranted(pid, String16(resources[i].mType),
-                    String16(resources[i].mSubType), resources[i].mValue);
+            service->notifyResourceGranted(pid, String16(asString(resources[i].mType)),
+                    String16(asString(resources[i].mSubType)), resources[i].mValue);
         }
     }
 }
@@ -275,12 +275,12 @@ bool ResourceManagerService::reclaimResource(
         const MediaResource *nonSecureCodec = NULL;
         const MediaResource *graphicMemory = NULL;
         for (size_t i = 0; i < resources.size(); ++i) {
-            String8 type = resources[i].mType;
-            if (resources[i].mType == kResourceSecureCodec) {
+            MediaResource::Type type = resources[i].mType;
+            if (resources[i].mType == MediaResource::kSecureCodec) {
                 secureCodec = &resources[i];
-            } else if (type == kResourceNonSecureCodec) {
+            } else if (type == MediaResource::kNonSecureCodec) {
                 nonSecureCodec = &resources[i];
-            } else if (type == kResourceGraphicMemory) {
+            } else if (type == MediaResource::kGraphicMemory) {
                 graphicMemory = &resources[i];
             }
         }
@@ -288,19 +288,19 @@ bool ResourceManagerService::reclaimResource(
         // first pass to handle secure/non-secure codec conflict
         if (secureCodec != NULL) {
             if (!mSupportsMultipleSecureCodecs) {
-                if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
+                if (!getAllClients_l(callingPid, MediaResource::kSecureCodec, &clients)) {
                     return false;
                 }
             }
             if (!mSupportsSecureWithNonSecureCodec) {
-                if (!getAllClients_l(callingPid, String8(kResourceNonSecureCodec), &clients)) {
+                if (!getAllClients_l(callingPid, MediaResource::kNonSecureCodec, &clients)) {
                     return false;
                 }
             }
         }
         if (nonSecureCodec != NULL) {
             if (!mSupportsSecureWithNonSecureCodec) {
-                if (!getAllClients_l(callingPid, String8(kResourceSecureCodec), &clients)) {
+                if (!getAllClients_l(callingPid, MediaResource::kSecureCodec, &clients)) {
                     return false;
                 }
             }
@@ -320,11 +320,11 @@ bool ResourceManagerService::reclaimResource(
         if (clients.size() == 0) {
             // if we are here, run the fourth pass to free one codec with the different type.
             if (secureCodec != NULL) {
-                MediaResource temp(String8(kResourceNonSecureCodec), 1);
+                MediaResource temp(MediaResource::kNonSecureCodec, 1);
                 getClientForResource_l(callingPid, &temp, &clients);
             }
             if (nonSecureCodec != NULL) {
-                MediaResource temp(String8(kResourceSecureCodec), 1);
+                MediaResource temp(MediaResource::kSecureCodec, 1);
                 getClientForResource_l(callingPid, &temp, &clients);
             }
         }
@@ -374,7 +374,7 @@ bool ResourceManagerService::reclaimResource(
 }
 
 bool ResourceManagerService::getAllClients_l(
-        int callingPid, const String8 &type, Vector<sp<IResourceManagerClient>> *clients) {
+        int callingPid, MediaResource::Type type, Vector<sp<IResourceManagerClient>> *clients) {
     Vector<sp<IResourceManagerClient>> temp;
     for (size_t i = 0; i < mMap.size(); ++i) {
         ResourceInfos &infos = mMap.editValueAt(i);
@@ -384,7 +384,7 @@ bool ResourceManagerService::getAllClients_l(
                     // some higher/equal priority process owns the resource,
                     // this request can't be fulfilled.
                     ALOGE("getAllClients_l: can't reclaim resource %s from pid %d",
-                            type.string(), mMap.keyAt(i));
+                            asString(type), mMap.keyAt(i));
                     return false;
                 }
                 temp.push_back(infos[j].client);
@@ -392,7 +392,7 @@ bool ResourceManagerService::getAllClients_l(
         }
     }
     if (temp.size() == 0) {
-        ALOGV("getAllClients_l: didn't find any resource %s", type.string());
+        ALOGV("getAllClients_l: didn't find any resource %s", asString(type));
         return true;
     }
     clients->appendVector(temp);
@@ -400,7 +400,7 @@ bool ResourceManagerService::getAllClients_l(
 }
 
 bool ResourceManagerService::getLowestPriorityBiggestClient_l(
-        int callingPid, const String8 &type, sp<IResourceManagerClient> *client) {
+        int callingPid, MediaResource::Type type, sp<IResourceManagerClient> *client) {
     int lowestPriorityPid;
     int lowestPriority;
     int callingPriority;
@@ -425,7 +425,7 @@ bool ResourceManagerService::getLowestPriorityBiggestClient_l(
 }
 
 bool ResourceManagerService::getLowestPriorityPid_l(
-        const String8 &type, int *lowestPriorityPid, int *lowestPriority) {
+        MediaResource::Type type, int *lowestPriorityPid, int *lowestPriority) {
     int pid = -1;
     int priority = -1;
     for (size_t i = 0; i < mMap.size(); ++i) {
@@ -472,7 +472,7 @@ bool ResourceManagerService::isCallingPriorityHigher_l(int callingPid, int pid) 
 }
 
 bool ResourceManagerService::getBiggestClient_l(
-        int pid, const String8 &type, sp<IResourceManagerClient> *client) {
+        int pid, MediaResource::Type type, sp<IResourceManagerClient> *client) {
     ssize_t index = mMap.indexOfKey(pid);
     if (index < 0) {
         ALOGE("getBiggestClient_l: can't find resource info for pid %d", pid);
@@ -495,7 +495,7 @@ bool ResourceManagerService::getBiggestClient_l(
     }
 
     if (clientTemp == NULL) {
-        ALOGE("getBiggestClient_l: can't find resource type %s for pid %d", type.string(), pid);
+        ALOGE("getBiggestClient_l: can't find resource type %s for pid %d", asString(type), pid);
         return false;
     }
 

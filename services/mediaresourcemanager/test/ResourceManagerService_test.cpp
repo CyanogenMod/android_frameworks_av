@@ -152,24 +152,24 @@ protected:
     void addResource() {
         // kTestPid1 mTestClient1
         Vector<MediaResource> resources1;
-        resources1.push_back(MediaResource(String8(kResourceSecureCodec), 1));
+        resources1.push_back(MediaResource(MediaResource::kSecureCodec, 1));
         mService->addResource(kTestPid1, getId(mTestClient1), mTestClient1, resources1);
-        resources1.push_back(MediaResource(String8(kResourceGraphicMemory), 200));
+        resources1.push_back(MediaResource(MediaResource::kGraphicMemory, 200));
         Vector<MediaResource> resources11;
-        resources11.push_back(MediaResource(String8(kResourceGraphicMemory), 200));
+        resources11.push_back(MediaResource(MediaResource::kGraphicMemory, 200));
         mService->addResource(kTestPid1, getId(mTestClient1), mTestClient1, resources11);
 
         // kTestPid2 mTestClient2
         Vector<MediaResource> resources2;
-        resources2.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
-        resources2.push_back(MediaResource(String8(kResourceGraphicMemory), 300));
+        resources2.push_back(MediaResource(MediaResource::kNonSecureCodec, 1));
+        resources2.push_back(MediaResource(MediaResource::kGraphicMemory, 300));
         mService->addResource(kTestPid2, getId(mTestClient2), mTestClient2, resources2);
 
         // kTestPid2 mTestClient3
         Vector<MediaResource> resources3;
         mService->addResource(kTestPid2, getId(mTestClient3), mTestClient3, resources3);
-        resources3.push_back(MediaResource(String8(kResourceSecureCodec), 1));
-        resources3.push_back(MediaResource(String8(kResourceGraphicMemory), 100));
+        resources3.push_back(MediaResource(MediaResource::kSecureCodec, 1));
+        resources3.push_back(MediaResource(MediaResource::kGraphicMemory, 100));
         mService->addResource(kTestPid2, getId(mTestClient3), mTestClient3, resources3);
 
         const PidResourceInfosMap &map = mService->mMap;
@@ -237,14 +237,12 @@ protected:
     void testGetAllClients() {
         addResource();
 
-        String8 type = String8(kResourceSecureCodec);
-        String8 unknowType = String8("unknowType");
+        MediaResource::Type type = MediaResource::kSecureCodec;
         Vector<sp<IResourceManagerClient> > clients;
         EXPECT_FALSE(mService->getAllClients_l(kLowPriorityPid, type, &clients));
         // some higher priority process (e.g. kTestPid2) owns the resource, so getAllClients_l
         // will fail.
         EXPECT_FALSE(mService->getAllClients_l(kMidPriorityPid, type, &clients));
-        EXPECT_TRUE(mService->getAllClients_l(kHighPriorityPid, unknowType, &clients));
         EXPECT_TRUE(mService->getAllClients_l(kHighPriorityPid, type, &clients));
 
         EXPECT_EQ(2u, clients.size());
@@ -254,8 +252,8 @@ protected:
 
     void testReclaimResourceSecure() {
         Vector<MediaResource> resources;
-        resources.push_back(MediaResource(String8(kResourceSecureCodec), 1));
-        resources.push_back(MediaResource(String8(kResourceGraphicMemory), 150));
+        resources.push_back(MediaResource(MediaResource::kSecureCodec, 1));
+        resources.push_back(MediaResource(MediaResource::kGraphicMemory, 150));
 
         // ### secure codec can't coexist and secure codec can coexist with non-secure codec ###
         {
@@ -356,7 +354,7 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = true;
 
             Vector<MediaResource> resources;
-            resources.push_back(MediaResource(String8(kResourceSecureCodec), 1));
+            resources.push_back(MediaResource(MediaResource::kSecureCodec, 1));
 
             EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // secure codec from lowest process got reclaimed
@@ -374,8 +372,8 @@ protected:
 
     void testReclaimResourceNonSecure() {
         Vector<MediaResource> resources;
-        resources.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
-        resources.push_back(MediaResource(String8(kResourceGraphicMemory), 150));
+        resources.push_back(MediaResource(MediaResource::kNonSecureCodec, 1));
+        resources.push_back(MediaResource(MediaResource::kGraphicMemory, 150));
 
         // ### secure codec can't coexist with non-secure codec ###
         {
@@ -429,7 +427,7 @@ protected:
             mService->mSupportsSecureWithNonSecureCodec = true;
 
             Vector<MediaResource> resources;
-            resources.push_back(MediaResource(String8(kResourceNonSecureCodec), 1));
+            resources.push_back(MediaResource(MediaResource::kNonSecureCodec, 1));
 
             EXPECT_TRUE(mService->reclaimResource(kHighPriorityPid, resources));
             // one non secure codec from lowest process got reclaimed
@@ -445,7 +443,7 @@ protected:
     }
 
     void testGetLowestPriorityBiggestClient() {
-        String8 type = String8(kResourceGraphicMemory);
+        MediaResource::Type type = MediaResource::kGraphicMemory;
         sp<IResourceManagerClient> client;
         EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(kHighPriorityPid, type, &client));
 
@@ -454,8 +452,8 @@ protected:
         EXPECT_FALSE(mService->getLowestPriorityBiggestClient_l(kLowPriorityPid, type, &client));
         EXPECT_TRUE(mService->getLowestPriorityBiggestClient_l(kHighPriorityPid, type, &client));
 
-        // kTestPid1 is the lowest priority process with kResourceGraphicMemory.
-        // mTestClient1 has the largest kResourceGraphicMemory within kTestPid1.
+        // kTestPid1 is the lowest priority process with MediaResource::kGraphicMemory.
+        // mTestClient1 has the largest MediaResource::kGraphicMemory within kTestPid1.
         EXPECT_EQ(mTestClient1, client);
     }
 
@@ -464,7 +462,7 @@ protected:
         int priority;
         TestProcessInfo processInfo;
 
-        String8 type = String8(kResourceGraphicMemory);
+        MediaResource::Type type = MediaResource::kGraphicMemory;
         EXPECT_FALSE(mService->getLowestPriorityPid_l(type, &pid, &priority));
 
         addResource();
@@ -475,7 +473,7 @@ protected:
         processInfo.getPriority(kTestPid1, &priority1);
         EXPECT_EQ(priority1, priority);
 
-        type = String8(kResourceNonSecureCodec);
+        type = MediaResource::kNonSecureCodec;
         EXPECT_TRUE(mService->getLowestPriorityPid_l(type, &pid, &priority));
         EXPECT_EQ(kTestPid2, pid);
         int priority2;
@@ -484,7 +482,7 @@ protected:
     }
 
     void testGetBiggestClient() {
-        String8 type = String8(kResourceGraphicMemory);
+        MediaResource::Type type = MediaResource::kGraphicMemory;
         sp<IResourceManagerClient> client;
         EXPECT_FALSE(mService->getBiggestClient_l(kTestPid2, type, &client));
 
