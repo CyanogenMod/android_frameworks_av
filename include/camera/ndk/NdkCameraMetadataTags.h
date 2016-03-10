@@ -647,6 +647,8 @@ typedef enum acamera_metadata_enum_acamera_control_scene_mode {
     ACAMERA_CONTROL_SCENE_MODE_HIGH_SPEED_VIDEO,
     ACAMERA_CONTROL_SCENE_MODE_HDR,
     ACAMERA_CONTROL_SCENE_MODE_FACE_PRIORITY_LOW_LIGHT,
+    ACAMERA_CONTROL_SCENE_MODE_DEVICE_CUSTOM_START              = 100,
+    ACAMERA_CONTROL_SCENE_MODE_DEVICE_CUSTOM_END                = 127,
 } acamera_metadata_enum_android_control_scene_mode_t;
 
 // ACAMERA_CONTROL_VIDEO_STABILIZATION_MODE
