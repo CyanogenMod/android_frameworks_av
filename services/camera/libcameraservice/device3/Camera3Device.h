@@ -648,6 +648,10 @@ class Camera3Device :
         // receives the shutter event.
         CameraMetadata pendingMetadata;
 
+        // The metadata of the partial results that framework receives from HAL so far
+        // and has sent out.
+        CameraMetadata collectedPartialResult;
+
         // Buffers are added by process_capture_result when output buffers
         // return from HAL but framework has not yet received the shutter
         // event. They will be returned to the streams when framework receives
@@ -657,19 +661,6 @@ class Camera3Device :
         // Used to cancel AE precapture trigger for devices doesn't support
         // CONTROL_AE_PRECAPTURE_TRIGGER_CANCEL
         AeTriggerCancelOverride_t aeTriggerCancelOverride;
-
-
-        // Fields used by the partial result only
-        struct PartialResultInFlight {
-            // Set by process_capture_result once 3A has been sent to clients
-            bool    haveSent3A;
-            // Result metadata collected so far, when partial results are in use
-            CameraMetadata collectedResult;
-
-            PartialResultInFlight():
-                    haveSent3A(false) {
-            }
-        } partialResult;
 
         // Default constructor needed by KeyedVector
         InFlightRequest() :
@@ -704,23 +695,6 @@ class Camera3Device :
     status_t registerInFlight(uint32_t frameNumber,
             int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput,
             const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
-
-    /**
-     * For the partial result, check if all 3A state fields are available
-     * and if so, queue up 3A-only result to the client. Returns true if 3A
-     * is sent.
-     */
-    bool processPartial3AResult(uint32_t frameNumber,
-            const CameraMetadata& partial, const CaptureResultExtras& resultExtras);
-
-    // Helpers for reading and writing 3A metadata into to/from partial results
-    template<typename T>
-    bool get3AResult(const CameraMetadata& result, int32_t tag,
-            T* value, uint32_t frameNumber);
-
-    template<typename T>
-    bool insert3AResult(CameraMetadata &result, int32_t tag, const T* value,
-            uint32_t frameNumber);
 
     /**
      * Override result metadata for cancelling AE precapture trigger applied in
@@ -820,12 +794,23 @@ class Camera3Device :
     void returnOutputBuffers(const camera3_stream_buffer_t *outputBuffers,
             size_t numBuffers, nsecs_t timestamp);
 
-    // Insert the capture result given the pending metadata, result extras,
+    // Send a partial capture result.
+    void sendPartialCaptureResult(const camera_metadata_t * partialResult,
+            const CaptureResultExtras &resultExtras, uint32_t frameNumber,
+            const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
+
+    // Send a total capture result given the pending metadata and result extras,
     // partial results, and the frame number to the result queue.
     void sendCaptureResult(CameraMetadata &pendingMetadata,
             CaptureResultExtras &resultExtras,
             CameraMetadata &collectedPartialResult, uint32_t frameNumber,
             bool reprocess, const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
+
+    // Insert the result to the result queue after updating frame number and overriding AE
+    // trigger cancel.
+    // mOutputLock must be held when calling this function.
+    void insertResultLocked(CaptureResult *result, uint32_t frameNumber,
+            const AeTriggerCancelOverride_t &aeTriggerCancelOverride);
 
     /**** Scope for mInFlightLock ****/
 

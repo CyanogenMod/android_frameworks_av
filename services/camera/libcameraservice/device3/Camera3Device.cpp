@@ -2058,176 +2058,6 @@ status_t Camera3Device::registerInFlight(uint32_t frameNumber,
     return OK;
 }
 
-/**
- * Check if all 3A fields are ready, and send off a partial 3A-only result
- * to the output frame queue
- */
-bool Camera3Device::processPartial3AResult(
-        uint32_t frameNumber,
-        const CameraMetadata& partial, const CaptureResultExtras& resultExtras) {
-
-    // Check if all 3A states are present
-    // The full list of fields is
-    //   android.control.afMode
-    //   android.control.awbMode
-    //   android.control.aeState
-    //   android.control.awbState
-    //   android.control.afState
-    //   android.control.afTriggerID
-    //   android.control.aePrecaptureID
-    // TODO: Add android.control.aeMode
-
-    bool gotAllStates = true;
-
-    uint8_t afMode;
-    uint8_t awbMode;
-    uint8_t aeState;
-    uint8_t afState;
-    uint8_t awbState;
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_MODE,
-        &afMode, frameNumber);
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AWB_MODE,
-        &awbMode, frameNumber);
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AE_STATE,
-        &aeState, frameNumber);
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AF_STATE,
-        &afState, frameNumber);
-
-    gotAllStates &= get3AResult(partial, ANDROID_CONTROL_AWB_STATE,
-        &awbState, frameNumber);
-
-    if (!gotAllStates) return false;
-
-    ALOGVV("%s: Camera %d: Frame %d, Request ID %d: AF mode %d, AWB mode %d, "
-        "AF state %d, AE state %d, AWB state %d, "
-        "AF trigger %d, AE precapture trigger %d",
-        __FUNCTION__, mId, frameNumber, resultExtras.requestId,
-        afMode, awbMode,
-        afState, aeState, awbState,
-        resultExtras.afTriggerId, resultExtras.precaptureTriggerId);
-
-    // Got all states, so construct a minimal result to send
-    // In addition to the above fields, this means adding in
-    //   android.request.frameCount
-    //   android.request.requestId
-    //   android.quirks.partialResult (for HAL version below HAL3.2)
-
-    const size_t kMinimal3AResultEntries = 10;
-
-    Mutex::Autolock l(mOutputLock);
-
-    CaptureResult captureResult;
-    captureResult.mResultExtras = resultExtras;
-    captureResult.mMetadata = CameraMetadata(kMinimal3AResultEntries, /*dataCapacity*/ 0);
-    // TODO: change this to sp<CaptureResult>. This will need other changes, including,
-    // but not limited to CameraDeviceBase::getNextResult
-    CaptureResult& min3AResult =
-            *mResultQueue.insert(mResultQueue.end(), captureResult);
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_REQUEST_FRAME_COUNT,
-            // TODO: This is problematic casting. Need to fix CameraMetadata.
-            reinterpret_cast<int32_t*>(&frameNumber), frameNumber)) {
-        return false;
-    }
-
-    int32_t requestId = resultExtras.requestId;
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_REQUEST_ID,
-            &requestId, frameNumber)) {
-        return false;
-    }
-
-    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
-        static const uint8_t partialResult = ANDROID_QUIRKS_PARTIAL_RESULT_PARTIAL;
-        if (!insert3AResult(min3AResult.mMetadata, ANDROID_QUIRKS_PARTIAL_RESULT,
-                &partialResult, frameNumber)) {
-            return false;
-        }
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_MODE,
-            &afMode, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AWB_MODE,
-            &awbMode, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AE_STATE,
-            &aeState, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_STATE,
-            &afState, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AWB_STATE,
-            &awbState, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AF_TRIGGER_ID,
-            &resultExtras.afTriggerId, frameNumber)) {
-        return false;
-    }
-
-    if (!insert3AResult(min3AResult.mMetadata, ANDROID_CONTROL_AE_PRECAPTURE_ID,
-            &resultExtras.precaptureTriggerId, frameNumber)) {
-        return false;
-    }
-
-    // We only send the aggregated partial when all 3A related metadata are available
-    // For both API1 and API2.
-    // TODO: we probably should pass through all partials to API2 unconditionally.
-    mResultSignal.signal();
-
-    return true;
-}
-
-template<typename T>
-bool Camera3Device::get3AResult(const CameraMetadata& result, int32_t tag,
-        T* value, uint32_t frameNumber) {
-    (void) frameNumber;
-
-    camera_metadata_ro_entry_t entry;
-
-    entry = result.find(tag);
-    if (entry.count == 0) {
-        ALOGVV("%s: Camera %d: Frame %d: No %s provided by HAL!", __FUNCTION__,
-            mId, frameNumber, get_camera_metadata_tag_name(tag));
-        return false;
-    }
-
-    if (sizeof(T) == sizeof(uint8_t)) {
-        *value = entry.data.u8[0];
-    } else if (sizeof(T) == sizeof(int32_t)) {
-        *value = entry.data.i32[0];
-    } else {
-        ALOGE("%s: Unexpected type", __FUNCTION__);
-        return false;
-    }
-    return true;
-}
-
-template<typename T>
-bool Camera3Device::insert3AResult(CameraMetadata& result, int32_t tag,
-        const T* value, uint32_t frameNumber) {
-    if (result.update(tag, value, 1) != NO_ERROR) {
-        mResultQueue.erase(--mResultQueue.end(), mResultQueue.end());
-        SET_ERR("Frame %d: Failed to set %s in partial metadata",
-                frameNumber, get_camera_metadata_tag_name(tag));
-        return false;
-    }
-    return true;
-}
-
 void Camera3Device::returnOutputBuffers(
         const camera3_stream_buffer_t *outputBuffers, size_t numBuffers,
         nsecs_t timestamp) {
@@ -2295,6 +2125,48 @@ void Camera3Device::removeInFlightRequestIfReadyLocked(int idx) {
     }
 }
 
+void Camera3Device::insertResultLocked(CaptureResult *result, uint32_t frameNumber,
+            const AeTriggerCancelOverride_t &aeTriggerCancelOverride) {
+    if (result == nullptr) return;
+
+    if (result->mMetadata.update(ANDROID_REQUEST_FRAME_COUNT,
+            (int32_t*)&frameNumber, 1) != OK) {
+        SET_ERR("Failed to set frame number %d in metadata", frameNumber);
+        return;
+    }
+
+    if (result->mMetadata.update(ANDROID_REQUEST_ID, &result->mResultExtras.requestId, 1) != OK) {
+        SET_ERR("Failed to set request ID in metadata for frame %d", frameNumber);
+        return;
+    }
+
+    overrideResultForPrecaptureCancel(&result->mMetadata, aeTriggerCancelOverride);
+
+    // Valid result, insert into queue
+    List<CaptureResult>::iterator queuedResult =
+            mResultQueue.insert(mResultQueue.end(), CaptureResult(*result));
+    ALOGVV("%s: result requestId = %" PRId32 ", frameNumber = %" PRId64
+           ", burstId = %" PRId32, __FUNCTION__,
+           queuedResult->mResultExtras.requestId,
+           queuedResult->mResultExtras.frameNumber,
+           queuedResult->mResultExtras.burstId);
+
+    mResultSignal.signal();
+}
+
+
+void Camera3Device::sendPartialCaptureResult(const camera_metadata_t * partialResult,
+        const CaptureResultExtras &resultExtras, uint32_t frameNumber,
+        const AeTriggerCancelOverride_t &aeTriggerCancelOverride) {
+    Mutex::Autolock l(mOutputLock);
+
+    CaptureResult captureResult;
+    captureResult.mResultExtras = resultExtras;
+    captureResult.mMetadata = partialResult;
+
+    insertResultLocked(&captureResult, frameNumber, aeTriggerCancelOverride);
+}
+
 
 void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
         CaptureResultExtras &resultExtras,
@@ -2330,16 +2202,6 @@ void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
     captureResult.mResultExtras = resultExtras;
     captureResult.mMetadata = pendingMetadata;
 
-    if (captureResult.mMetadata.update(ANDROID_REQUEST_FRAME_COUNT,
-            (int32_t*)&frameNumber, 1) != OK) {
-        SET_ERR("Failed to set frame# in metadata (%d)",
-                frameNumber);
-        return;
-    } else {
-        ALOGVV("%s: Camera %d: Set frame# in metadata (%d)",
-                __FUNCTION__, mId, frameNumber);
-    }
-
     // Append any previous partials to form a complete result
     if (mUsePartialResult && !collectedPartialResult.isEmpty()) {
         captureResult.mMetadata.append(collectedPartialResult);
@@ -2348,26 +2210,14 @@ void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
     captureResult.mMetadata.sort();
 
     // Check that there's a timestamp in the result metadata
-    camera_metadata_entry entry =
-            captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
+    camera_metadata_entry entry = captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
     if (entry.count == 0) {
         SET_ERR("No timestamp provided by HAL for frame %d!",
                 frameNumber);
         return;
     }
 
-    overrideResultForPrecaptureCancel(&captureResult.mMetadata, aeTriggerCancelOverride);
-
-    // Valid result, insert into queue
-    List<CaptureResult>::iterator queuedResult =
-            mResultQueue.insert(mResultQueue.end(), CaptureResult(captureResult));
-    ALOGVV("%s: result requestId = %" PRId32 ", frameNumber = %" PRId64
-           ", burstId = %" PRId32, __FUNCTION__,
-           queuedResult->mResultExtras.requestId,
-           queuedResult->mResultExtras.frameNumber,
-           queuedResult->mResultExtras.burstId);
-
-    mResultSignal.signal();
+    insertResultLocked(&captureResult, frameNumber, aeTriggerCancelOverride);
 }
 
 /**
@@ -2444,7 +2294,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 }
                 isPartialResult = (result->partial_result < mNumPartialResults);
                 if (isPartialResult) {
-                    request.partialResult.collectedResult.append(result->result);
+                    request.collectedPartialResult.append(result->result);
                 }
             } else {
                 camera_metadata_ro_entry_t partialResultEntry;
@@ -2457,21 +2307,17 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                     // A partial result. Flag this as such, and collect this
                     // set of metadata into the in-flight entry.
                     isPartialResult = true;
-                    request.partialResult.collectedResult.append(
+                    request.collectedPartialResult.append(
                         result->result);
-                    request.partialResult.collectedResult.erase(
+                    request.collectedPartialResult.erase(
                         ANDROID_QUIRKS_PARTIAL_RESULT);
                 }
             }
 
             if (isPartialResult) {
-                // Fire off a 3A-only result if possible
-                if (!request.partialResult.haveSent3A) {
-                    request.partialResult.haveSent3A =
-                            processPartial3AResult(frameNumber,
-                                    request.partialResult.collectedResult,
-                                    request.resultExtras);
-                }
+                // Send partial capture result
+                sendPartialCaptureResult(result->result, request.resultExtras, frameNumber,
+                        request.aeTriggerCancelOverride);
             }
         }
 
@@ -2486,9 +2332,9 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
                 return;
             }
             if (mUsePartialResult &&
-                    !request.partialResult.collectedResult.isEmpty()) {
+                    !request.collectedPartialResult.isEmpty()) {
                 collectedPartialResult.acquire(
-                    request.partialResult.collectedResult);
+                    request.collectedPartialResult);
             }
             request.haveResultMetadata = true;
         }
@@ -2531,7 +2377,7 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
         if (result->result != NULL && !isPartialResult) {
             if (shutterTimestamp == 0) {
                 request.pendingMetadata = result->result;
-                request.partialResult.collectedResult = collectedPartialResult;
+                request.collectedPartialResult = collectedPartialResult;
             } else {
                 CameraMetadata metadata;
                 metadata = result->result;
@@ -2709,7 +2555,7 @@ void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
 
             // send pending result and buffers
             sendCaptureResult(r.pendingMetadata, r.resultExtras,
-                r.partialResult.collectedResult, msg.frame_number,
+                r.collectedPartialResult, msg.frame_number,
                 r.hasInputBuffer, r.aeTriggerCancelOverride);
             returnOutputBuffers(r.pendingOutputBuffers.array(),
                 r.pendingOutputBuffers.size(), r.shutterTimestamp);

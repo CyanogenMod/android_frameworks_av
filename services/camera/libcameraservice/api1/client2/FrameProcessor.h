@@ -43,6 +43,8 @@ class FrameProcessor : public FrameProcessorBase {
     ~FrameProcessor();
 
   private:
+    static const int32_t NOT_SET = -1;
+
     wp<Camera2Client> mClient;
 
     bool mSynthesize3ANotify;
@@ -63,7 +65,7 @@ class FrameProcessor : public FrameProcessorBase {
 
     // Helper for process3aState
     template<typename Src, typename T>
-    bool get3aResult(const CameraMetadata& result, int32_t tag, T* value,
+    bool updatePendingState(const CameraMetadata& result, int32_t tag, T* value,
             int32_t frameNumber, int cameraId);
 
 
@@ -81,15 +83,20 @@ class FrameProcessor : public FrameProcessorBase {
 
         // These defaults need to match those in Parameters.cpp
         AlgState() :
-                afMode(ANDROID_CONTROL_AF_MODE_AUTO),
-                awbMode(ANDROID_CONTROL_AWB_MODE_AUTO),
-                aeState(ANDROID_CONTROL_AE_STATE_INACTIVE),
-                afState(ANDROID_CONTROL_AF_STATE_INACTIVE),
-                awbState(ANDROID_CONTROL_AWB_STATE_INACTIVE),
-                afTriggerId(0),
-                aeTriggerId(0) {
+                afMode((camera_metadata_enum_android_control_af_mode)NOT_SET),
+                awbMode((camera_metadata_enum_android_control_awb_mode)NOT_SET),
+                aeState((camera_metadata_enum_android_control_ae_state)NOT_SET),
+                afState((camera_metadata_enum_android_control_af_state)NOT_SET),
+                awbState((camera_metadata_enum_android_control_awb_state)NOT_SET),
+                afTriggerId(NOT_SET),
+                aeTriggerId(NOT_SET) {
         }
-    } m3aState;
+    };
+
+    AlgState m3aState;
+
+    // frame number -> pending 3A states that not all data are received yet.
+    KeyedVector<int32_t, AlgState> mPending3AStates;
 
     // Whether the partial result is enabled for this device
     bool mUsePartialResult;
