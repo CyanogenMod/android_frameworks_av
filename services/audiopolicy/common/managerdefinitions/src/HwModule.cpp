@@ -310,12 +310,6 @@ sp<DeviceDescriptor>  HwModuleCollection::getDeviceDescriptor(const audio_device
         if (!deviceList.isEmpty()) {
             return deviceList.itemAt(0);
         }
-        deviceList = hwModule->getDeclaredDevices().getDevicesFromType(device);
-        if (!deviceList.isEmpty()) {
-            deviceList.itemAt(0)->setName(String8(device_name));
-            deviceList.itemAt(0)->mAddress = address;
-            return deviceList.itemAt(0);
-        }
     }
 
     sp<DeviceDescriptor> devDesc = new DeviceDescriptor(device);
