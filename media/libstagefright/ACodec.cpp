@@ -489,7 +489,6 @@ ACodec::ACodec()
     : mQuirks(0),
       mNode(0),
       mNativeWindowUsageBits(0),
-      mSentFormat(false),
       mIsVideo(false),
       mIsEncoder(false),
       mFatalError(false),
@@ -1646,8 +1645,8 @@ status_t ACodec::configureCodec(
         encoder = false;
     }
 
-    sp<AMessage> inputFormat = new AMessage();
-    sp<AMessage> outputFormat = mNotify->dup(); // will use this for kWhatOutputFormatChanged
+    sp<AMessage> inputFormat = new AMessage;
+    sp<AMessage> outputFormat = new AMessage;
 
     mIsEncoder = encoder;
 
@@ -2198,6 +2197,8 @@ status_t ACodec::configureCodec(
     }
 
     mBaseOutputFormat = outputFormat;
+    // trigger a kWhatOutputFormatChanged msg on first buffer
+    mLastOutputFormat.clear();
 
     err = getPortFormat(kPortIndexInput, inputFormat);
     if (err == OK) {
@@ -4702,29 +4703,41 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
     return OK;
 }
 
-void ACodec::sendFormatChange(const sp<AMessage> &reply) {
-    sp<AMessage> notify = mBaseOutputFormat->dup();
-    notify->setInt32("what", kWhatOutputFormatChanged);
+void ACodec::onOutputFormatChanged() {
+    // store new output format
+    mOutputFormat = mBaseOutputFormat->dup();
 
-    if (getPortFormat(kPortIndexOutput, notify) != OK) {
+    if (getPortFormat(kPortIndexOutput, mOutputFormat) != OK) {
         ALOGE("[%s] Failed to get port format to send format change", mComponentName.c_str());
         return;
     }
 
+    if (mTunneled) {
+        sendFormatChange();
+    }
+}
+
+void ACodec::addKeyFormatChangesToRenderBufferNotification(sp<AMessage> &reply) {
     AString mime;
-    CHECK(notify->findString("mime", &mime));
+    CHECK(mOutputFormat->findString("mime", &mime));
 
     int32_t left, top, right, bottom;
     if (mime == MEDIA_MIMETYPE_VIDEO_RAW &&
         mNativeWindow != NULL &&
-        notify->findRect("crop", &left, &top, &right, &bottom)) {
+        mOutputFormat->findRect("crop", &left, &top, &right, &bottom)) {
         // notify renderer of the crop change
         // NOTE: native window uses extended right-bottom coordinate
         reply->setRect("crop", left, top, right + 1, bottom + 1);
-    } else if (mime == MEDIA_MIMETYPE_AUDIO_RAW &&
-               (mEncoderDelay || mEncoderPadding)) {
+    }
+}
+
+void ACodec::sendFormatChange() {
+    AString mime;
+    CHECK(mOutputFormat->findString("mime", &mime));
+
+    if (mime == MEDIA_MIMETYPE_AUDIO_RAW && (mEncoderDelay || mEncoderPadding)) {
         int32_t channelCount;
-        CHECK(notify->findInt32("channel-count", &channelCount));
+        CHECK(mOutputFormat->findInt32("channel-count", &channelCount));
         if (mSkipCutBuffer != NULL) {
             size_t prevbufsize = mSkipCutBuffer->size();
             if (prevbufsize != 0) {
@@ -4734,9 +4747,13 @@ void ACodec::sendFormatChange(const sp<AMessage> &reply) {
         mSkipCutBuffer = new SkipCutBuffer(mEncoderDelay, mEncoderPadding, channelCount);
     }
 
+    sp<AMessage> notify = mNotify->dup();
+    notify->setInt32("what", kWhatOutputFormatChanged);
+    notify->setMessage("format", mOutputFormat);
     notify->post();
 
-    mSentFormat = true;
+    // mLastOutputFormat is not used when tunneled; doing this just to stay consistent
+    mLastOutputFormat = mOutputFormat;
 }
 
 void ACodec::signalError(OMX_ERRORTYPE error, status_t internalError) {
@@ -5440,9 +5457,11 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             sp<AMessage> reply =
                 new AMessage(kWhatOutputBufferDrained, mCodec);
 
-            if (!mCodec->mSentFormat && rangeLength > 0) {
-                mCodec->sendFormatChange(reply);
+            if (mCodec->mOutputFormat != mCodec->mLastOutputFormat && rangeLength > 0) {
+                mCodec->addKeyFormatChangesToRenderBufferNotification(reply);
+                mCodec->sendFormatChange();
             }
+
             if (mCodec->usingMetadataOnEncoderOutput()) {
                 native_handle_t *handle = NULL;
                 VideoGrallocMetadata &grallocMeta = *(VideoGrallocMetadata *)info->mData->data();
@@ -6686,6 +6705,8 @@ bool ACodec::ExecutingState::onOMXEvent(
         {
             CHECK_EQ(data1, (OMX_U32)kPortIndexOutput);
 
+            mCodec->onOutputFormatChanged();
+
             if (data2 == 0 || data2 == OMX_IndexParamPortDefinition) {
                 mCodec->mMetadataBuffersToSubmit = 0;
                 CHECK_EQ(mCodec->mOMX->sendCommand(
@@ -6696,15 +6717,8 @@ bool ACodec::ExecutingState::onOMXEvent(
                 mCodec->freeOutputBuffersNotOwnedByComponent();
 
                 mCodec->changeState(mCodec->mOutputPortSettingsChangedState);
-            } else if (data2 == OMX_IndexConfigCommonOutputCrop
-                    || data2 == OMX_IndexConfigAndroidIntraRefresh) {
-                mCodec->mSentFormat = false;
-
-                if (mCodec->mTunneled) {
-                    sp<AMessage> dummy = new AMessage(kWhatOutputBufferDrained, mCodec);
-                    mCodec->sendFormatChange(dummy);
-                }
-            } else {
+            } else if (data2 != OMX_IndexConfigCommonOutputCrop
+                    && data2 != OMX_IndexConfigAndroidIntraRefresh) {
                 ALOGV("[%s] OMX_EventPortSettingsChanged 0x%08x",
                      mCodec->mComponentName.c_str(), data2);
             }
@@ -6831,13 +6845,6 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
                     return false;
                 }
 
-                mCodec->mSentFormat = false;
-
-                if (mCodec->mTunneled) {
-                    sp<AMessage> dummy = new AMessage(kWhatOutputBufferDrained, mCodec);
-                    mCodec->sendFormatChange(dummy);
-                }
-
                 ALOGV("[%s] Output port now reenabled.", mCodec->mComponentName.c_str());
 
                 if (mCodec->mExecutingState->active()) {
@@ -6896,7 +6903,7 @@ void ACodec::ExecutingToIdleState::stateEntered() {
     ALOGV("[%s] Now Executing->Idle", mCodec->mComponentName.c_str());
 
     mComponentNowIdle = false;
-    mCodec->mSentFormat = false;
+    mCodec->mLastOutputFormat.clear();
 }
 
 bool ACodec::ExecutingToIdleState::onOMXEvent(

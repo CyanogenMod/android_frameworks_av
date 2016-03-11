@@ -255,7 +255,7 @@ private:
 
     List<sp<AMessage> > mDeferredQueue;
 
-    bool mSentFormat;
+    sp<AMessage> mLastOutputFormat;
     bool mIsVideo;
     bool mIsEncoder;
     bool mFatalError;
@@ -443,7 +443,10 @@ private:
     void notifyOfRenderedFrames(
             bool dropIncomplete = false, FrameRenderTracker::Info *until = NULL);
 
-    void sendFormatChange(const sp<AMessage> &reply);
+    void onOutputFormatChanged();
+    void addKeyFormatChangesToRenderBufferNotification(sp<AMessage> &notify);
+    void sendFormatChange();
+
     status_t getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify);
 
     void signalError(
