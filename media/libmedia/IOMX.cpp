@@ -710,7 +710,9 @@ status_t BnOMX::onTransact(
             void *params = NULL;
             size_t pageSize = 0;
             size_t allocSize = 0;
-            if (code != SET_INTERNAL_OPTION && size < 8) {
+            // this only applies to a subset of devices, and was obsoleted in M
+            bool mightBeThumbnailMode = (code == SET_CONFIG && size == sizeof(OMX_BOOL));
+            if (!mightBeThumbnailMode && (code != SET_INTERNAL_OPTION && size < 8)) {
                 // we expect the structure to contain at least the size and
                 // version, 8 bytes total
                 ALOGE("b/27207275 (%zu)", size);
@@ -732,7 +734,8 @@ status_t BnOMX::onTransact(
                     } else {
                         err = NOT_ENOUGH_DATA;
                         OMX_U32 declaredSize = *(OMX_U32*)params;
-                        if (code != SET_INTERNAL_OPTION && declaredSize > size) {
+                        if (!mightBeThumbnailMode &&
+                                code != SET_INTERNAL_OPTION && declaredSize > size) {
                             // the buffer says it's bigger than it actually is
                             ALOGE("b/27207275 (%u/%zu)", declaredSize, size);
                             android_errorWriteLog(0x534e4554, "27207275");
