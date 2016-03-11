@@ -506,8 +506,8 @@ protected:
         void clearAudioSources(uid_t uid);
 
 
-        static bool strategiesMatchForvolume(routing_strategy strategy1,
-                                             routing_strategy strategy2);
+        static bool streamsMatchForvolume(audio_stream_type_t stream1,
+                                          audio_stream_type_t stream2);
 
         uid_t mUidCached;
         AudioPolicyClientInterface *mpClientInterface;  // audio policy client interface
