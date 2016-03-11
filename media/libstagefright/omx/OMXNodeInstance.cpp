@@ -1362,6 +1362,16 @@ inline static const char *asString(IOMX::InternalOptionType i, const char *def =
     }
 }
 
+template<typename T>
+static bool getInternalOption(
+        const void *data, size_t size, T *out) {
+    if (size != sizeof(T)) {
+        return false;
+    }
+    *out = *(T*)data;
+    return true;
+}
+
 status_t OMXNodeInstance::setInternalOption(
         OMX_U32 portIndex,
         IOMX::InternalOptionType type,
@@ -1376,6 +1386,7 @@ status_t OMXNodeInstance::setInternalOption(
         case IOMX::INTERNAL_OPTION_MAX_FPS:
         case IOMX::INTERNAL_OPTION_START_TIME:
         case IOMX::INTERNAL_OPTION_TIME_LAPSE:
+        case IOMX::INTERNAL_OPTION_COLOR_ASPECTS:
         {
             const sp<GraphicBufferSource> &bufferSource =
                 getGraphicBufferSource();
@@ -1386,58 +1397,63 @@ status_t OMXNodeInstance::setInternalOption(
             }
 
             if (type == IOMX::INTERNAL_OPTION_SUSPEND) {
-                if (size != sizeof(bool)) {
+                bool suspend;
+                if (!getInternalOption(data, size, &suspend)) {
                     return INVALID_OPERATION;
                 }
 
-                bool suspend = *(bool *)data;
                 CLOG_CONFIG(setInternalOption, "suspend=%d", suspend);
                 bufferSource->suspend(suspend);
-            } else if (type ==
-                    IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY){
-                if (size != sizeof(int64_t)) {
+            } else if (type == IOMX::INTERNAL_OPTION_REPEAT_PREVIOUS_FRAME_DELAY) {
+                int64_t delayUs;
+                if (!getInternalOption(data, size, &delayUs)) {
                     return INVALID_OPERATION;
                 }
 
-                int64_t delayUs = *(int64_t *)data;
                 CLOG_CONFIG(setInternalOption, "delayUs=%lld", (long long)delayUs);
                 return bufferSource->setRepeatPreviousFrameDelayUs(delayUs);
-            } else if (type ==
-                    IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP){
-                if (size != sizeof(int64_t)) {
+            } else if (type == IOMX::INTERNAL_OPTION_MAX_TIMESTAMP_GAP) {
+                int64_t maxGapUs;
+                if (!getInternalOption(data, size, &maxGapUs)) {
                     return INVALID_OPERATION;
                 }
 
-                int64_t maxGapUs = *(int64_t *)data;
                 CLOG_CONFIG(setInternalOption, "gapUs=%lld", (long long)maxGapUs);
                 return bufferSource->setMaxTimestampGapUs(maxGapUs);
             } else if (type == IOMX::INTERNAL_OPTION_MAX_FPS) {
-                if (size != sizeof(float)) {
+                float maxFps;
+                if (!getInternalOption(data, size, &maxFps)) {
                     return INVALID_OPERATION;
                 }
 
-                float maxFps = *(float *)data;
                 CLOG_CONFIG(setInternalOption, "maxFps=%f", maxFps);
                 return bufferSource->setMaxFps(maxFps);
             } else if (type == IOMX::INTERNAL_OPTION_START_TIME) {
-                if (size != sizeof(int64_t)) {
+                int64_t skipFramesBeforeUs;
+                if (!getInternalOption(data, size, &skipFramesBeforeUs)) {
                     return INVALID_OPERATION;
                 }
 
-                int64_t skipFramesBeforeUs = *(int64_t *)data;
                 CLOG_CONFIG(setInternalOption, "beforeUs=%lld", (long long)skipFramesBeforeUs);
                 bufferSource->setSkipFramesBeforeUs(skipFramesBeforeUs);
-            } else { // IOMX::INTERNAL_OPTION_TIME_LAPSE
-                if (size != sizeof(int64_t) * 2) {
+            } else if (type == IOMX::INTERNAL_OPTION_TIME_LAPSE) {
+                GraphicBufferSource::TimeLapseConfig config;
+                if (!getInternalOption(data, size, &config)) {
                     return INVALID_OPERATION;
                 }
 
-                int64_t timePerFrameUs = ((int64_t *)data)[0];
-                int64_t timePerCaptureUs = ((int64_t *)data)[1];
                 CLOG_CONFIG(setInternalOption, "perFrameUs=%lld perCaptureUs=%lld",
-                        (long long)timePerFrameUs, (long long)timePerCaptureUs);
+                        (long long)config.mTimePerFrameUs, (long long)config.mTimePerCaptureUs);
 
-                bufferSource->setTimeLapseUs((int64_t *)data);
+                return bufferSource->setTimeLapseConfig(config);
+            } else if (type == IOMX::INTERNAL_OPTION_COLOR_ASPECTS) {
+                ColorAspects aspects;
+                if (!getInternalOption(data, size, &aspects)) {
+                    return INVALID_OPERATION;
+                }
+
+                CLOG_CONFIG(setInternalOption, "setting color aspects");
+                bufferSource->setColorAspects(aspects);
             }
 
             return OK;
