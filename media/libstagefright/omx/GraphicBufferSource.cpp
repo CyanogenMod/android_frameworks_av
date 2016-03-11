@@ -190,6 +190,8 @@ GraphicBufferSource::GraphicBufferSource(
         return;
     }
 
+    memset(&mColorAspects, 0, sizeof(mColorAspects));
+
     CHECK(mInitCheck == NO_ERROR);
 }
 
@@ -981,17 +983,22 @@ void GraphicBufferSource::setSkipFramesBeforeUs(int64_t skipFramesBeforeUs) {
             (skipFramesBeforeUs > 0) ? (skipFramesBeforeUs * 1000) : -1ll;
 }
 
-status_t GraphicBufferSource::setTimeLapseUs(int64_t* data) {
+status_t GraphicBufferSource::setTimeLapseConfig(const TimeLapseConfig &config) {
     Mutex::Autolock autoLock(mMutex);
 
-    if (mExecuting || data[0] <= 0ll || data[1] <= 0ll) {
+    if (mExecuting || config.mTimePerFrameUs <= 0ll || config.mTimePerCaptureUs <= 0ll) {
         return INVALID_OPERATION;
     }
 
-    mTimePerFrameUs = data[0];
-    mTimePerCaptureUs = data[1];
+    mTimePerFrameUs = config.mTimePerFrameUs;
+    mTimePerCaptureUs = config.mTimePerCaptureUs;
 
     return OK;
+}
+
+void GraphicBufferSource::setColorAspects(const ColorAspects &aspects) {
+    Mutex::Autolock autoLock(mMutex);
+    mColorAspects = aspects;
 }
 
 void GraphicBufferSource::onMessageReceived(const sp<AMessage> &msg) {

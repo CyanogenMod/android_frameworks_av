@@ -186,6 +186,7 @@ public:
         INTERNAL_OPTION_MAX_FPS, // data is float
         INTERNAL_OPTION_START_TIME, // data is an int64_t
         INTERNAL_OPTION_TIME_LAPSE, // data is an int64_t[2]
+        INTERNAL_OPTION_COLOR_ASPECTS, // data is ColorAspects
     };
     virtual status_t setInternalOption(
             node_id node,
