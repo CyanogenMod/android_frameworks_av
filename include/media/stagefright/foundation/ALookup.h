@@ -29,8 +29,12 @@ struct ALookup {
 
     bool lookup(const T& from, U *to);
     bool rlookup(const U& from, T *to);
-    inline bool map(const T& from, U *to) { return lookup(from, to); }
-    inline bool map(const U& from, T *to) { return rlookup(from, to); }
+
+    template<typename V, typename = typename std::enable_if<!std::is_same<T, V>::value>::type>
+    inline bool map(const T& from, V *to) { return lookup(from, to); }
+
+    template<typename V, typename = typename std::enable_if<!std::is_same<T, V>::value>::type>
+    inline bool map(const V& from, T *to) { return rlookup(from, to); }
 
 private:
     std::vector<std::pair<T, U>> mTable;
