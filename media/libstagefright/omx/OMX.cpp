@@ -484,7 +484,7 @@ status_t OMX::updateGraphicBufferInMeta(
 }
 
 status_t OMX::createInputSurface(
-        node_id node, OMX_U32 port_index,
+        node_id node, OMX_U32 port_index, android_dataspace dataSpace,
         sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
     OMXNodeInstance *instance = findInstance(node);
 
@@ -493,7 +493,7 @@ status_t OMX::createInputSurface(
     }
 
     return instance->createInputSurface(
-            port_index, bufferProducer, type);
+            port_index, dataSpace, bufferProducer, type);
 }
 
 status_t OMX::createPersistentInputSurface(

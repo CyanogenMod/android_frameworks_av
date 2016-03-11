@@ -94,7 +94,7 @@ public:
             const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer);
 
     virtual status_t createInputSurface(
-            node_id node, OMX_U32 port_index,
+            node_id node, OMX_U32 port_index, android_dataspace dataSpace,
             sp<IGraphicBufferProducer> *bufferProducer,
             MetadataBufferType *type);
 

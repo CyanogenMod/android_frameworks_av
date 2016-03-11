@@ -313,13 +313,14 @@ public:
     }
 
     virtual status_t createInputSurface(
-            node_id node, OMX_U32 port_index,
+            node_id node, OMX_U32 port_index, android_dataspace dataSpace,
             sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
         Parcel data, reply;
         status_t err;
         data.writeInterfaceToken(IOMX::getInterfaceDescriptor());
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
+        data.writeInt32(dataSpace);
         err = remote()->transact(CREATE_INPUT_SURFACE, data, &reply);
         if (err != OK) {
             ALOGW("binder transaction failed: %d", err);
@@ -908,10 +909,11 @@ status_t BnOMX::onTransact(
 
             node_id node = (node_id)data.readInt32();
             OMX_U32 port_index = data.readInt32();
+            android_dataspace dataSpace = (android_dataspace)data.readInt32();
 
             sp<IGraphicBufferProducer> bufferProducer;
             MetadataBufferType type = kMetadataBufferTypeInvalid;
-            status_t err = createInputSurface(node, port_index, &bufferProducer, &type);
+            status_t err = createInputSurface(node, port_index, dataSpace, &bufferProducer, &type);
 
             if ((err != OK) && (type == kMetadataBufferTypeInvalid)) {
                 android_errorWriteLog(0x534e4554, "26324358");
