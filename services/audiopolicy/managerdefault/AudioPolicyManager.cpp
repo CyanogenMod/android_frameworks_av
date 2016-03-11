@@ -459,10 +459,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isStateInCall(oldState)) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-            if (stream == AUDIO_STREAM_PATCH) {
-                continue;
-            }
+        for (int stream = 0; stream < AUDIO_STREAM_FOR_POLICY_CNT; stream++) {
             handleIncallSonification((audio_stream_type_t)stream, false, true);
         }
 
@@ -538,10 +535,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // pertaining to sonification strategy see handleIncallSonification()
     if (isStateInCall(state)) {
         ALOGV("setPhoneState() in call state management: new state is %d", state);
-        for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-            if (stream == AUDIO_STREAM_PATCH) {
-                continue;
-            }
+        for (int stream = 0; stream < AUDIO_STREAM_FOR_POLICY_CNT; stream++) {
             handleIncallSonification((audio_stream_type_t)stream, true, true);
         }
 
@@ -1796,10 +1790,8 @@ void AudioPolicyManager::initStreamVolume(audio_stream_type_t stream,
     mVolumeCurves->initStreamVolume(stream, indexMin, indexMax);
 
     // initialize other private stream volumes which follow this one
-    routing_strategy strategy = getStrategy(stream);
-    for (int curStream = 0; curStream < AUDIO_STREAM_CNT; curStream++) {
-        routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-        if (!strategiesMatchForvolume(strategy, curStrategy)) {
+    for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT; curStream++) {
+        if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
             continue;
         }
         mVolumeCurves->initStreamVolume((audio_stream_type_t)curStream, indexMin, indexMax);
@@ -1832,10 +1824,8 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     }
 
     // update other private stream volumes which follow this one
-    routing_strategy strategy = getStrategy(stream);
-    for (int curStream = 0; curStream < AUDIO_STREAM_CNT; curStream++) {
-        routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-        if (!strategiesMatchForvolume(strategy, curStrategy)) {
+    for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT; curStream++) {
+        if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
             continue;
         }
         mVolumeCurves->addCurrentVolumeIndex((audio_stream_type_t)curStream, device, index);
@@ -1847,11 +1837,11 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
         audio_devices_t curDevice = Volume::getDeviceForVolume(desc->device());
-        for (int curStream = 0; curStream < AUDIO_STREAM_CNT; curStream++) {
-            routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-            if (!strategiesMatchForvolume(strategy, curStrategy)) {
+        for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT; curStream++) {
+            if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
                 continue;
             }
+            routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
             audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, true /*fromCache*/);
             // it is possible that the requested device is not selected by the strategy
             // (e.g an explicit audio patch is active causing getDevicesForStream()
@@ -1970,15 +1960,12 @@ status_t AudioPolicyManager::registerEffect(const effect_descriptor_t *desc,
 bool AudioPolicyManager::isStreamActive(audio_stream_type_t stream, uint32_t inPastMs) const
 {
     bool active = false;
-    routing_strategy strategy = getStrategy(stream);
-    for (int curStream = 0; curStream < AUDIO_STREAM_CNT && !active; curStream++) {
-        routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-        if (!strategiesMatchForvolume(strategy, curStrategy)) {
+    for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT && !active; curStream++) {
+        if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
             continue;
         }
         active = mOutputs.isStreamActive((audio_stream_type_t)curStream, inPastMs);
     }
-
     return active;
 }
 
@@ -2734,10 +2721,7 @@ void AudioPolicyManager::checkStrategyRoute(routing_strategy strategy,
         // invalidate all tracks in this strategy to force re connection.
         // Otherwise select new device on the output mix.
         if (outputs.indexOf(mOutputs.keyAt(j)) < 0) {
-            for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-                if (stream == AUDIO_STREAM_PATCH) {
-                    continue;
-                }
+            for (int stream = 0; stream < AUDIO_STREAM_FOR_POLICY_CNT; stream++) {
                 if (getStrategy((audio_stream_type_t)stream) == strategy) {
                     mpClientInterface->invalidateStream((audio_stream_type_t)stream);
                 }
@@ -4097,10 +4081,7 @@ void AudioPolicyManager::checkOutputForStrategy(routing_strategy strategy)
             }
         }
         // Move tracks associated to this strategy from previous output to new output
-        for (int i = 0; i < AUDIO_STREAM_CNT; i++) {
-            if (i == AUDIO_STREAM_PATCH) {
-                continue;
-            }
+        for (int i = 0; i < AUDIO_STREAM_FOR_POLICY_CNT; i++) {
             if (getStrategy((audio_stream_type_t)i) == strategy) {
                 mpClientInterface->invalidateStream((audio_stream_type_t)i);
             }
@@ -4251,11 +4232,11 @@ audio_devices_t AudioPolicyManager::getNewInputDevice(audio_io_handle_t input)
     return device;
 }
 
-bool AudioPolicyManager::strategiesMatchForvolume(routing_strategy strategy1,
-                                                  routing_strategy strategy2) {
-    return ((strategy1 == strategy2) ||
-            ((strategy1 == STRATEGY_ACCESSIBILITY) && (strategy2 == STRATEGY_MEDIA)) ||
-            ((strategy1 == STRATEGY_MEDIA) && (strategy2 == STRATEGY_ACCESSIBILITY)));
+bool AudioPolicyManager::streamsMatchForvolume(audio_stream_type_t stream1,
+                                               audio_stream_type_t stream2) {
+    return ((stream1 == stream2) ||
+            ((stream1 == AUDIO_STREAM_ACCESSIBILITY) && (stream2 == AUDIO_STREAM_MUSIC)) ||
+            ((stream1 == AUDIO_STREAM_MUSIC) && (stream2 == AUDIO_STREAM_ACCESSIBILITY)));
 }
 
 uint32_t AudioPolicyManager::getStrategyForStream(audio_stream_type_t stream) {
@@ -4270,17 +4251,17 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
         return AUDIO_DEVICE_NONE;
     }
     audio_devices_t devices = AUDIO_DEVICE_NONE;
-    routing_strategy strategy = getStrategy(stream);
-    for (int curStrategy = 0; curStrategy < NUM_STRATEGIES; curStrategy++) {
-        if (!strategiesMatchForvolume(strategy, (routing_strategy)curStrategy)) {
+    for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT; curStream++) {
+        if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
             continue;
         }
+        routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
         audio_devices_t curDevices =
                 getDeviceForStrategy((routing_strategy)curStrategy, true /*fromCache*/);
         SortedVector<audio_io_handle_t> outputs = getOutputsForDevice(curDevices, mOutputs);
         for (size_t i = 0; i < outputs.size(); i++) {
             sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(outputs[i]);
-            if (isStrategyActive(outputDesc, (routing_strategy)curStrategy)) {
+            if (outputDesc->isStreamActive((audio_stream_type_t)curStream)) {
                 curDevices |= outputDesc->device();
             }
         }
@@ -4897,10 +4878,7 @@ void AudioPolicyManager::applyStreamVolumes(const sp<AudioOutputDescriptor>& out
 {
     ALOGVV("applyStreamVolumes() for device %08x", device);
 
-    for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-        if (stream == AUDIO_STREAM_PATCH) {
-            continue;
-        }
+    for (int stream = 0; stream < AUDIO_STREAM_FOR_POLICY_CNT; stream++) {
         checkAndSetVolume((audio_stream_type_t)stream,
                           mVolumeCurves->getVolumeIndex((audio_stream_type_t)stream, device),
                           outputDesc,
@@ -4918,10 +4896,7 @@ void AudioPolicyManager::setStrategyMute(routing_strategy strategy,
 {
     ALOGVV("setStrategyMute() strategy %d, mute %d, output ID %d",
            strategy, on, outputDesc->getId());
-    for (int stream = 0; stream < AUDIO_STREAM_CNT; stream++) {
-        if (stream == AUDIO_STREAM_PATCH) {
-            continue;
-        }
+    for (int stream = 0; stream < AUDIO_STREAM_FOR_POLICY_CNT; stream++) {
         if (getStrategy((audio_stream_type_t)stream) == strategy) {
             setStreamMute((audio_stream_type_t)stream, on, outputDesc, delayMs, device);
         }
@@ -5101,10 +5076,7 @@ bool AudioPolicyManager::isStrategyActive(const sp<AudioOutputDescriptor> output
     if ((sysTime == 0) && (inPastMs != 0)) {
         sysTime = systemTime();
     }
-    for (int i = 0; i < (int)AUDIO_STREAM_CNT; i++) {
-        if (i == AUDIO_STREAM_PATCH) {
-            continue;
-        }
+    for (int i = 0; i < (int)AUDIO_STREAM_FOR_POLICY_CNT; i++) {
         if (((getStrategy((audio_stream_type_t)i) == strategy) ||
                 (NUM_STRATEGIES == strategy)) &&
                 outputDesc->isStreamActive((audio_stream_type_t)i, inPastMs, sysTime)) {
