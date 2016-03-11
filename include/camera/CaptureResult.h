@@ -64,6 +64,12 @@ struct CaptureResultExtras : public android::Parcelable {
     int32_t partialResultCount;
 
     /**
+     * For buffer drop errors, the stream ID for the stream that lost a buffer.
+     * Otherwise -1.
+     */
+    int32_t errorStreamId;
+
+    /**
      * Constructor initializes object as invalid by setting requestId to be -1.
      */
     CaptureResultExtras()
@@ -72,7 +78,8 @@ struct CaptureResultExtras : public android::Parcelable {
           afTriggerId(0),
           precaptureTriggerId(0),
           frameNumber(0),
-          partialResultCount(0) {
+          partialResultCount(0),
+          errorStreamId(-1) {
     }
 
     /**

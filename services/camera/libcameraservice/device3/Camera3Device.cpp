@@ -2495,6 +2495,7 @@ void Camera3Device::notifyError(const camera3_error_msg_t &msg,
                             resultExtras.frameNumber);
                 }
             }
+            resultExtras.errorStreamId = streamId;
             if (listener != NULL) {
                 listener->notifyError(errorCode, resultExtras);
             } else {
