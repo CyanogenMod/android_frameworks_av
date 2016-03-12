@@ -1532,6 +1532,10 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
             }
             oldSequence = newSequence;
 
+            if (status == NOT_ENOUGH_DATA) {
+                restartIfDisabled();
+            }
+
             // Keep the extra references
             proxy = mProxy;
             iMem = mCblkMemory;
@@ -1554,8 +1558,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
         buffer.mFrameCount = audioBuffer->frameCount;
         // FIXME starts the requested timeout and elapsed over from scratch
         status = proxy->obtainBuffer(&buffer, requested, elapsed);
-
-    } while ((status == DEAD_OBJECT) && (tryCounter-- > 0));
+    } while (((status == DEAD_OBJECT) || (status == NOT_ENOUGH_DATA)) && (tryCounter-- > 0));
 
     audioBuffer->frameCount = buffer.mFrameCount;
     audioBuffer->size = buffer.mFrameCount * mFrameSize;
@@ -1588,13 +1591,16 @@ void AudioTrack::releaseBuffer(const Buffer* audioBuffer)
     mProxy->releaseBuffer(&buffer);
 
     // restart track if it was disabled by audioflinger due to previous underrun
-    if (mState == STATE_ACTIVE) {
-        audio_track_cblk_t* cblk = mCblk;
-        if (android_atomic_and(~CBLK_DISABLED, &cblk->mFlags) & CBLK_DISABLED) {
-            ALOGW("releaseBuffer() track %p disabled due to previous underrun, restarting", this);
-            // FIXME ignoring status
-            mAudioTrack->start();
-        }
+    restartIfDisabled();
+}
+
+void AudioTrack::restartIfDisabled()
+{
+    int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
+    if ((mState == STATE_ACTIVE) && (flags & CBLK_DISABLED)) {
+        ALOGW("releaseBuffer() track %p disabled due to previous underrun, restarting", this);
+        // FIXME ignoring status
+        mAudioTrack->start();
     }
 }
 

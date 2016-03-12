@@ -836,6 +836,8 @@ protected:
             // check sample rate and speed is compatible with AudioTrack
             bool     isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) const;
 
+            void     restartIfDisabled();
+
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<IAudioTrack>         mAudioTrack;
     sp<IMemory>             mCblkMemory;

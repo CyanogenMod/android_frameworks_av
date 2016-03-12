@@ -129,6 +129,11 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             status = DEAD_OBJECT;
             goto end;
         }
+        if (flags & CBLK_DISABLED) {
+            ALOGV("Track disabled");
+            status = NOT_ENOUGH_DATA;
+            goto end;
+        }
         // check for obtainBuffer interrupted by client
         if (!ignoreInitialPendingInterrupt && (flags & CBLK_INTERRUPT)) {
             ALOGV("obtainBuffer() interrupted by client");
@@ -425,7 +430,8 @@ status_t AudioTrackClientProxy::waitStreamEndDone(const struct timespec *request
             status = DEAD_OBJECT;
             goto end;
         }
-        if (flags & CBLK_STREAM_END_DONE) {
+        // a track is not supposed to underrun at this stage but consider it done
+        if (flags & (CBLK_STREAM_END_DONE | CBLK_DISABLED)) {
             ALOGV("stream end received");
             status = NO_ERROR;
             goto end;
