@@ -1020,6 +1020,7 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
             }
 
             mIInterval = avcType->nPFrames + avcType->nBFrames;
+            mConstrainedIntraFlag = avcType->bconstIpred;
 
             if (OMX_VIDEO_AVCLoopFilterDisable == avcType->eLoopFilterMode)
                 mDisableDeblkLevel = 4;
@@ -1029,7 +1030,6 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
                     || avcType->nRefIdx10ActiveMinus1 != 0
                     || avcType->nRefIdx11ActiveMinus1 != 0
                     || avcType->bWeightedPPrediction != OMX_FALSE
-                    || avcType->bconstIpred != OMX_FALSE
                     || avcType->bDirect8x8Inference != OMX_FALSE
                     || avcType->bDirectSpatialTemporal != OMX_FALSE
                     || avcType->nCabacInitIdc != 0) {
