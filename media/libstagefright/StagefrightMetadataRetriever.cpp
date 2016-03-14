@@ -215,6 +215,7 @@ static VideoFrame *extractVideoFrame(
     if (err != OK) {
         ALOGW("failed to get input buffers: %d (%s)", err, asString(err));
         decoder->release();
+        source->stop();
         return NULL;
     }
 
@@ -223,6 +224,7 @@ static VideoFrame *extractVideoFrame(
     if (err != OK) {
         ALOGW("failed to get output buffers: %d (%s)", err, asString(err));
         decoder->release();
+        source->stop();
         return NULL;
     }
 
@@ -328,7 +330,6 @@ static VideoFrame *extractVideoFrame(
     if (err != OK || size <= 0 || outputFormat == NULL) {
         ALOGE("Failed to decode thumbnail frame");
         source->stop();
-        decoder->stop();
         decoder->release();
         return NULL;
     }
@@ -401,7 +402,6 @@ static VideoFrame *extractVideoFrame(
     videoFrameBuffer.clear();
     source->stop();
     decoder->releaseOutputBuffer(index);
-    decoder->stop();
     decoder->release();
 
     if (err != OK) {
