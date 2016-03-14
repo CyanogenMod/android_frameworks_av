@@ -151,6 +151,7 @@ static AMediaCodec * createAMediaCodec(const char *name, bool name_is_type, bool
             PRIORITY_FOREGROUND);
     if (res != OK) {
         ALOGE("Failed to start the looper");
+        AMediaCodec_delete(mData);
         return NULL;
     }
     if (name_is_type) {
