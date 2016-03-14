@@ -42,7 +42,7 @@ namespace android {
 
 const int32_t kDefaultSwVideoEncoderFormat = HAL_PIXEL_FORMAT_YCbCr_420_888;
 const int32_t kDefaultHwVideoEncoderFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
-const int32_t kDefaultVideoEncoderDataSpace = HAL_DATASPACE_BT709;
+const int32_t kDefaultVideoEncoderDataSpace = HAL_DATASPACE_V0_BT709;
 
 const int kStopTimeoutUs = 300000; // allow 1 sec for shutting down encoder
 
