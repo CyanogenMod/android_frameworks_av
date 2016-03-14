@@ -110,10 +110,13 @@ protected:
     // audioHalFrames is derived from output latency
     // FIXME parameters not needed, could get them from the thread
     bool presentationComplete(int64_t framesWritten, size_t audioHalFrames);
+    void signalClientFlag(int32_t flag);
 
 public:
     void triggerEvents(AudioSystem::sync_event_t type);
     void invalidate();
+    void disable();
+
     bool isInvalid() const { return mIsInvalid; }
     int fastIndex() const { return mFastIndex; }
 
@@ -200,6 +203,8 @@ private:
                                      uint32_t waitTimeMs);
     void                clearBufferQueue();
 
+    void                restartIfDisabled();
+
     // Maximum number of pending buffers allocated by OutputTrack::write()
     static const uint8_t kMaxOverFlowBuffers = 10;
 
@@ -224,6 +229,10 @@ public:
                                    IAudioFlinger::track_flags_t flags);
     virtual             ~PatchTrack();
 
+    virtual status_t    start(AudioSystem::sync_event_t event =
+                                    AudioSystem::SYNC_EVENT_NONE,
+                             int triggerSession = 0);
+
     // AudioBufferProvider interface
     virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);
     virtual void releaseBuffer(AudioBufferProvider::Buffer* buffer);
@@ -236,6 +245,8 @@ public:
             void setPeerProxy(PatchProxyBufferProvider *proxy) { mPeerProxy = proxy; }
 
 private:
+            void restartIfDisabled();
+
     sp<ClientProxy>             mProxy;
     PatchProxyBufferProvider*   mPeerProxy;
     struct timespec             mPeerTimeout;

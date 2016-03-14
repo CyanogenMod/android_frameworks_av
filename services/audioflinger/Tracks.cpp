@@ -1027,13 +1027,23 @@ status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& 
 
 void AudioFlinger::PlaybackThread::Track::invalidate()
 {
+    signalClientFlag(CBLK_INVALID);
+    mIsInvalid = true;
+}
+
+void AudioFlinger::PlaybackThread::Track::disable()
+{
+    signalClientFlag(CBLK_DISABLED);
+}
+
+void AudioFlinger::PlaybackThread::Track::signalClientFlag(int32_t flag)
+{
     // FIXME should use proxy, and needs work
     audio_track_cblk_t* cblk = mCblk;
-    android_atomic_or(CBLK_INVALID, &cblk->mFlags);
+    android_atomic_or(flag, &cblk->mFlags);
     android_atomic_release_store(0x40000000, &cblk->mFutex);
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) syscall(__NR_futex, &cblk->mFutex, FUTEX_WAKE, INT_MAX);
-    mIsInvalid = true;
 }
 
 void AudioFlinger::PlaybackThread::Track::signal()
@@ -1199,7 +1209,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
             mOutBuffer.frameCount = pInBuffer->frameCount;
             nsecs_t startTime = systemTime();
             status_t status = obtainBuffer(&mOutBuffer, waitTimeLeftMs);
-            if (status != NO_ERROR) {
+            if (status != NO_ERROR && status != NOT_ENOUGH_DATA) {
                 ALOGV("OutputTrack::write() %p thread %p no more output buffers; status %d", this,
                         mThread.unsafe_get(), status);
                 outputBufferFull = true;
@@ -1211,6 +1221,10 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
             } else {
                 waitTimeLeftMs = 0;
             }
+            if (status == NOT_ENOUGH_DATA) {
+                restartIfDisabled();
+                continue;
+            }
         }
 
         uint32_t outFrames = pInBuffer->frameCount > mOutBuffer.frameCount ? mOutBuffer.frameCount :
@@ -1220,6 +1234,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
         buf.mFrameCount = outFrames;
         buf.mRaw = NULL;
         mClientProxy->releaseBuffer(&buf);
+        restartIfDisabled();
         pInBuffer->frameCount -= outFrames;
         pInBuffer->raw = (int8_t *)pInBuffer->raw + outFrames * mFrameSize;
         mOutBuffer.frameCount -= outFrames;
@@ -1293,6 +1308,13 @@ void AudioFlinger::PlaybackThread::OutputTrack::clearBufferQueue()
     mBufferQueue.clear();
 }
 
+void AudioFlinger::PlaybackThread::OutputTrack::restartIfDisabled()
+{
+    int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
+    if (mActive && (flags & CBLK_DISABLED)) {
+        start();
+    }
+}
 
 AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThread,
                                                      audio_stream_type_t streamType,
@@ -1320,6 +1342,17 @@ AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThr
 
 AudioFlinger::PlaybackThread::PatchTrack::~PatchTrack()
 {
+}
+
+status_t AudioFlinger::PlaybackThread::PatchTrack::start(AudioSystem::sync_event_t event,
+                                                          int triggerSession)
+{
+    status_t status = Track::start(event, triggerSession);
+    if (status != NO_ERROR) {
+        return status;
+    }
+    android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
+    return status;
 }
 
 // AudioBufferProvider interface
@@ -1352,17 +1385,31 @@ void AudioFlinger::PlaybackThread::PatchTrack::releaseBuffer(AudioBufferProvider
 status_t AudioFlinger::PlaybackThread::PatchTrack::obtainBuffer(Proxy::Buffer* buffer,
                                                                 const struct timespec *timeOut)
 {
-    return mProxy->obtainBuffer(buffer, timeOut);
+    status_t status = NO_ERROR;
+    static const int32_t kMaxTries = 5;
+    int32_t tryCounter = kMaxTries;
+    do {
+        if (status == NOT_ENOUGH_DATA) {
+            restartIfDisabled();
+        }
+        status = mProxy->obtainBuffer(buffer, timeOut);
+    } while ((status == NOT_ENOUGH_DATA) && (tryCounter-- > 0));
+    return status;
 }
 
 void AudioFlinger::PlaybackThread::PatchTrack::releaseBuffer(Proxy::Buffer* buffer)
 {
     mProxy->releaseBuffer(buffer);
+    restartIfDisabled();
+    android_atomic_or(CBLK_FORCEREADY, &mCblk->mFlags);
+}
+
+void AudioFlinger::PlaybackThread::PatchTrack::restartIfDisabled()
+{
     if (android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags) & CBLK_DISABLED) {
         ALOGW("PatchTrack::releaseBuffer() disabled due to previous underrun, restarting");
         start();
     }
-    android_atomic_or(CBLK_FORCEREADY, &mCblk->mFlags);
 }
 
 // ----------------------------------------------------------------------------

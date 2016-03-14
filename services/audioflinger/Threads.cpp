@@ -1113,7 +1113,7 @@ void AudioFlinger::ThreadBase::updateWakeLockUids_l(const SortedVector<int> &uid
         status_t status;
         status = mPowerManager->updateWakeLockUids(mWakeLockToken, uids.size(), uids.array(),
                     true /* FIXME force oneway contrary to .aidl */);
-        ALOGV("acquireWakeLock_l() %s status %d", mThreadName, status);
+        ALOGV("updateWakeLockUids_l() %s status %d", mThreadName, status);
     }
 }
 
@@ -3961,7 +3961,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     }
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &track->mCblk->mFlags);
+                    track->disable();
                     // remove from active list, but state remains ACTIVE [confusing but true]
                     isActive = false;
                     break;
@@ -4322,7 +4322,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
+                    track->disable();
                 // If one track is not ready, mark the mixer also not ready if:
                 //  - the mixer was ready during previous round OR
                 //  - no other track is ready
@@ -4869,7 +4869,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
+                    track->disable();
                 } else if (last) {
                     ALOGW("pause because of UNDERRUN, framesReady = %zu,"
                             "minFrames = %u, mFormat = %#x",
@@ -5423,7 +5423,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                     tracksToRemove->add(track);
                     // indicate to client process that the track was disabled because of underrun;
                     // it will then automatically call start() when data is available
-                    android_atomic_or(CBLK_DISABLED, &cblk->mFlags);
+                    track->disable();
                 } else if (last){
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }

@@ -268,6 +268,8 @@ public:
     //  DEAD_OBJECT Server has died or invalidated, caller should destroy this proxy and re-create.
     //  -EINTR      Call has been interrupted.  Look around to see why, and then perhaps try again.
     //  NO_INIT     Shared memory is corrupt.
+    //  NOT_ENOUGH_DATA Server has disabled the track because of underrun: restart the track
+    //              if still in active state.
     // Assertion failure on entry, if buffer == NULL or buffer->mFrameCount == 0.
     status_t    obtainBuffer(Buffer* buffer, const struct timespec *requested = NULL,
             struct timespec *elapsed = NULL);
