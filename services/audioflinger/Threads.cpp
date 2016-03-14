@@ -6078,8 +6078,10 @@ reacquire_wakelock:
             }
         // otherwise use the HAL / AudioStreamIn directly
         } else {
+            ATRACE_BEGIN("read");
             ssize_t bytesRead = mInput->stream->read(mInput->stream,
                     (uint8_t*)mRsmpInBuffer + rear * mFrameSize, mBufferSize);
+            ATRACE_END();
             if (bytesRead < 0) {
                 framesRead = bytesRead;
             } else {
