@@ -40,10 +40,6 @@ struct OMXCodec : public MediaSource,
         kPreferSoftwareCodecs    = 1,
         kIgnoreCodecSpecificData = 2,
 
-        // The client wants to access the output buffer's video
-        // data for example for thumbnail extraction.
-        kClientNeedsFramebuffer  = 4,
-
         // Request for software or hardware codecs. If request
         // can not be fullfilled, Create() returns NULL.
         kSoftwareCodecsOnly      = 8,
