@@ -43,6 +43,12 @@ public:
                                 uint32_t flags);
 
 private:
+
+    // Internal dump
+    static const int kDumpLockRetries = 50;
+    static const int kDumpLockSleepUs = 20000;
+    static bool dumpTryLock(Mutex& mutex);
+
     Mutex               mLock;
     class NamedReader {
     public:
