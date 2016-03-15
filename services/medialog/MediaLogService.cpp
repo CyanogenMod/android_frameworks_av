@@ -26,6 +26,8 @@
 
 namespace android {
 
+static const char kDeadlockedString[] = "MediaLogService may be deadlocked\n";
+
 void MediaLogService::registerWriter(const sp<IMemory>& shared, size_t size, const char *name)
 {
     if (IPCThreadState::self()->getCallingUid() != AID_AUDIOSERVER || shared == 0 ||
@@ -54,6 +56,19 @@ void MediaLogService::unregisterWriter(const sp<IMemory>& shared)
     }
 }
 
+bool MediaLogService::dumpTryLock(Mutex& mutex)
+{
+    bool locked = false;
+    for (int i = 0; i < kDumpLockRetries; ++i) {
+        if (mutex.tryLock() == NO_ERROR) {
+            locked = true;
+            break;
+        }
+        usleep(kDumpLockSleepUs);
+    }
+    return locked;
+}
+
 status_t MediaLogService::dump(int fd, const Vector<String16>& args __unused)
 {
     // FIXME merge with similar but not identical code at services/audioflinger/ServiceUtilities.cpp
@@ -68,9 +83,22 @@ status_t MediaLogService::dump(int fd, const Vector<String16>& args __unused)
 
     Vector<NamedReader> namedReaders;
     {
-        Mutex::Autolock _l(mLock);
+        bool locked = dumpTryLock(mLock);
+
+        // failed to lock - MediaLogService is probably deadlocked
+        if (!locked) {
+            String8 result(kDeadlockedString);
+            if (fd >= 0) {
+                write(fd, result.string(), result.size());
+            } else {
+                ALOGW("%s:", result.string());
+            }
+            return NO_ERROR;
+        }
         namedReaders = mNamedReaders;
+        mLock.unlock();
     }
+
     for (size_t i = 0; i < namedReaders.size(); i++) {
         const NamedReader& namedReader = namedReaders[i];
         if (fd >= 0) {
