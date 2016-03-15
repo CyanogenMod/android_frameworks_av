@@ -139,18 +139,18 @@ status_t AudioFlinger::PatchPanel::getAudioPort(struct audio_port *port __unused
 status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *patch,
                                    audio_patch_handle_t *handle)
 {
-    ALOGV("createAudioPatch() num_sources %d num_sinks %d handle %d",
-          patch->num_sources, patch->num_sinks, *handle);
     status_t status = NO_ERROR;
     audio_patch_handle_t halHandle = AUDIO_PATCH_HANDLE_NONE;
     sp<AudioFlinger> audioflinger = mAudioFlinger.promote();
+    if (handle == NULL || patch == NULL) {
+        return BAD_VALUE;
+    }
+    ALOGV("createAudioPatch() num_sources %d num_sinks %d handle %d",
+          patch->num_sources, patch->num_sinks, *handle);
     if (audioflinger == 0) {
         return NO_INIT;
     }
 
-    if (handle == NULL || patch == NULL) {
-        return BAD_VALUE;
-    }
     if (patch->num_sources == 0 || patch->num_sources > AUDIO_PATCH_PORTS_MAX ||
             (patch->num_sinks == 0 && patch->num_sources != 2) ||
             patch->num_sinks > AUDIO_PATCH_PORTS_MAX) {
