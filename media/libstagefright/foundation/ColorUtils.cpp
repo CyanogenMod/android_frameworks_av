@@ -29,6 +29,7 @@ namespace android {
 typedef ColorAspects CA;
 typedef ColorUtils CU;
 
+const static
 ALookup<CU::ColorRange, CA::Range> sRanges{
     {
         { CU::kColorRangeLimited, CA::RangeLimited },
@@ -37,6 +38,7 @@ ALookup<CU::ColorRange, CA::Range> sRanges{
     }
 };
 
+const static
 ALookup<CU::ColorStandard, std::pair<CA::Primaries, CA::MatrixCoeffs>> sStandards {
     {
         { CU::kColorStandardUnspecified,    { CA::PrimariesUnspecified, CA::MatrixUnspecified } },
@@ -56,6 +58,7 @@ ALookup<CU::ColorStandard, std::pair<CA::Primaries, CA::MatrixCoeffs>> sStandard
     }
 };
 
+const static
 ALookup<CU::ColorTransfer, CA::Transfer> sTransfers{
     {
         { CU::kColorTransferUnspecified,    CA::TransferUnspecified },
@@ -241,6 +244,97 @@ status_t ColorUtils::convertCodecColorAspectsToPlatformAspects(
     } else {
         return BAD_VALUE;
     }
+}
+
+const static
+ALookup<int32_t, ColorAspects::Primaries> sIsoPrimaries {
+    {
+        { 1, ColorAspects::PrimariesBT709_5 },
+        { 2, ColorAspects::PrimariesUnspecified },
+        { 4, ColorAspects::PrimariesBT470_6M },
+        { 5, ColorAspects::PrimariesBT601_6_625 },
+        { 6, ColorAspects::PrimariesBT601_6_525 /* main */},
+        { 7, ColorAspects::PrimariesBT601_6_525 },
+        // -- ITU T.832 201201 ends here
+        { 8, ColorAspects::PrimariesGenericFilm },
+        { 9, ColorAspects::PrimariesBT2020 },
+        { 10, ColorAspects::PrimariesOther /* XYZ */ },
+    }
+};
+
+const static
+ALookup<int32_t, ColorAspects::Transfer> sIsoTransfers {
+    {
+        { 1, ColorAspects::TransferSMPTE170M /* main */},
+        { 2, ColorAspects::TransferUnspecified },
+        { 4, ColorAspects::TransferGamma22 },
+        { 5, ColorAspects::TransferGamma28 },
+        { 6, ColorAspects::TransferSMPTE170M },
+        { 7, ColorAspects::TransferSMPTE240M },
+        { 8, ColorAspects::TransferLinear },
+        { 9, ColorAspects::TransferOther /* log 100:1 */ },
+        { 10, ColorAspects::TransferOther /* log 316:1 */ },
+        { 11, ColorAspects::TransferXvYCC },
+        { 12, ColorAspects::TransferBT1361 },
+        { 13, ColorAspects::TransferSRGB },
+        // -- ITU T.832 201201 ends here
+        { 14, ColorAspects::TransferSMPTE170M },
+        { 15, ColorAspects::TransferSMPTE170M },
+        { 16, ColorAspects::TransferST2084 },
+        { 17, ColorAspects::TransferST428 },
+    }
+};
+
+const static
+ALookup<int32_t, ColorAspects::MatrixCoeffs> sIsoMatrixCoeffs {
+    {
+        { 0, ColorAspects::MatrixOther },
+        { 1, ColorAspects::MatrixBT709_5 },
+        { 2, ColorAspects::MatrixUnspecified },
+        { 4, ColorAspects::MatrixBT470_6M },
+        { 6, ColorAspects::MatrixBT601_6 /* main */ },
+        { 5, ColorAspects::MatrixBT601_6 },
+        { 7, ColorAspects::MatrixSMPTE240M },
+        { 8, ColorAspects::MatrixOther /* YCgCo */ },
+        // -- ITU T.832 201201 ends here
+        { 9, ColorAspects::MatrixBT2020 },
+        { 10, ColorAspects::MatrixBT2020Constant },
+    }
+};
+
+// static
+void ColorUtils::convertCodecColorAspectsToIsoAspects(
+        const ColorAspects &aspects,
+        int32_t *primaries, int32_t *transfer, int32_t *coeffs, bool *fullRange) {
+    if (aspects.mPrimaries == ColorAspects::PrimariesOther ||
+            !sIsoPrimaries.map(aspects.mPrimaries, primaries)) {
+        CHECK(sIsoPrimaries.map(ColorAspects::PrimariesUnspecified, primaries));
+    }
+    if (aspects.mTransfer == ColorAspects::TransferOther ||
+            !sIsoTransfers.map(aspects.mTransfer, transfer)) {
+        CHECK(sIsoTransfers.map(ColorAspects::TransferUnspecified, transfer));
+    }
+    if (aspects.mMatrixCoeffs == ColorAspects::MatrixOther ||
+            !sIsoMatrixCoeffs.map(aspects.mMatrixCoeffs, coeffs)) {
+        CHECK(sIsoMatrixCoeffs.map(ColorAspects::MatrixUnspecified, coeffs));
+    }
+    *fullRange = aspects.mRange == ColorAspects::RangeFull;
+}
+
+// static
+void ColorUtils::convertIsoColorAspectsToCodecAspects(
+        int32_t primaries, int32_t transfer, int32_t coeffs, bool fullRange,
+        ColorAspects &aspects) {
+    if (!sIsoPrimaries.map(primaries, &aspects.mPrimaries)) {
+        aspects.mPrimaries = ColorAspects::PrimariesUnspecified;
+    }
+    if (!sIsoTransfers.map(transfer, &aspects.mTransfer)) {
+        aspects.mTransfer = ColorAspects::TransferUnspecified;
+    }
+    if (!sIsoMatrixCoeffs.map(coeffs, &aspects.mMatrixCoeffs)) {
+        aspects.mMatrixCoeffs = ColorAspects::MatrixUnspecified;
+    }
+    aspects.mRange = fullRange ? ColorAspects::RangeFull : ColorAspects::RangeLimited;
 }
 
 // static

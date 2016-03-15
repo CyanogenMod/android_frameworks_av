@@ -30,6 +30,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/ColorUtils.h>
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MetaData.h>
@@ -371,6 +372,7 @@ private:
     void writeVmhdBox();
     void writeHdlrBox();
     void writeTkhdBox(uint32_t now);
+    void writeColrBox();
     void writeMp4aEsdsBox();
     void writeMp4vEsdsBox();
     void writeAudioFourCCBox();
@@ -2353,6 +2355,7 @@ status_t MPEG4Writer::Track::threadEntry() {
         if (buffer->meta_data()->findInt32(kKeyIsCodecConfig, &isCodecConfig)
                 && isCodecConfig) {
             CHECK(!mGotAllCodecSpecificData);
+            mMeta = mSource->getFormat(); // get output format after format change
 
             if (mIsAvc) {
                 status_t err = makeAVCCodecSpecificData(
@@ -2960,7 +2963,30 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
     }
 
     writePaspBox();
+    writeColrBox();
     mOwner->endBox();  // mp4v, s263 or avc1
+}
+
+void MPEG4Writer::Track::writeColrBox() {
+    ColorAspects aspects;
+    memset(&aspects, 0, sizeof(aspects));
+    // TRICKY: using | instead of || because we want to execute all findInt32-s
+    if (mMeta->findInt32(kKeyColorPrimaries, (int32_t*)&aspects.mPrimaries)
+            | mMeta->findInt32(kKeyTransferFunction, (int32_t*)&aspects.mTransfer)
+            | mMeta->findInt32(kKeyColorMatrix, (int32_t*)&aspects.mMatrixCoeffs)
+            | mMeta->findInt32(kKeyColorRange, (int32_t*)&aspects.mRange)) {
+        int32_t primaries, transfer, coeffs;
+        bool fullRange;
+        ColorUtils::convertCodecColorAspectsToIsoAspects(
+                aspects, &primaries, &transfer, &coeffs, &fullRange);
+        mOwner->beginBox("colr");
+        mOwner->writeFourcc("nclx");
+        mOwner->writeInt16(primaries);
+        mOwner->writeInt16(transfer);
+        mOwner->writeInt16(coeffs);
+        mOwner->writeInt8(fullRange ? 128 : 0);
+        mOwner->endBox(); // colr
+    }
 }
 
 void MPEG4Writer::Track::writeAudioFourCCBox() {

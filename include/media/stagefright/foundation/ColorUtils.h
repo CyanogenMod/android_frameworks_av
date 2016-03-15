@@ -129,6 +129,15 @@ struct ColorUtils {
     static status_t convertCodecColorAspectsToPlatformAspects(
             const ColorAspects &aspects, int32_t *range, int32_t *standard, int32_t *transfer);
 
+    // converts Other values to Unspecified
+    static void convertCodecColorAspectsToIsoAspects(
+            const ColorAspects &aspects,
+            int32_t *primaries, int32_t *transfer, int32_t *coeffs, bool *fullRange);
+    // converts unsupported values to Other
+    static void convertIsoColorAspectsToCodecAspects(
+            int32_t primaries, int32_t transfer, int32_t coeffs, bool fullRange,
+            ColorAspects &aspects);
+
     // updates Unspecified color aspects to their defaults based on the video size
     static void setDefaultCodecColorAspectsIfNeeded(
             ColorAspects &aspects, int32_t width, int32_t height);

@@ -27,14 +27,14 @@ template<typename T, typename U>
 struct ALookup {
     ALookup(std::initializer_list<std::pair<T, U>> list);
 
-    bool lookup(const T& from, U *to);
-    bool rlookup(const U& from, T *to);
+    bool lookup(const T& from, U *to) const;
+    bool rlookup(const U& from, T *to) const;
 
     template<typename V, typename = typename std::enable_if<!std::is_same<T, V>::value>::type>
-    inline bool map(const T& from, V *to) { return lookup(from, to); }
+    inline bool map(const T& from, V *to) const { return lookup(from, to); }
 
     template<typename V, typename = typename std::enable_if<!std::is_same<T, V>::value>::type>
-    inline bool map(const V& from, T *to) { return rlookup(from, to); }
+    inline bool map(const V& from, T *to) const { return rlookup(from, to); }
 
 private:
     std::vector<std::pair<T, U>> mTable;
@@ -46,7 +46,7 @@ ALookup<T, U>::ALookup(std::initializer_list<std::pair<T, U>> list)
 }
 
 template<typename T, typename U>
-bool ALookup<T, U>::lookup(const T& from, U *to) {
+bool ALookup<T, U>::lookup(const T& from, U *to) const {
     for (auto elem : mTable) {
         if (elem.first == from) {
             *to = elem.second;
@@ -57,7 +57,7 @@ bool ALookup<T, U>::lookup(const T& from, U *to) {
 }
 
 template<typename T, typename U>
-bool ALookup<T, U>::rlookup(const U& from, T *to) {
+bool ALookup<T, U>::rlookup(const U& from, T *to) const {
     for (auto elem : mTable) {
         if (elem.second == from) {
             *to = elem.first;

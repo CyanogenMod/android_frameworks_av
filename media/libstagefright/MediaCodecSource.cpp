@@ -781,6 +781,13 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
 
             mAvailEncoderInputIndices.push_back(index);
             feedEncoderInputBuffers();
+        } else if (cbID == MediaCodec::CB_OUTPUT_FORMAT_CHANGED) {
+            status_t err = mEncoder->getOutputFormat(&mOutputFormat);
+            if (err != OK) {
+                signalEOS(err);
+                break;
+            }
+            convertMessageToMetaData(mOutputFormat, mMeta);
         } else if (cbID == MediaCodec::CB_OUTPUT_AVAILABLE) {
             int32_t index;
             size_t offset;
