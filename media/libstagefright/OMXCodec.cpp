@@ -349,21 +349,6 @@ sp<MediaSource> OMXCodec::Create(
 
         ALOGV("Attempting to allocate OMX node '%s'", componentName);
 
-        if (!createEncoder
-                && (quirks & kOutputBuffersAreUnreadable)
-                && (flags & kClientNeedsFramebuffer)) {
-            if (strncmp(componentName, "OMX.SEC.", 8)) {
-                // For OMX.SEC.* decoders we can enable a special mode that
-                // gives the client access to the framebuffer contents.
-
-                ALOGW("Component '%s' does not give the client access to "
-                     "the framebuffer contents. Skipping.",
-                     componentName);
-
-                continue;
-            }
-        }
-
         status_t err = omx->allocateNode(componentName, observer, &node);
         if (err == OK) {
             ALOGV("Successfully allocated OMX node '%s'", componentName);
@@ -671,35 +656,6 @@ status_t OMXCodec::configureCodec(const sp<MetaData> &meta) {
     }
 
     initOutputFormat(meta);
-
-    if ((mFlags & kClientNeedsFramebuffer)
-            && !strncmp(mComponentName, "OMX.SEC.", 8)) {
-        // This appears to no longer be needed???
-
-        OMX_INDEXTYPE index;
-
-        status_t err =
-            mOMX->getExtensionIndex(
-                    mNode,
-                    "OMX.SEC.index.ThumbnailMode",
-                    &index);
-
-        if (err != OK) {
-            return err;
-        }
-
-        OMX_BOOL enable = OMX_TRUE;
-        err = mOMX->setConfig(mNode, index, &enable, sizeof(enable));
-
-        if (err != OK) {
-            CODEC_LOGE("setConfig('OMX.SEC.index.ThumbnailMode') "
-                       "returned error 0x%08x", err);
-
-            return err;
-        }
-
-        mQuirks &= ~kOutputBuffersAreUnreadable;
-    }
 
     if (mNativeWindow != NULL
         && !mIsEncoder
