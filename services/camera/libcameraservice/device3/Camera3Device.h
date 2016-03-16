@@ -404,6 +404,11 @@ class Camera3Device :
      */
     static nsecs_t getMonoToBoottimeOffset();
 
+    /**
+     * Helper function to map between legacy and new dataspace enums
+     */
+    static android_dataspace mapToLegacyDataspace(android_dataspace dataSpace);
+
     struct RequestTrigger {
         // Metadata tag number, e.g. android.control.aePrecaptureTrigger
         uint32_t metadataTag;

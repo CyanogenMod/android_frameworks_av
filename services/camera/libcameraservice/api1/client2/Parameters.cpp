@@ -872,7 +872,7 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
 
     // Set up initial state for non-Camera.Parameters state variables
     videoFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
-    videoDataSpace = HAL_DATASPACE_BT709;
+    videoDataSpace = HAL_DATASPACE_V0_BT709;
     videoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV;
     playShutterSound = true;
     enableFaceDetect = false;

@@ -758,7 +758,7 @@ status_t CameraSource::start(MetaData *meta) {
     mStartTimeUs = 0;
     mNumInputBuffers = 0;
     mEncoderFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
-    mEncoderDataSpace = HAL_DATASPACE_BT709;
+    mEncoderDataSpace = HAL_DATASPACE_V0_BT709;
 
     if (meta) {
         int64_t startTimeUs;

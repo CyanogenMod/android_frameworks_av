@@ -410,6 +410,31 @@ nsecs_t Camera3Device::getMonoToBoottimeOffset() {
     return measured;
 }
 
+/**
+ * Map Android N dataspace definitions back to Android M definitions, for
+ * use with HALv3.3 or older.
+ *
+ * Only map where correspondences exist, and otherwise preserve the value.
+ */
+android_dataspace Camera3Device::mapToLegacyDataspace(android_dataspace dataSpace) {
+    switch (dataSpace) {
+        case HAL_DATASPACE_V0_SRGB_LINEAR:
+            return HAL_DATASPACE_SRGB_LINEAR;
+        case HAL_DATASPACE_V0_SRGB:
+            return HAL_DATASPACE_SRGB;
+        case HAL_DATASPACE_V0_JFIF:
+            return HAL_DATASPACE_JFIF;
+        case HAL_DATASPACE_V0_BT601_625:
+            return HAL_DATASPACE_BT601_625;
+        case HAL_DATASPACE_V0_BT601_525:
+            return HAL_DATASPACE_BT601_525;
+        case HAL_DATASPACE_V0_BT709:
+            return HAL_DATASPACE_BT709;
+        default:
+            return dataSpace;
+    }
+}
+
 ssize_t Camera3Device::getJpegBufferSize(uint32_t width, uint32_t height) const {
     // Get max jpeg size (area-wise).
     Size maxJpegResolution = getMaxJpegResolution();
@@ -1005,6 +1030,10 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
     // such devices.
     if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_2) {
         streamSetId = CAMERA3_STREAM_SET_ID_INVALID;
+    }
+    // Use legacy dataspace values for older HALs
+    if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_3) {
+        dataSpace = mapToLegacyDataspace(dataSpace);
     }
     if (format == HAL_PIXEL_FORMAT_BLOB) {
         ssize_t blobBufferSize;
