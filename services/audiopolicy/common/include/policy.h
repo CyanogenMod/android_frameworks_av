@@ -42,9 +42,9 @@ static const audio_format_t gDynamicFormat = AUDIO_FORMAT_DEFAULT;
  * A device mask for all audio input and output devices where matching inputs/outputs on device
  * type alone is not enough: the address must match too
  */
-#define APM_AUDIO_DEVICE_OUT_MATCH_ADDRESS_ALL (AUDIO_DEVICE_OUT_REMOTE_SUBMIX)
+#define APM_AUDIO_DEVICE_OUT_MATCH_ADDRESS_ALL (AUDIO_DEVICE_OUT_REMOTE_SUBMIX|AUDIO_DEVICE_OUT_BUS)
 
-#define APM_AUDIO_DEVICE_IN_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX)
+#define APM_AUDIO_DEVICE_IN_MATCH_ADDRESS_ALL (AUDIO_DEVICE_IN_REMOTE_SUBMIX|AUDIO_DEVICE_IN_BUS)
 
 /**
  * Check if the state given correspond to an in call state.

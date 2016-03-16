@@ -51,6 +51,7 @@ namespace android {
 
 #define MIX_ROUTE_FLAG_RENDER 0x1
 #define MIX_ROUTE_FLAG_LOOP_BACK (0x1 << 1)
+#define MIX_ROUTE_FLAG_ALL (MIX_ROUTE_FLAG_RENDER | MIX_ROUTE_FLAG_LOOP_BACK)
 
 #define MAX_MIXES_PER_POLICY 10
 #define MAX_CRITERIA_PER_MIX 20
@@ -81,7 +82,7 @@ public:
     AudioMix(Vector<AudioMixMatchCriterion> criteria, uint32_t mixType, audio_config_t format,
              uint32_t routeFlags, String8 registrationId, uint32_t flags) :
         mCriteria(criteria), mMixType(mixType), mFormat(format),
-        mRouteFlags(routeFlags), mRegistrationId(registrationId), mCbFlags(flags){}
+        mRouteFlags(routeFlags), mDeviceAddress(registrationId), mCbFlags(flags){}
 
     status_t readFromParcel(Parcel *parcel);
     status_t writeToParcel(Parcel *parcel) const;
@@ -90,7 +91,8 @@ public:
     uint32_t        mMixType;
     audio_config_t  mFormat;
     uint32_t        mRouteFlags;
-    String8         mRegistrationId;
+    audio_devices_t mDeviceType;
+    String8         mDeviceAddress;
     uint32_t        mCbFlags; // flags indicating which callbacks to use, see kCbFlag*
 };
 

@@ -51,7 +51,8 @@ android::AudioMix *AudioPolicyMix::getMix()
     return &mMix;
 }
 
-status_t AudioPolicyMixCollection::registerMix(String8 address, AudioMix mix)
+status_t AudioPolicyMixCollection::registerMix(String8 address, AudioMix mix,
+                                               sp<SwAudioOutputDescriptor> desc)
 {
     ssize_t index = indexOfKey(address);
     if (index >= 0) {
@@ -61,6 +62,11 @@ status_t AudioPolicyMixCollection::registerMix(String8 address, AudioMix mix)
     sp<AudioPolicyMix> policyMix = new AudioPolicyMix();
     policyMix->setMix(mix);
     add(address, policyMix);
+
+    if (desc != 0) {
+        desc->mPolicyMix = policyMix->getMix();
+        policyMix->setOutput(desc);
+    }
     return NO_ERROR;
 }
 
@@ -128,7 +134,7 @@ status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attribute
                 // if there is an address match, prioritize that match
                 if (strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
                         strncmp(attributes.tags + strlen("addr="),
-                                mix->mRegistrationId.string(),
+                                mix->mDeviceAddress.string(),
                                 AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
                     hasAddrMatch = true;
                     break;
@@ -207,7 +213,7 @@ status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attribute
             if (attributes.usage == AUDIO_USAGE_VIRTUAL_SOURCE &&
                     strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
                     strncmp(attributes.tags + strlen("addr="),
-                            mix->mRegistrationId.string(),
+                            mix->mDeviceAddress.string(),
                             AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - strlen("addr=") - 1) == 0) {
                 desc = policyMix->getOutput();
             }
@@ -260,7 +266,7 @@ status_t AudioPolicyMixCollection::getInputMixForAttr(audio_attributes_t attr, A
     for (size_t i = 0; i < size(); i++) {
             sp<AudioPolicyMix> policyMix = valueAt(i);
             AudioMix *mix = policyMix->getMix();
-            ALOGV("\tmix %zu address=%s", i, mix->mRegistrationId.string());
+            ALOGV("\tmix %zu address=%s", i, mix->mDeviceAddress.string());
     }
 #endif
 

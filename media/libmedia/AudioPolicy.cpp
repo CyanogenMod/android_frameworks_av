@@ -67,7 +67,8 @@ status_t AudioMix::readFromParcel(Parcel *parcel)
     mFormat.channel_mask = (audio_channel_mask_t)parcel->readInt32();
     mFormat.format = (audio_format_t)parcel->readInt32();
     mRouteFlags = parcel->readInt32();
-    mRegistrationId = parcel->readString8();
+    mDeviceType = (audio_devices_t) parcel->readInt32();
+    mDeviceAddress = parcel->readString8();
     mCbFlags = (uint32_t)parcel->readInt32();
     size_t size = (size_t)parcel->readInt32();
     if (size > MAX_CRITERIA_PER_MIX) {
@@ -89,7 +90,8 @@ status_t AudioMix::writeToParcel(Parcel *parcel) const
     parcel->writeInt32(mFormat.channel_mask);
     parcel->writeInt32(mFormat.format);
     parcel->writeInt32(mRouteFlags);
-    parcel->writeString8(mRegistrationId);
+    parcel->writeInt32(mDeviceType);
+    parcel->writeString8(mDeviceAddress);
     parcel->writeInt32(mCbFlags);
     size_t size = mCriteria.size();
     if (size > MAX_CRITERIA_PER_MIX) {
