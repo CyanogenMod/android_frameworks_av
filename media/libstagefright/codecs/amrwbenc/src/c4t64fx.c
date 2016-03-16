@@ -267,13 +267,13 @@ void ACELP_4t64_fx(
 
     for (i = 0; i < L_SUBFR/4; i++)
     {
-        s = (k_cn* (*p0++))+(k_dn * (*p1++));
+        s = L_add((k_cn* (*p0++)), (k_dn * (*p1++)));
         *p2++ = s >> 7;
-        s = (k_cn* (*p0++))+(k_dn * (*p1++));
+        s = L_add((k_cn* (*p0++)), (k_dn * (*p1++)));
         *p2++ = s >> 7;
-        s = (k_cn* (*p0++))+(k_dn * (*p1++));
+        s = L_add((k_cn* (*p0++)), (k_dn * (*p1++)));
         *p2++ = s >> 7;
-        s = (k_cn* (*p0++))+(k_dn * (*p1++));
+        s = L_add((k_cn* (*p0++)), (k_dn * (*p1++)));
         *p2++ = s >> 7;
     }
 
@@ -342,7 +342,7 @@ void ACELP_4t64_fx(
     {
         *h++ = 0;
         *h_inv++ = 0;
-        L_tmp += (H[i] * H[i]) << 1;
+        L_tmp = L_add(L_tmp, (H[i] * H[i]) << 1);
     }
     /* scale h[] down (/2) when energy of h[] is high with many pulses used */
     val = extract_h(L_tmp);
@@ -386,16 +386,16 @@ void ACELP_4t64_fx(
     cor = 0x00008000L;                             /* for rounding */
     for (i = 0; i < NB_POS; i++)
     {
-        cor += vo_L_mult((*ptr_h1), (*ptr_h1));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h1)));
         ptr_h1++;
         *p3-- = extract_h(cor);
-        cor += vo_L_mult((*ptr_h1), (*ptr_h1));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h1)));
         ptr_h1++;
         *p2-- = extract_h(cor);
-        cor += vo_L_mult((*ptr_h1), (*ptr_h1));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h1)));
         ptr_h1++;
         *p1-- = extract_h(cor);
-        cor += vo_L_mult((*ptr_h1), (*ptr_h1));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h1)));
         ptr_h1++;
         *p0-- = extract_h(cor);
     }
@@ -425,19 +425,19 @@ void ACELP_4t64_fx(
 
         for (i = k + 1; i < NB_POS; i++)
         {
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p3 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p2 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p1 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p0 = extract_h(cor);
@@ -447,15 +447,15 @@ void ACELP_4t64_fx(
             p1 -= (NB_POS + 1);
             p0 -= (NB_POS + 1);
         }
-        cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
         ptr_h1++;
         ptr_h2++;
         *p3 = extract_h(cor);
-        cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
         ptr_h1++;
         ptr_h2++;
         *p2 = extract_h(cor);
-        cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
         ptr_h1++;
         ptr_h2++;
         *p1 = extract_h(cor);
@@ -482,19 +482,19 @@ void ACELP_4t64_fx(
 
         for (i = k + 1; i < NB_POS; i++)
         {
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p3 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p2 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p1 = extract_h(cor);
-            cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+            cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
             ptr_h1++;
             ptr_h2++;
             *p0 = extract_h(cor);
@@ -504,7 +504,7 @@ void ACELP_4t64_fx(
             p1 -= (NB_POS + 1);
             p0 -= (NB_POS + 1);
         }
-        cor += vo_L_mult((*ptr_h1), (*ptr_h2));
+        cor = L_add(cor, vo_L_mult((*ptr_h1), (*ptr_h2)));
         ptr_h1++;
         ptr_h2++;
         *p3 = extract_h(cor);
@@ -698,7 +698,7 @@ void ACELP_4t64_fx(
         }
         /* memorise the best codevector */
         ps = vo_mult(ps, ps);
-        s = vo_L_msu(vo_L_mult(alpk, ps), psk, alp);
+        s = L_sub(vo_L_mult(alpk, ps), vo_L_mult(psk, alp));
         if (s > 0)
         {
             psk = ps;
