@@ -522,6 +522,14 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     // After fast request is denied, we will request again if IAudioRecord is re-created.
 
     status_t status;
+
+    // Not a conventional loop, but a retry loop for at most two iterations total.
+    // Try first maybe with FAST flag then try again without FAST flag if that fails.
+    // Exits loop normally via a return at the bottom, or with error via a break.
+    // The sp<> references will be dropped when re-entering scope.
+    // The lack of indentation is deliberate, to reduce code churn and ease merges.
+    for (;;) {
+
     status = AudioSystem::getInputForAttr(&mAttributes, &input,
                                         (audio_session_t)mSessionId,
                                         // FIXME compare to AudioTrack
@@ -535,7 +543,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
               mSessionId, mAttributes.source, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
-    {
+
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
 
@@ -544,7 +552,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     status = AudioSystem::getFrameCount(input, &afFrameCount);
     if (status != NO_ERROR) {
         ALOGE("getFrameCount(input=%d) status %d", input, status);
-        goto release;
+        break;
     }
 #endif
 
@@ -552,7 +560,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     status = AudioSystem::getSamplingRate(input, &afSampleRate);
     if (status != NO_ERROR) {
         ALOGE("getSamplingRate(input=%d) status %d", input, status);
-        goto release;
+        break;
     }
     if (mSampleRate == 0) {
         mSampleRate = afSampleRate;
@@ -572,7 +580,10 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
             ALOGW("AUDIO_INPUT_FLAG_FAST denied by client; transfer %d, "
                 "track %u Hz, input %u Hz",
                 mTransfer, mSampleRate, afSampleRate);
-            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
+            mFlags = (audio_input_flags_t) (mFlags & ~(AUDIO_INPUT_FLAG_FAST |
+                    AUDIO_INPUT_FLAG_RAW));
+            AudioSystem::releaseInput(input, (audio_session_t)mSessionId);
+            continue;   // retry
         }
     }
 
@@ -616,12 +627,25 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
 
     if (status != NO_ERROR) {
         ALOGE("AudioFlinger could not create record track, status: %d", status);
-        goto release;
+        break;
     }
     ALOG_ASSERT(record != 0);
 
     // AudioFlinger now owns the reference to the I/O handle,
     // so we are no longer responsible for releasing it.
+
+    mAwaitBoost = false;
+    if (mFlags & AUDIO_INPUT_FLAG_FAST) {
+        if (trackFlags & IAudioFlinger::TRACK_FAST) {
+            ALOGI("AUDIO_INPUT_FLAG_FAST successful; frameCount %zu", frameCount);
+            mAwaitBoost = true;
+        } else {
+            ALOGW("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
+            mFlags = (audio_input_flags_t) (mFlags & ~(AUDIO_INPUT_FLAG_FAST |
+                    AUDIO_INPUT_FLAG_RAW));
+            continue;   // retry
+        }
+    }
 
     if (iMem == 0) {
         ALOGE("Could not get control block");
@@ -665,17 +689,6 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     }
     frameCount = temp;
 
-    mAwaitBoost = false;
-    if (mFlags & AUDIO_INPUT_FLAG_FAST) {
-        if (trackFlags & IAudioFlinger::TRACK_FAST) {
-            ALOGV("AUDIO_INPUT_FLAG_FAST successful; frameCount %zu", frameCount);
-            mAwaitBoost = true;
-        } else {
-            ALOGW("AUDIO_INPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
-            mFlags = (audio_input_flags_t) (mFlags & ~AUDIO_INPUT_FLAG_FAST);
-        }
-    }
-
     // Make sure that application is notified with sufficient margin before overrun.
     // The computation is done on server side.
     if (mNotificationFramesReq > 0 && notificationFrames != mNotificationFramesReq) {
@@ -708,9 +721,12 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
     }
 
     return NO_ERROR;
+
+    // End of retry loop.
+    // The lack of indentation is deliberate, to reduce code churn and ease merges.
     }
 
-release:
+// Arrive here on error, via a break
     AudioSystem::releaseInput(input, (audio_session_t)mSessionId);
     if (status == NO_ERROR) {
         status = NO_INIT;
