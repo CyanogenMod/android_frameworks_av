@@ -695,6 +695,9 @@ void CameraClient::disableMsgType(int32_t msgType) {
 
 #define CHECK_MESSAGE_INTERVAL 10 // 10ms
 bool CameraClient::lockIfMessageWanted(int32_t msgType) {
+#ifdef MTK_HARDWARE
+    return true;
+#endif
     int sleepCount = 0;
     while (mMsgEnabled & msgType) {
         if (mLock.tryLock() == NO_ERROR) {
