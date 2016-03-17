@@ -312,6 +312,15 @@ void SoftAMR::onQueueFilled(OMX_U32 /* portIndex */) {
         int32_t numBytesRead;
 
         if (mMode == MODE_NARROW) {
+            if (outHeader->nAllocLen < kNumSamplesPerFrameNB * sizeof(int16_t)) {
+                ALOGE("b/27662364: NB expected output buffer %zu bytes vs %u",
+                       kNumSamplesPerFrameNB * sizeof(int16_t), outHeader->nAllocLen);
+                android_errorWriteLog(0x534e4554, "27662364");
+                notify(OMX_EventError, OMX_ErrorOverflow, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
+
             numBytesRead =
                 AMRDecode(mState,
                   (Frame_Type_3GPP)((inputPtr[0] >> 3) & 0x0f),
@@ -339,6 +348,15 @@ void SoftAMR::onQueueFilled(OMX_U32 /* portIndex */) {
                 return;
             }
         } else {
+            if (outHeader->nAllocLen < kNumSamplesPerFrameWB * sizeof(int16_t)) {
+                ALOGE("b/27662364: WB expected output buffer %zu bytes vs %u",
+                       kNumSamplesPerFrameWB * sizeof(int16_t), outHeader->nAllocLen);
+                android_errorWriteLog(0x534e4554, "27662364");
+                notify(OMX_EventError, OMX_ErrorOverflow, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
+
             int16 mode = ((inputPtr[0] >> 3) & 0x0f);
 
             if (mode >= 10 && mode <= 13) {
