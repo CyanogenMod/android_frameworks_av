@@ -1761,12 +1761,16 @@ status_t StagefrightRecorder::resume() {
 
     // 30 ms buffer to avoid timestamp overlap
     mTotalPausedDurationUs += (systemTime() / 1000) - mPauseStartTimeUs - 30000;
+    double timeOffset = -mTotalPausedDurationUs;
+    if (mCaptureFpsEnable) {
+        timeOffset *= mCaptureFps / mFrameRate;
+    }
     if (mAudioEncoderSource != NULL) {
-        mAudioEncoderSource->setInputBufferTimeOffset(-mTotalPausedDurationUs);
+        mAudioEncoderSource->setInputBufferTimeOffset((int64_t)timeOffset);
         mAudioEncoderSource->start();
     }
     if (mVideoEncoderSource != NULL) {
-        mVideoEncoderSource->setInputBufferTimeOffset(-mTotalPausedDurationUs);
+        mVideoEncoderSource->setInputBufferTimeOffset((int64_t)timeOffset);
         mVideoEncoderSource->start();
     }
     mPauseStartTimeUs = 0;
