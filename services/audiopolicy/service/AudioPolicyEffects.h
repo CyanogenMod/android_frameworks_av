@@ -51,7 +51,7 @@ public:
 
     // Return a list of effect descriptors for default input effects
     // associated with audioSession
-    status_t queryDefaultInputEffects(int audioSession,
+    status_t queryDefaultInputEffects(audio_session_t audioSession,
                              effect_descriptor_t *descriptors,
                              uint32_t *count);
 
@@ -59,7 +59,7 @@ public:
     // Effects are attached depending on the audio_source_t
     status_t addInputEffects(audio_io_handle_t input,
                              audio_source_t inputSource,
-                             int audioSession);
+                             audio_session_t audioSession);
 
     // Add all input effects associated to this input
     status_t releaseInputEffects(audio_io_handle_t input);
@@ -67,7 +67,7 @@ public:
 
     // Return a list of effect descriptors for default output effects
     // associated with audioSession
-    status_t queryDefaultOutputSessionEffects(int audioSession,
+    status_t queryDefaultOutputSessionEffects(audio_session_t audioSession,
                              effect_descriptor_t *descriptors,
                              uint32_t *count);
 
@@ -75,12 +75,12 @@ public:
     // Effects are attached depending on the audio_stream_type_t
     status_t addOutputSessionEffects(audio_io_handle_t output,
                              audio_stream_type_t stream,
-                             int audioSession);
+                             audio_session_t audioSession);
 
     // release all output effects associated with this output stream and audiosession
     status_t releaseOutputSessionEffects(audio_io_handle_t output,
                              audio_stream_type_t stream,
-                             int audioSession);
+                             audio_session_t audioSession);
 
 private:
 
@@ -135,13 +135,13 @@ private:
     // class to store voctor of AudioEffects
     class EffectVector {
     public:
-        EffectVector(int session) : mSessionId(session), mRefCount(0) {}
+        EffectVector(audio_session_t session) : mSessionId(session), mRefCount(0) {}
         /*virtual*/ ~EffectVector() {}
 
         // Enable or disable all effects in effect vector
         void setProcessorEnabled(bool enabled);
 
-        const int mSessionId;
+        const audio_session_t mSessionId;
         // AudioPolicyManager keeps mLock, no need for lock on reference count here
         int mRefCount;
         Vector< sp<AudioEffect> >mEffects;
@@ -188,7 +188,7 @@ private:
     // Automatic output effects are organized per audio_stream_type_t
     KeyedVector< audio_stream_type_t, EffectDescVector* > mOutputStreams;
     // Automatic output effects are unique for audiosession ID
-    KeyedVector< int32_t, EffectVector* > mOutputSessions;
+    KeyedVector< audio_session_t, EffectVector* > mOutputSessions;
 };
 
 }; // namespace android

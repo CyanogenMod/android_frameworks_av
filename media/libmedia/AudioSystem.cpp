@@ -399,7 +399,7 @@ audio_unique_id_t AudioSystem::newAudioUniqueId(audio_unique_id_use_t use)
     return af->newAudioUniqueId(use);
 }
 
-void AudioSystem::acquireAudioSessionId(int audioSession, pid_t pid)
+void AudioSystem::acquireAudioSessionId(audio_session_t audioSession, pid_t pid)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
@@ -407,7 +407,7 @@ void AudioSystem::acquireAudioSessionId(int audioSession, pid_t pid)
     }
 }
 
-void AudioSystem::releaseAudioSessionId(int audioSession, pid_t pid)
+void AudioSystem::releaseAudioSessionId(audio_session_t audioSession, pid_t pid)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
     if (af != 0) {
@@ -902,7 +902,7 @@ audio_io_handle_t AudioSystem::getOutputForEffect(const effect_descriptor_t *des
 status_t AudioSystem::registerEffect(const effect_descriptor_t *desc,
                                 audio_io_handle_t io,
                                 uint32_t strategy,
-                                int session,
+                                audio_session_t session,
                                 int id)
 {
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();

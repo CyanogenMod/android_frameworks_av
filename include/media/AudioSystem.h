@@ -31,7 +31,7 @@ namespace android {
 
 typedef void (*audio_error_callback)(status_t err);
 typedef void (*dynamic_policy_callback)(int event, String8 regId, int val);
-typedef void (*record_config_callback)(int event, int session, int source,
+typedef void (*record_config_callback)(int event, audio_session_t session, int source,
                 const audio_config_base_t *clientConfig, const audio_config_base_t *deviceConfig,
                 audio_patch_handle_t patchHandle);
 
@@ -155,8 +155,8 @@ public:
     //       or an unspecified existing unique ID.
     static audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
 
-    static void acquireAudioSessionId(int audioSession, pid_t pid);
-    static void releaseAudioSessionId(int audioSession, pid_t pid);
+    static void acquireAudioSessionId(audio_session_t audioSession, pid_t pid);
+    static void releaseAudioSessionId(audio_session_t audioSession, pid_t pid);
 
     // Get the HW synchronization source used for an audio session.
     // Return a valid source or AUDIO_HW_SYNC_INVALID if an error occurs
@@ -260,7 +260,7 @@ public:
     static status_t registerEffect(const effect_descriptor_t *desc,
                                     audio_io_handle_t io,
                                     uint32_t strategy,
-                                    int session,
+                                    audio_session_t session,
                                     int id);
     static status_t unregisterEffect(int id);
     static status_t setEffectEnabled(int id, bool enabled);

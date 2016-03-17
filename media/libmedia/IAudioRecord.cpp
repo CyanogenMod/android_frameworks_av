@@ -42,7 +42,7 @@ public:
     {
     }
 
-    virtual status_t start(int /*AudioSystem::sync_event_t*/ event, int triggerSession)
+    virtual status_t start(int /*AudioSystem::sync_event_t*/ event, audio_session_t triggerSession)
     {
         Parcel data, reply;
         data.writeInterfaceToken(IAudioRecord::getInterfaceDescriptor());
@@ -77,7 +77,7 @@ status_t BnAudioRecord::onTransact(
         case START: {
             CHECK_INTERFACE(IAudioRecord, data, reply);
             int /*AudioSystem::sync_event_t*/ event = data.readInt32();
-            int triggerSession = data.readInt32();
+            audio_session_t triggerSession = (audio_session_t) data.readInt32();
             reply->writeInt32(start(event, triggerSession));
             return NO_ERROR;
         } break;

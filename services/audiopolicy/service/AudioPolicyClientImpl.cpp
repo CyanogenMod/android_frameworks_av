@@ -171,7 +171,7 @@ status_t AudioPolicyService::AudioPolicyClient::setVoiceVolume(float volume, int
     return mAudioPolicyService->setVoiceVolume(volume, delay_ms);
 }
 
-status_t AudioPolicyService::AudioPolicyClient::moveEffects(int session,
+status_t AudioPolicyService::AudioPolicyClient::moveEffects(audio_session_t session,
                         audio_io_handle_t src_output,
                         audio_io_handle_t dst_output)
 {

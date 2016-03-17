@@ -288,7 +288,7 @@ public:
                                     const sp<AudioFlinger::Client>& client,
                                     const sp<IEffectClient>& effectClient,
                                     int32_t priority,
-                                    int sessionId,
+                                    audio_session_t sessionId,
                                     effect_descriptor_t *desc,
                                     int *enabled,
                                     status_t *status /*non-NULL*/);
@@ -302,9 +302,9 @@ public:
                 };
 
                 // get effect chain corresponding to session Id.
-                sp<EffectChain> getEffectChain(int sessionId);
+                sp<EffectChain> getEffectChain(audio_session_t sessionId);
                 // same as getEffectChain() but must be called with ThreadBase mutex locked
-                sp<EffectChain> getEffectChain_l(int sessionId) const;
+                sp<EffectChain> getEffectChain_l(audio_session_t sessionId) const;
                 // add an effect chain to the chain list (mEffectChains)
     virtual     status_t addEffectChain_l(const sp<EffectChain>& chain) = 0;
                 // remove an effect chain from the chain list (mEffectChains)
@@ -321,8 +321,8 @@ public:
                 // set audio mode to all effect chains
                 void setMode(audio_mode_t mode);
                 // get effect module with corresponding ID on specified audio session
-                sp<AudioFlinger::EffectModule> getEffect(int sessionId, int effectId);
-                sp<AudioFlinger::EffectModule> getEffect_l(int sessionId, int effectId);
+                sp<AudioFlinger::EffectModule> getEffect(audio_session_t sessionId, int effectId);
+                sp<AudioFlinger::EffectModule> getEffect_l(audio_session_t sessionId, int effectId);
                 // add and effect module. Also creates the effect chain is none exists for
                 // the effects audio session
                 status_t addEffect_l(const sp< EffectModule>& effect);
@@ -333,24 +333,27 @@ public:
     virtual     void detachAuxEffect_l(int effectId __unused) {}
                 // returns either EFFECT_SESSION if effects on this audio session exist in one
                 // chain, or TRACK_SESSION if tracks on this audio session exist, or both
-                virtual uint32_t hasAudioSession(int sessionId) const = 0;
+                virtual uint32_t hasAudioSession(audio_session_t sessionId) const = 0;
                 // the value returned by default implementation is not important as the
                 // strategy is only meaningful for PlaybackThread which implements this method
-                virtual uint32_t getStrategyForSession_l(int sessionId __unused) { return 0; }
+                virtual uint32_t getStrategyForSession_l(audio_session_t sessionId __unused)
+                        { return 0; }
 
                 // suspend or restore effect according to the type of effect passed. a NULL
                 // type pointer means suspend all effects in the session
                 void setEffectSuspended(const effect_uuid_t *type,
                                         bool suspend,
-                                        int sessionId = AUDIO_SESSION_OUTPUT_MIX);
+                                        audio_session_t sessionId = AUDIO_SESSION_OUTPUT_MIX);
                 // check if some effects must be suspended/restored when an effect is enabled
                 // or disabled
                 void checkSuspendOnEffectEnabled(const sp<EffectModule>& effect,
                                                  bool enabled,
-                                                 int sessionId = AUDIO_SESSION_OUTPUT_MIX);
+                                                 audio_session_t sessionId =
+                                                        AUDIO_SESSION_OUTPUT_MIX);
                 void checkSuspendOnEffectEnabled_l(const sp<EffectModule>& effect,
                                                    bool enabled,
-                                                   int sessionId = AUDIO_SESSION_OUTPUT_MIX);
+                                                   audio_session_t sessionId =
+                                                        AUDIO_SESSION_OUTPUT_MIX);
 
                 virtual status_t    setSyncEvent(const sp<SyncEvent>& event) = 0;
                 virtual bool        isValidSyncEvent(const sp<SyncEvent>& event) const = 0;
@@ -389,11 +392,11 @@ protected:
                 void        getPowerManager_l();
                 void setEffectSuspended_l(const effect_uuid_t *type,
                                           bool suspend,
-                                          int sessionId);
+                                          audio_session_t sessionId);
                 // updated mSuspendedSessions when an effect suspended or restored
                 void        updateSuspendedSessions_l(const effect_uuid_t *type,
                                                       bool suspend,
-                                                      int sessionId);
+                                                      audio_session_t sessionId);
                 // check if some effects must be suspended when an effect chain is added
                 void checkSuspendOnAddEffectChain_l(const sp<EffectChain>& chain);
 
@@ -452,9 +455,9 @@ protected:
                 sp<IPowerManager>       mPowerManager;
                 sp<IBinder>             mWakeLockToken;
                 const sp<PMDeathRecipient> mDeathRecipient;
-                // list of suspended effects per session and per type. The first vector is
-                // keyed by session ID, the second by type UUID timeLow field
-                KeyedVector< int, KeyedVector< int, sp<SuspendedSessionDesc> > >
+                // list of suspended effects per session and per type. The first (outer) vector is
+                // keyed by session ID, the second (inner) by type UUID timeLow field
+                KeyedVector< audio_session_t, KeyedVector< int, sp<SuspendedSessionDesc> > >
                                         mSuspendedSessions;
                 static const size_t     kLogSize = 4 * 1024;
                 sp<NBLog::Writer>       mNBLogWriter;
@@ -549,7 +552,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 size_t *pFrameCount,
                                 const sp<IMemory>& sharedBuffer,
-                                int sessionId,
+                                audio_session_t sessionId,
                                 IAudioFlinger::track_flags_t *flags,
                                 pid_t tid,
                                 int uid,
@@ -589,8 +592,8 @@ public:
 
                 virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
                 virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
-                virtual uint32_t hasAudioSession(int sessionId) const;
-                virtual uint32_t getStrategyForSession_l(int sessionId);
+                virtual uint32_t hasAudioSession(audio_session_t sessionId) const;
+                virtual uint32_t getStrategyForSession_l(audio_session_t sessionId);
 
 
                 virtual status_t setSyncEvent(const sp<SyncEvent>& event);
@@ -704,7 +707,7 @@ protected:
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
     virtual int             getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, int sessionId) = 0;
+                                           audio_format_t format, audio_session_t sessionId) = 0;
     virtual void            deleteTrackName_l(int name) = 0;
 
     // Time to sleep between cycles when:
@@ -859,7 +862,7 @@ public:
 protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
     virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, int sessionId);
+                                           audio_format_t format, audio_session_t sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
@@ -940,7 +943,7 @@ public:
 
 protected:
     virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, int sessionId);
+                                           audio_format_t format, audio_session_t sessionId);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    activeSleepTimeUs() const;
     virtual     uint32_t    idleSleepTimeUs() const;
@@ -1243,7 +1246,7 @@ public:
                     audio_format_t format,
                     audio_channel_mask_t channelMask,
                     size_t *pFrameCount,
-                    int sessionId,
+                    audio_session_t sessionId,
                     size_t *notificationFrames,
                     int uid,
                     IAudioFlinger::track_flags_t *flags,
@@ -1252,7 +1255,7 @@ public:
 
             status_t    start(RecordTrack* recordTrack,
                               AudioSystem::sync_event_t event,
-                              int triggerSession);
+                              audio_session_t triggerSession);
 
             // ask the thread to stop the specified track, and
             // return true if the caller should then do it's part of the stopping process
@@ -1280,12 +1283,12 @@ public:
 
     virtual status_t addEffectChain_l(const sp<EffectChain>& chain);
     virtual size_t removeEffectChain_l(const sp<EffectChain>& chain);
-    virtual uint32_t hasAudioSession(int sessionId) const;
+    virtual uint32_t hasAudioSession(audio_session_t sessionId) const;
 
             // Return the set of unique session IDs across all tracks.
             // The keys are the session IDs, and the associated values are meaningless.
             // FIXME replace by Set [and implement Bag/Multiset for other uses].
-            KeyedVector<int, bool> sessionIds() const;
+            KeyedVector<audio_session_t, bool> sessionIds() const;
 
     virtual status_t setSyncEvent(const sp<SyncEvent>& event);
     virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;

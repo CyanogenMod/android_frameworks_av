@@ -31,7 +31,7 @@ public:
                                 size_t frameCount,
                                 void *buffer,
                                 const sp<IMemory>& sharedBuffer,
-                                int sessionId,
+                                audio_session_t sessionId,
                                 int uid,
                                 IAudioFlinger::track_flags_t flags,
                                 track_type type);
@@ -42,7 +42,7 @@ public:
             void        dump(char* buffer, size_t size, bool active);
     virtual status_t    start(AudioSystem::sync_event_t event =
                                     AudioSystem::SYNC_EVENT_NONE,
-                             int triggerSession = 0);
+                             audio_session_t triggerSession = AUDIO_SESSION_NONE);
     virtual void        stop();
             void        pause();
 
@@ -190,7 +190,7 @@ public:
 
     virtual status_t    start(AudioSystem::sync_event_t event =
                                     AudioSystem::SYNC_EVENT_NONE,
-                             int triggerSession = 0);
+                             audio_session_t triggerSession = AUDIO_SESSION_NONE);
     virtual void        stop();
             bool        write(void* data, uint32_t frames);
             bool        bufferQueueEmpty() const { return mBufferQueue.size() == 0; }
@@ -231,7 +231,7 @@ public:
 
     virtual status_t    start(AudioSystem::sync_event_t event =
                                     AudioSystem::SYNC_EVENT_NONE,
-                             int triggerSession = 0);
+                             audio_session_t triggerSession = AUDIO_SESSION_NONE);
 
     // AudioBufferProvider interface
     virtual status_t getNextBuffer(AudioBufferProvider::Buffer* buffer);

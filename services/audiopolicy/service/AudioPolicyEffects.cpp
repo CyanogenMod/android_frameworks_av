@@ -79,7 +79,7 @@ AudioPolicyEffects::~AudioPolicyEffects()
 
 status_t AudioPolicyEffects::addInputEffects(audio_io_handle_t input,
                              audio_source_t inputSource,
-                             int audioSession)
+                             audio_session_t audioSession)
 {
     status_t status = NO_ERROR;
 
@@ -152,7 +152,7 @@ status_t AudioPolicyEffects::releaseInputEffects(audio_io_handle_t input)
     return status;
 }
 
-status_t AudioPolicyEffects::queryDefaultInputEffects(int audioSession,
+status_t AudioPolicyEffects::queryDefaultInputEffects(audio_session_t audioSession,
                                                       effect_descriptor_t *descriptors,
                                                       uint32_t *count)
 {
@@ -185,7 +185,7 @@ status_t AudioPolicyEffects::queryDefaultInputEffects(int audioSession,
 }
 
 
-status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(int audioSession,
+status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(audio_session_t audioSession,
                          effect_descriptor_t *descriptors,
                          uint32_t *count)
 {
@@ -220,7 +220,7 @@ status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(int audioSession,
 
 status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
-                         int audioSession)
+                         audio_session_t audioSession)
 {
     status_t status = NO_ERROR;
 
@@ -275,7 +275,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
-                         int audioSession)
+                         audio_session_t audioSession)
 {
     status_t status = NO_ERROR;
     (void) output; // argument not used for now

@@ -453,7 +453,7 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
     patch->mPatchTrack->setPeerProxy(patch->mPatchRecord.get());
 
     // start capture and playback
-    patch->mPatchRecord->start(AudioSystem::SYNC_EVENT_NONE, 0);
+    patch->mPatchRecord->start(AudioSystem::SYNC_EVENT_NONE, AUDIO_SESSION_NONE);
     patch->mPatchTrack->start();
 
     return status;

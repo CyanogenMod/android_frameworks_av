@@ -69,7 +69,7 @@ public:
                                    int32_t priority = 0,
                                    effect_callback_t cbf = NULL,
                                    void* user = NULL,
-                                   int sessionId = 0);
+                                   audio_session_t sessionId = AUDIO_SESSION_OUTPUT_MIX);
 
                         ~Visualizer();
 
