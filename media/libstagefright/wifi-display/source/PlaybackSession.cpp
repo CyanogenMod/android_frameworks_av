@@ -957,10 +957,12 @@ status_t WifiDisplaySource::PlaybackSession::addSource(
         format->setInt32("level-idc", levelIdc);
         format->setInt32("constraint-set", constraintSet);
     } else {
-        format->setString(
-                "mime",
-                usePCMAudio
-                    ? MEDIA_MIMETYPE_AUDIO_RAW : MEDIA_MIMETYPE_AUDIO_AAC);
+        if (usePCMAudio) {
+            format->setInt32("pcm-encoding", kAudioEncodingPcm16bit);
+            format->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
+        } else {
+            format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
+        }
     }
 
     notify = new AMessage(kWhatConverterNotify, this);

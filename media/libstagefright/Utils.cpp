@@ -239,6 +239,11 @@ status_t convertMetaDataToMessage(
         if (meta->findInt32(kKeyAACAOT, &aacProfile)) {
             msg->setInt32("aac-profile", aacProfile);
         }
+
+        int32_t pcmEncoding;
+        if (meta->findInt32(kKeyPcmEncoding, &pcmEncoding)) {
+            msg->setInt32("pcm-encoding", pcmEncoding);
+        }
     }
 
     int32_t maxInputSize;
@@ -793,6 +798,11 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         int32_t isADTS;
         if (msg->findInt32("is-adts", &isADTS)) {
             meta->setInt32(kKeyIsADTS, isADTS);
+        }
+
+        int32_t pcmEncoding;
+        if (msg->findInt32("pcm-encoding", &pcmEncoding)) {
+            meta->setInt32(kKeyPcmEncoding, pcmEncoding);
         }
     }
 

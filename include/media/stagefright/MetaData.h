@@ -49,6 +49,7 @@ enum {
     kKeyChannelCount      = '#chn',  // int32_t
     kKeyChannelMask       = 'chnm',  // int32_t
     kKeySampleRate        = 'srte',  // int32_t (audio sampling rate Hz)
+    kKeyPcmEncoding       = 'PCMe',  // int32_t (audio encoding enum)
     kKeyFrameRate         = 'frmR',  // int32_t (video frame rate fps)
     kKeyBitRate           = 'brte',  // int32_t (bps)
     kKeyESDS              = 'esds',  // raw data

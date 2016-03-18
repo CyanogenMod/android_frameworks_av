@@ -178,6 +178,7 @@ MidiEngine::MidiEngine(const sp<DataSource> &dataSource,
         mEasConfig = EAS_Config();
         trackMetadata->setInt32(kKeySampleRate, mEasConfig->sampleRate);
         trackMetadata->setInt32(kKeyChannelCount, mEasConfig->numChannels);
+        trackMetadata->setInt32(kKeyPcmEncoding, kAudioEncodingPcm16bit);
     }
     mIsInitialized = true;
 }

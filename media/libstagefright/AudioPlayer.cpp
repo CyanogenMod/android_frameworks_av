@@ -25,6 +25,7 @@
 #include <media/AudioTrack.h>
 #include <media/openmax/OMX_Audio.h>
 #include <media/stagefright/foundation/ADebug.h>
+#include <media/stagefright/foundation/ALookup.h>
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/AudioPlayer.h>
 #include <media/stagefright/MediaDefs.h>
@@ -70,6 +71,14 @@ void AudioPlayer::setSource(const sp<IMediaSource> &source) {
     CHECK(mSource == NULL);
     mSource = source;
 }
+
+ALookup<audio_format_t, int32_t> sAudioFormatToPcmEncoding {
+    {
+        { AUDIO_FORMAT_PCM_16_BIT, kAudioEncodingPcm16bit },
+        { AUDIO_FORMAT_PCM_8_BIT,  kAudioEncodingPcm8bit  },
+        { AUDIO_FORMAT_PCM_FLOAT,  kAudioEncodingPcmFloat },
+    }
+};
 
 status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     CHECK(!mStarted);
@@ -129,6 +138,10 @@ status_t AudioPlayer::start(bool sourceAlreadyStarted) {
     }
 
     audio_format_t audioFormat = AUDIO_FORMAT_PCM_16_BIT;
+    int32_t pcmEncoding;
+    if (format->findInt32(kKeyPcmEncoding, &pcmEncoding)) {
+        sAudioFormatToPcmEncoding.map(pcmEncoding, &audioFormat);
+    }
 
     if (useOffload()) {
         if (mapMimeToAudioFormat(audioFormat, mime) != OK) {

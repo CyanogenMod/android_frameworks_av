@@ -592,6 +592,7 @@ sp<ABuffer> ElementaryStreamQueue::dequeueAccessUnitPCMAudio() {
         mFormat->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
         mFormat->setInt32(kKeyChannelCount, 2);
         mFormat->setInt32(kKeySampleRate, 48000);
+        mFormat->setInt32(kKeyPcmEncoding, kAudioEncodingPcm16bit);
     }
 
     static const size_t kFramesPerAU = 80;
