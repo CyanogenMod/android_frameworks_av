@@ -55,6 +55,10 @@ struct CodecBase : public AHandler, /* static */ ColorUtils {
         kWhatOutputFramesRendered = 'outR',
     };
 
+    enum {
+        kMaxCodecBufferSize = 8192 * 4096 * 4, // 8K RGBA
+    };
+
     virtual void setNotificationMessage(const sp<AMessage> &msg) = 0;
 
     virtual void initiateAllocateComponent(const sp<AMessage> &msg) = 0;

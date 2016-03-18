@@ -799,16 +799,26 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 bufSize = max(bufSize, (int32_t)sizeof(VideoNativeMetadata));
             }
 
+            size_t alignment = MemoryDealer::getAllocationAlignment();
+
             ALOGV("[%s] Allocating %u buffers of size %d/%d (from %u using %s) on %s port",
                     mComponentName.c_str(),
                     def.nBufferCountActual, bufSize, allottedSize, def.nBufferSize, asString(type),
                     portIndex == kPortIndexInput ? "input" : "output");
 
-            if (bufSize == 0 || def.nBufferCountActual > SIZE_MAX / bufSize) {
+            if (bufSize == 0 || bufSize > kMaxCodecBufferSize) {
                 ALOGE("b/22885421");
                 return NO_MEMORY;
             }
-            size_t totalSize = def.nBufferCountActual * bufSize;
+
+            // don't modify bufSize as OMX may not expect it to increase after negotiation
+            size_t alignedSize = align(bufSize, alignment);
+            if (def.nBufferCountActual > SIZE_MAX / alignedSize) {
+                ALOGE("b/22885421");
+                return NO_MEMORY;
+            }
+
+            size_t totalSize = def.nBufferCountActual * alignedSize;
             mDealer[portIndex] = new MemoryDealer(totalSize, "ACodec");
 
             for (OMX_U32 i = 0; i < def.nBufferCountActual && err == OK; ++i) {
@@ -1116,7 +1126,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
 
     size_t bufSize = mOutputMetadataType == kMetadataBufferTypeANWBuffer ?
             sizeof(struct VideoNativeMetadata) : sizeof(struct VideoGrallocMetadata);
-    size_t totalSize = bufferCount * bufSize;
+    size_t totalSize = bufferCount * align(bufSize, MemoryDealer::getAllocationAlignment());
     mDealer[kPortIndexOutput] = new MemoryDealer(totalSize, "ACodec");
 
     // Dequeue buffers and send them to OMX
