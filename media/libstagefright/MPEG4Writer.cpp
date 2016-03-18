@@ -2302,6 +2302,7 @@ status_t MPEG4Writer::Track::threadEntry() {
     const bool hasMultipleTracks = (mOwner->numTracks() > 1);
     int64_t chunkTimestampUs = 0;
     int32_t nChunks = 0;
+    int32_t nActualFrames = 0;        // frames containing non-CSD data (non-0 length)
     int32_t nZeroLengthFrames = 0;
     int64_t lastTimestampUs = 0;      // Previous sample time stamp
     int64_t lastDurationUs = 0;       // Between the previous two samples
@@ -2354,24 +2355,31 @@ status_t MPEG4Writer::Track::threadEntry() {
         int32_t isCodecConfig;
         if (buffer->meta_data()->findInt32(kKeyIsCodecConfig, &isCodecConfig)
                 && isCodecConfig) {
-            CHECK(!mGotAllCodecSpecificData);
-            mMeta = mSource->getFormat(); // get output format after format change
+            // if config format (at track addition) already had CSD, keep that
+            // UNLESS we have not received any frames yet.
+            // TODO: for now the entire CSD has to come in one frame for encoders, even though
+            // they need to be spread out for decoders.
+            if (mGotAllCodecSpecificData && nActualFrames > 0) {
+                ALOGI("ignoring additional CSD for video track after first frame");
+            } else {
+                mMeta = mSource->getFormat(); // get output format after format change
 
-            if (mIsAvc) {
-                status_t err = makeAVCCodecSpecificData(
-                        (const uint8_t *)buffer->data()
-                            + buffer->range_offset(),
-                        buffer->range_length());
-                CHECK_EQ((status_t)OK, err);
-            } else if (mIsHevc) {
-                status_t err = makeHEVCCodecSpecificData(
-                        (const uint8_t *)buffer->data()
-                            + buffer->range_offset(),
-                        buffer->range_length());
-                CHECK_EQ((status_t)OK, err);
-            } else if (mIsMPEG4) {
-                copyCodecSpecificData((const uint8_t *)buffer->data() + buffer->range_offset(),
-                        buffer->range_length());
+                if (mIsAvc) {
+                    status_t err = makeAVCCodecSpecificData(
+                            (const uint8_t *)buffer->data()
+                                + buffer->range_offset(),
+                            buffer->range_length());
+                    CHECK_EQ((status_t)OK, err);
+                } else if (mIsHevc) {
+                    status_t err = makeHEVCCodecSpecificData(
+                            (const uint8_t *)buffer->data()
+                                + buffer->range_offset(),
+                            buffer->range_length());
+                    CHECK_EQ((status_t)OK, err);
+                } else if (mIsMPEG4) {
+                    copyCodecSpecificData((const uint8_t *)buffer->data() + buffer->range_offset(),
+                            buffer->range_length());
+                }
             }
 
             buffer->release();
@@ -2380,6 +2388,8 @@ status_t MPEG4Writer::Track::threadEntry() {
             mGotAllCodecSpecificData = true;
             continue;
         }
+
+        ++nActualFrames;
 
         // Make a deep copy of the MediaBuffer and Metadata and release
         // the original as soon as we can
