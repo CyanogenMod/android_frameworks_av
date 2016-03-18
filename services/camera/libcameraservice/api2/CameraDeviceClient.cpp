@@ -342,7 +342,11 @@ binder::Status CameraDeviceClient::endConfigure(bool isConstrainedHighSpeed) {
     }
 
     status_t err = mDevice->configureStreams(isConstrainedHighSpeed);
-    if (err != OK) {
+    if (err == BAD_VALUE) {
+        res = STATUS_ERROR_FMT(CameraService::ERROR_ILLEGAL_ARGUMENT,
+                "Camera %d: Unsupported set of inputs/outputs provided",
+                mCameraId);
+    } else if (err != OK) {
         res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
                 "Camera %d: Error configuring streams: %s (%d)",
                 mCameraId, strerror(-err), err);
