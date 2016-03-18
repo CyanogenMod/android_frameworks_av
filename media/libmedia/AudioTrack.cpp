@@ -860,7 +860,7 @@ ssize_t AudioTrack::getBufferSizeInFrames()
     if (mOutput == AUDIO_IO_HANDLE_NONE || mProxy.get() == 0) {
         return NO_INIT;
     }
-    return mProxy->getBufferSizeInFrames();
+    return (ssize_t) mProxy->getBufferSizeInFrames();
 }
 
 ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
@@ -873,10 +873,7 @@ ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
     if (!audio_is_linear_pcm(mFormat)) {
         return INVALID_OPERATION;
     }
-    // TODO also need to inform the server side (through mAudioTrack) that
-    // the buffer count is reduced, otherwise the track may never start
-    // because the server thinks it is never filled.
-    return mProxy->setBufferSizeInFrames(bufferSizeInFrames);
+    return (ssize_t) mProxy->setBufferSizeInFrames((uint32_t) bufferSizeInFrames);
 }
 
 status_t AudioTrack::setLoop(uint32_t loopStart, uint32_t loopEnd, int loopCount)

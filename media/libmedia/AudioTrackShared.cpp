@@ -46,8 +46,10 @@ static uint32_t incrementSequence(uint32_t self, uint32_t other) {
 }
 
 audio_track_cblk_t::audio_track_cblk_t()
-    : mServer(0), mFutex(0), mMinimum(0),
-    mVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY), mSampleRate(0), mSendLevel(0), mFlags(0)
+    : mServer(0), mFutex(0), mMinimum(0)
+    , mVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY), mSampleRate(0), mSendLevel(0)
+    , mBufferSizeInFrames(0)
+    , mFlags(0)
 {
     memset(&u, 0, sizeof(u));
 }
@@ -67,10 +69,10 @@ Proxy::Proxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount, size_t 
 ClientProxy::ClientProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer)
-    , mBufferSizeInFrames(frameCount)
     , mEpoch(0)
     , mTimestampObserver(&cblk->mExtendedTimestampQueue)
 {
+    setBufferSizeInFrames(frameCount);
 }
 
 const struct timespec ClientProxy::kForever = {INT_MAX /*tv_sec*/, 0 /*tv_nsec*/};
@@ -83,6 +85,26 @@ const struct timespec ClientProxy::kNonBlocking = {0 /*tv_sec*/, 0 /*tv_nsec*/};
 // FIXME May not be compatible with audio tunneling requirements where timeout should be in the
 // order of minutes.
 #define MAX_SEC    5
+
+uint32_t ClientProxy::setBufferSizeInFrames(uint32_t size)
+{
+    // TODO set minimum to 2X the fast mixer buffer size.
+    // The minimum should be  greater than zero and less than the size
+    // at which underruns will occur.
+    const uint32_t minimum = 128 * 2; // arbitrary
+    const uint32_t maximum = frameCount();
+    uint32_t clippedSize = size;
+    if (clippedSize < minimum) {
+        clippedSize = minimum;
+    } else if (clippedSize > maximum) {
+        clippedSize = maximum;
+    }
+    // for server to read
+    android_atomic_release_store(clippedSize, (int32_t *)&mCblk->mBufferSizeInFrames);
+    // for client to read
+    mBufferSizeInFrames = clippedSize;
+    return clippedSize;
+}
 
 status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *requested,
         struct timespec *elapsed)
@@ -179,7 +201,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
         // The calculation for avail can go negative if the buffer size
         // is suddenly dropped below the amount already in the buffer.
         // So use a signed calculation to prevent a numeric overflow abort.
-        ssize_t adjustableSize = (ssize_t) mBufferSizeInFrames;
+        ssize_t adjustableSize = (ssize_t) getBufferSizeInFrames();
         ssize_t avail =  (mIsOut) ? adjustableSize - filled : filled;
         if (avail < 0) {
             avail = 0;
@@ -360,20 +382,6 @@ size_t ClientProxy::getMisalignment()
     audio_track_cblk_t* cblk = mCblk;
     return (mFrameCountP2 - (mIsOut ? cblk->u.mStreaming.mRear : cblk->u.mStreaming.mFront)) &
             (mFrameCountP2 - 1);
-}
-
-size_t ClientProxy::setBufferSizeInFrames(size_t size)
-{
-    // TODO set minimum to 2X the fast mixer buffer size.
-    size_t minimum = 128 * 2; // arbitrary
-    size_t maximum = frameCount();
-    if (size < minimum) {
-        size = minimum;
-    } else if (size > maximum) {
-        size = maximum;
-    }
-    mBufferSizeInFrames = size;
-    return size;
 }
 
 // ---------------------------------------------------------------------------
@@ -607,6 +615,7 @@ ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
       mAvailToClient(0), mFlush(0), mReleased(0)
     , mTimestampMutator(&cblk->mExtendedTimestampQueue)
 {
+    cblk->mBufferSizeInFrames = frameCount;
 }
 
 status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
