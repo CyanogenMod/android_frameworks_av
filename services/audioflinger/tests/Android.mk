@@ -23,6 +23,8 @@ LOCAL_SRC_FILES := \
 LOCAL_MODULE := resampler_tests
 LOCAL_MODULE_TAGS := tests
 
+LOCAL_CFLAGS := -Werror -Wall
+
 include $(BUILD_NATIVE_TEST)
 
 #
@@ -60,5 +62,7 @@ LOCAL_MODULE:= test-mixer
 LOCAL_MODULE_TAGS := optional
 
 LOCAL_CXX_STL := libc++
+
+LOCAL_CFLAGS := -Werror -Wall
 
 include $(BUILD_EXECUTABLE)

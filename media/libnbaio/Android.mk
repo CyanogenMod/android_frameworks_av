@@ -20,9 +20,6 @@ LOCAL_SRC_FILES += NBLog.cpp
 #LOCAL_C_INCLUDES += path/to/libsndfile/src
 #LOCAL_STATIC_LIBRARIES += libsndfile
 
-# uncomment for systrace
-# LOCAL_CFLAGS += -DATRACE_TAG=ATRACE_TAG_AUDIO
-
 LOCAL_MODULE := libnbaio
 
 LOCAL_SHARED_LIBRARIES := \
@@ -33,5 +30,7 @@ LOCAL_SHARED_LIBRARIES := \
     liblog
 
 LOCAL_C_INCLUDES := $(call include-path-for, audio-utils)
+
+LOCAL_CFLAGS := -Werror -Wall
 
 include $(BUILD_SHARED_LIBRARY)

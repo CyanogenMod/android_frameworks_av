@@ -12,4 +12,6 @@ LOCAL_MODULE:= libmedialogservice
 
 LOCAL_C_INCLUDES := $(call include-path-for, audio-utils)
 
+LOCAL_CFLAGS := -Werror -Wall
+
 include $(BUILD_SHARED_LIBRARY)

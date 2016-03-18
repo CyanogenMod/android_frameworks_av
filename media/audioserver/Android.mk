@@ -54,4 +54,6 @@ LOCAL_MODULE := audioserver
 
 LOCAL_INIT_RC := audioserver.rc
 
+LOCAL_CFLAGS := -Werror -Wall
+
 include $(BUILD_EXECUTABLE)
