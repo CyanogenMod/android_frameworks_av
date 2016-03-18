@@ -57,7 +57,6 @@ private:
     static const FastMixerState sInitial;
 
     FastMixerState  mPreIdle;   // copy of state before we went into idle
-    long            mSlopNs;    // accumulated time we've woken up too early (> 0) or too late (< 0)
     int             mFastTrackNames[FastMixerState::kMaxFastTracks];
                                 // handles used by mixer to identify tracks
     int             mGenerations[FastMixerState::kMaxFastTracks];

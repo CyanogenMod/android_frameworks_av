@@ -141,6 +141,8 @@ void AudioResamplerSinc::init_routine()
 
 // ----------------------------------------------------------------------------
 
+#if !USE_NEON
+
 static inline
 int32_t mulRL(int left, int32_t in, uint32_t vRL)
 {
@@ -201,6 +203,8 @@ int32_t mulAddRL(int left, uint32_t inRL, int32_t v, int32_t a)
     return a + int32_t((int64_t(v) * s) >> 16);
 #endif
 }
+
+#endif // !USE_NEON
 
 // ----------------------------------------------------------------------------
 

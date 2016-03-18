@@ -75,7 +75,6 @@ size_t AudioResamplerCubic::resampleStereo16(int32_t* out, size_t outFrameCount,
     int16_t *in = mBuffer.i16;
 
     while (outputIndex < outputSampleCount) {
-        int32_t sample;
         int32_t x;
 
         // calculate output sample

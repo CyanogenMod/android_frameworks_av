@@ -219,8 +219,6 @@ AudioFlinger::AudioFlinger()
 
 void AudioFlinger::onFirstRef()
 {
-    int rc = 0;
-
     Mutex::Autolock _l(mLock);
 
     /* TODO: move all this work into an Init() function */
@@ -1246,8 +1244,6 @@ status_t AudioFlinger::setVoiceVolume(float value)
 status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrames,
         audio_io_handle_t output) const
 {
-    status_t status;
-
     Mutex::Autolock _l(mLock);
 
     PlaybackThread *playbackThread = checkPlaybackThread_l(output);
@@ -1409,10 +1405,6 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who __unuse
 
 
 // ----------------------------------------------------------------------------
-
-static bool deviceRequiresCaptureAudioOutputPermission(audio_devices_t inDevice) {
-    return audio_is_remote_submix_device(inDevice);
-}
 
 sp<IAudioRecord> AudioFlinger::openRecord(
         audio_io_handle_t input,
@@ -1770,8 +1762,6 @@ sp<AudioFlinger::PlaybackThread> AudioFlinger::openOutput_l(audio_module_handle_
     if (outHwDev == NULL) {
         return 0;
     }
-
-    audio_hw_device_t *hwDevHal = outHwDev->hwDevice();
 
     if (*output == AUDIO_IO_HANDLE_NONE) {
         *output = nextUniqueId(AUDIO_UNIQUE_ID_USE_OUTPUT);

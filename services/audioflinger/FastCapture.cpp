@@ -104,8 +104,10 @@ void FastCapture::onStateChange()
         } else {
             mFormat = mInputSource->format();
             mSampleRate = Format_sampleRate(mFormat);
+#if !LOG_NDEBUG
             unsigned channelCount = Format_channelCount(mFormat);
             ALOG_ASSERT(channelCount >= 1 && channelCount <= FCC_8);
+#endif
         }
         dumpState->mSampleRate = mSampleRate;
         eitherChanged = true;
@@ -186,7 +188,6 @@ void FastCapture::onWork()
         ALOG_ASSERT(mPipeSink != NULL);
         ALOG_ASSERT(mReadBuffer != NULL);
         if (mReadBufferState < 0) {
-            unsigned channelCount = Format_channelCount(mFormat);
             memset(mReadBuffer, 0, frameCount * Format_frameSize(mFormat));
             mReadBufferState = frameCount;
         }

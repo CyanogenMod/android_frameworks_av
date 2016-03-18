@@ -707,8 +707,6 @@ void AudioFlinger::ThreadBase::exit()
 
 status_t AudioFlinger::ThreadBase::setParameters(const String8& keyValuePairs)
 {
-    status_t status;
-
     ALOGV("ThreadBase::setParameters() %s", keyValuePairs.string());
     Mutex::Autolock _l(mLock);
 
@@ -918,7 +916,7 @@ String8 channelMaskToString(audio_channel_mask_t mask, bool output) {
         }
         const int len = s.length();
         if (len > 2) {
-            char *str = s.lockBuffer(len); // needed?
+            (void) s.lockBuffer(len);      // needed?
             s.unlockBuffer(len - 2);       // remove trailing ", "
         }
         return s;
@@ -3489,7 +3487,12 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
     mOutputSink = new AudioStreamOutSink(output->stream);
     size_t numCounterOffers = 0;
     const NBAIO_Format offers[1] = {Format_from_SR_C(mSampleRate, mChannelCount, mFormat)};
-    ssize_t index = mOutputSink->negotiate(offers, 1, NULL, numCounterOffers);
+#if !LOG_NDEBUG
+    ssize_t index =
+#else
+    (void)
+#endif
+            mOutputSink->negotiate(offers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
 
     // initialize fast mixer depending on configuration
@@ -3524,7 +3527,9 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
 
         // create a MonoPipe to connect our submix to FastMixer
         NBAIO_Format format = mOutputSink->format();
+#ifdef TEE_SINK
         NBAIO_Format origformat = format;
+#endif
         // adjust format to match that of the Fast Mixer
         ALOGV("format changed from %d to %d", format.mFormat, fastMixerFormat);
         format.mFormat = fastMixerFormat;
@@ -3536,7 +3541,12 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         MonoPipe *monoPipe = new MonoPipe(mNormalFrameCount * 4, format, true /*writeCanBlock*/);
         const NBAIO_Format offers[1] = {format};
         size_t numCounterOffers = 0;
-        ssize_t index = monoPipe->negotiate(offers, 1, NULL, numCounterOffers);
+#if !LOG_NDEBUG
+        ssize_t index =
+#else
+        (void)
+#endif
+                monoPipe->negotiate(offers, 1, NULL, numCounterOffers);
         ALOG_ASSERT(index == 0);
         monoPipe->setAvgFrames((mScreenState & 1) ?
                 (monoPipe->maxFrames() * 7) / 8 : mNormalFrameCount * 2);
@@ -4341,7 +4351,6 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
         }
 
         }   // local variable scope to avoid goto warning
-track_is_ready: ;
 
     }
 
@@ -4578,10 +4587,6 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
 
 void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& args)
 {
-    const size_t SIZE = 256;
-    char buffer[SIZE];
-    String8 result;
-
     PlaybackThread::dumpInternals(fd, args);
     dprintf(fd, "  Thread throttle time (msecs): %u\n", mThreadThrottleTimeMs);
     dprintf(fd, "  AudioMixer tracks: 0x%08x\n", mAudioMixer->trackNames());
@@ -4662,7 +4667,6 @@ AudioFlinger::DirectOutputThread::~DirectOutputThread()
 
 void AudioFlinger::DirectOutputThread::processVolume_l(Track *track, bool lastTrack)
 {
-    audio_track_cblk_t* cblk = track->cblk();
     float left, right;
 
     if (mMasterMute || mStreamTypes[track->streamType()].mute) {
@@ -4751,7 +4755,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
         }
 
         Track* const track = t.get();
+#ifdef VERY_VERY_VERBOSE_LOGGING
         audio_track_cblk_t* cblk = track->cblk();
+#endif
         // Only consider last track started for volume and mixer state control.
         // In theory an older track could underrun and restart after the new one starts
         // but as we only care about the transition phase between two tracks on a
@@ -5276,7 +5282,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             continue;
         }
         Track* const track = t.get();
+#ifdef VERY_VERY_VERBOSE_LOGGING
         audio_track_cblk_t* cblk = track->cblk();
+#endif
         // Only consider last track started for volume and mixer state control.
         // In theory an older track could underrun and restart after the new one starts
         // but as we only care about the transition phase between two tracks on a
@@ -5728,7 +5736,12 @@ AudioFlinger::RecordThread::RecordThread(const sp<AudioFlinger>& audioFlinger,
     mInputSource = new AudioStreamInSource(input->stream);
     size_t numCounterOffers = 0;
     const NBAIO_Format offers[1] = {Format_from_SR_C(mSampleRate, mChannelCount, mFormat)};
-    ssize_t index = mInputSource->negotiate(offers, 1, NULL, numCounterOffers);
+#if !LOG_NDEBUG
+    ssize_t index =
+#else
+    (void)
+#endif
+            mInputSource->negotiate(offers, 1, NULL, numCounterOffers);
     ALOG_ASSERT(index == 0);
 
     // initialize fast capture depending on configuration
