@@ -7,7 +7,7 @@ LOCAL_SRC_FILES:= \
 LOCAL_MODULE:= libmedia_helper
 LOCAL_MODULE_TAGS := optional
 
-LOCAL_C_FLAGS += -Werror -Wno-error=deprecated-declarations -Wall
+LOCAL_CFLAGS += -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CLANG := true
 
 include $(BUILD_STATIC_LIBRARY)
