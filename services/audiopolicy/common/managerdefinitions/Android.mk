@@ -58,6 +58,8 @@ endif #ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 LOCAL_EXPORT_C_INCLUDE_DIRS := \
     $(LOCAL_PATH)/include
 
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+
 LOCAL_MODULE := libaudiopolicycomponents
 
 include $(BUILD_STATIC_LIBRARY)

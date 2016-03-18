@@ -60,8 +60,9 @@ LOCAL_STATIC_LIBRARIES := \
     libcpustats \
     libmedia_helper
 
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+
 LOCAL_MODULE:= libaudioflinger
-LOCAL_32_BIT_ONLY := true
 
 LOCAL_SRC_FILES += \
     AudioWatchdog.cpp        \

@@ -45,12 +45,13 @@ LOCAL_STATIC_LIBRARIES := \
     libmedia_helper \
     libaudiopolicycomponents
 
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+
 LOCAL_MODULE:= libaudiopolicyservice
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
 include $(BUILD_SHARED_LIBRARY)
-
 
 ifneq ($(USE_LEGACY_AUDIO_POLICY), 1)
 
@@ -101,6 +102,8 @@ LOCAL_SHARED_LIBRARIES += libicuuc
 LOCAL_CFLAGS += -DUSE_XML_AUDIO_POLICY_CONF
 endif #ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
 
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
+
 LOCAL_MODULE:= libaudiopolicymanagerdefault
 
 include $(BUILD_SHARED_LIBRARY)
@@ -121,6 +124,8 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_C_INCLUDES += \
     $(TOPDIR)frameworks/av/services/audiopolicy/common/include \
     $(TOPDIR)frameworks/av/services/audiopolicy/engine/interface
+
+LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
 
 LOCAL_MODULE:= libaudiopolicymanager
 
