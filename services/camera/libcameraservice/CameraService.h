@@ -488,8 +488,14 @@ private:
     virtual void onFirstRef();
 
     // Check if we can connect, before we acquire the service lock.
+    // The returned originalClientPid is the PID of the original process that wants to connect to
+    // camera.
+    // The returned clientPid is the PID of the client that directly connects to camera.
+    // originalClientPid and clientPid are usually the same except when the application uses
+    // mediaserver to connect to camera (using MediaRecorder to connect to camera). In that case,
+    // clientPid is the PID of mediaserver and originalClientPid is the PID of the application.
     binder::Status validateConnectLocked(const String8& cameraId, const String8& clientName8,
-          /*inout*/int& clientUid, /*inout*/int& clientPid) const;
+          /*inout*/int& clientUid, /*inout*/int& clientPid, /*out*/int& originalClientPid) const;
 
     // Handle active client evictions, and update service state.
     // Only call with with mServiceLock held.
@@ -819,6 +825,8 @@ binder::Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const 
 
     String8 clientName8(clientPackageName);
 
+    int originalClientPid = 0;
+
     ALOGI("CameraService::connect call (PID %d \"%s\", camera ID %s) for HAL version %s and "
             "Camera API version %d", clientPid, clientName8.string(), cameraId.string(),
             (halVersion == -1) ? "default" : std::to_string(halVersion).c_str(),
@@ -840,7 +848,7 @@ binder::Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const 
 
         // Enforce client permissions and do basic sanity checks
         if(!(ret = validateConnectLocked(cameraId, clientName8,
-                /*inout*/clientUid, /*inout*/clientPid)).isOk()) {
+                /*inout*/clientUid, /*inout*/clientPid, /*out*/originalClientPid)).isOk()) {
             return ret;
         }
 
@@ -857,7 +865,7 @@ binder::Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const 
 
         sp<BasicClient> clientTmp = nullptr;
         std::shared_ptr<resource_policy::ClientDescriptor<String8, sp<BasicClient>>> partial;
-        if ((err = handleEvictionsLocked(cameraId, clientPid, effectiveApiLevel,
+        if ((err = handleEvictionsLocked(cameraId, originalClientPid, effectiveApiLevel,
                 IInterface::asBinder(cameraCb), clientName8, /*out*/&clientTmp,
                 /*out*/&partial)) != NO_ERROR) {
             switch (err) {

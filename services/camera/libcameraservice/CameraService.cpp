@@ -912,7 +912,8 @@ static bool isTrustedCallingUid(uid_t uid) {
 }
 
 Status CameraService::validateConnectLocked(const String8& cameraId,
-        const String8& clientName8, /*inout*/int& clientUid, /*inout*/int& clientPid) const {
+        const String8& clientName8, /*inout*/int& clientUid, /*inout*/int& clientPid,
+        /*out*/int& originalClientPid) const {
 
     int callingPid = getCallingPid();
     int callingUid = getCallingUid();
@@ -954,6 +955,7 @@ Status CameraService::validateConnectLocked(const String8& cameraId,
 
     // Only use passed in clientPid to check permission. Use calling PID as the client PID that's
     // connected to camera service directly.
+    originalClientPid = clientPid;
     clientPid = callingPid;
 
     if (!mModule) {
