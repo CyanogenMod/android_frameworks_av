@@ -282,7 +282,6 @@ void AudioResamplerDyn<TC, TI, TO>::setSampleRate(int32_t inSampleRate)
         return;
     }
     int32_t oldSampleRate = mInSampleRate;
-    int32_t oldHalfNumCoefs = mConstants.mHalfNumCoefs;
     uint32_t oldPhaseWrapLimit = mConstants.mL << mConstants.mShift;
     bool useS32 = false;
 

@@ -47,7 +47,6 @@ namespace android {
 /*static*/ const FastMixerState FastMixer::sInitial;
 
 FastMixer::FastMixer() : FastThread(),
-    mSlopNs(0),
     // mFastTrackNames
     // mGenerations
     mOutputSink(NULL),

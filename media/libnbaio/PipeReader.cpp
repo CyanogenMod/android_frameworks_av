@@ -36,7 +36,12 @@ PipeReader::PipeReader(Pipe& pipe) :
 
 PipeReader::~PipeReader()
 {
-    int32_t readers = android_atomic_dec(&mPipe.mReaders);
+#if !LOG_NDEBUG
+    int32_t readers =
+#else
+    (void)
+#endif
+            android_atomic_dec(&mPipe.mReaders);
     ALOG_ASSERT(readers > 0);
 }
 

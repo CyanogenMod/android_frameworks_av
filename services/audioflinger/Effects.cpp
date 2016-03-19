@@ -677,7 +677,6 @@ status_t AudioFlinger::EffectModule::setVolume(uint32_t *left, uint32_t *right, 
     if (isProcessEnabled() &&
             ((mDescriptor.flags & EFFECT_FLAG_VOLUME_MASK) == EFFECT_FLAG_VOLUME_CTRL ||
             (mDescriptor.flags & EFFECT_FLAG_VOLUME_MASK) == EFFECT_FLAG_VOLUME_IND)) {
-        status_t cmdStatus;
         uint32_t volume[2];
         uint32_t *pVolume = NULL;
         uint32_t size = sizeof(volume);
@@ -934,7 +933,7 @@ String8 effectFlagsToString(uint32_t flags) {
 
     int len = s.length();
     if (s.length() > 2) {
-        char *str = s.lockBuffer(len);
+        (void) s.lockBuffer(len);
         s.unlockBuffer(len - 2);
     }
     return s;

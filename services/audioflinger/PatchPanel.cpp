@@ -614,7 +614,6 @@ status_t AudioFlinger::PatchPanel::listAudioPatches(unsigned int *num_patches __
 status_t AudioFlinger::PatchPanel::setAudioPortConfig(const struct audio_port_config *config)
 {
     ALOGV("setAudioPortConfig");
-    status_t status = NO_ERROR;
 
     sp<AudioFlinger> audioflinger = mAudioFlinger.promote();
     if (audioflinger == 0) {
