@@ -104,7 +104,6 @@ terms listed above has been obtained from the copyright holder.
 ; INCLUDES
 ----------------------------------------------------------------------------*/
 #include    "typedef.h"
-#include    "mode.h"
 #include    "frame_type_3gpp.h"
 
 /*--------------------------------------------------------------------------*/
