@@ -1,0 +1,110 @@
+From f52495709cb86e47a092524d6e12d8320eeab7a8 Mon Sep 17 00:00:00 2001
+From: Wei Jia <wjia@google.com>
+Date: Fri, 18 Mar 2016 18:17:14 -0700
+Subject: [PATCH 6/7] SoftAMR: check input buffer size to avoid overflow.
+
+Bug: 27662364
+Change-Id: I47380545ea7d85845e141e722b0d84f498d27145
+---
+ media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp  | 25 +++++++++++++++++++++-
+ .../codecs/amrnb/dec/src/amrdecode.h               |  1 -
+ .../codecs/amrnb/dec/src/gsmamr_dec.h              | 14 +-----------
+ 3 files changed, 25 insertions(+), 15 deletions(-)
+
+diff --git a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+index 7ae6024..41d14f1 100644
+--- a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
++++ b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+@@ -286,6 +286,13 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+         BufferInfo *inInfo = *inQueue.begin();
+         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+ 
++        if (inHeader->nFilledLen == 0) {
++            inInfo->mOwnedByUs = false;
++            inQueue.erase(inQueue.begin());
++            notifyEmptyBufferDone(inHeader);
++            continue;
++        }
++
+         BufferInfo *outInfo = *outQueue.begin();
+         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
+ 
+@@ -321,6 +328,17 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+                 return;
+             }
+ 
++            int16 mode = ((inputPtr[0] >> 3) & 0x0f);
++            // for WMF since MIME_IETF is used when calling AMRDecode.
++            size_t frameSize = WmfDecBytesPerFrame[mode] + 1;
++
++            if (inHeader->nFilledLen < frameSize) {
++                ALOGE("b/27662364: expected %zu bytes vs %u", frameSize, inHeader->nFilledLen);
++                notify(OMX_EventError, OMX_ErrorStreamCorrupt, 0, NULL);
++                mSignalledError = true;
++                return;
++            }
++
+             numBytesRead =
+                 AMRDecode(mState,
+                   (Frame_Type_3GPP)((inputPtr[0] >> 3) & 0x0f),
+@@ -370,7 +388,12 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+             }
+ 
+             size_t frameSize = getFrameSize(mode);
+-            CHECK_GE(inHeader->nFilledLen, frameSize);
++            if (inHeader->nFilledLen < frameSize) {
++                ALOGE("b/27662364: expected %zu bytes vs %u", frameSize, inHeader->nFilledLen);
++                notify(OMX_EventError, OMX_ErrorStreamCorrupt, 0, NULL);
++                mSignalledError = true;
++                return;
++            }
+ 
+             int16_t *outPtr = (int16_t *)outHeader->pBuffer;
+ 
+diff --git a/media/libstagefright/codecs/amrnb/dec/src/amrdecode.h b/media/libstagefright/codecs/amrnb/dec/src/amrdecode.h
+index 0988e17..f224fb6 100644
+--- a/media/libstagefright/codecs/amrnb/dec/src/amrdecode.h
++++ b/media/libstagefright/codecs/amrnb/dec/src/amrdecode.h
+@@ -104,7 +104,6 @@ terms listed above has been obtained from the copyright holder.
+ ; INCLUDES
+ ----------------------------------------------------------------------------*/
+ #include    "typedef.h"
+-#include    "mode.h"
+ #include    "frame_type_3gpp.h"
+ 
+ /*--------------------------------------------------------------------------*/
+diff --git a/media/libstagefright/codecs/amrnb/dec/src/gsmamr_dec.h b/media/libstagefright/codecs/amrnb/dec/src/gsmamr_dec.h
+index 8f54ee8..dc64d67 100644
+--- a/media/libstagefright/codecs/amrnb/dec/src/gsmamr_dec.h
++++ b/media/libstagefright/codecs/amrnb/dec/src/gsmamr_dec.h
+@@ -87,6 +87,7 @@ terms listed above has been obtained from the copyright holder.
+ 
+ #include "gsm_amr_typedefs.h"
+ #include "frame_type_3gpp.h"
++#include "amrdecode.h"
+ 
+ /*--------------------------------------------------------------------------*/
+ #ifdef __cplusplus
+@@ -136,19 +137,6 @@ extern "C"
+                          Word8 *id);
+ 
+     /*
+-     * AMRDecode steps into the part of the library that decodes the raw data
+-     * speech bits for the decoding process. It returns the address offset of
+-     * the next frame to be decoded.
+-     */
+-    Word16 AMRDecode(
+-        void                      *state_data,
+-        enum Frame_Type_3GPP      frame_type,
+-        UWord8                    *speech_bits_ptr,
+-        Word16                    *raw_pcm_buffer,
+-        Word16                    input_format
+-    );
+-
+-    /*
+      * This function resets the state memory used by the GSM AMR decoder. This
+      * function returns zero. It will return negative one if there is an error.
+      */
+-- 
+2.8.0.rc3.226.g39d4020
+

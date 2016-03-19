@@ -1,0 +1,39 @@
+From ae6a2ddb9903b2528f96f2fe21da549dd6bc3a9e Mon Sep 17 00:00:00 2001
+From: Robert Shih <robertshih@google.com>
+Date: Fri, 18 Mar 2016 14:34:57 -0700
+Subject: [PATCH 3/7] NuPlayerStreamListener: NULL and bounds check before
+ memcpy
+
+Bug: 27533704
+Change-Id: I992a7709b92b1cbc3114c97bec48a3fc5b22ba6e
+(cherry picked from commit 88b3147ea116911285cdbbea422e67e1c69b355e)
+---
+ .../libmediaplayerservice/nuplayer/NuPlayerStreamListener.cpp | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/media/libmediaplayerservice/nuplayer/NuPlayerStreamListener.cpp b/media/libmediaplayerservice/nuplayer/NuPlayerStreamListener.cpp
+index 885ebe4..7f76791 100644
+--- a/media/libmediaplayerservice/nuplayer/NuPlayerStreamListener.cpp
++++ b/media/libmediaplayerservice/nuplayer/NuPlayerStreamListener.cpp
+@@ -144,8 +144,17 @@ ssize_t NuPlayer::NuPlayerStreamListener::read(
+         copy = size;
+     }
+ 
++    if (entry->mIndex >= mBuffers.size()) {
++        return ERROR_MALFORMED;
++    }
++
++    sp<IMemory> mem = mBuffers.editItemAt(entry->mIndex);
++    if (mem == NULL || mem->size() < copy || mem->size() - copy < entry->mOffset) {
++        return ERROR_MALFORMED;
++    }
++
+     memcpy(data,
+-           (const uint8_t *)mBuffers.editItemAt(entry->mIndex)->pointer()
++           (const uint8_t *)mem->pointer()
+             + entry->mOffset,
+            copy);
+ 
+-- 
+2.8.0.rc3.226.g39d4020
+

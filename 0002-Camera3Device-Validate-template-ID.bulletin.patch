@@ -1,0 +1,44 @@
+From b04e10b75d3edcd44599b7f3f657dd6f2cdbcf40 Mon Sep 17 00:00:00 2001
+From: Chien-Yu Chen <cychen@google.com>
+Date: Wed, 9 Mar 2016 12:21:01 -0800
+Subject: [PATCH 2/7] Camera3Device: Validate template ID
+
+Validate template ID before creating a default request.
+
+Bug: 26866110
+Bug: 27568958
+Change-Id: Ifda457024f1d5c2b1382f189c1a8d5fda852d30d
+(cherry picked from commit 116a18940e30859ac04a95ffe4d4fefb313d7ab2)
+---
+ services/camera/libcameraservice/device3/Camera3Device.cpp | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/services/camera/libcameraservice/device3/Camera3Device.cpp b/services/camera/libcameraservice/device3/Camera3Device.cpp
+index 3dbc1b0..7eef094 100644
+--- a/services/camera/libcameraservice/device3/Camera3Device.cpp
++++ b/services/camera/libcameraservice/device3/Camera3Device.cpp
+@@ -41,6 +41,7 @@
+ #include <utils/Trace.h>
+ #include <utils/Timers.h>
+ 
++#include "CameraService.h"
+ #include "utils/CameraTraces.h"
+ #include "device3/Camera3Device.h"
+ #include "device3/Camera3OutputStream.h"
+@@ -874,6 +875,13 @@ status_t Camera3Device::createDefaultRequest(int templateId,
+         CameraMetadata *request) {
+     ATRACE_CALL();
+     ALOGV("%s: for template %d", __FUNCTION__, templateId);
++
++    if (templateId <= 0 || templateId >= CAMERA3_TEMPLATE_COUNT) {
++        android_errorWriteWithInfoLog(CameraService::SN_EVENT_LOG_ID, "26866110",
++                IPCThreadState::self()->getCallingUid(), NULL, 0);
++        return BAD_VALUE;
++    }
++
+     Mutex::Autolock il(mInterfaceLock);
+     Mutex::Autolock l(mLock);
+ 
+-- 
+2.8.0.rc3.226.g39d4020
+

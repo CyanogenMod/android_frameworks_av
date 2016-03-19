@@ -1,0 +1,50 @@
+From b8c56024388e1af8162e792c733d7e1214c710a2 Mon Sep 17 00:00:00 2001
+From: Wei Jia <wjia@google.com>
+Date: Thu, 17 Mar 2016 11:15:02 -0700
+Subject: [PATCH 5/7] SoftAMR: check output buffer size to avoid overflow.
+
+Bug: 27662364
+Change-Id: I7b26892c41d6f2e690e77478ab855c2fed1ff6b0
+---
+ media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+index 3320688..7ae6024 100644
+--- a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
++++ b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+@@ -312,6 +312,15 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+         int32_t numBytesRead;
+ 
+         if (mMode == MODE_NARROW) {
++            if (outHeader->nAllocLen < kNumSamplesPerFrameNB * sizeof(int16_t)) {
++                ALOGE("b/27662364: NB expected output buffer %zu bytes vs %u",
++                       kNumSamplesPerFrameNB * sizeof(int16_t), outHeader->nAllocLen);
++                android_errorWriteLog(0x534e4554, "27662364");
++                notify(OMX_EventError, OMX_ErrorOverflow, 0, NULL);
++                mSignalledError = true;
++                return;
++            }
++
+             numBytesRead =
+                 AMRDecode(mState,
+                   (Frame_Type_3GPP)((inputPtr[0] >> 3) & 0x0f),
+@@ -339,6 +348,15 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+                 return;
+             }
+         } else {
++            if (outHeader->nAllocLen < kNumSamplesPerFrameWB * sizeof(int16_t)) {
++                ALOGE("b/27662364: WB expected output buffer %zu bytes vs %u",
++                       kNumSamplesPerFrameWB * sizeof(int16_t), outHeader->nAllocLen);
++                android_errorWriteLog(0x534e4554, "27662364");
++                notify(OMX_EventError, OMX_ErrorOverflow, 0, NULL);
++                mSignalledError = true;
++                return;
++            }
++
+             int16 mode = ((inputPtr[0] >> 3) & 0x0f);
+ 
+             if (mode >= 10 && mode <= 13) {
+-- 
+2.8.0.rc3.226.g39d4020
+

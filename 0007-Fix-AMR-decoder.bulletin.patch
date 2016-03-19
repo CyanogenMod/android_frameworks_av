@@ -1,0 +1,50 @@
+From 0819e675b32a374bc15b9556721ee150bfd2e2ac Mon Sep 17 00:00:00 2001
+From: Marco Nelissen <marcone@google.com>
+Date: Fri, 25 Mar 2016 08:26:18 -0700
+Subject: [PATCH 7/7] Fix AMR decoder
+
+Previous change caused EOS to be ignored.
+
+Bug: 27843673
+Related-to-bug: 27662364
+Change-Id: Ia148a88abc861a9b393f42bc7cd63d8d3ae349bc
+(cherry picked from commit d061b5b120082c9445670ebc95c5edade9ea4505)
+---
+ media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+index 41d14f1..25ee4cc 100644
+--- a/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
++++ b/media/libstagefright/codecs/amrnb/dec/SoftAMR.cpp
+@@ -286,13 +286,6 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+         BufferInfo *inInfo = *inQueue.begin();
+         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+ 
+-        if (inHeader->nFilledLen == 0) {
+-            inInfo->mOwnedByUs = false;
+-            inQueue.erase(inQueue.begin());
+-            notifyEmptyBufferDone(inHeader);
+-            continue;
+-        }
+-
+         BufferInfo *outInfo = *outQueue.begin();
+         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
+ 
+@@ -310,6 +303,13 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
+             return;
+         }
+ 
++        if (inHeader->nFilledLen == 0) {
++            inInfo->mOwnedByUs = false;
++            inQueue.erase(inQueue.begin());
++            notifyEmptyBufferDone(inHeader);
++            continue;
++        }
++
+         if (inHeader->nOffset == 0) {
+             mAnchorTimeUs = inHeader->nTimeStamp;
+             mNumSamplesOutput = 0;
+-- 
+2.8.0.rc3.226.g39d4020
+

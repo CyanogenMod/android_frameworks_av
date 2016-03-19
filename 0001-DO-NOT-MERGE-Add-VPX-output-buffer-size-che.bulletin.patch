@@ -1,0 +1,101 @@
+From ef6daaa53a4bed292ed788e57d2128ab6d13bf3e Mon Sep 17 00:00:00 2001
+From: Marco Nelissen <marcone@google.com>
+Date: Wed, 16 Mar 2016 10:32:05 -0700
+Subject: [PATCH 1/7] DO NOT MERGE Add VPX output buffer size check
+
+and handle dead observers more gracefully
+
+Bug: 27597103
+Change-Id: Id7acb25d5ef69b197da15ec200a9e4f9e7b03518
+(cherry picked from commit 1595f8ac7ab412e81e0565e1347edaeedf9f2832)
+---
+ media/libstagefright/codecs/on2/dec/SoftVPX.cpp | 53 ++++++++++++++-----------
+ media/libstagefright/omx/OMX.cpp                |  7 +++-
+ 2 files changed, 35 insertions(+), 25 deletions(-)
+
+diff --git a/media/libstagefright/codecs/on2/dec/SoftVPX.cpp b/media/libstagefright/codecs/on2/dec/SoftVPX.cpp
+index 979a053..3934edc 100644
+--- a/media/libstagefright/codecs/on2/dec/SoftVPX.cpp
++++ b/media/libstagefright/codecs/on2/dec/SoftVPX.cpp
+@@ -155,31 +155,36 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
+             outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
+             outHeader->nTimeStamp = inHeader->nTimeStamp;
+ 
+-            const uint8_t *srcLine = (const uint8_t *)img->planes[VPX_PLANE_Y];
+-            uint8_t *dst = outHeader->pBuffer;
+-            for (size_t i = 0; i < img->d_h; ++i) {
+-                memcpy(dst, srcLine, img->d_w);
+-
+-                srcLine += img->stride[VPX_PLANE_Y];
+-                dst += img->d_w;
+-            }
+-
+-            srcLine = (const uint8_t *)img->planes[VPX_PLANE_U];
+-            for (size_t i = 0; i < img->d_h / 2; ++i) {
+-                memcpy(dst, srcLine, img->d_w / 2);
+-
+-                srcLine += img->stride[VPX_PLANE_U];
+-                dst += img->d_w / 2;
+-            }
+-
+-            srcLine = (const uint8_t *)img->planes[VPX_PLANE_V];
+-            for (size_t i = 0; i < img->d_h / 2; ++i) {
+-                memcpy(dst, srcLine, img->d_w / 2);
+-
+-                srcLine += img->stride[VPX_PLANE_V];
+-                dst += img->d_w / 2;
++            if (outHeader->nAllocLen >= outHeader->nFilledLen) {
++                const uint8_t *srcLine = (const uint8_t *)img->planes[VPX_PLANE_Y];
++                uint8_t *dst = outHeader->pBuffer;
++                for (size_t i = 0; i < img->d_h; ++i) {
++                    memcpy(dst, srcLine, img->d_w);
++
++                    srcLine += img->stride[VPX_PLANE_Y];
++                    dst += img->d_w;
++                }
++
++                srcLine = (const uint8_t *)img->planes[VPX_PLANE_U];
++                for (size_t i = 0; i < img->d_h / 2; ++i) {
++                    memcpy(dst, srcLine, img->d_w / 2);
++
++                    srcLine += img->stride[VPX_PLANE_U];
++                    dst += img->d_w / 2;
++                }
++
++                srcLine = (const uint8_t *)img->planes[VPX_PLANE_V];
++                for (size_t i = 0; i < img->d_h / 2; ++i) {
++                    memcpy(dst, srcLine, img->d_w / 2);
++
++                    srcLine += img->stride[VPX_PLANE_V];
++                    dst += img->d_w / 2;
++                }
++            } else {
++                ALOGE("b/27597103, buffer too small");
++                android_errorWriteLog(0x534e4554, "27597103");
++                outHeader->nFilledLen = 0;
+             }
+-
+             outInfo->mOwnedByUs = false;
+             outQueue.erase(outQueue.begin());
+             outInfo = NULL;
+diff --git a/media/libstagefright/omx/OMX.cpp b/media/libstagefright/omx/OMX.cpp
+index 415910a..1ddf356 100644
+--- a/media/libstagefright/omx/OMX.cpp
++++ b/media/libstagefright/omx/OMX.cpp
+@@ -170,7 +170,12 @@ void OMX::binderDied(const wp<IBinder> &the_late_who) {
+         Mutex::Autolock autoLock(mLock);
+ 
+         ssize_t index = mLiveNodes.indexOfKey(the_late_who);
+-        CHECK(index >= 0);
++
++        if (index < 0) {
++            ALOGE("b/27597103, nonexistent observer on binderDied");
++            android_errorWriteLog(0x534e4554, "27597103");
++            return;
++        }
+ 
+         instance = mLiveNodes.editValueAt(index);
+         mLiveNodes.removeItemsAt(index);
+-- 
+2.8.0.rc3.226.g39d4020
+
