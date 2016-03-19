@@ -306,6 +306,13 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
         BufferInfo *inInfo = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
+        if (inHeader->nFilledLen == 0) {
+            inInfo->mOwnedByUs = false;
+            inQueue.erase(inQueue.begin());
+            notifyEmptyBufferDone(inHeader);
+            continue;
+        }
+
         BufferInfo *outInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
 
@@ -337,6 +344,17 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
                        kNumSamplesPerFrameNB * sizeof(int16_t), outHeader->nAllocLen);
                 android_errorWriteLog(0x534e4554, "27662364");
                 notify(OMX_EventError, OMX_ErrorOverflow, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
+
+            int16 mode = ((inputPtr[0] >> 3) & 0x0f);
+            // for WMF since MIME_IETF is used when calling AMRDecode.
+            size_t frameSize = WmfDecBytesPerFrame[mode] + 1;
+
+            if (inHeader->nFilledLen < frameSize) {
+                ALOGE("b/27662364: expected %zu bytes vs %u", frameSize, inHeader->nFilledLen);
+                notify(OMX_EventError, OMX_ErrorStreamCorrupt, 0, NULL);
                 mSignalledError = true;
                 return;
             }
@@ -390,7 +408,12 @@ void SoftAMR::onQueueFilled(OMX_U32 portIndex) {
             }
 
             size_t frameSize = getFrameSize(mode);
-            CHECK_GE(inHeader->nFilledLen, frameSize);
+            if (inHeader->nFilledLen < frameSize) {
+                ALOGE("b/27662364: expected %zu bytes vs %u", frameSize, inHeader->nFilledLen);
+                notify(OMX_EventError, OMX_ErrorStreamCorrupt, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
 
             int16_t *outPtr = (int16_t *)outHeader->pBuffer;
 
