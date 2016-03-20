@@ -343,14 +343,13 @@ void SoftHEVC::onReset() {
     resetPlugin();
 }
 
-void SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
+bool SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
         ivd_video_decode_op_t *ps_dec_op,
         OMX_BUFFERHEADERTYPE *inHeader,
         OMX_BUFFERHEADERTYPE *outHeader,
         size_t timeStampIx) {
     size_t sizeY = outputBufferWidth() * outputBufferHeight();
     size_t sizeUV;
-    uint8_t *pBuf;
 
     ps_dec_ip->u4_size = sizeof(ivd_video_decode_ip_t);
     ps_dec_op->u4_size = sizeof(ivd_video_decode_op_t);
@@ -370,22 +369,28 @@ void SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
         ps_dec_ip->u4_num_Bytes = 0;
     }
 
-    if (outHeader) {
-        pBuf = outHeader->pBuffer;
-    } else {
-        pBuf = mFlushOutBuffer;
-    }
-
     sizeUV = sizeY / 4;
     ps_dec_ip->s_out_buffer.u4_min_out_buf_size[0] = sizeY;
     ps_dec_ip->s_out_buffer.u4_min_out_buf_size[1] = sizeUV;
     ps_dec_ip->s_out_buffer.u4_min_out_buf_size[2] = sizeUV;
 
+    uint8_t *pBuf;
+    if (outHeader) {
+        if (outHeader->nAllocLen < sizeY + (sizeUV * 2)) {
+            android_errorWriteLog(0x534e4554, "27569635");
+            return false;
+        }
+        pBuf = outHeader->pBuffer;
+    } else {
+        // mFlushOutBuffer always has the right size.
+        pBuf = mFlushOutBuffer;
+    }
+
     ps_dec_ip->s_out_buffer.pu1_bufs[0] = pBuf;
     ps_dec_ip->s_out_buffer.pu1_bufs[1] = pBuf + sizeY;
     ps_dec_ip->s_out_buffer.pu1_bufs[2] = pBuf + sizeY + sizeUV;
     ps_dec_ip->s_out_buffer.u4_num_bufs = 3;
-    return;
+    return true;
 }
 void SoftHEVC::onPortFlushCompleted(OMX_U32 portIndex) {
     /* Once the output buffers are flushed, ignore any buffers that are held in decoder */
@@ -520,7 +525,12 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             WORD32 timeDelay, timeTaken;
             size_t sizeY, sizeUV;
 
-            setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx);
+            if (!setDecodeArgs(&s_dec_ip, &s_dec_op, inHeader, outHeader, timeStampIx)) {
+                ALOGE("Decoder arg setup failed");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
 
             GETTIME(&mTimeStart, NULL);
             /* Compute time elapsed between end of previous decode()
