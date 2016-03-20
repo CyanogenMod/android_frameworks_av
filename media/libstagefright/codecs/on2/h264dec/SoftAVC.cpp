@@ -200,7 +200,12 @@ void SoftAVC::onQueueFilled(OMX_U32 /* portIndex */) {
         }
 
         if (mFirstPicture && !outQueue.empty()) {
-            drainOneOutputBuffer(mFirstPictureId, mFirstPicture);
+            if (!drainOneOutputBuffer(mFirstPictureId, mFirstPicture)) {
+                ALOGE("Drain failed");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
             delete[] mFirstPicture;
             mFirstPicture = NULL;
             mFirstPictureId = -1;
@@ -240,15 +245,20 @@ void SoftAVC::saveFirstOutputBuffer(int32_t picId, uint8_t *data) {
     memcpy(mFirstPicture, data, pictureSize);
 }
 
-void SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
+bool SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
     BufferInfo *outInfo = *outQueue.begin();
-    outQueue.erase(outQueue.begin());
     OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
+    OMX_U32 frameSize = mWidth * mHeight * 3 / 2;
+    if (outHeader->nAllocLen - outHeader->nOffset < frameSize) {
+        android_errorWriteLog(0x534e4554, "27833616");
+        return false;
+    }
+    outQueue.erase(outQueue.begin());
     OMX_BUFFERHEADERTYPE *header = mPicToHeaderMap.valueFor(picId);
     outHeader->nTimeStamp = header->nTimeStamp;
     outHeader->nFlags = header->nFlags;
-    outHeader->nFilledLen = mWidth * mHeight * 3 / 2;
+    outHeader->nFilledLen = frameSize;
 
     uint8_t *dst = outHeader->pBuffer + outHeader->nOffset;
     const uint8_t *srcY = data;
@@ -263,6 +273,7 @@ void SoftAVC::drainOneOutputBuffer(int32_t picId, uint8_t* data) {
     delete header;
     outInfo->mOwnedByUs = false;
     notifyFillBufferDone(outHeader);
+    return true;
 }
 
 void SoftAVC::drainAllOutputBuffers(bool eos) {
@@ -275,7 +286,12 @@ void SoftAVC::drainAllOutputBuffers(bool eos) {
                     mHandle, &decodedPicture, eos /* flush */)) {
             int32_t picId = decodedPicture.picId;
             uint8_t *data = (uint8_t *) decodedPicture.pOutputPicture;
-            drainOneOutputBuffer(picId, data);
+            if (!drainOneOutputBuffer(picId, data)) {
+                ALOGE("Drain failed");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+                mSignalledError = true;
+                return;
+            }
         }
     }
 
