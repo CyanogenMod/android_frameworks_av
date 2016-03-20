@@ -688,9 +688,10 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
         const uint8_t *source =
             inputBufferHeader->pBuffer + inputBufferHeader->nOffset;
 
+        size_t frameSize = mWidth * mHeight * 3 / 2;
         if (mInputDataIsMeta) {
             source = extractGraphicBuffer(
-                    mConversionBuffer, mWidth * mHeight * 3 / 2,
+                    mConversionBuffer, frameSize,
                     source, inputBufferHeader->nFilledLen,
                     mWidth, mHeight);
             if (source == NULL) {
@@ -698,11 +699,21 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                 notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
                 return;
             }
-        } else if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
-            ConvertYUV420SemiPlanarToYUV420Planar(
-                    source, mConversionBuffer, mWidth, mHeight);
+        } else {
+            if (inputBufferHeader->nFilledLen < frameSize) {
+                android_errorWriteLog(0x534e4554, "27569635");
+                notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
+                return;
+            } else if (inputBufferHeader->nFilledLen > frameSize) {
+                ALOGW("Input buffer contains too many pixels");
+            }
 
-            source = mConversionBuffer;
+            if (mColorFormat == OMX_COLOR_FormatYUV420SemiPlanar) {
+                ConvertYUV420SemiPlanarToYUV420Planar(
+                        source, mConversionBuffer, mWidth, mHeight);
+
+                source = mConversionBuffer;
+            }
         }
         vpx_image_t raw_frame;
         vpx_img_wrap(&raw_frame, VPX_IMG_FMT_I420, mWidth, mHeight,
@@ -764,9 +775,14 @@ void SoftVPXEncoder::onQueueFilled(OMX_U32 /* portIndex */) {
                 outputBufferHeader->nTimeStamp = encoded_packet->data.frame.pts;
                 outputBufferHeader->nFlags = 0;
                 if (encoded_packet->data.frame.flags & VPX_FRAME_IS_KEY)
-                  outputBufferHeader->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
+                    outputBufferHeader->nFlags |= OMX_BUFFERFLAG_SYNCFRAME;
                 outputBufferHeader->nOffset = 0;
                 outputBufferHeader->nFilledLen = encoded_packet->data.frame.sz;
+                if (outputBufferHeader->nFilledLen > outputBufferHeader->nAllocLen) {
+                    android_errorWriteLog(0x534e4554, "27569635");
+                    notify(OMX_EventError, OMX_ErrorUndefined, 0, 0);
+                    return;
+                }
                 memcpy(outputBufferHeader->pBuffer,
                        encoded_packet->data.frame.buf,
                        encoded_packet->data.frame.sz);
