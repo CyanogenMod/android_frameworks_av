@@ -98,9 +98,37 @@ status_t Camera::connectLegacy(int cameraId, int halVersion,
         c->mStatus = NO_ERROR;
         camera = c;
     } else {
-        ALOGW("An error occurred while connecting to camera %d: %s", cameraId,
-                (cs != nullptr) ? "Service not available" : ret.toString8().string());
-        status = -EINVAL;
+        switch(ret.serviceSpecificErrorCode()) {
+            case hardware::ICameraService::ERROR_DISCONNECTED:
+                status = -ENODEV;
+                break;
+            case hardware::ICameraService::ERROR_CAMERA_IN_USE:
+                status = -EBUSY;
+                break;
+            case hardware::ICameraService::ERROR_INVALID_OPERATION:
+                status = -EINVAL;
+                break;
+            case hardware::ICameraService::ERROR_MAX_CAMERAS_IN_USE:
+                status = -EUSERS;
+                break;
+            case hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT:
+                status = BAD_VALUE;
+                break;
+            case hardware::ICameraService::ERROR_DEPRECATED_HAL:
+                status = -EOPNOTSUPP;
+                break;
+            case hardware::ICameraService::ERROR_DISABLED:
+                status = -EACCES;
+                break;
+            case hardware::ICameraService::ERROR_PERMISSION_DENIED:
+                status = PERMISSION_DENIED;
+                break;
+            default:
+                status = -EINVAL;
+                ALOGW("An error occurred while connecting to camera %d: %s", cameraId,
+                        (cs != nullptr) ? "Service not available" : ret.toString8().string());
+                break;
+        }
         c.clear();
     }
     return status;
