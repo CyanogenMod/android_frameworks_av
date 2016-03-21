@@ -43,6 +43,7 @@
 #include <utils/Trace.h>
 #include <utils/Timers.h>
 
+#include "CameraService.h"
 #include "utils/CameraTraces.h"
 #include "mediautils/SchedulingPolicyService.h"
 #include "device3/Camera3Device.h"
@@ -1115,6 +1116,13 @@ status_t Camera3Device::createDefaultRequest(int templateId,
         CameraMetadata *request) {
     ATRACE_CALL();
     ALOGV("%s: for template %d", __FUNCTION__, templateId);
+
+    if (templateId <= 0 || templateId >= CAMERA3_TEMPLATE_COUNT) {
+        android_errorWriteWithInfoLog(CameraService::SN_EVENT_LOG_ID, "26866110",
+                IPCThreadState::self()->getCallingUid(), NULL, 0);
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
 
