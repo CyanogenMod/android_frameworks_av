@@ -1302,7 +1302,7 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
     bool removed = false;
     for (size_t i = 0; i< num; ) {
         AudioSessionRef *ref = mAudioSessionRefs.itemAt(i);
-        ALOGV(" pid %d @ %d", ref->mPid, i);
+        ALOGV(" pid %d @ %zu", ref->mPid, i);
         if (ref->mPid == pid) {
             ALOGV(" removing entry for pid %d session %d", pid, ref->mSessionid);
             mAudioSessionRefs.removeAt(i);
@@ -1563,7 +1563,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
 
     int rc = load_audio_interface(name, &dev);
     if (rc) {
-        ALOGI("loadHwModule() error %d loading module %s ", rc, name);
+        ALOGE("loadHwModule() error %d loading module %s", rc, name);
         return 0;
     }
 
@@ -1571,7 +1571,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     rc = dev->init_check(dev);
     mHardwareStatus = AUDIO_HW_IDLE;
     if (rc) {
-        ALOGI("loadHwModule() init check error %d for module %s ", rc, name);
+        ALOGE("loadHwModule() init check error %d for module %s", rc, name);
         return 0;
     }
 
@@ -2857,7 +2857,7 @@ status_t AudioFlinger::putOrphanEffectChain_l(const sp<AudioFlinger::EffectChain
 {
     audio_session_t session = chain->sessionId();
     ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("putOrphanEffectChain_l session %d index %d", session, index);
+    ALOGV("putOrphanEffectChain_l session %d index %zd", session, index);
     if (index >= 0) {
         ALOGW("putOrphanEffectChain_l chain for session %d already present", session);
         return ALREADY_EXISTS;
@@ -2870,7 +2870,7 @@ sp<AudioFlinger::EffectChain> AudioFlinger::getOrphanEffectChain_l(audio_session
 {
     sp<EffectChain> chain;
     ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("getOrphanEffectChain_l session %d index %d", session, index);
+    ALOGV("getOrphanEffectChain_l session %d index %zd", session, index);
     if (index >= 0) {
         chain = mOrphanEffectChains.valueAt(index);
         mOrphanEffectChains.removeItemsAt(index);
@@ -2883,11 +2883,11 @@ bool AudioFlinger::updateOrphanEffectChains(const sp<AudioFlinger::EffectModule>
     Mutex::Autolock _l(mLock);
     audio_session_t session = effect->sessionId();
     ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("updateOrphanEffectChains session %d index %d", session, index);
+    ALOGV("updateOrphanEffectChains session %d index %zd", session, index);
     if (index >= 0) {
         sp<EffectChain> chain = mOrphanEffectChains.valueAt(index);
         if (chain->removeEffect_l(effect) == 0) {
-            ALOGV("updateOrphanEffectChains removing effect chain at index %d", index);
+            ALOGV("updateOrphanEffectChains removing effect chain at index %zd", index);
             mOrphanEffectChains.removeItemsAt(index);
         }
         return true;

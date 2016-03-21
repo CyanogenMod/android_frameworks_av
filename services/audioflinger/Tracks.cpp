@@ -122,7 +122,7 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
         mCblkMemory = client->heap()->allocate(size);
         if (mCblkMemory == 0 ||
                 (mCblk = static_cast<audio_track_cblk_t *>(mCblkMemory->pointer())) == NULL) {
-            ALOGE("not enough memory for AudioTrack size=%u", size);
+            ALOGE("not enough memory for AudioTrack size=%zu", size);
             client->heap()->dump("AudioTrack");
             mCblkMemory.clear();
             return;
@@ -959,9 +959,9 @@ bool AudioFlinger::PlaybackThread::Track::presentationComplete(
     if (isOffloaded()) {
         complete = true;
     } else if (isDirect() || isFastTrack()) { // these do not go through linear map
-        complete = framesWritten >= mPresentationCompleteFrames;
+        complete = framesWritten >= (int64_t) mPresentationCompleteFrames;
     } else {  // Normal tracks, OutputTracks, and PatchTracks
-        complete = framesWritten >= mPresentationCompleteFrames
+        complete = framesWritten >= (int64_t) mPresentationCompleteFrames
                 && mAudioTrackServerProxy->isDrained();
     }
 
@@ -1016,7 +1016,7 @@ status_t AudioFlinger::PlaybackThread::Track::setSyncEvent(const sp<SyncEvent>& 
     if (isTerminated() || mState == PAUSED ||
             ((framesReady() == 0) && ((mSharedBuffer != 0) ||
                                       (mState == STOPPED)))) {
-        ALOGW("Track::setSyncEvent() in invalid state %d on session %d %s mode, framesReady %d ",
+        ALOGW("Track::setSyncEvent() in invalid state %d on session %d %s mode, framesReady %zu",
               mState, mSessionId, (mSharedBuffer != 0) ? "static" : "stream", framesReady());
         event->cancel();
         return INVALID_OPERATION;
@@ -1137,7 +1137,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
         mOutBuffer.frameCount = 0;
         playbackThread->mTracks.add(this);
         ALOGV("OutputTrack constructor mCblk %p, mBuffer %p, "
-                "frameCount %u, mChannelMask 0x%08x",
+                "frameCount %zu, mChannelMask 0x%08x",
                 mCblk, mBuffer,
                 frameCount, mChannelMask);
         // since client and server are in the same process,
@@ -1246,7 +1246,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
                 mBufferQueue.removeAt(0);
                 free(pInBuffer->mBuffer);
                 delete pInBuffer;
-                ALOGV("OutputTrack::write() %p thread %p released overflow buffer %d", this,
+                ALOGV("OutputTrack::write() %p thread %p released overflow buffer %zu", this,
                         mThread.unsafe_get(), mBufferQueue.size());
             } else {
                 break;
@@ -1265,7 +1265,7 @@ bool AudioFlinger::PlaybackThread::OutputTrack::write(void* data, uint32_t frame
                 pInBuffer->raw = pInBuffer->mBuffer;
                 memcpy(pInBuffer->raw, inBuffer.raw, inBuffer.frameCount * mFrameSize);
                 mBufferQueue.add(pInBuffer);
-                ALOGV("OutputTrack::write() %p thread %p adding overflow buffer %d", this,
+                ALOGV("OutputTrack::write() %p thread %p adding overflow buffer %zu", this,
                         mThread.unsafe_get(), mBufferQueue.size());
             } else {
                 ALOGW("OutputTrack::write() %p thread %p no more overflow buffers",

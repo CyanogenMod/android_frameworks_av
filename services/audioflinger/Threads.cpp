@@ -725,7 +725,7 @@ status_t AudioFlinger::ThreadBase::sendConfigEvent_l(sp<ConfigEvent>& event)
         return status;
     }
     mConfigEvents.add(event);
-    ALOGV("sendConfigEvent_l() num events %d event %d", mConfigEvents.size(), event->mType);
+    ALOGV("sendConfigEvent_l() num events %zu event %d", mConfigEvents.size(), event->mType);
     mWaitWorkCV.signal();
     mLock.unlock();
     {
@@ -817,7 +817,7 @@ void AudioFlinger::ThreadBase::processConfigEvents_l()
     bool configChanged = false;
 
     while (!mConfigEvents.isEmpty()) {
-        ALOGV("processConfigEvents_l() remaining events %d", mConfigEvents.size());
+        ALOGV("processConfigEvents_l() remaining events %zu", mConfigEvents.size());
         sp<ConfigEvent> event = mConfigEvents[0];
         mConfigEvents.removeAt(0);
         switch (event->mType) {
@@ -949,7 +949,7 @@ void AudioFlinger::ThreadBase::dumpBase(int fd, const Vector<String16>& args __u
     dprintf(fd, "  Sample rate: %u Hz\n", mSampleRate);
     dprintf(fd, "  HAL frame count: %zu\n", mFrameCount);
     dprintf(fd, "  HAL format: 0x%x (%s)\n", mHALFormat, formatToString(mHALFormat));
-    dprintf(fd, "  HAL buffer size: %u bytes\n", mBufferSize);
+    dprintf(fd, "  HAL buffer size: %zu bytes\n", mBufferSize);
     dprintf(fd, "  Channel count: %u\n", mChannelCount);
     dprintf(fd, "  Channel mask: 0x%08x (%s)\n", mChannelMask,
             channelMaskToString(mChannelMask, mType != RECORD).string());
@@ -1685,10 +1685,10 @@ void AudioFlinger::PlaybackThread::dumpTracks(int fd, const Vector<String16>& ar
 
     size_t numtracks = mTracks.size();
     size_t numactive = mActiveTracks.size();
-    dprintf(fd, "  %d Tracks", numtracks);
+    dprintf(fd, "  %zu Tracks", numtracks);
     size_t numactiveseen = 0;
     if (numtracks) {
-        dprintf(fd, " of which %d are active\n", numactive);
+        dprintf(fd, " of which %zu are active\n", numactive);
         Track::appendDumpHeader(result);
         for (size_t i = 0; i < numtracks; ++i) {
             sp<Track> track = mTracks[i];
@@ -1729,7 +1729,8 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     dumpBase(fd, args);
 
     dprintf(fd, "  Normal frame count: %zu\n", mNormalFrameCount);
-    dprintf(fd, "  Last write occurred (msecs): %llu\n", ns2ms(systemTime() - mLastWriteTime));
+    dprintf(fd, "  Last write occurred (msecs): %llu\n",
+            (unsigned long long) ns2ms(systemTime() - mLastWriteTime));
     dprintf(fd, "  Total writes: %d\n", mNumWrites);
     dprintf(fd, "  Delayed writes: %d\n", mNumDelayedWrites);
     dprintf(fd, "  Blocked in write: %s\n", mInWrite ? "yes" : "no");
@@ -1823,11 +1824,11 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             }
             frameCount = mFrameCount * sFastTrackMultiplier;
         }
-        ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%d mFrameCount=%d",
+        ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
                 frameCount, mFrameCount);
       } else {
-        ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer=%p frameCount=%d "
-                "mFrameCount=%d format=%#x mFormat=%#x isLinear=%d channelMask=%#x "
+        ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer=%p frameCount=%zu "
+                "mFrameCount=%zu format=%#x mFormat=%#x isLinear=%d channelMask=%#x "
                 "sampleRate=%u mSampleRate=%u "
                 "hasFastMixer=%d tid=%d fastTrackAvailMask=%#x",
                 sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
@@ -2259,7 +2260,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     mBufferSize = mOutput->stream->common.get_buffer_size(&mOutput->stream->common);
     mFrameCount = mBufferSize / mFrameSize;
     if (mFrameCount & 15) {
-        ALOGW("HAL output buffer size is %u frames but AudioMixer requires multiples of 16 frames",
+        ALOGW("HAL output buffer size is %zu frames but AudioMixer requires multiples of 16 frames",
                 mFrameCount);
     }
 
@@ -2345,7 +2346,7 @@ void AudioFlinger::PlaybackThread::readOutputParameters_l()
     if (mType == MIXER || mType == DUPLICATING) {
         mNormalFrameCount = (mNormalFrameCount + 15) & ~15;
     }
-    ALOGI("HAL output buffer size %u frames, normal sink buffer size %u frames", mFrameCount,
+    ALOGI("HAL output buffer size %zu frames, normal sink buffer size %zu frames", mFrameCount,
             mNormalFrameCount);
 
     // Check if we want to throttle the processing to no more than 2x normal rate
@@ -2682,7 +2683,7 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
 
 void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
 {
-    ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %d",
+    ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %zu",
             this,  streamType, mTracks.size());
     Mutex::Autolock _l(mLock);
 
@@ -3126,7 +3127,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         if ((now - lastWarning) > kWarningThrottleNs) {
                             ATRACE_NAME("underrun");
                             ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
-                                    ns2ms(delta), mNumDelayedWrites, this);
+                                    (unsigned long long) ns2ms(delta), mNumDelayedWrites, this);
                             lastWarning = now;
                         }
                     }
@@ -3471,8 +3472,8 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         // mNormalSink below
 {
     ALOGV("MixerThread() id=%d device=%#x type=%d", id, device, type);
-    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%u, mFormat=%d, mFrameSize=%u, "
-            "mFrameCount=%d, mNormalFrameCount=%d",
+    ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%u, mFormat=%d, mFrameSize=%zu, "
+            "mFrameCount=%zu, mNormalFrameCount=%zu",
             mSampleRate, mChannelMask, mChannelCount, mFormat, mFrameSize, mFrameCount,
             mNormalFrameCount);
     mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
@@ -4965,7 +4966,7 @@ void AudioFlinger::DirectOutputThread::threadLoop_sleepTime()
             // For compressed offload, use faster sleep time when underruning until more than an
             // entire buffer was written to the audio HAL
             if (!audio_has_proportional_frames(mFormat) &&
-                    (mType == OFFLOAD) && (mBytesWritten < mBufferSize)) {
+                    (mType == OFFLOAD) && (mBytesWritten < (int64_t) mBufferSize)) {
                 mSleepTimeUs = kDirectMinSleepTimeUs;
             } else {
                 mSleepTimeUs = mActiveSleepTimeUs;
@@ -5276,7 +5277,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
     bool doHwPause = false;
     bool doHwResume = false;
 
-    ALOGV("OffloadThread::prepareTracks_l active tracks %d", count);
+    ALOGV("OffloadThread::prepareTracks_l active tracks %zu", count);
 
     // find out which tracks need to be processed
     for (size_t i = 0; i < count; i++) {
@@ -6129,7 +6130,7 @@ reacquire_wakelock:
         // ALOGD("%s", mTimestamp.toString().c_str());
 
         if (framesRead < 0 || (framesRead == 0 && mPipeSource == 0)) {
-            ALOGE("read failed: framesRead=%d", framesRead);
+            ALOGE("read failed: framesRead=%zd", framesRead);
             // Force input into standby so that it tries to recover at next read attempt
             inputStandBy();
             sleepUs = kRecordThreadSleepUs;
@@ -6365,10 +6366,10 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             // there are sufficient fast track slots available
             mFastTrackAvail
         ) {
-        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%u mFrameCount=%u",
+        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
                 frameCount, mFrameCount);
       } else {
-        ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%u mFrameCount=%u mPipeFramesP2=%u "
+        ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%zu mFrameCount=%zu mPipeFramesP2=%zu "
                 "format=%#x isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
                 "hasFastCapture=%d tid=%d mFastTrackAvail=%d",
                 frameCount, mFrameCount, mPipeFramesP2,
@@ -6661,9 +6662,9 @@ void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args
     size_t numtracks = mTracks.size();
     size_t numactive = mActiveTracks.size();
     size_t numactiveseen = 0;
-    dprintf(fd, "  %d Tracks", numtracks);
+    dprintf(fd, "  %zu Tracks", numtracks);
     if (numtracks) {
-        dprintf(fd, " of which %d are active\n", numactive);
+        dprintf(fd, " of which %zu are active\n", numactive);
         RecordTrack::appendDumpHeader(result);
         for (size_t i = 0; i < numtracks ; ++i) {
             sp<RecordTrack> track = mTracks[i];
@@ -7327,7 +7328,7 @@ size_t AudioFlinger::RecordThread::removeEffectChain_l(const sp<EffectChain>& ch
 {
     ALOGV("removeEffectChain_l() %p from thread %p", chain.get(), this);
     ALOGW_IF(mEffectChains.size() != 1,
-            "removeEffectChain_l() %p invalid chain size %d on thread %p",
+            "removeEffectChain_l() %p invalid chain size %zu on thread %p",
             chain.get(), mEffectChains.size(), this);
     if (mEffectChains.size() == 1) {
         mEffectChains.removeAt(0);
