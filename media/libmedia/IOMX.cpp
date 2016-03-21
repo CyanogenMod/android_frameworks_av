@@ -699,11 +699,12 @@ status_t BnOMX::onTransact(
             void *params = NULL;
             size_t pageSize = 0;
             size_t allocSize = 0;
-            if ((index == (OMX_INDEXTYPE) OMX_IndexParamConsumerUsageBits && size < 4) ||
-                    (code != SET_INTERNAL_OPTION && size < 8)) {
+            bool isUsageBits = (index == (OMX_INDEXTYPE) OMX_IndexParamConsumerUsageBits);
+            if ((isUsageBits && size < 4) ||
+                    (!isUsageBits && code != SET_INTERNAL_OPTION && size < 8)) {
                 // we expect the structure to contain at least the size and
                 // version, 8 bytes total
-                ALOGE("b/27207275 (%zu)", size);
+                ALOGE("b/27207275 (%zu) (%d/%d)", size, int(index), int(code));
                 android_errorWriteLog(0x534e4554, "27207275");
             } else {
                 err = NO_MEMORY;
