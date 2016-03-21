@@ -80,6 +80,8 @@ LOCAL_CFLAGS += -DSTATE_QUEUE_INSTANTIATIONS='"StateQueueInstantiations.cpp"'
 
 LOCAL_CFLAGS += -fvisibility=hidden
 
+LOCAL_CFLAGS += -Werror -Wall
+
 include $(BUILD_SHARED_LIBRARY)
 
 #
@@ -108,6 +110,8 @@ LOCAL_MODULE:= test-resample
 
 LOCAL_MODULE_TAGS := optional
 
+LOCAL_CFLAGS := -Werror -Wall
+
 include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
@@ -127,6 +131,8 @@ LOCAL_SHARED_LIBRARIES := \
     liblog
 
 LOCAL_MODULE := libaudioresampler
+
+LOCAL_CFLAGS := -Werror -Wall
 
 # uncomment to disable NEON on architectures that actually do support NEON, for benchmarking
 #LOCAL_CFLAGS += -DUSE_NEON=false

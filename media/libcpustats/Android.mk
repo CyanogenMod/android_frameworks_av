@@ -8,6 +8,6 @@ LOCAL_SRC_FILES :=     \
 
 LOCAL_MODULE := libcpustats
 
-LOCAL_CFLAGS := -std=gnu++11 -Werror
+LOCAL_CFLAGS := -std=gnu++11 -Werror -Wall
 
 include $(BUILD_STATIC_LIBRARY)
