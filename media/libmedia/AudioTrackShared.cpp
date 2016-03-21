@@ -88,13 +88,14 @@ const struct timespec ClientProxy::kNonBlocking = {0 /*tv_sec*/, 0 /*tv_nsec*/};
 
 uint32_t ClientProxy::setBufferSizeInFrames(uint32_t size)
 {
-    // TODO set minimum to 2X the fast mixer buffer size.
     // The minimum should be  greater than zero and less than the size
     // at which underruns will occur.
-    const uint32_t minimum = 128 * 2; // arbitrary
+    const uint32_t minimum = 16; // based on AudioMixer::BLOCKSIZE
     const uint32_t maximum = frameCount();
     uint32_t clippedSize = size;
-    if (clippedSize < minimum) {
+    if (maximum < minimum) {
+        clippedSize = maximum;
+    } else if (clippedSize < minimum) {
         clippedSize = minimum;
     } else if (clippedSize > maximum) {
         clippedSize = maximum;
