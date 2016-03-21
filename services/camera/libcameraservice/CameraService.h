@@ -909,9 +909,30 @@ binder::Status CameraService::connectHelper(const sp<CALLBACK>& cameraCb, const 
 
         if ((err = client->initialize(mModule)) != OK) {
             ALOGE("%s: Could not initialize client from HAL module.", __FUNCTION__);
-            return STATUS_ERROR_FMT(ERROR_INVALID_OPERATION,
-                    "Failed to initialize camera \"%s\": %s (%d)", cameraId.string(),
-                    strerror(-err), err);
+            // Errors could be from the HAL module open call or from AppOpsManager
+            switch(err) {
+                case BAD_VALUE:
+                    return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT,
+                            "Illegal argument to HAL module for camera \"%s\"", cameraId.string());
+                case -EBUSY:
+                    return STATUS_ERROR_FMT(ERROR_CAMERA_IN_USE,
+                            "Camera \"%s\" is already open", cameraId.string());
+                case -EUSERS:
+                    return STATUS_ERROR_FMT(ERROR_MAX_CAMERAS_IN_USE,
+                            "Too many cameras already open, cannot open camera \"%s\"",
+                            cameraId.string());
+                case PERMISSION_DENIED:
+                    return STATUS_ERROR_FMT(ERROR_PERMISSION_DENIED,
+                            "No permission to open camera \"%s\"", cameraId.string());
+                case -EACCES:
+                    return STATUS_ERROR_FMT(ERROR_DISABLED,
+                            "Camera \"%s\" disabled by policy", cameraId.string());
+                case -ENODEV:
+                default:
+                    return STATUS_ERROR_FMT(ERROR_INVALID_OPERATION,
+                            "Failed to initialize camera \"%s\": %s (%d)", cameraId.string(),
+                            strerror(-err), err);
+            }
         }
 
         // Update shim paremeters for legacy clients
