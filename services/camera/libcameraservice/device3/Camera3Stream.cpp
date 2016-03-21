@@ -560,7 +560,7 @@ status_t Camera3Stream::getInputBufferProducer(sp<IGraphicBufferProducer> *produ
 }
 
 void Camera3Stream::fireBufferListenersLocked(
-        const camera3_stream_buffer& /*buffer*/, bool acquired, bool output) {
+        const camera3_stream_buffer& buffer, bool acquired, bool output) {
     List<wp<Camera3StreamBufferListener> >::iterator it, end;
 
     // TODO: finish implementing
@@ -568,6 +568,7 @@ void Camera3Stream::fireBufferListenersLocked(
     Camera3StreamBufferListener::BufferInfo info =
         Camera3StreamBufferListener::BufferInfo();
     info.mOutput = output;
+    info.mError = (buffer.status == CAMERA3_BUFFER_STATUS_ERROR);
     // TODO: rest of fields
 
     for (it = mBufferListenerList.begin(), end = mBufferListenerList.end();

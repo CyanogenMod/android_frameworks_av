@@ -41,6 +41,7 @@ CaptureSequencer::CaptureSequencer(wp<Camera2Client> client):
         mNewAEState(false),
         mNewFrameReceived(false),
         mNewCaptureReceived(false),
+        mNewCaptureErrorCnt(0),
         mShutterNotified(false),
         mHalNotifiedShutter(false),
         mShutterCaptureId(-1),
@@ -131,7 +132,7 @@ void CaptureSequencer::onResultAvailable(const CaptureResult &result) {
 }
 
 void CaptureSequencer::onCaptureAvailable(nsecs_t timestamp,
-        sp<MemoryBase> captureBuffer) {
+        sp<MemoryBase> captureBuffer, bool captureError) {
     ATRACE_CALL();
     ALOGV("%s", __FUNCTION__);
     Mutex::Autolock l(mInputMutex);
@@ -139,6 +140,11 @@ void CaptureSequencer::onCaptureAvailable(nsecs_t timestamp,
     mCaptureBuffer = captureBuffer;
     if (!mNewCaptureReceived) {
         mNewCaptureReceived = true;
+        if (captureError) {
+            mNewCaptureErrorCnt++;
+        } else {
+            mNewCaptureErrorCnt = 0;
+        }
         mNewCaptureSignal.signal();
     }
 }
@@ -623,6 +629,17 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStandardCaptureWait(
             break;
         }
     }
+    if (mNewCaptureReceived) {
+        if (mNewCaptureErrorCnt > kMaxRetryCount) {
+            ALOGW("Exceeding multiple retry limit of %d due to buffer drop", kMaxRetryCount);
+            return DONE;
+        } else if (mNewCaptureErrorCnt > 0) {
+            ALOGW("Capture error happened, retry %d...", mNewCaptureErrorCnt);
+            mNewCaptureReceived = false;
+            return STANDARD_CAPTURE;
+        }
+    }
+
     if (mTimeoutCount <= 0) {
         ALOGW("Timed out waiting for capture to complete");
         return DONE;

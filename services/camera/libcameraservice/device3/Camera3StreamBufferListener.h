@@ -34,6 +34,7 @@ public:
         uint32_t mScalingMode;
         int64_t mTimestamp;
         uint64_t mFrameNumber;
+        bool mError;
     };
 
     // Buffer was acquired by the HAL

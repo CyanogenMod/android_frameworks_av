@@ -1652,6 +1652,26 @@ status_t Camera3Device::tearDown(int streamId) {
     return stream->tearDown();
 }
 
+status_t Camera3Device::addBufferListenerForStream(int streamId,
+        wp<Camera3StreamBufferListener> listener) {
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d: Adding buffer listener for stream %d", __FUNCTION__, mId, streamId);
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
+
+    sp<Camera3StreamInterface> stream;
+    ssize_t outputStreamIdx = mOutputStreams.indexOfKey(streamId);
+    if (outputStreamIdx == NAME_NOT_FOUND) {
+        CLOGE("Stream %d does not exist", streamId);
+        return BAD_VALUE;
+    }
+
+    stream = mOutputStreams.editValueAt(outputStreamIdx);
+    stream->addBufferListener(listener);
+
+    return OK;
+}
+
 uint32_t Camera3Device::getDeviceVersion() {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
