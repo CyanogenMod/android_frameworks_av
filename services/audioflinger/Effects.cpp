@@ -138,7 +138,7 @@ status_t AudioFlinger::EffectModule::addHandle(EffectHandle *handle)
     } else {
         status = ALREADY_EXISTS;
     }
-    ALOGV("addHandle() %p added handle %p in position %d", this, handle, i);
+    ALOGV("addHandle() %p added handle %p in position %zu", this, handle, i);
     mHandles.insertAt(handle, i);
     return status;
 }
@@ -156,7 +156,7 @@ size_t AudioFlinger::EffectModule::removeHandle(EffectHandle *handle)
     if (i == size) {
         return size;
     }
-    ALOGV("removeHandle() %p removed handle %p in position %d", this, handle, i);
+    ALOGV("removeHandle() %p removed handle %p in position %zu", this, handle, i);
 
     mHandles.removeAt(i);
     // if removed from first place, move effect control from this handle to next in line
@@ -380,7 +380,7 @@ status_t AudioFlinger::EffectModule::configure()
     mConfig.inputCfg.buffer.frameCount = thread->frameCount();
     mConfig.outputCfg.buffer.frameCount = mConfig.inputCfg.buffer.frameCount;
 
-    ALOGV("configure() %p thread %p buffer %p framecount %d",
+    ALOGV("configure() %p thread %p buffer %p framecount %zu",
             this, thread.get(), mConfig.inputCfg.buffer.raw, mConfig.inputCfg.buffer.frameCount);
 
     status_t cmdStatus;
@@ -1050,7 +1050,7 @@ AudioFlinger::EffectHandle::EffectHandle(const sp<EffectModule>& effect,
     mCblkMemory = client->heap()->allocate(EFFECT_PARAM_BUFFER_SIZE + bufOffset);
     if (mCblkMemory == 0 ||
             (mCblk = static_cast<effect_param_cblk_t *>(mCblkMemory->pointer())) == NULL) {
-        ALOGE("not enough memory for Effect size=%u", EFFECT_PARAM_BUFFER_SIZE +
+        ALOGE("not enough memory for Effect size=%zu", EFFECT_PARAM_BUFFER_SIZE +
                 sizeof(effect_param_cblk_t));
         mCblkMemory.clear();
         return;
@@ -1579,7 +1579,7 @@ status_t AudioFlinger::EffectChain::addEffect_l(const sp<EffectModule>& effect)
         }
         mEffects.insertAt(effect, idx_insert);
 
-        ALOGV("addEffect_l() effect %p, added in chain %p at rank %d", effect.get(), this,
+        ALOGV("addEffect_l() effect %p, added in chain %p at rank %zu", effect.get(), this,
                 idx_insert);
     }
     effect->configure();
@@ -1611,7 +1611,7 @@ size_t AudioFlinger::EffectChain::removeEffect_l(const sp<EffectModule>& effect)
                 }
             }
             mEffects.removeAt(i);
-            ALOGV("removeEffect_l() effect %p, removed from chain %p at rank %d", effect.get(),
+            ALOGV("removeEffect_l() effect %p, removed from chain %p at rank %zu", effect.get(),
                     this, i);
             break;
         }
@@ -1726,7 +1726,7 @@ void AudioFlinger::EffectChain::dump(int fd, const Vector<String16>& args)
     String8 result;
 
     size_t numEffects = mEffects.size();
-    snprintf(buffer, SIZE, "    %d effects for session %d\n", numEffects, mSessionId);
+    snprintf(buffer, SIZE, "    %zu effects for session %d\n", numEffects, mSessionId);
     result.append(buffer);
 
     if (numEffects) {

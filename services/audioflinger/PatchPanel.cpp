@@ -401,7 +401,7 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
         shift = playbackShift;
     }
     size_t frameCount = (playbackFrameCount * recordFramecount) >> shift;
-    ALOGV("createPatchConnections() playframeCount %d recordFramecount %d frameCount %d ",
+    ALOGV("createPatchConnections() playframeCount %zu recordFramecount %zu frameCount %zu",
           playbackFrameCount, recordFramecount, frameCount);
 
     // create a special record track to capture from record thread
