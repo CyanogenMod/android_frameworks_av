@@ -231,20 +231,20 @@ routing_strategy Engine::getStrategyForUsage(audio_usage_t usage)
 
 audio_devices_t Engine::getDeviceForStrategy(routing_strategy strategy) const
 {
-    const DeviceVector &availableOutputDevices = mApmObserver->getAvailableOutputDevices();
-    const DeviceVector &availableInputDevices = mApmObserver->getAvailableInputDevices();
+    DeviceVector availableOutputDevices = mApmObserver->getAvailableOutputDevices();
+    DeviceVector availableInputDevices = mApmObserver->getAvailableInputDevices();
 
     const SwAudioOutputCollection &outputs = mApmObserver->getOutputs();
 
-    return getDeviceForStrategyInt(strategy, (DeviceVector&)availableOutputDevices,
+    return getDeviceForStrategyInt(strategy, availableOutputDevices,
                                    availableInputDevices, outputs);
 }
 
 
 
 audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
-                                                DeviceVector &availableOutputDevices,
-                                                const DeviceVector &availableInputDevices,
+                                                DeviceVector availableOutputDevices,
+                                                DeviceVector availableInputDevices,
                                                 const SwAudioOutputCollection &outputs) const
 {
     uint32_t device = AUDIO_DEVICE_NONE;

@@ -126,8 +126,8 @@ private:
     routing_strategy getStrategyForUsage(audio_usage_t usage);
     audio_devices_t getDeviceForStrategy(routing_strategy strategy) const;
     audio_devices_t getDeviceForStrategyInt(routing_strategy strategy,
-                                            DeviceVector &availableOutputDevices,
-                                            const DeviceVector &availableInputDevices,
+                                            DeviceVector availableOutputDevices,
+                                            DeviceVector availableInputDevices,
                                             const SwAudioOutputCollection &outputs) const;
     audio_devices_t getDeviceForInputSource(audio_source_t inputSource) const;
     audio_mode_t mPhoneState;  /**< current phone state. */
