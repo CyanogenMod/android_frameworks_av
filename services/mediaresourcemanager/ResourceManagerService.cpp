@@ -96,8 +96,11 @@ static void notifyResourceGranted(int pid, const Vector<MediaResource> &resource
     if (binder != NULL) {
         sp<IMediaResourceMonitor> service = interface_cast<IMediaResourceMonitor>(binder);
         for (size_t i = 0; i < resources.size(); ++i) {
-            service->notifyResourceGranted(pid, String16(asString(resources[i].mType)),
-                    String16(asString(resources[i].mSubType)), resources[i].mValue);
+            if (resources[i].mSubType == MediaResource::kAudioCodec) {
+                service->notifyResourceGranted(pid, IMediaResourceMonitor::TYPE_AUDIO_CODEC);
+            } else if (resources[i].mSubType == MediaResource::kVideoCodec) {
+                service->notifyResourceGranted(pid, IMediaResourceMonitor::TYPE_VIDEO_CODEC);
+            }
         }
     }
 }
