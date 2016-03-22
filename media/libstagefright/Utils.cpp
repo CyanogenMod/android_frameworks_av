@@ -232,7 +232,7 @@ status_t convertMetaDataToMessage(
 
         int32_t isADTS;
         if (meta->findInt32(kKeyIsADTS, &isADTS)) {
-            msg->setInt32("is-adts", true);
+            msg->setInt32("is-adts", isADTS);
         }
 
         int32_t aacProfile = -1;
