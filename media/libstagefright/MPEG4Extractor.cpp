@@ -756,13 +756,22 @@ static bool underQTMetaPath(const Vector<uint32_t> &path, int32_t depth) {
 }
 
 // Given a time in seconds since Jan 1 1904, produce a human-readable string.
-static void convertTimeToDate(int64_t time_1904, String8 *s) {
-    time_t time_1970 = time_1904 - (((66 * 365 + 17) * 24) * 3600);
+static bool convertTimeToDate(int64_t time_1904, String8 *s) {
+    // delta between mpeg4 time and unix epoch time
+    static const int64_t delta = (((66 * 365 + 17) * 24) * 3600);
+    if (time_1904 < INT64_MIN + delta) {
+        return false;
+    }
+    time_t time_1970 = time_1904 - delta;
 
     char tmp[32];
-    strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%S.000Z", gmtime(&time_1970));
-
-    s->setTo(tmp);
+    struct tm* tm = gmtime(&time_1970);
+    if (tm != NULL &&
+            strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%S.000Z", tm) > 0) {
+        s->setTo(tmp);
+        return true;
+    }
+    return false;
 }
 
 status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
@@ -1880,14 +1889,15 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 }
                 duration = d32;
             }
-            if (duration != 0 && mHeaderTimescale != 0) {
+            if (duration != 0 && mHeaderTimescale != 0 && duration < UINT64_MAX / 1000000) {
                 mFileMetaData->setInt64(kKeyDuration, duration * 1000000 / mHeaderTimescale);
             }
 
             String8 s;
-            convertTimeToDate(creationTime, &s);
+            if (convertTimeToDate(creationTime, &s)) {
+                mFileMetaData->setCString(kKeyDate, s.string());
+            }
 
-            mFileMetaData->setCString(kKeyDate, s.string());
 
             break;
         }
