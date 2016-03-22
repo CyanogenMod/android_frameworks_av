@@ -87,6 +87,7 @@ terms listed above has been obtained from the copyright holder.
 
 #include "gsm_amr_typedefs.h"
 #include "frame_type_3gpp.h"
+#include "amrdecode.h"
 
 /*--------------------------------------------------------------------------*/
 #ifdef __cplusplus
@@ -134,19 +135,6 @@ extern "C"
      */
     Word16 GSMInitDecode(void **state_data,
                          Word8 *id);
-
-    /*
-     * AMRDecode steps into the part of the library that decodes the raw data
-     * speech bits for the decoding process. It returns the address offset of
-     * the next frame to be decoded.
-     */
-    Word16 AMRDecode(
-        void                      *state_data,
-        enum Frame_Type_3GPP      frame_type,
-        UWord8                    *speech_bits_ptr,
-        Word16                    *raw_pcm_buffer,
-        Word16                    input_format
-    );
 
     /*
      * This function resets the state memory used by the GSM AMR decoder. This
