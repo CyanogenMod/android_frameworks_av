@@ -358,6 +358,11 @@ status_t MediaCodecSource::pause() {
     return OK;
 }
 
+sp<MetaData> MediaCodecSource::getFormat() {
+    Mutexed<sp<MetaData>>::Locked meta(mMeta);
+    return *meta;
+}
+
 sp<IGraphicBufferProducer> MediaCodecSource::getGraphicBufferProducer() {
     CHECK(mFlags & FLAG_USE_SURFACE_INPUT);
     return mGraphicBufferProducer;
@@ -493,7 +498,9 @@ status_t MediaCodecSource::initEncoder() {
     }
 
     mEncoder->getOutputFormat(&mOutputFormat);
-    convertMessageToMetaData(mOutputFormat, mMeta);
+    sp<MetaData> meta = new MetaData;
+    convertMessageToMetaData(mOutputFormat, meta);
+    mMeta.lock().set(meta);
 
     if (mFlags & FLAG_USE_SURFACE_INPUT) {
         CHECK(mIsVideo);
@@ -787,7 +794,9 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 signalEOS(err);
                 break;
             }
-            convertMessageToMetaData(mOutputFormat, mMeta);
+            sp<MetaData> meta = new MetaData;
+            convertMessageToMetaData(mOutputFormat, meta);
+            mMeta.lock().set(meta);
         } else if (cbID == MediaCodec::CB_OUTPUT_AVAILABLE) {
             int32_t index;
             size_t offset;

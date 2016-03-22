@@ -110,6 +110,11 @@ public:
         inline T* operator->() const { return mLocked ? &mTreasure : nullptr; }
         inline T& operator*()  const { return mLocked ?  mTreasure : *(T*)nullptr; }
 
+        // same as *
+        inline T& get() const { return mLocked ?  mTreasure : *(T*)nullptr; }
+        // sets structure. this will abort if mLocked is false.
+        inline void set(T& o) const { get() = o; }
+
         // Wait on the condition variable using lock. Must be locked.
         inline status_t waitForCondition(Condition &cond) { return cond.wait(mLock); }
 
