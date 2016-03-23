@@ -122,7 +122,7 @@ struct ATSParser::Stream : public RefBase {
     void setPID(unsigned pid) { mElementaryPID = pid; }
 
     // Parse the payload and set event when PES with a sync frame is detected.
-    // This method knows when a PES starts; so record mPesStartOffset in that
+    // This method knows when a PES starts; so record mPesStartOffsets in that
     // case.
     status_t parse(
             unsigned continuity_counter,
@@ -157,7 +157,7 @@ private:
     bool mEOSReached;
 
     uint64_t mPrevPTS;
-    off64_t mPesStartOffset;
+    List<off64_t> mPesStartOffsets;
 
     ElementaryStreamQueue *mQueue;
 
@@ -205,16 +205,19 @@ private:
 };
 
 ATSParser::SyncEvent::SyncEvent(off64_t offset)
-    : mInit(false), mOffset(offset), mTimeUs(0) {}
+    : mHasReturnedData(false), mOffset(offset), mTimeUs(0) {}
 
 void ATSParser::SyncEvent::init(off64_t offset, const sp<MediaSource> &source,
         int64_t timeUs) {
-    mInit = true;
+    mHasReturnedData = true;
     mOffset = offset;
     mMediaSource = source;
     mTimeUs = timeUs;
 }
 
+void ATSParser::SyncEvent::reset() {
+    mHasReturnedData = false;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 ATSParser::Program::Program(
@@ -661,6 +664,7 @@ status_t ATSParser::Stream::parse(
         ALOGI("discontinuity on stream pid 0x%04x", mElementaryPID);
 
         mPayloadStarted = false;
+        mPesStartOffsets.clear();
         mBuffer->setRange(0, 0);
         mExpectedContinuityCounter = -1;
 
@@ -697,7 +701,7 @@ status_t ATSParser::Stream::parse(
         }
 
         mPayloadStarted = true;
-        mPesStartOffset = offset;
+        mPesStartOffsets.push_back(offset);
     }
 
     if (!mPayloadStarted) {
@@ -772,6 +776,7 @@ void ATSParser::Stream::signalDiscontinuity(
     }
 
     mPayloadStarted = false;
+    mPesStartOffsets.clear();
     mEOSReached = false;
     mBuffer->setRange(0, 0);
 
@@ -1105,7 +1110,9 @@ void ATSParser::Stream::onPayloadData(
                 int64_t timeUs;
                 if (accessUnit->meta()->findInt64("timeUs", &timeUs)) {
                     found = true;
-                    event->init(mPesStartOffset, mSource, timeUs);
+                    off64_t pesStartOffset = *mPesStartOffsets.begin();
+                    event->init(pesStartOffset, mSource, timeUs);
+                    mPesStartOffsets.erase(mPesStartOffsets.begin());
                 }
             }
         }
