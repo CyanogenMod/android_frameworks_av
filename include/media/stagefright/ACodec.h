@@ -253,6 +253,9 @@ private:
     sp<AMessage> mConfigFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mOutputFormat;
+
+    // Initial output format + configuration params that is reused as the base for all subsequent
+    // format updates. This will equal to mOutputFormat until the first actual frame is received.
     sp<AMessage> mBaseOutputFormat;
 
     FrameRenderTracker mRenderTracker; // render information for buffers rendered by ACodec
