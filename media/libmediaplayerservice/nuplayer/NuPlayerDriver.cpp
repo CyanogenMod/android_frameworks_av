@@ -315,6 +315,7 @@ status_t NuPlayerDriver::stop() {
 }
 
 status_t NuPlayerDriver::pause() {
+    ALOGD("pause(%p)", this);
     // The NuPlayerRenderer may get flushed if pause for long enough, e.g. the pause timeout tear
     // down for audio offload mode. If that happens, the NuPlayerRenderer will no longer know the
     // current position. So similar to seekTo, update |mPositionUs| to the pause position by calling
