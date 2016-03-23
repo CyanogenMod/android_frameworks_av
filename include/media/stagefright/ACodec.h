@@ -506,7 +506,10 @@ private:
     void notifyOfRenderedFrames(
             bool dropIncomplete = false, FrameRenderTracker::Info *until = NULL);
 
-    void onOutputFormatChanged();
+    // Pass |expectedFormat| to print a warning if the format differs from it.
+    // Using sp<> instead of const sp<>& because expectedFormat is likely the current mOutputFormat
+    // which will get updated inside.
+    void onOutputFormatChanged(sp<const AMessage> expectedFormat = NULL);
     void addKeyFormatChangesToRenderBufferNotification(sp<AMessage> &notify);
     void sendFormatChange();
 

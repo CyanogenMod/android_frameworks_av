@@ -749,6 +749,126 @@ void AMessage::writeToParcel(Parcel *parcel) const {
     }
 }
 
+sp<AMessage> AMessage::changesFrom(const sp<const AMessage> &other, bool deep) const {
+    if (other == NULL) {
+        return const_cast<AMessage*>(this);
+    }
+
+    sp<AMessage> diff = new AMessage;
+    if (mWhat != other->mWhat) {
+        diff->setWhat(mWhat);
+    }
+    if (mHandler != other->mHandler) {
+        diff->setTarget(mHandler.promote());
+    }
+
+    for (size_t i = 0; i < mNumItems; ++i) {
+        const Item &item = mItems[i];
+        const Item *oitem = other->findItem(item.mName, item.mType);
+        switch (item.mType) {
+            case kTypeInt32:
+                if (oitem == NULL || item.u.int32Value != oitem->u.int32Value) {
+                    diff->setInt32(item.mName, item.u.int32Value);
+                }
+                break;
+
+            case kTypeInt64:
+                if (oitem == NULL || item.u.int64Value != oitem->u.int64Value) {
+                    diff->setInt64(item.mName, item.u.int64Value);
+                }
+                break;
+
+            case kTypeSize:
+                if (oitem == NULL || item.u.sizeValue != oitem->u.sizeValue) {
+                    diff->setSize(item.mName, item.u.sizeValue);
+                }
+                break;
+
+            case kTypeFloat:
+                if (oitem == NULL || item.u.floatValue != oitem->u.floatValue) {
+                    diff->setFloat(item.mName, item.u.sizeValue);
+                }
+                break;
+
+            case kTypeDouble:
+                if (oitem == NULL || item.u.doubleValue != oitem->u.doubleValue) {
+                    diff->setDouble(item.mName, item.u.sizeValue);
+                }
+                break;
+
+            case kTypeString:
+                if (oitem == NULL || *item.u.stringValue != *oitem->u.stringValue) {
+                    diff->setString(item.mName, *item.u.stringValue);
+                }
+                break;
+
+            case kTypeRect:
+                if (oitem == NULL || memcmp(&item.u.rectValue, &oitem->u.rectValue, sizeof(Rect))) {
+                    diff->setRect(
+                            item.mName, item.u.rectValue.mLeft, item.u.rectValue.mTop,
+                            item.u.rectValue.mRight, item.u.rectValue.mBottom);
+                }
+                break;
+
+            case kTypePointer:
+                if (oitem == NULL || item.u.ptrValue != oitem->u.ptrValue) {
+                    diff->setPointer(item.mName, item.u.ptrValue);
+                }
+                break;
+
+            case kTypeBuffer:
+            {
+                sp<ABuffer> myBuf = static_cast<ABuffer *>(item.u.refValue);
+                if (myBuf == NULL) {
+                    if (oitem == NULL || oitem->u.refValue != NULL) {
+                        diff->setBuffer(item.mName, NULL);
+                    }
+                    break;
+                }
+                sp<ABuffer> oBuf = oitem == NULL ? NULL : static_cast<ABuffer *>(oitem->u.refValue);
+                if (oBuf == NULL
+                        || myBuf->size() != oBuf->size()
+                        || (!myBuf->data() ^ !oBuf->data()) // data nullness differs
+                        || (myBuf->data() && memcmp(myBuf->data(), oBuf->data(), myBuf->size()))) {
+                    diff->setBuffer(item.mName, myBuf);
+                }
+                break;
+            }
+
+            case kTypeMessage:
+            {
+                sp<AMessage> myMsg = static_cast<AMessage *>(item.u.refValue);
+                if (myMsg == NULL) {
+                    if (oitem == NULL || oitem->u.refValue != NULL) {
+                        diff->setMessage(item.mName, NULL);
+                    }
+                    break;
+                }
+                sp<AMessage> oMsg =
+                    oitem == NULL ? NULL : static_cast<AMessage *>(oitem->u.refValue);
+                sp<AMessage> changes = myMsg->changesFrom(oMsg, deep);
+                if (changes->countEntries()) {
+                    diff->setMessage(item.mName, deep ? changes : myMsg);
+                }
+                break;
+            }
+
+            case kTypeObject:
+                if (oitem == NULL || item.u.refValue != oitem->u.refValue) {
+                    diff->setObject(item.mName, item.u.refValue);
+                }
+                break;
+
+            default:
+            {
+                ALOGE("Unknown type %d", item.mType);
+                TRESPASS();
+            }
+        }
+    }
+    return diff;
+}
+
 size_t AMessage::countEntries() const {
     return mNumItems;
 }

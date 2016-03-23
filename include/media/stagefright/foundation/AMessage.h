@@ -127,6 +127,15 @@ struct AMessage : public RefBase {
     // their refcount incremented.
     sp<AMessage> dup() const;
 
+    // Performs a shallow or deep comparison of |this| and |other| and returns
+    // an AMessage with the differences.
+    // Warning: RefBase items, i.e. "objects" are _not_ copied but only have
+    // their refcount incremented.
+    // This is true for AMessages that have no corresponding AMessage equivalent in |other|.
+    // (E.g. there is no such key or the type is different.) On the other hand, changes in
+    // the AMessage (or AMessages if deep is |false|) are returned in new objects.
+    sp<AMessage> changesFrom(const sp<const AMessage> &other, bool deep = false) const;
+
     AString debugString(int32_t indent = 0) const;
 
     enum Type {
