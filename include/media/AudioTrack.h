@@ -830,6 +830,11 @@ protected:
             bool     isDirect_l() const
                 { return (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0; }
 
+            // pure pcm data is mixable (which excludes HW_AV_SYNC, with embedded timing)
+            bool     isPurePcmData_l() const
+                { return audio_is_linear_pcm(mFormat)
+                        && (mAttributes.flags & AUDIO_FLAG_HW_AV_SYNC) == 0; }
+
             // increment mPosition by the delta of mServer, and return new value of mPosition
             Modulo<uint32_t> updateAndGetPosition_l();
 

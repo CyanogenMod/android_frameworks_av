@@ -1014,7 +1014,11 @@ status_t AudioTrack::getPosition(uint32_t *position)
     }
 
     AutoMutex lock(mLock);
-    if (isOffloadedOrDirect_l()) {
+    // FIXME: offloaded and direct tracks call into the HAL for render positions
+    // for compressed/synced data; however, we use proxy position for pure linear pcm data
+    // as we do not know the capability of the HAL for pcm position support and standby.
+    // There may be some latency differences between the HAL position and the proxy position.
+    if (isOffloadedOrDirect_l() && !isPurePcmData_l()) {
         uint32_t dspFrames = 0;
 
         if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
