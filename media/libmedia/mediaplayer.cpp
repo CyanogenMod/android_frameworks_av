@@ -207,7 +207,7 @@ status_t MediaPlayer::invoke(const Parcel& request, Parcel *reply)
         ALOGV("invoke %zu", request.dataSize());
         return  mPlayer->invoke(request, reply);
     }
-    ALOGE("invoke failed: wrong state %X", mCurrentState);
+    ALOGE("invoke failed: wrong state %X, mPlayer(%p)", mCurrentState, mPlayer.get());
     return INVALID_OPERATION;
 }
 
@@ -252,7 +252,7 @@ status_t MediaPlayer::prepareAsync_l()
         mCurrentState = MEDIA_PLAYER_PREPARING;
         return mPlayer->prepareAsync();
     }
-    ALOGE("prepareAsync called in state %d", mCurrentState);
+    ALOGE("prepareAsync called in state %d, mPlayer(%p)", mCurrentState, mPlayer.get());
     return INVALID_OPERATION;
 }
 
@@ -318,7 +318,7 @@ status_t MediaPlayer::start()
             }
         }
     } else {
-        ALOGE("start called in state %d", mCurrentState);
+        ALOGE("start called in state %d, mPlayer(%p)", mCurrentState, mPlayer.get());
         ret = INVALID_OPERATION;
     }
 
@@ -342,7 +342,7 @@ status_t MediaPlayer::stop()
         }
         return ret;
     }
-    ALOGE("stop called in state %d", mCurrentState);
+    ALOGE("stop called in state %d, mPlayer(%p)", mCurrentState, mPlayer.get());
     return INVALID_OPERATION;
 }
 
@@ -361,7 +361,7 @@ status_t MediaPlayer::pause()
         }
         return ret;
     }
-    ALOGE("pause called in state %d", mCurrentState);
+    ALOGE("pause called in state %d, mPlayer(%p)", mCurrentState, mPlayer.get());
     return INVALID_OPERATION;
 }
 
@@ -484,7 +484,8 @@ status_t MediaPlayer::getDuration_l(int *msec)
         }
         return ret;
     }
-    ALOGE("Attempt to call getDuration without a valid mediaplayer");
+    ALOGE("Attempt to call getDuration in wrong state: mPlayer=%p, mCurrentState=%u",
+            mPlayer.get(), mCurrentState);
     return INVALID_OPERATION;
 }
 
@@ -691,7 +692,7 @@ status_t MediaPlayer::attachAuxEffect(int effectId)
     if (mPlayer == 0 ||
         (mCurrentState & MEDIA_PLAYER_IDLE) ||
         (mCurrentState == MEDIA_PLAYER_STATE_ERROR )) {
-        ALOGE("attachAuxEffect called in state %d", mCurrentState);
+        ALOGE("attachAuxEffect called in state %d, mPlayer(%p)", mCurrentState, mPlayer.get());
         return INVALID_OPERATION;
     }
 
