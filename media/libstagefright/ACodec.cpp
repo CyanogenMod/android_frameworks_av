@@ -52,6 +52,7 @@
 #include <OMX_AsString.h>
 
 #include "include/avc_utils.h"
+#include "include/DataConverter.h"
 #include "omx/OMXUtils.h"
 
 namespace android {
@@ -113,6 +114,13 @@ private:
 
     DISALLOW_EVIL_CONSTRUCTORS(MessageList);
 };
+
+static sp<DataConverter> getCopyConverter() {
+    static pthread_once_t once = PTHREAD_ONCE_INIT; // const-inited
+    static sp<DataConverter> sCopyConverter;        // zero-inited
+    pthread_once(&once, [](){ sCopyConverter = new DataConverter(); });
+    return sCopyConverter;
+}
 
 struct CodecObserver : public BnOMXObserver {
     CodecObserver() {}
@@ -505,6 +513,7 @@ ACodec::ACodec()
       mOutputMetadataType(kMetadataBufferTypeInvalid),
       mLegacyAdaptiveExperiment(false),
       mMetadataBuffersToSubmit(0),
+      mNumUndequeuedBuffers(0),
       mRepeatFrameDelayUs(-1ll),
       mMaxPtsGapUs(-1ll),
       mMaxFps(-1),
@@ -781,7 +790,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
         if (err == OK) {
             MetadataBufferType type =
                 portIndex == kPortIndexOutput ? mOutputMetadataType : mInputMetadataType;
-            int32_t bufSize = def.nBufferSize;
+            size_t bufSize = def.nBufferSize;
             if (type == kMetadataBufferTypeGrallocSource) {
                 bufSize = sizeof(VideoGrallocMetadata);
             } else if (type == kMetadataBufferTypeANWBuffer) {
@@ -792,33 +801,47 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
             // metadata size as we prefer to generate native source metadata, but component
             // may require gralloc source. For camera source, allocate at least enough
             // size for native metadata buffers.
-            int32_t allottedSize = bufSize;
+            size_t allottedSize = bufSize;
             if (portIndex == kPortIndexInput && type >= kMetadataBufferTypeGrallocSource) {
                 bufSize = max(sizeof(VideoGrallocMetadata), sizeof(VideoNativeMetadata));
             } else if (portIndex == kPortIndexInput && type == kMetadataBufferTypeCameraSource) {
-                bufSize = max(bufSize, (int32_t)sizeof(VideoNativeMetadata));
+                bufSize = max(bufSize, sizeof(VideoNativeMetadata));
+            }
+
+            size_t conversionBufferSize = 0;
+
+            sp<DataConverter> converter = mConverter[portIndex];
+            if (converter != NULL) {
+                // here we assume sane conversions of max 4:1, so result fits in int32
+                if (portIndex == kPortIndexInput) {
+                    conversionBufferSize = converter->sourceSize(bufSize);
+                } else {
+                    conversionBufferSize = converter->targetSize(bufSize);
+                }
             }
 
             size_t alignment = MemoryDealer::getAllocationAlignment();
 
-            ALOGV("[%s] Allocating %u buffers of size %d/%d (from %u using %s) on %s port",
+            ALOGV("[%s] Allocating %u buffers of size %zu/%zu (from %u using %s) on %s port",
                     mComponentName.c_str(),
                     def.nBufferCountActual, bufSize, allottedSize, def.nBufferSize, asString(type),
                     portIndex == kPortIndexInput ? "input" : "output");
 
-            if (bufSize == 0 || bufSize > kMaxCodecBufferSize) {
+            // verify buffer sizes to avoid overflow in align()
+            if (bufSize == 0 || max(bufSize, conversionBufferSize) > kMaxCodecBufferSize) {
                 ALOGE("b/22885421");
                 return NO_MEMORY;
             }
 
             // don't modify bufSize as OMX may not expect it to increase after negotiation
             size_t alignedSize = align(bufSize, alignment);
-            if (def.nBufferCountActual > SIZE_MAX / alignedSize) {
+            size_t alignedConvSize = align(conversionBufferSize, alignment);
+            if (def.nBufferCountActual > SIZE_MAX / (alignedSize + alignedConvSize)) {
                 ALOGE("b/22885421");
                 return NO_MEMORY;
             }
 
-            size_t totalSize = def.nBufferCountActual * alignedSize;
+            size_t totalSize = def.nBufferCountActual * (alignedSize + alignedConvSize);
             mDealer[portIndex] = new MemoryDealer(totalSize, "ACodec");
 
             for (OMX_U32 i = 0; i < def.nBufferCountActual && err == OK; ++i) {
@@ -857,6 +880,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     // because Widevine source only receives these base addresses.
                     info.mData = new ABuffer(ptr != NULL ? ptr : (void *)native_handle, bufSize);
                     info.mNativeHandle = NativeHandle::create(native_handle, true /* ownsHandle */);
+                    info.mCodecData = info.mData;
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
                             mNode, portIndex, mem, &info.mBufferID, allottedSize);
@@ -865,11 +889,27 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 }
 
                 if (mem != NULL) {
-                    info.mData = new ABuffer(mem->pointer(), bufSize);
+                    info.mCodecData = new ABuffer(mem->pointer(), bufSize);
+                    info.mCodecRef = mem;
+
                     if (type == kMetadataBufferTypeANWBuffer) {
                         ((VideoNativeMetadata *)mem->pointer())->nFenceFd = -1;
                     }
-                    info.mMemRef = mem;
+
+                    // if we require conversion, allocate conversion buffer for client use;
+                    // otherwise, reuse codec buffer
+                    if (mConverter[portIndex] != NULL) {
+                        CHECK_GT(conversionBufferSize, (size_t)0);
+                        mem = mDealer[portIndex]->allocate(conversionBufferSize);
+                        if (mem == NULL|| mem->pointer() == NULL) {
+                            return NO_MEMORY;
+                        }
+                        info.mData = new ABuffer(mem->pointer(), conversionBufferSize);
+                        info.mMemRef = mem;
+                    } else {
+                        info.mData = info.mCodecData;
+                        info.mMemRef = info.mCodecRef;
+                    }
                 }
 
                 mBuffers[portIndex].push(info);
@@ -1062,6 +1102,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         info.mIsReadFence = false;
         info.mRenderInfo = NULL;
         info.mData = new ABuffer(NULL /* data */, bufferSize /* capacity */);
+        info.mCodecData = info.mData;
         info.mGraphicBuffer = graphicBuffer;
         mBuffers[kPortIndexOutput].push(info);
 
@@ -1146,11 +1187,13 @@ status_t ACodec::allocateOutputMetadataBuffers() {
             ((VideoNativeMetadata *)mem->pointer())->nFenceFd = -1;
         }
         info.mData = new ABuffer(mem->pointer(), mem->size());
+        info.mMemRef = mem;
+        info.mCodecData = info.mData;
+        info.mCodecRef = mem;
 
         // we use useBuffer for metadata regardless of quirks
         err = mOMX->useBuffer(
                 mNode, kPortIndexOutput, mem, &info.mBufferID, mem->size());
-        info.mMemRef = mem;
         mBuffers[kPortIndexOutput].push(info);
 
         ALOGV("[%s] allocated meta buffer with ID %u (pointer = %p)",
@@ -1944,6 +1987,10 @@ status_t ACodec::configureCodec(
         }
     }
 
+    AudioEncoding pcmEncoding = kAudioEncodingPcm16bit;
+    (void)msg->findInt32("pcm-encoding", (int32_t*)&pcmEncoding);
+    // invalid encodings will default to PCM-16bit in setupRawAudioFormat.
+
     if (video) {
         // determine need for software renderer
         bool usingSwRenderer = false;
@@ -2148,7 +2195,7 @@ status_t ACodec::configureCodec(
                 || !msg->findInt32("sample-rate", &sampleRate)) {
             err = INVALID_OPERATION;
         } else {
-            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels);
+            err = setupRawAudioFormat(kPortIndexInput, sampleRate, numChannels, pcmEncoding);
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AC3)) {
         int32_t numChannels;
@@ -2222,6 +2269,25 @@ status_t ACodec::configureCodec(
             mOutputFormat = outputFormat;
         }
     }
+
+    // create data converters if needed
+    if (!video && err == OK) {
+        AudioEncoding codecPcmEncoding = kAudioEncodingPcm16bit;
+        if (encoder) {
+            (void)mInputFormat->findInt32("pcm-encoding", (int32_t*)&codecPcmEncoding);
+            mConverter[kPortIndexInput] = AudioConverter::Create(pcmEncoding, codecPcmEncoding);
+            if (mConverter[kPortIndexInput] != NULL) {
+                mInputFormat->setInt32("pcm-encoding", pcmEncoding);
+            }
+        } else {
+            (void)mOutputFormat->findInt32("pcm-encoding", (int32_t*)&codecPcmEncoding);
+            mConverter[kPortIndexOutput] = AudioConverter::Create(codecPcmEncoding, pcmEncoding);
+            if (mConverter[kPortIndexOutput] != NULL) {
+                mOutputFormat->setInt32("pcm-encoding", pcmEncoding);
+            }
+        }
+    }
+
     return err;
 }
 
@@ -2772,7 +2838,7 @@ status_t ACodec::setupFlacCodec(
 }
 
 status_t ACodec::setupRawAudioFormat(
-        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels) {
+        OMX_U32 portIndex, int32_t sampleRate, int32_t numChannels, AudioEncoding encoding) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = portIndex;
@@ -2805,9 +2871,23 @@ status_t ACodec::setupRawAudioFormat(
     }
 
     pcmParams.nChannels = numChannels;
-    pcmParams.eNumData = OMX_NumericalDataSigned;
+    switch (encoding) {
+        case kAudioEncodingPcm8bit:
+            pcmParams.eNumData = OMX_NumericalDataUnsigned;
+            pcmParams.nBitPerSample = 8;
+            break;
+        case kAudioEncodingPcmFloat:
+            pcmParams.eNumData = OMX_NumericalDataFloat;
+            pcmParams.nBitPerSample = 32;
+            break;
+        case kAudioEncodingPcm16bit:
+            pcmParams.eNumData = OMX_NumericalDataSigned;
+            pcmParams.nBitPerSample = 16;
+            break;
+        default:
+            return BAD_VALUE;
+    }
     pcmParams.bInterleaved = OMX_TRUE;
-    pcmParams.nBitPerSample = 16;
     pcmParams.nSamplingRate = sampleRate;
     pcmParams.ePCMMode = OMX_AUDIO_PCMModeLinear;
 
@@ -2815,8 +2895,17 @@ status_t ACodec::setupRawAudioFormat(
         return OMX_ErrorNone;
     }
 
-    return mOMX->setParameter(
+    err = mOMX->setParameter(
             mNode, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+    // if we could not set up raw format to non-16-bit, try with 16-bit
+    // NOTE: we will also verify this via readback, in case codec ignores these fields
+    if (err != OK && encoding != kAudioEncodingPcm16bit) {
+        pcmParams.eNumData = OMX_NumericalDataSigned;
+        pcmParams.nBitPerSample = 16;
+        err = mOMX->setParameter(
+                mNode, OMX_IndexParamAudioPcm, &pcmParams, sizeof(pcmParams));
+    }
+    return err;
 }
 
 status_t ACodec::configureTunneledVideoPlayback(
@@ -4653,22 +4742,33 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
 
                     if (params.nChannels <= 0
                             || (params.nChannels != 1 && !params.bInterleaved)
-                            || params.nBitPerSample != 16u
-                            || params.eNumData != OMX_NumericalDataSigned
                             || params.ePCMMode != OMX_AUDIO_PCMModeLinear) {
-                        ALOGE("unsupported PCM port: %u channels%s, %u-bit, %s(%d), %s(%d) mode ",
+                        ALOGE("unsupported PCM port: %u channels%s, %u-bit",
                                 params.nChannels,
                                 params.bInterleaved ? " interleaved" : "",
-                                params.nBitPerSample,
-                                asString(params.eNumData), params.eNumData,
-                                asString(params.ePCMMode), params.ePCMMode);
+                                params.nBitPerSample);
                         return FAILED_TRANSACTION;
                     }
 
                     notify->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
                     notify->setInt32("channel-count", params.nChannels);
                     notify->setInt32("sample-rate", params.nSamplingRate);
-                    notify->setInt32("pcm-encoding", kAudioEncodingPcm16bit);
+
+                    AudioEncoding encoding = kAudioEncodingPcm16bit;
+                    if (params.eNumData == OMX_NumericalDataUnsigned
+                            && params.nBitPerSample == 8u) {
+                        encoding = kAudioEncodingPcm8bit;
+                    } else if (params.eNumData == OMX_NumericalDataFloat
+                            && params.nBitPerSample == 32u) {
+                        encoding = kAudioEncodingPcmFloat;
+                    } else if (params.nBitPerSample != 16u
+                            || params.eNumData != OMX_NumericalDataSigned) {
+                        ALOGE("unsupported PCM port: %s(%d), %s(%d) mode ",
+                                asString(params.eNumData), params.eNumData,
+                                asString(params.ePCMMode), params.ePCMMode);
+                        return FAILED_TRANSACTION;
+                    }
+                    notify->setInt32("pcm-encoding", encoding);
 
                     if (mChannelMaskPresent) {
                         notify->setInt32("channel-mask", mChannelMask);
@@ -4935,6 +5035,18 @@ void ACodec::onOutputFormatChanged() {
     if (getPortFormat(kPortIndexOutput, mOutputFormat) != OK) {
         ALOGE("[%s] Failed to get port format to send format change", mComponentName.c_str());
         return;
+    }
+
+    if (!mIsVideo && !mIsEncoder) {
+        AudioEncoding pcmEncoding = kAudioEncodingPcm16bit;
+        (void)mConfigFormat->findInt32("pcm-encoding", (int32_t*)&pcmEncoding);
+        AudioEncoding codecPcmEncoding = kAudioEncodingPcm16bit;
+        (void)mOutputFormat->findInt32("pcm-encoding", (int32_t*)&pcmEncoding);
+
+        mConverter[kPortIndexOutput] = AudioConverter::Create(codecPcmEncoding, pcmEncoding);
+        if (mConverter[kPortIndexOutput] != NULL) {
+            mOutputFormat->setInt32("pcm-encoding", pcmEncoding);
+        }
     }
 
     if (mTunneled) {
@@ -5464,20 +5576,21 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                     flags |= OMX_BUFFERFLAG_EOS;
                 }
 
-                if (buffer != info->mData) {
+                if (buffer != info->mCodecData) {
                     ALOGV("[%s] Needs to copy input data for buffer %u. (%p != %p)",
                          mCodec->mComponentName.c_str(),
                          bufferID,
-                         buffer.get(), info->mData.get());
+                         buffer.get(), info->mCodecData.get());
 
-                    if (buffer->size() > info->mData->capacity()) {
-                        ALOGE("data size (%zu) is greated than buffer capacity (%zu)",
-                                buffer->size(),           // this is the data received
-                                info->mData->capacity()); // this is out buffer size
-                        mCodec->signalError(OMX_ErrorUndefined, FAILED_TRANSACTION);
+                    sp<DataConverter> converter = mCodec->mConverter[kPortIndexInput];
+                    if (converter == NULL) {
+                        converter = getCopyConverter();
+                    }
+                    status_t err = converter->convert(buffer, info->mCodecData);
+                    if (err != OK) {
+                        mCodec->signalError(OMX_ErrorUndefined, err);
                         return;
                     }
-                    memcpy(info->mData->data(), buffer->data(), buffer->size());
                 }
 
                 if (flags & OMX_BUFFERFLAG_CODECCONFIG) {
@@ -5520,7 +5633,7 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                     mCodec->mNode,
                     bufferID,
                     0,
-                    buffer->size(),
+                    info->mCodecData->size(),
                     flags,
                     timeUs,
                     info->mFenceFd);
@@ -5722,8 +5835,17 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 info->mData->meta()->setPointer("handle", handle);
                 info->mData->meta()->setInt32("rangeOffset", rangeOffset);
                 info->mData->meta()->setInt32("rangeLength", rangeLength);
-            } else {
+            } else if (info->mData == info->mCodecData) {
                 info->mData->setRange(rangeOffset, rangeLength);
+            } else {
+                info->mCodecData->setRange(rangeOffset, rangeLength);
+                // in this case we know that mConverter is not null
+                status_t err = mCodec->mConverter[kPortIndexOutput]->convert(
+                        info->mCodecData, info->mData);
+                if (err != OK) {
+                    mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
+                    return true;
+                }
             }
 #if 0
             if (mCodec->mNativeWindow == NULL) {
@@ -5939,6 +6061,8 @@ void ACodec::UninitializedState::stateEntered() {
     mCodec->mFlags = 0;
     mCodec->mInputMetadataType = kMetadataBufferTypeInvalid;
     mCodec->mOutputMetadataType = kMetadataBufferTypeInvalid;
+    mCodec->mConverter[0].clear();
+    mCodec->mConverter[1].clear();
     mCodec->mComponentName.clear();
 }
 
