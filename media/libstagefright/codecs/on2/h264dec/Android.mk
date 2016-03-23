@@ -84,19 +84,15 @@ MY_OMXDL_ASM_SRC := \
 	./omxdl/arm_neon/vc/m4p10/src_gcc/omxVCM4P10_DequantTransformResidualFromPairAndAdd_s.S \
 	./omxdl/arm_neon/vc/m4p10/src_gcc/omxVCM4P10_TransformDequantChromaDCFromPair_s.S \
 
-ifeq ($(TARGET_ARCH),arm)
-  ifeq ($(ARCH_ARM_HAVE_NEON),true)
+
+ifeq ($(ARCH_ARM_HAVE_NEON),true)
     LOCAL_ARM_NEON   := true
-#    LOCAL_CFLAGS     := -std=c99 -D._NEON -D._OMXDL
-    LOCAL_CFLAGS     := -DH264DEC_NEON -DH264DEC_OMXDL
-    LOCAL_SRC_FILES  += $(MY_ASM) $(MY_OMXDL_C_SRC) $(MY_OMXDL_ASM_SRC)
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/./source/arm_neon_asm_gcc
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/./omxdl/arm_neon/api \
+    LOCAL_CFLAGS_arm     := -DH264DEC_NEON -DH264DEC_OMXDL
+    LOCAL_SRC_FILES_arm  := $(MY_ASM) $(MY_OMXDL_C_SRC) $(MY_OMXDL_ASM_SRC)
+    LOCAL_C_INCLUDES_arm := $(LOCAL_PATH)/./source/arm_neon_asm_gcc
+    LOCAL_C_INCLUDES_arm += $(LOCAL_PATH)/./omxdl/arm_neon/api \
                         $(LOCAL_PATH)/./omxdl/arm_neon/vc/api \
                         $(LOCAL_PATH)/./omxdl/arm_neon/vc/m4p10/api
-    # h264bsdWriteMacroblock.S does not compile with Clang.
-    LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
-  endif
 endif
 
 LOCAL_SHARED_LIBRARIES := \

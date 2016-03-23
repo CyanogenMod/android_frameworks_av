@@ -38,7 +38,6 @@ armVCM4P10_WidthBranchTableMVIsZero:
     .word   WidthIs8MVIsZero-(P0+8)
 
     .global armVCM4P10_Interpolate_Chroma
-    .func   armVCM4P10_Interpolate_Chroma
 armVCM4P10_Interpolate_Chroma:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d15}
@@ -183,7 +182,6 @@ WidthIs2MVIsZero:
     MOV      r0,#0
     VPOP     {d8-d15}
     POP      {r4-r12,pc}
-    .endfunc
 
     .end
 

@@ -2575,7 +2575,7 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
         info->mOwnedByClient = true;
 
         // set image-data
-        if (info->mFormat != NULL) {
+        if (info->mFormat != NULL && mIsVideo) {
             sp<ABuffer> imageData;
             if (info->mFormat->findBuffer("image-data", &imageData)) {
                 info->mData->meta()->setBuffer("image-data", imageData);

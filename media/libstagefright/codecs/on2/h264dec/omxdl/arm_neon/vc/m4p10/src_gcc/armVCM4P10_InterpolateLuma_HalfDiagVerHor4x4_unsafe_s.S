@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_InterpolateLuma_HalfDiagVerHor4x4_unsafe
-    .func   armVCM4P10_InterpolateLuma_HalfDiagVerHor4x4_unsafe
 armVCM4P10_InterpolateLuma_HalfDiagVerHor4x4_unsafe:
     PUSH     {r4-r12,lr}
     VLD1.8   {d0,d1},[r0],r1
@@ -128,7 +127,6 @@ armVCM4P10_InterpolateLuma_HalfDiagVerHor4x4_unsafe:
     VQMOVN.U16 d4,q2
     VQMOVN.U16 d6,q3
     POP      {r4-r12,pc}
-    .endfunc
 
     .end
 

@@ -1,8 +1,5 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
-include frameworks/av/media/libstagefright/codecs/common/Config.mk
-
-
 
 LOCAL_SRC_FILES := \
 	src/autocorr.c \
@@ -53,41 +50,40 @@ LOCAL_SRC_FILES := \
 	src/weight_a.c \
 	src/mem_align.c
 
+ifneq ($(ARCH_ARM_HAVE_NEON),true)
+    LOCAL_SRC_FILES_arm := \
+        src/asm/ARMV5E/convolve_opt.s \
+        src/asm/ARMV5E/cor_h_vec_opt.s \
+        src/asm/ARMV5E/Deemph_32_opt.s \
+        src/asm/ARMV5E/Dot_p_opt.s \
+        src/asm/ARMV5E/Filt_6k_7k_opt.s \
+        src/asm/ARMV5E/Norm_Corr_opt.s \
+        src/asm/ARMV5E/pred_lt4_1_opt.s \
+        src/asm/ARMV5E/residu_asm_opt.s \
+        src/asm/ARMV5E/scale_sig_opt.s \
+        src/asm/ARMV5E/Syn_filt_32_opt.s \
+        src/asm/ARMV5E/syn_filt_opt.s
 
-ifeq ($(VOTT), v5)
-LOCAL_SRC_FILES += \
-	src/asm/ARMV5E/convolve_opt.s \
-	src/asm/ARMV5E/cor_h_vec_opt.s \
-	src/asm/ARMV5E/Deemph_32_opt.s \
-	src/asm/ARMV5E/Dot_p_opt.s \
-	src/asm/ARMV5E/Filt_6k_7k_opt.s \
-	src/asm/ARMV5E/Norm_Corr_opt.s \
-	src/asm/ARMV5E/pred_lt4_1_opt.s \
-	src/asm/ARMV5E/residu_asm_opt.s \
-	src/asm/ARMV5E/scale_sig_opt.s \
-	src/asm/ARMV5E/Syn_filt_32_opt.s \
-	src/asm/ARMV5E/syn_filt_opt.s
+    LOCAL_CFLAGS_arm := -DARM -DASM_OPT
+    LOCAL_C_INCLUDES_arm = $(LOCAL_PATH)/src/asm/ARMV5E
+else
+    LOCAL_SRC_FILES_arm := \
+        src/asm/ARMV7/convolve_neon.s \
+        src/asm/ARMV7/cor_h_vec_neon.s \
+        src/asm/ARMV7/Deemph_32_neon.s \
+        src/asm/ARMV7/Dot_p_neon.s \
+        src/asm/ARMV7/Filt_6k_7k_neon.s \
+        src/asm/ARMV7/Norm_Corr_neon.s \
+        src/asm/ARMV7/pred_lt4_1_neon.s \
+        src/asm/ARMV7/residu_asm_neon.s \
+        src/asm/ARMV7/scale_sig_neon.s \
+        src/asm/ARMV7/Syn_filt_32_neon.s \
+        src/asm/ARMV7/syn_filt_neon.s
 
+    LOCAL_CFLAGS_arm := -DARM -DARMV7 -DASM_OPT
+    LOCAL_C_INCLUDES_arm := $(LOCAL_PATH)/src/asm/ARMV5E
+    LOCAL_C_INCLUDES_arm += $(LOCAL_PATH)/src/asm/ARMV7
 endif
-
-ifeq ($(VOTT), v7)
-LOCAL_SRC_FILES += \
-	src/asm/ARMV7/convolve_neon.s \
-	src/asm/ARMV7/cor_h_vec_neon.s \
-	src/asm/ARMV7/Deemph_32_neon.s \
-	src/asm/ARMV7/Dot_p_neon.s \
-	src/asm/ARMV7/Filt_6k_7k_neon.s \
-	src/asm/ARMV7/Norm_Corr_neon.s \
-	src/asm/ARMV7/pred_lt4_1_neon.s \
-	src/asm/ARMV7/residu_asm_neon.s \
-	src/asm/ARMV7/scale_sig_neon.s \
-	src/asm/ARMV7/Syn_filt_32_neon.s \
-	src/asm/ARMV7/syn_filt_neon.s
-
-endif
-
-# ARMV5E/Filt_6k_7k_opt.s does not compile with Clang.
-LOCAL_CLANG_ASFLAGS_arm += -no-integrated-as
 
 LOCAL_MODULE := libstagefright_amrwbenc
 
@@ -104,18 +100,9 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/src \
 	$(LOCAL_PATH)/inc
 
-ifeq ($(VOTT), v5)
-LOCAL_CFLAGS += -DARM -DASM_OPT
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV5E
-endif
-
-ifeq ($(VOTT), v7)
-LOCAL_CFLAGS += -DARM -DARMV7 -DASM_OPT
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV5E
-LOCAL_C_INCLUDES += $(LOCAL_PATH)/src/asm/ARMV7
-endif
-
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+#LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_STATIC_LIBRARY)
 
@@ -132,6 +119,8 @@ LOCAL_C_INCLUDES := \
 	frameworks/native/include/media/openmax
 
 LOCAL_CFLAGS += -Werror
+LOCAL_CLANG := true
+#LOCAL_SANITIZE := signed-integer-overflow
 
 LOCAL_STATIC_LIBRARIES := \
         libstagefright_amrwbenc

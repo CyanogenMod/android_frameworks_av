@@ -42,7 +42,6 @@
     .hidden   armVCM4P10_ZigZag_4x4
 
     .global armVCM4P10_DecodeCoeffsToPair
-    .func   armVCM4P10_DecodeCoeffsToPair
 armVCM4P10_DecodeCoeffsToPair:
     PUSH     {r4-r12,lr}
     SUB      sp,sp,#0x40
@@ -302,7 +301,6 @@ L0x344:
 L0x35c:
     ADD      sp,sp,#0x40
     POP      {r4-r12,pc}
-    .endfunc
 
 .LarmVCM4P10_CAVLCCoeffTokenTables:
     .word   armVCM4P10_CAVLCCoeffTokenTables-(P0+8)

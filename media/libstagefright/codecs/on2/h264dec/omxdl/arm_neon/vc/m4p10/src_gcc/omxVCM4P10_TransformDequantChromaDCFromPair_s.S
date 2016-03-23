@@ -24,9 +24,9 @@
     .arm
     .fpu neon
     .text
+    .syntax unified
 
     .global omxVCM4P10_TransformDequantChromaDCFromPair
-    .func   omxVCM4P10_TransformDequantChromaDCFromPair
 omxVCM4P10_TransformDequantChromaDCFromPair:
     push    {r4-r10, lr}
     ldr     r9, [r0,#0]
@@ -36,13 +36,13 @@ omxVCM4P10_TransformDequantChromaDCFromPair:
     ldrb    r6, [r9], #1
 unpackLoop:
     tst     r6, #0x10
-    ldrnesb r5, [r9, #1]
-    ldrneb  r4, [r9], #2
+    ldrsbne r5, [r9, #1]
+    ldrbne  r4, [r9], #2
     and     r7, r8, r6, lsl #1
-    ldreqsb r4, [r9], #1
+    ldrsbeq r4, [r9], #1
     orrne   r4, r4, r5, lsl #8
     tst     r6, #0x20
-    ldreqb  r6, [r9], #1
+    ldrbeq  r6, [r9], #1
     strh    r4, [r1, r7]
     beq     unpackLoop
     ldmia   r1, {r3, r4}
@@ -66,7 +66,6 @@ P1: add     r6, pc
     vst1.16    {d2}, [r1]
     mov     r0, #0
     pop     {r4-r10, pc}
-    .endfunc
 
 .LarmVCM4P10_QPDivTable:
     .word armVCM4P10_QPDivTable-(P0+8)

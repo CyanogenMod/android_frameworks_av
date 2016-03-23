@@ -459,14 +459,16 @@ nsecs_t VideoFrameScheduler::schedule(nsecs_t renderTime) {
                 mTimeCorrection -= mVsyncPeriod / 2;
                 renderTime -= mVsyncPeriod / 2;
                 nextVsyncTime -= mVsyncPeriod;
-                --vsyncsForLastFrame;
+                if (vsyncsForLastFrame > 0)
+                    --vsyncsForLastFrame;
             } else if (mTimeCorrection < -correctionLimit &&
                     (vsyncsPerFrameAreNearlyConstant || vsyncsForLastFrame == minVsyncsPerFrame)) {
                 // add a VSYNC
                 mTimeCorrection += mVsyncPeriod / 2;
                 renderTime += mVsyncPeriod / 2;
                 nextVsyncTime += mVsyncPeriod;
-                ++vsyncsForLastFrame;
+                if (vsyncsForLastFrame < ULONG_MAX)
+                    ++vsyncsForLastFrame;
             }
             ATRACE_INT("FRAME_VSYNCS", vsyncsForLastFrame);
         }

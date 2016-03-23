@@ -767,7 +767,8 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     // push blank buffers to previous window if requested
-    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown) {
+    if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown ||
+        mFlags & kFlagPushBlankBuffersToNativeWindowOnSwitch) {
         pushBlankBuffersToNativeWindow(mNativeWindow.get());
     }
 
@@ -925,10 +926,24 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
 #endif
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
-    return setNativeWindowSizeFormatAndUsage(
+    int32_t width = 0, height = 0;
+    int32_t isAdaptivePlayback = 0;
+
+    if (mInputFormat->findInt32("adaptive-playback", &isAdaptivePlayback)
+            && isAdaptivePlayback
+            && mInputFormat->findInt32("max-width", &width)
+            && mInputFormat->findInt32("max-height", &height)) {
+        width = max(width, (int32_t)def.format.video.nFrameWidth);
+        height = max(height, (int32_t)def.format.video.nFrameHeight);
+        ALOGV("Adaptive playback width = %d, height = %d", width, height);
+    } else {
+        width = def.format.video.nFrameWidth;
+        height = def.format.video.nFrameHeight;
+    }
+    err = setNativeWindowSizeFormatAndUsage(
             nativeWindow,
-            def.format.video.nFrameWidth,
-            def.format.video.nFrameHeight,
+            width,
+            height,
 #ifdef USE_SAMSUNG_COLORFORMAT
             eNativeColorFormat,
 #else
@@ -936,6 +951,26 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
 #endif
             mRotationDegrees,
             usage);
+#ifdef QCOM_HARDWARE
+    if (err == OK) {
+        OMX_CONFIG_RECTTYPE rect;
+        InitOMXParams(&rect);
+        rect.nPortIndex = kPortIndexOutput;
+        err = mOMX->getConfig(
+                mNode, OMX_IndexConfigCommonOutputCrop, &rect, sizeof(rect));
+        if (err == OK) {
+            ALOGV("rect size = %d, %d, %d, %d", rect.nLeft, rect.nTop, rect.nWidth, rect.nHeight);
+            android_native_rect_t crop;
+            crop.left = rect.nLeft;
+            crop.top = rect.nTop;
+            crop.right = rect.nLeft + rect.nWidth - 1;
+            crop.bottom = rect.nTop + rect.nHeight - 1;
+            ALOGV("crop update (%d, %d), (%d, %d)", crop.left, crop.top, crop.right, crop.bottom);
+            err = native_window_set_crop(nativeWindow, &crop);
+        }
+    }
+#endif
+    return err;
 }
 
 status_t ACodec::configureOutputBuffersFromNativeWindow(
@@ -1948,6 +1983,12 @@ status_t ACodec::configureCodec(
             if (msg->findInt32("push-blank-buffers-on-shutdown", &push)
                     && push != 0) {
                 mFlags |= kFlagPushBlankBuffersToNativeWindowOnShutdown;
+            }
+
+            int32_t val;
+            if (msg->findInt32("push-blank-buffers-on-switch", &val)
+                    && val != 0) {
+                mFlags |= kFlagPushBlankBuffersToNativeWindowOnSwitch;
             }
         }
 
@@ -6654,8 +6695,34 @@ bool ACodec::OutputPortSettingsChangedState::onMessageReceived(
     bool handled = false;
 
     switch (msg->what()) {
-        case kWhatFlush:
         case kWhatShutdown:
+        {
+            int32_t keepComponentAllocated;
+            CHECK(msg->findInt32(
+                        "keepComponentAllocated", &keepComponentAllocated));
+
+            mCodec->mShutdownInProgress = true;
+            mCodec->mExplicitShutdown = true;
+            mCodec->mKeepComponentAllocated = keepComponentAllocated;
+
+            status_t err = mCodec->mOMX->sendCommand(
+                    mCodec->mNode, OMX_CommandStateSet, OMX_StateIdle);
+            if (err != OK) {
+                if (keepComponentAllocated) {
+                    mCodec->signalError(OMX_ErrorUndefined, FAILED_TRANSACTION);
+                }
+                // TODO: do some recovery here.
+            } else {
+                // This is technically not correct, but appears to be
+                // the only way to free the component instance using
+                // ExectingToIdleState.
+                mCodec->changeState(mCodec->mExecutingToIdleState);
+            }
+
+            handled = true;
+            break;
+        }
+        case kWhatFlush:
         case kWhatResume:
         case kWhatSetParameters:
         {
@@ -6714,6 +6781,11 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
                             mCodec->mNode, OMX_CommandPortEnable, kPortIndexOutput);
                 }
 
+                /* Clear the RenderQueue in which queued GraphicBuffers hold the
+                 * actual buffer references in order to free them early.
+                 */
+                mCodec->mRenderTracker.clear(systemTime(CLOCK_MONOTONIC));
+
                 if (err == OK) {
                     err = mCodec->allocateBuffersOnPort(kPortIndexOutput);
                     ALOGE_IF(err != OK, "Failed to allocate output port buffers after port "
@@ -6722,15 +6794,6 @@ bool ACodec::OutputPortSettingsChangedState::onOMXEvent(
 
                 if (err != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err));
-
-                    // This is technically not correct, but appears to be
-                    // the only way to free the component instance.
-                    // Controlled transitioning from excecuting->idle
-                    // and idle->loaded seem impossible probably because
-                    // the output port never finishes re-enabling.
-                    mCodec->mShutdownInProgress = true;
-                    mCodec->mKeepComponentAllocated = false;
-                    mCodec->changeState(mCodec->mLoadedState);
                 }
 
                 return true;

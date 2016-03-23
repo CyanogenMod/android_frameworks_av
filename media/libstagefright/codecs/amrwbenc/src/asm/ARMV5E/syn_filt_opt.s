@@ -233,6 +233,6 @@ Syn_filt_asm_end:
           ADD           r13, r13, #700
           LDMFD   	r13!, {r4 - r12, r15}
           @ENDFUNC
-          .END
+          .end
 
 

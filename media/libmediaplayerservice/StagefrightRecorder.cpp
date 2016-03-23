@@ -963,6 +963,30 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         }
     }
 
+    // If using QCOM extension (Camera 1 HAL) for slow motion recording
+    // mCaptureFpsEnable and mCaptureFps will not be set via setCaptureRate
+    // We need to query from AVUtil, in order to support slow motion audio recording
+    if (mVideoSourceNode != NULL) {
+        int hfrRatio =  AVUtils::get()->HFRUtils().getHFRRatio(mVideoSourceNode->getFormat());
+        if (hfrRatio != 1) {
+            // Upscale the sample rate for slow motion recording.
+            // Fail audio source creation if source sample rate is too high, as it could
+            // cause out-of-memory due to large input buffer size. And audio recording
+            // probably doesn't make sense in the scenario, since the slow-down factor
+            // is probably huge (eg. mSampleRate=48K, hfrRatio=240, mFrameRate=1).
+            const static int32_t SAMPLE_RATE_HZ_MAX = 192000;
+            sourceSampleRate =
+                    (mSampleRate * hfrRatio + mFrameRate / 2) / mFrameRate;
+            if (sourceSampleRate < mSampleRate || sourceSampleRate > SAMPLE_RATE_HZ_MAX) {
+                ALOGE("source sample rate out of range! "
+                        "(mSampleRate %d, hfrRatio %d, mFrameRate %d",
+                        mSampleRate, hfrRatio, mFrameRate);
+                return NULL;
+            }
+        }
+    }
+
+
     sp<AudioSource> audioSource = AVFactory::get()->createAudioSource(
         mAudioSource,
         mOpPackageName,
@@ -2044,10 +2068,16 @@ status_t StagefrightRecorder::setSourcePause(bool pause) {
             }
         }
         if (mAudioEncoderOMX != NULL) {
-            err = mAudioEncoderOMX->pause();
-            if (err != OK) {
-                ALOGE("OMX AudioEncoder pause failed");
-                return err;
+            if (mAudioEncoderOMX != mAudioSourceNode) {
+                err = mAudioEncoderOMX->pause();
+                if (err != OK) {
+                    ALOGE("OMX AudioEncoder pause failed");
+                    return err;
+                }
+            } else {
+                // If AudioSource is the same as MediaSource(as in LPCM),
+                // bypass omx encoder pause() call.
+                ALOGV("OMX AudioEncoder->pause() bypassed");
             }
         }
         if (mVideoSourceNode != NULL) {
@@ -2087,10 +2117,16 @@ status_t StagefrightRecorder::setSourcePause(bool pause) {
             }
         }
         if (mAudioEncoderOMX != NULL) {
-            err = mAudioEncoderOMX->start();
-            if (err != OK) {
-                ALOGE("OMX AudioEncoder start failed");
-                return err;
+            if (mAudioEncoderOMX != mAudioSourceNode) {
+                err = mAudioEncoderOMX->start();
+                if (err != OK) {
+                    ALOGE("OMX AudioEncoder start failed");
+                    return err;
+                }
+            } else {
+                // If AudioSource is the same as MediaSource(as in LPCM),
+                // bypass omx encoder start() call.
+                ALOGV("OMX AudioEncoder->start() bypassed");
             }
         }
     }

@@ -26,7 +26,6 @@
     .text
 
     .global omxVCM4P10_DeblockLuma_I
-    .func   omxVCM4P10_DeblockLuma_I
 omxVCM4P10_DeblockLuma_I:
     PUSH     {r4-r9,lr}
     MOVS     r6,r0
@@ -76,7 +75,6 @@ L0x64:
     BL       omxVCM4P10_FilterDeblockingLuma_HorEdge_I
     ADD      sp,sp,#0xc
     POP      {r4-r9,pc}
-    .endfunc
 
     .end
 

@@ -1590,6 +1590,13 @@ void NuPlayer::Renderer::onResume() {
             ALOGD("received error :%d on resume for offload track posting TEAR_DOWN event",status);
             notifyAudioTearDown();
         }
+        //Update anchor time after resuming playback.
+        if (offloadingAudio()) {
+            int64_t nowUs = ALooper::GetNowUs();
+            int64_t nowMediaUs =
+                mAudioFirstAnchorTimeMediaUs + getPlayedOutAudioDurationUs(nowUs);
+            mMediaClock->updateAnchor(nowMediaUs, nowUs, INT64_MAX);
+        }
     }
 
     {

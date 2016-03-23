@@ -1032,7 +1032,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     int64_t delay = (media_time  * samplerate + 500000) / 1000000;
                     mLastTrack->meta->setInt32(kKeyEncoderDelay, delay);
 
-                    int64_t paddingus = duration - (segment_duration + media_time);
+                    int64_t paddingus = duration - (int64_t)(segment_duration + media_time);
                     if (paddingus < 0) {
                         // track duration from media header (which is what kKeyDuration is) might
                         // be slightly shorter than the segment duration, which would make the
@@ -1979,6 +1979,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                         data_offset + 8, &buffer, 4) < 4) {
                 return ERROR_IO;
             }
+
+            if (mLastTrack == NULL)
+                return ERROR_MALFORMED;
 
             uint32_t type = ntohl(buffer);
             // For the 3GPP file format, the handler-type within the 'hdlr' box
@@ -3325,11 +3328,13 @@ MPEG4Source::MPEG4Source(
 
         const uint8_t *ptr = (const uint8_t *)data;
 
-        CHECK(size >= 7);
-        CHECK_EQ((unsigned)ptr[0], 1u);  // configurationVersion == 1
-
-        // The number of bytes used to encode the length of a NAL unit.
-        mNALLengthSize = 1 + (ptr[4] & 3);
+        if (size < 7 || ptr[0] != 1) {
+            ALOGE("Invalid AVCC atom, size %zu, configurationVersion: %d",
+                    size, ptr[0]);
+        } else {
+            // The number of bytes used to encode the length of a NAL unit.
+            mNALLengthSize = 1 + (ptr[4] & 3);
+        }
     } else if (mIsHEVC) {
         uint32_t type;
         const void *data;
@@ -4573,7 +4578,15 @@ status_t MPEG4Source::fragmentedRead(
                     continue;
                 }
 
-                CHECK(dstOffset + 4 <= mBuffer->size());
+                if (dstOffset > SIZE_MAX - 4 ||
+                        dstOffset + 4 > SIZE_MAX - nalLength ||
+                        dstOffset + 4 + nalLength > mBuffer->size()) {
+                    ALOGE("b/26365349 : %zu %zu", dstOffset, mBuffer->size());
+                    android_errorWriteLog(0x534e4554, "26365349");
+                    mBuffer->release();
+                    mBuffer = NULL;
+                    return ERROR_MALFORMED;
+                }
 
                 dstData[dstOffset++] = 0;
                 dstData[dstOffset++] = 0;

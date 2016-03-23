@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_DeblockingLumabSLT4_unsafe
-    .func   armVCM4P10_DeblockingLumabSLT4_unsafe
 armVCM4P10_DeblockingLumabSLT4_unsafe:
     VSUBL.U8 q11,d5,d9
     VLD1.8   {d18[]},[r5]!
@@ -66,10 +65,8 @@ armVCM4P10_DeblockingLumabSLT4_unsafe:
     VBIF     d24,d8,d16
     VBIF     d25,d9,d12
     BX       lr
-    .endfunc
 
     .global armVCM4P10_DeblockingLumabSGE4_unsafe
-    .func   armVCM4P10_DeblockingLumabSGE4_unsafe
 armVCM4P10_DeblockingLumabSGE4_unsafe:
     VSHR.U8  d19,d0,#2
     VADD.I8  d19,d19,d15
@@ -111,7 +108,6 @@ armVCM4P10_DeblockingLumabSGE4_unsafe:
     VBIF     d24,d8,d16
     VBIF     d28,d10,d12
     BX       lr
-    .endfunc
 
     .end
 

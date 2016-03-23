@@ -660,7 +660,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             // When mStarted is true, mSource must have been set.
             if (mSource == NULL || !mStarted || mSource->getFormat(false /* audio */) == NULL
                     // NOTE: mVideoDecoder's mSurface is always non-null
-                    || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)) {
+#ifndef CANNOT_SET_SURFACE_WITHOUT_A_FLUSH
+                    || (mVideoDecoder != NULL && mVideoDecoder->setVideoSurface(surface) == OK)
+#endif
+                ) {
                 performSetSurface(surface);
                 break;
             }
@@ -932,10 +935,21 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         audio ? "audio" : "video", formatChange);
 
                 if (formatChange) {
-                    mDeferredActions.push_back(
-                            new FlushDecoderAction(
+                    int32_t seamlessChange = 0;
+                    if (msg->findInt32("video-seamlessChange", &seamlessChange) && seamlessChange) {
+                        ALOGE("video decoder seamlessChange in smooth streaming mode, "
+                             "flush the video decoder");
+                        mDeferredActions.push_back(
+                                new FlushDecoderAction(FLUSH_CMD_NONE, FLUSH_CMD_FLUSH));
+                        mDeferredActions.push_back(new ResumeDecoderAction(false));
+                        processDeferredActions();
+                        break;
+                    } else {
+                        mDeferredActions.push_back(
+                                new FlushDecoderAction(
                                 audio ? FLUSH_CMD_SHUTDOWN : FLUSH_CMD_NONE,
                                 audio ? FLUSH_CMD_NONE : FLUSH_CMD_SHUTDOWN));
+                    }
                 }
 
                 mDeferredActions.push_back(

@@ -148,6 +148,7 @@ protected:
         kFlagIsSecure                                 = 1,
         kFlagPushBlankBuffersToNativeWindowOnShutdown = 2,
         kFlagIsGrallocUsageProtected                  = 4,
+        kFlagPushBlankBuffersToNativeWindowOnSwitch = 1 << 7,
     };
 
     enum {

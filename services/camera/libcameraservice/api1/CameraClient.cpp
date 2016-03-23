@@ -111,6 +111,10 @@ CameraClient::~CameraClient() {
 }
 
 status_t CameraClient::dump(int fd, const Vector<String16>& args) {
+    return BasicClient::dump(fd, args);
+}
+
+status_t CameraClient::dumpClient(int fd, const Vector<String16>& args) {
     const size_t SIZE = 256;
     char buffer[SIZE];
 
@@ -236,11 +240,6 @@ void CameraClient::disconnect() {
     // Allow both client and the media server to disconnect at all times
     if (callingPid != mClientPid && callingPid != mServicePid) {
         ALOGW("different client - don't disconnect");
-        return;
-    }
-
-    if (mClientPid <= 0) {
-        LOG1("camera is unlocked (mClientPid = %d), don't tear down hardware", mClientPid);
         return;
     }
 

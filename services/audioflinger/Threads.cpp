@@ -13,6 +13,25 @@
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
 ** limitations under the License.
+**
+** This file was modified by DTS, Inc. The portions of the
+** code that are surrounded by "DTS..." are copyrighted and
+** licensed separately, as follows:
+**
+**  (C) 2015 DTS, Inc.
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**    http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+**
 */
 
 
@@ -72,6 +91,9 @@
 #include <cpustats/ThreadCpuUsage.h>
 #endif
 
+#ifdef SRS_PROCESSING
+#include "postpro_patch.h"
+#endif
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -1608,6 +1630,7 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     dprintf(fd, "  Mixer buffer: %p\n", mMixerBuffer);
     dprintf(fd, "  Effect buffer: %p\n", mEffectBuffer);
     dprintf(fd, "  Fast track availMask=%#x\n", mFastTrackAvailMask);
+    dprintf(fd, "  Standby delay ns=%lld\n", (long long)mStandbyDelayNs);
     AudioStreamOut *output = mOutput;
     audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
     String8 flagsAsString = outputFlagsToString(flags);
@@ -2520,7 +2543,8 @@ The derived values that are cached:
  - mSinkBufferSize from frame count * frame size
  - mActiveSleepTimeUs from activeSleepTimeUs()
  - mIdleSleepTimeUs from idleSleepTimeUs()
- - mStandbyDelayNs from mActiveSleepTimeUs (DIRECT only)
+ - mStandbyDelayNs from mActiveSleepTimeUs (DIRECT only) or forced to at least
+   kDefaultStandbyTimeInNsecs when connected to an A2DP device.
  - maxPeriod from frame count and sample rate (MIXER only)
 
 The parameters that affect these derived values are:
@@ -2539,6 +2563,15 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
     mSinkBufferSize = mNormalFrameCount * mFrameSize;
     mActiveSleepTimeUs = activeSleepTimeUs();
     mIdleSleepTimeUs = idleSleepTimeUs();
+
+    // make sure standby delay is not too short when connected to an A2DP sink to avoid
+    // truncating audio when going to standby.
+    mStandbyDelayNs = AudioFlinger::mStandbyTimeInNsecs;
+    if ((mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != 0) {
+        if (mStandbyDelayNs < kDefaultStandbyTimeInNsecs) {
+            mStandbyDelayNs = kDefaultStandbyTimeInNsecs;
+        }
+    }
 }
 
 void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
@@ -2727,6 +2760,19 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     const String8 myName(String8::format("thread %p type %d TID %d", this, mType, gettid()));
 
     acquireWakeLock();
+#ifdef SRS_PROCESSING
+    String8 bt_param = String8("bluetooth_enabled=0");
+    POSTPRO_PATCH_PARAMS_SET(bt_param);
+    if (mType == MIXER) {
+        POSTPRO_PATCH_OUTPROC_PLAY_INIT(this, myName);
+    } else if (mType == OFFLOAD) {
+        POSTPRO_PATCH_OUTPROC_DIRECT_INIT(this, myName);
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE_BY_VALUE(this, mOutDevice);
+    } else if (mType == DIRECT) {
+        POSTPRO_PATCH_OUTPROC_DIRECT_INIT(this, myName);
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE_BY_VALUE(this, mOutDevice);
+    }
+#endif
 
     // mNBLogWriter->log can only be called while thread mutex mLock is held.
     // So if you need to log when mutex is unlocked, set logString to a non-NULL string,
@@ -2918,7 +2964,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 effectChains[i]->process_l();
             }
         }
-
+#ifdef SRS_PROCESSING
+            // Offload thread
+            if (mType == OFFLOAD) {
+                char buffer[2];
+                POSTPRO_PATCH_OUTPROC_DIRECT_SAMPLES(this, AUDIO_FORMAT_PCM_16_BIT, (int16_t *) buffer, 2, 48000, 2);
+            }
+#endif
         // Only if the Effects buffer is enabled and there is data in the
         // Effects buffer (buffer valid), we need to
         // copy into the sink buffer.
@@ -2936,6 +2988,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // mSleepTimeUs == 0 means we must write to audio hardware
             if (mSleepTimeUs == 0) {
                 ssize_t ret = 0;
+#ifdef SRS_PROCESSING
+                if (mType == MIXER && mMixerStatus == MIXER_TRACKS_READY) {
+                    POSTPRO_PATCH_OUTPROC_PLAY_SAMPLES(this, mFormat, mSinkBuffer, mSinkBufferSize, mSampleRate, mChannelCount);
+                }
+#endif
                 if (mBytesRemaining) {
                     ret = threadLoop_write();
                     if (ret < 0) {
@@ -3032,7 +3089,15 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         threadLoop_standby();
         mStandby = true;
     }
-
+#ifdef SRS_PROCESSING
+    if (mType == MIXER) {
+        POSTPRO_PATCH_OUTPROC_PLAY_EXIT(this, myName);
+    } else if (mType == OFFLOAD) {
+        POSTPRO_PATCH_OUTPROC_DIRECT_EXIT(this, myName);
+    } else if (mType == DIRECT) {
+        POSTPRO_PATCH_OUTPROC_DIRECT_EXIT(this, myName);
+    }
+#endif
     releaseWakeLock();
     mWakeLockUids.clear();
     mActiveTracksGeneration++;
@@ -3125,6 +3190,10 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
     for (unsigned int i = 0; i < patch->num_sinks; i++) {
         type |= patch->sinks[i].ext.device.type;
     }
+
+#ifdef SRS_PROCESSING
+    POSTPRO_PATCH_OUTPROC_PLAY_ROUTE_BY_VALUE(this, type);
+#endif
 
 #ifdef ADD_BATTERY_DATA
     // when changing the audio output device, call addBatteryData to notify
@@ -4261,6 +4330,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
                                                        status_t& status)
 {
     bool reconfig = false;
+    bool a2dpDeviceChanged = false;
 
     status = NO_ERROR;
 
@@ -4281,6 +4351,9 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
+#ifdef SRS_PROCESSING
+        POSTPRO_PATCH_OUTPROC_PLAY_ROUTE(this, param, value);
+#endif
     if (param.getInt(String8(AudioParameter::keySamplingRate), value) == NO_ERROR) {
         reconfig = true;
     }
@@ -4337,6 +4410,8 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         // forward device change to effects that have requested to be
         // aware of attached audio device.
         if (value != AUDIO_DEVICE_NONE) {
+            a2dpDeviceChanged =
+                    (mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != (value & AUDIO_DEVICE_OUT_ALL_A2DP);
             mOutDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(mOutDevice);
@@ -4380,7 +4455,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
         sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
     }
 
-    return reconfig;
+    return reconfig || a2dpDeviceChanged;
 }
 
 
@@ -4816,15 +4891,19 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
                                                               status_t& status)
 {
     bool reconfig = false;
+    bool a2dpDeviceChanged = false;
 
     status = NO_ERROR;
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
+
     if (param.getInt(String8(AudioParameter::keyRouting), value) == NO_ERROR) {
         // forward device change to effects that have requested to be
         // aware of attached audio device.
         if (value != AUDIO_DEVICE_NONE) {
+            a2dpDeviceChanged =
+                    (mOutDevice & AUDIO_DEVICE_OUT_ALL_A2DP) != (value & AUDIO_DEVICE_OUT_ALL_A2DP);
             mOutDevice = value;
             for (size_t i = 0; i < mEffectChains.size(); i++) {
                 mEffectChains[i]->setDevice_l(mOutDevice);
@@ -4857,7 +4936,7 @@ bool AudioFlinger::DirectOutputThread::checkForNewParameter_l(const String8& key
         }
     }
 
-    return reconfig;
+    return reconfig || a2dpDeviceChanged;
 }
 
 uint32_t AudioFlinger::DirectOutputThread::activeSleepTimeUs() const

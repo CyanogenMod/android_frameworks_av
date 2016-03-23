@@ -42,7 +42,6 @@ armVCM4P10_MultiplierTable16x16:
 
 
     .global omxVCM4P10_PredictIntra_16x16
-    .func   omxVCM4P10_PredictIntra_16x16
 omxVCM4P10_PredictIntra_16x16:
     PUSH     {r4-r12,lr}
     VPUSH    {d8-d15}
@@ -246,7 +245,6 @@ L0x2d4:
     MOV      r0,#0
     VPOP     {d8-d15}
     POP      {r4-r12,pc}
-    .endfunc
 
     .end
 

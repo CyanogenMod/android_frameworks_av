@@ -133,6 +133,6 @@ Scale_sig_asm_end:
 
           LDMFD   	r13!, {r4 - r12, r15}
           @ENDFUNC
-          .END
+          .end
 
 

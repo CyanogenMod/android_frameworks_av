@@ -26,7 +26,6 @@
     .text
 
     .global armVCM4P10_TransformResidual4x4
-    .func   armVCM4P10_TransformResidual4x4
 armVCM4P10_TransformResidual4x4:
     VPUSH    {d8}
     VLD4.16  {d0,d1,d2,d3},[r1]
@@ -61,7 +60,6 @@ armVCM4P10_TransformResidual4x4:
     VST1.16  {d0,d1,d2,d3},[r0]
     VPOP     {d8}
     BX       lr
-    .endfunc
 
     .end
 

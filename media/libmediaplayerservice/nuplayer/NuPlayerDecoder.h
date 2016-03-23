@@ -95,6 +95,7 @@ protected:
     bool mIsSecure;
     bool mFormatChangePending;
     bool mTimeChangePending;
+    bool mVideoFormatChangeDoFlushOnly;
 
     bool mResumePending;
     AString mComponentName;

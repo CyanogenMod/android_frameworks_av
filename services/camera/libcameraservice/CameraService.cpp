@@ -81,7 +81,7 @@ static void camera_device_status_change(
     sp<CameraService> cs = const_cast<CameraService*>(
             static_cast<const CameraService*>(callbacks));
 
-    cs->onDeviceStatusChanged(static_cast<camera_device_status_t>(camera_id),
+    cs->onDeviceStatusChanged(camera_id,
             static_cast<camera_device_status_t>(new_status));
 }
 
@@ -153,6 +153,7 @@ void CameraService::onFirstRef()
         ALOGE("Could not load camera HAL module: %d (%s)", err, strerror(-err));
         logServiceError("Could not load camera HAL module", err);
         mNumberOfCameras = 0;
+        mNumberOfNormalCameras = 0;
         return;
     }
 
@@ -276,7 +277,7 @@ CameraService::~CameraService() {
     gCameraService = nullptr;
 }
 
-void CameraService::onDeviceStatusChanged(camera_device_status_t  cameraId,
+void CameraService::onDeviceStatusChanged(int  cameraId,
         camera_device_status_t newStatus) {
     ALOGI("%s: Status changed for cameraId=%d, newStatus=%d", __FUNCTION__,
           cameraId, newStatus);
@@ -1944,6 +1945,14 @@ void CameraService::BasicClient::disconnect() {
     mClientPid = 0;
 }
 
+status_t CameraService::BasicClient::dump(int, const Vector<String16>&) {
+    // No dumping of clients directly over Binder,
+    // must go through CameraService::dump
+    android_errorWriteWithInfoLog(SN_EVENT_LOG_ID, "26265403",
+            IPCThreadState::self()->getCallingUid(), NULL, 0);
+    return OK;
+}
+
 String16 CameraService::BasicClient::getPackageName() const {
     return mClientPackageName;
 }
@@ -2396,7 +2405,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
                     String8(client->getPackageName()).string());
             write(fd, result.string(), result.size());
 
-            client->dump(fd, args);
+            client->dumpClient(fd, args);
         }
 
         if (stateLocked) mCameraStatesLock.unlock();

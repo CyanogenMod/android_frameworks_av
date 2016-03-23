@@ -27,10 +27,10 @@
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
+#include <media/stagefright/foundation/AMessage.h>
 
 namespace android {
 
-struct AMessage;
 struct AString;
 class  IDataSource;
 struct IMediaHTTPService;
@@ -57,7 +57,7 @@ public:
     static sp<DataSource> CreateMediaHTTP(const sp<IMediaHTTPService> &httpService);
     static sp<DataSource> CreateFromIDataSource(const sp<IDataSource> &source);
 
-    DataSource() {}
+    DataSource() : mMeta(new AMessage) {}
 
     virtual status_t initCheck() const = 0;
 
@@ -108,10 +108,14 @@ public:
 
     virtual String8 getMIMEType() const;
 
+    virtual sp<AMessage> meta() { return mMeta; }
+
 protected:
     virtual ~DataSource() {}
 
 private:
+    sp<AMessage> mMeta;
+
     static Mutex gSnifferMutex;
     static List<SnifferFunc> gSniffers;
     static List<SnifferFunc> gExtraSniffers;

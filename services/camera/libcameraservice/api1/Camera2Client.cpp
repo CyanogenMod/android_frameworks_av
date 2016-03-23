@@ -163,6 +163,10 @@ Camera2Client::~Camera2Client() {
 }
 
 status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
+    return BasicClient::dump(fd, args);
+}
+
+status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
     String8 result;
     result.appendFormat("Client2[%d] (%p) PID: %d, dump:\n", mCameraId,
             (getRemoteCallback() != NULL ?
@@ -1741,8 +1745,6 @@ void Camera2Client::notifyError(ICameraDeviceCallbacks::CameraErrorCode errorCod
             err = CAMERA_ERROR_RELEASED;
             break;
         case ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
-            err = CAMERA_ERROR_UNKNOWN;
-            break;
         case ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE:
             err = CAMERA_ERROR_SERVER_DIED;
             break;

@@ -93,6 +93,9 @@ bool DrmManagerService::isProtectedCallAllowed(drm_perm_t perm) {
             return selinuxIsProtectedCallAllowed(spid, perm);
         }
     }
+    if (checkCallingPermission(String16("com.oma.drm.permission.ACCESS_OMA_DRM")) == true) {
+        return true;
+    }
     return false;
 }
 
