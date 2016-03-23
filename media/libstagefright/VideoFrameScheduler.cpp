@@ -156,12 +156,12 @@ bool VideoFrameScheduler::PLL::fit(
         lastTime = time;
     }
 
-    int64_t div   = numSamplesToUse * sumXX - sumX * sumX;
+    int64_t div   = (int64_t)numSamplesToUse * sumXX - sumX * sumX;
     if (div == 0) {
         return false;
     }
 
-    int64_t a_nom = numSamplesToUse * sumXY - sumX * sumY;
+    int64_t a_nom = (int64_t)numSamplesToUse * sumXY - sumX * sumY;
     int64_t b_nom = sumXX * sumY            - sumX * sumXY;
     *a = divRound(a_nom, div);
     *b = divRound(b_nom, div);
@@ -437,10 +437,10 @@ nsecs_t VideoFrameScheduler::schedule(nsecs_t renderTime) {
                 (renderTime + mTimeCorrection + videoPeriod * i - mVsyncTime) % mVsyncPeriod;
             edgeRemainder += (videoPeriod * i) % mVsyncPeriod;
         }
-        mTimeCorrection += mVsyncPeriod / 2 - offset / N;
+        mTimeCorrection += mVsyncPeriod / 2 - offset / (nsecs_t)N;
         renderTime += mTimeCorrection;
         nsecs_t correctionLimit = mVsyncPeriod * 3 / 5;
-        edgeRemainder = abs(edgeRemainder / N - mVsyncPeriod / 2);
+        edgeRemainder = abs(edgeRemainder / (nsecs_t)N - mVsyncPeriod / 2);
         if (edgeRemainder <= mVsyncPeriod / 3) {
             correctionLimit /= 2;
         }
