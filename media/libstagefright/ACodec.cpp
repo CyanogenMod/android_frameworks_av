@@ -2210,6 +2210,7 @@ status_t ACodec::configureCodec(
         err = setOperatingRate(rateFloat, video);
     }
 
+    // NOTE: both mBaseOutputFormat and mOutputFormat are outputFormat to signal first frame.
     mBaseOutputFormat = outputFormat;
     // trigger a kWhatOutputFormatChanged msg on first buffer
     mLastOutputFormat.clear();
@@ -4929,7 +4930,7 @@ void ACodec::onDataSpaceChanged(android_dataspace dataSpace, const ColorAspects 
 }
 
 void ACodec::onOutputFormatChanged() {
-    // store new output format
+    // store new output format, at the same time mark that this is no longer the first frame
     mOutputFormat = mBaseOutputFormat->dup();
 
     if (getPortFormat(kPortIndexOutput, mOutputFormat) != OK) {
@@ -5699,6 +5700,10 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 new AMessage(kWhatOutputBufferDrained, mCodec);
 
             if (mCodec->mOutputFormat != mCodec->mLastOutputFormat && rangeLength > 0) {
+                // pretend that output format has changed on the first frame (we used to do this)
+                if (mCodec->mBaseOutputFormat == mCodec->mOutputFormat) {
+                    mCodec->onOutputFormatChanged();
+                }
                 mCodec->addKeyFormatChangesToRenderBufferNotification(reply);
                 mCodec->sendFormatChange();
             }
