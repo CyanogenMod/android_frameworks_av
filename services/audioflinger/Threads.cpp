@@ -71,6 +71,8 @@
 #include <cpustats/ThreadCpuUsage.h>
 #endif
 
+#include "AutoPark.h"
+
 // ----------------------------------------------------------------------------
 
 // Note: the following macro is used for extremely verbose logging message.  In
@@ -3283,31 +3285,9 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
 status_t AudioFlinger::MixerThread::createAudioPatch_l(const struct audio_patch *patch,
                                                           audio_patch_handle_t *handle)
 {
-    // if !&IDLE, holds the FastMixer state to restore after new parameters processed
-    FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
-    if (mFastMixer != 0) {
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        if (!(state->mCommand & FastMixerState::IDLE)) {
-            previousCommand = state->mCommand;
-            state->mCommand = FastMixerState::HOT_IDLE;
-            sq->end();
-            sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
-        } else {
-            sq->end(false /*didModify*/);
-        }
-    }
-    status_t status = PlaybackThread::createAudioPatch_l(patch, handle);
+    AutoPark<FastMixer> park(mFastMixer);
 
-    if (!(previousCommand & FastMixerState::IDLE)) {
-        ALOG_ASSERT(mFastMixer != 0);
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        ALOG_ASSERT(state->mCommand == FastMixerState::HOT_IDLE);
-        state->mCommand = previousCommand;
-        sq->end();
-        sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
-    }
+    status_t status = PlaybackThread::createAudioPatch_l(patch, handle);
 
     return status;
 }
@@ -3390,32 +3370,9 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
 
 status_t AudioFlinger::MixerThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
 {
-    // if !&IDLE, holds the FastMixer state to restore after new parameters processed
-    FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
-    if (mFastMixer != 0) {
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        if (!(state->mCommand & FastMixerState::IDLE)) {
-            previousCommand = state->mCommand;
-            state->mCommand = FastMixerState::HOT_IDLE;
-            sq->end();
-            sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
-        } else {
-            sq->end(false /*didModify*/);
-        }
-    }
+    AutoPark<FastMixer> park(mFastMixer);
 
     status_t status = PlaybackThread::releaseAudioPatch_l(handle);
-
-    if (!(previousCommand & FastMixerState::IDLE)) {
-        ALOG_ASSERT(mFastMixer != 0);
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        ALOG_ASSERT(state->mCommand == FastMixerState::HOT_IDLE);
-        state->mCommand = previousCommand;
-        sq->end();
-        sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
-    }
 
     return status;
 }
@@ -4464,20 +4421,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
 
     status = NO_ERROR;
 
-    // if !&IDLE, holds the FastMixer state to restore after new parameters processed
-    FastMixerState::Command previousCommand = FastMixerState::HOT_IDLE;
-    if (mFastMixer != 0) {
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        if (!(state->mCommand & FastMixerState::IDLE)) {
-            previousCommand = state->mCommand;
-            state->mCommand = FastMixerState::HOT_IDLE;
-            sq->end();
-            sq->push(FastMixerStateQueue::BLOCK_UNTIL_ACKED);
-        } else {
-            sq->end(false /*didModify*/);
-        }
-    }
+    AutoPark<FastMixer> park(mFastMixer);
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
@@ -4570,16 +4514,6 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
             }
             sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
         }
-    }
-
-    if (!(previousCommand & FastMixerState::IDLE)) {
-        ALOG_ASSERT(mFastMixer != 0);
-        FastMixerStateQueue *sq = mFastMixer->sq();
-        FastMixerState *state = sq->begin();
-        ALOG_ASSERT(state->mCommand == FastMixerState::HOT_IDLE);
-        state->mCommand = previousCommand;
-        sq->end();
-        sq->push(FastMixerStateQueue::BLOCK_UNTIL_PUSHED);
     }
 
     return reconfig || a2dpDeviceChanged;
