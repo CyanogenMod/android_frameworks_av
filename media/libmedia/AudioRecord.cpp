@@ -271,7 +271,7 @@ status_t AudioRecord::set(
     mActive = false;
     mUserData = user;
     // TODO: add audio hardware input latency here
-    mLatency = (1000*mFrameCount) / sampleRate;
+    mLatency = (1000 * mFrameCount) / mSampleRate;
     mMarkerPosition = 0;
     mMarkerReached = false;
     mNewPosition = 0;
