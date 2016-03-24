@@ -679,11 +679,6 @@ bool MtpDevice::readData(ReadObjectCallback callback,
         return false;
     }
 
-    if (mData.getContainerType() == MTP_CONTAINER_TYPE_RESPONSE) {
-        mResponse.copyFrom(mData);
-        return mResponse.getResponseCode() == MTP_RESPONSE_OK ? 0 : -1;
-    }
-
     // If object size 0 byte, the remote device can reply response packet
     // without sending any data packets.
     if (mData.getContainerType() == MTP_CONTAINER_TYPE_RESPONSE) {
