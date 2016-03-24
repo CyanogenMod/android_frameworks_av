@@ -163,6 +163,7 @@ status_t AudioTrack::getMinFrameCount(
 
 AudioTrack::AudioTrack()
     : mStatus(NO_INIT),
+      mState(STATE_STOPPED),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -192,6 +193,7 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect)
     : mStatus(NO_INIT),
+      mState(STATE_STOPPED),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -221,6 +223,7 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect)
     : mStatus(NO_INIT),
+      mState(STATE_STOPPED),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
@@ -477,7 +480,6 @@ status_t AudioTrack::set(
     }
 
     mStatus = NO_ERROR;
-    mState = STATE_STOPPED;
     mUserData = user;
     mLoopCount = 0;
     mLoopStart = 0;
