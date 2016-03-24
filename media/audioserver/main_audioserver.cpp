@@ -56,6 +56,7 @@ int main(int argc __unused, char **argv)
         sp<ProcessState> proc(ProcessState::self());
         MediaLogService::instantiate();
         ProcessState::self()->startThreadPool();
+        IPCThreadState::self()->joinThreadPool();
         for (;;) {
             siginfo_t info;
             int ret = waitid(P_PID, childPid, &info, WEXITED | WSTOPPED | WCONTINUED);
