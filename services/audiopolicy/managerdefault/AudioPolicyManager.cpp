@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "AudioPolicyManager"
+#define LOG_TAG "APM_AudioPolicyManager"
 //#define LOG_NDEBUG 0
 
 //#define VERY_VERBOSE_LOGGING
@@ -2051,7 +2051,7 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
             String8 address = mixes[i].mDeviceAddress;
 
             if (mPolicyMixes.registerMix(address, mixes[i], 0 /*output desc*/) != NO_ERROR) {
-                ALOGE(" Error regisering mix %zu for address %s", i, address.string());
+                ALOGE(" Error registering mix %zu for address %s", i, address.string());
                 res = INVALID_OPERATION;
                 break;
             }
@@ -2076,21 +2076,25 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
                         address.string(), "remote-submix");
             }
         } else if ((mixes[i].mRouteFlags & MIX_ROUTE_FLAG_RENDER) == MIX_ROUTE_FLAG_RENDER) {
-            ALOGV("registerPolicyMixes() mix %zu of %zu is RENDER", i, mixes.size());
             String8 address = mixes[i].mDeviceAddress;
-
             audio_devices_t device = mixes[i].mDeviceType;
+            ALOGV(" registerPolicyMixes() mix %zu of %zu is RENDER, dev=0x%X addr=%s",
+                    i, mixes.size(), device, address.string());
 
+            bool foundOutput = false;
             for (size_t j = 0 ; j < mOutputs.size() ; j++) {
                 sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(j);
                 sp<AudioPatch> patch = mAudioPatches.valueFor(desc->getPatchHandle());
                 if ((patch != 0) && (patch->mPatch.num_sinks != 0)
                         && (patch->mPatch.sinks[0].type == AUDIO_PORT_TYPE_DEVICE)
                         && (patch->mPatch.sinks[0].ext.device.type == device)
-                        && (patch->mPatch.sinks[0].ext.device.address == address)) {
+                        && (strncmp(patch->mPatch.sinks[0].ext.device.address, address.string(),
+                                AUDIO_DEVICE_MAX_ADDRESS_LEN) == 0)) {
 
                     if (mPolicyMixes.registerMix(address, mixes[i], desc) != NO_ERROR) {
                         res = INVALID_OPERATION;
+                    } else {
+                        foundOutput = true;
                     }
                     break;
                 }
@@ -2098,7 +2102,12 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
 
             if (res != NO_ERROR) {
                 ALOGE(" Error registering mix %zu for device 0x%X addr %s",
-                        i,device, address.string());
+                        i, device, address.string());
+                res = INVALID_OPERATION;
+                break;
+            } else if (!foundOutput) {
+                ALOGE(" Output not found for mix %zu for device 0x%X addr %s",
+                        i, device, address.string());
                 res = INVALID_OPERATION;
                 break;
             }
