@@ -178,7 +178,9 @@ media_status_t AMediaCodec_releaseOutputBufferAtTime(
 
 typedef enum {
     AMEDIACODECRYPTOINFO_MODE_CLEAR = 0,
-    AMEDIACODECRYPTOINFO_MODE_AES_CTR = 1
+    AMEDIACODECRYPTOINFO_MODE_AES_CTR = 1,
+    AMEDIACODECRYPTOINFO_MODE_AES_WV = 2,
+    AMEDIACODECRYPTOINFO_MODE_AES_CBC = 3
 } cryptoinfo_mode_t;
 
 typedef struct {
