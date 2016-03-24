@@ -552,19 +552,6 @@ status_t AudioTrack::start()
     mNewPosition = mPosition + mUpdatePeriod;
     int32_t flags = android_atomic_and(~CBLK_DISABLED, &mCblk->mFlags);
 
-    sp<AudioTrackThread> t = mAudioTrackThread;
-    if (t != 0) {
-        if (previousState == STATE_STOPPING) {
-            mProxy->interrupt();
-        } else {
-            t->resume();
-        }
-    } else {
-        mPreviousPriority = getpriority(PRIO_PROCESS, 0);
-        get_sched_policy(0, &mPreviousSchedulingGroup);
-        androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
-    }
-
     status_t status = NO_ERROR;
     if (!(flags & CBLK_INVALID)) {
         status = mAudioTrack->start();
@@ -576,7 +563,21 @@ status_t AudioTrack::start()
         status = restoreTrack_l("start");
     }
 
-    if (status != NO_ERROR) {
+    // resume or pause the callback thread as needed.
+    sp<AudioTrackThread> t = mAudioTrackThread;
+    if (status == NO_ERROR) {
+        if (t != 0) {
+            if (previousState == STATE_STOPPING) {
+                mProxy->interrupt();
+            } else {
+                t->resume();
+            }
+        } else {
+            mPreviousPriority = getpriority(PRIO_PROCESS, 0);
+            get_sched_policy(0, &mPreviousSchedulingGroup);
+            androidSetThreadPriority(0, ANDROID_PRIORITY_AUDIO);
+        }
+    } else {
         ALOGE("start() status %d", status);
         mState = previousState;
         if (t != 0) {
