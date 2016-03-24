@@ -296,6 +296,12 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t tearDown(int streamId) = 0;
 
     /**
+     * Add buffer listener for a particular stream in the device.
+     */
+    virtual status_t addBufferListenerForStream(int streamId,
+            wp<camera3::Camera3StreamBufferListener> listener) = 0;
+
+    /**
      * Prepare stream by preallocating up to maxCount buffers for it asynchronously.
      * Calls notifyPrepared() once allocation is complete.
      */

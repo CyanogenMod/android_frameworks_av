@@ -69,7 +69,7 @@ class CaptureSequencer:
     virtual void onResultAvailable(const CaptureResult &result);
 
     // Notifications from the JPEG processor
-    void onCaptureAvailable(nsecs_t timestamp, sp<MemoryBase> captureBuffer);
+    void onCaptureAvailable(nsecs_t timestamp, sp<MemoryBase> captureBuffer, bool captureError);
 
     void dump(int fd, const Vector<String16>& args);
 
@@ -94,6 +94,7 @@ class CaptureSequencer:
     Condition mNewFrameSignal;
 
     bool mNewCaptureReceived;
+    int32_t mNewCaptureErrorCnt;
     nsecs_t mCaptureTimestamp;
     sp<MemoryBase> mCaptureBuffer;
     Condition mNewCaptureSignal;
@@ -110,6 +111,7 @@ class CaptureSequencer:
     static const int kMaxTimeoutsForPrecaptureStart = 10; // 1 sec
     static const int kMaxTimeoutsForPrecaptureEnd = 20;  // 2 sec
     static const int kMaxTimeoutsForCaptureEnd    = 40;  // 4 sec
+    static const int kMaxRetryCount = 3; // 3 retries in case of buffer drop
 
     wp<Camera2Client> mClient;
     wp<ZslProcessor> mZslProcessor;

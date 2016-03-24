@@ -146,6 +146,9 @@ class Camera3Device :
 
     virtual status_t tearDown(int streamId);
 
+    virtual status_t addBufferListenerForStream(int streamId,
+            wp<camera3::Camera3StreamBufferListener> listener);
+
     virtual status_t prepare(int maxCount, int streamId);
 
     virtual uint32_t getDeviceVersion();

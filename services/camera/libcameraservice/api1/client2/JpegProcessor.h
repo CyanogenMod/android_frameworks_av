@@ -41,13 +41,18 @@ struct Parameters;
  * Still image capture output image processing
  */
 class JpegProcessor:
-            public Thread, public CpuConsumer::FrameAvailableListener {
+            public Thread, public CpuConsumer::FrameAvailableListener,
+            public camera3::Camera3StreamBufferListener {
   public:
     JpegProcessor(sp<Camera2Client> client, wp<CaptureSequencer> sequencer);
     ~JpegProcessor();
 
     // CpuConsumer listener implementation
     void onFrameAvailable(const BufferItem& item);
+
+    // Camera3StreamBufferListener implementation
+    void onBufferAcquired(const BufferInfo& bufferInfo) override;
+    void onBufferReleased(const BufferInfo& bufferInfo) override;
 
     status_t updateStream(const Parameters &params);
     status_t deleteStream();
@@ -61,8 +66,9 @@ class JpegProcessor:
     int mId;
 
     mutable Mutex mInputMutex;
-    bool mCaptureAvailable;
-    Condition mCaptureAvailableSignal;
+    bool mCaptureDone;
+    bool mCaptureSuccess;
+    Condition mCaptureDoneSignal;
 
     enum {
         NO_STREAM = -1
@@ -75,7 +81,7 @@ class JpegProcessor:
 
     virtual bool threadLoop();
 
-    status_t processNewCapture();
+    status_t processNewCapture(bool captureSuccess);
     size_t findJpegSize(uint8_t* jpegBuffer, size_t maxSize);
 
 };
