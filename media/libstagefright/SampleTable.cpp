@@ -298,6 +298,7 @@ status_t SampleTable::setSampleSizeParams(
     mDefaultSampleSize = U32_AT(&header[4]);
     mNumSampleSizes = U32_AT(&header[8]);
     if (mNumSampleSizes > (UINT32_MAX - 12) / 16) {
+        ALOGE("b/23247055, mNumSampleSizes(%u)", mNumSampleSizes);
         return ERROR_MALFORMED;
     }
 
@@ -532,6 +533,8 @@ void SampleTable::buildSampleEntriesTable() {
     Mutex::Autolock autoLock(mLock);
 
     if (mSampleTimeEntries != NULL || mNumSampleSizes == 0) {
+        ALOGE("b/23247055, mNumSampleSizes(%u), mSampleTimeEntries(%p)",
+                mNumSampleSizes, mSampleTimeEntries);
         return;
     }
 
