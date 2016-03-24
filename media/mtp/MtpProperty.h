@@ -81,13 +81,16 @@ public:
                                      int defaultValue = 0);
     virtual             ~MtpProperty();
 
-    inline MtpPropertyCode getPropertyCode() const { return mCode; }
+    MtpPropertyCode getPropertyCode() const { return mCode; }
+    MtpDataType getDataType() const { return mType; }
 
     bool                read(MtpDataPacket& packet);
     void                write(MtpDataPacket& packet);
 
     void                setDefaultValue(const uint16_t* string);
     void                setCurrentValue(const uint16_t* string);
+    void                setCurrentValue(MtpDataPacket& packet);
+    const MtpPropertyValue& getCurrentValue() { return mCurrentValue; }
 
     void                setFormRange(int min, int max, int step);
     void                setFormEnum(const int* values, int count);

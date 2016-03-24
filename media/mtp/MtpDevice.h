@@ -107,6 +107,9 @@ public:
     MtpProperty*            getDevicePropDesc(MtpDeviceProperty code);
     MtpProperty*            getObjectPropDesc(MtpObjectProperty code, MtpObjectFormat format);
 
+    // Reads value of |property| for |handle|. Returns true on success.
+    bool                    getObjectPropValue(MtpObjectHandle handle, MtpProperty* property);
+
     bool                    readObject(MtpObjectHandle handle, ReadObjectCallback callback,
                                     uint32_t objectSize, void* clientData);
     bool                    readObject(MtpObjectHandle handle, const char* destPath, int group,
