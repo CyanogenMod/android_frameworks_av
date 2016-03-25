@@ -29,6 +29,8 @@ exit_group: 1
 rt_sigreturn: 1
 faccessat: 1
 sched_setscheduler: 1
+ugetrlimit: 1
+getrlimit: 1
 
 # for attaching to debuggerd on process crash
 socketcall: 1
