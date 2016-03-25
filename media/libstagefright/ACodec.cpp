@@ -5019,13 +5019,23 @@ void ACodec::onDataSpaceChanged(android_dataspace dataSpace, const ColorAspects 
             transfer, asString((ColorTransfer)transfer));
 }
 
-void ACodec::onOutputFormatChanged() {
+void ACodec::onOutputFormatChanged(sp<const AMessage> expectedFormat) {
     // store new output format, at the same time mark that this is no longer the first frame
     mOutputFormat = mBaseOutputFormat->dup();
 
     if (getPortFormat(kPortIndexOutput, mOutputFormat) != OK) {
         ALOGE("[%s] Failed to get port format to send format change", mComponentName.c_str());
         return;
+    }
+
+    if (expectedFormat != NULL) {
+        sp<const AMessage> changes = expectedFormat->changesFrom(mOutputFormat);
+        sp<const AMessage> to = mOutputFormat->changesFrom(expectedFormat);
+        if (changes->countEntries() != 0 || to->countEntries() != 0) {
+            ALOGW("[%s] BAD CODEC: Output format changed unexpectedly from (diff) %s to (diff) %s",
+                    mComponentName.c_str(),
+                    changes->debugString(4).c_str(), to->debugString(4).c_str());
+        }
     }
 
     if (!mIsVideo && !mIsEncoder) {
@@ -5805,7 +5815,7 @@ bool ACodec::BaseState::onOMXFillBufferDone(
             if (mCodec->mOutputFormat != mCodec->mLastOutputFormat && rangeLength > 0) {
                 // pretend that output format has changed on the first frame (we used to do this)
                 if (mCodec->mBaseOutputFormat == mCodec->mOutputFormat) {
-                    mCodec->onOutputFormatChanged();
+                    mCodec->onOutputFormatChanged(mCodec->mOutputFormat);
                 }
                 mCodec->addKeyFormatChangesToRenderBufferNotification(reply);
                 mCodec->sendFormatChange();
