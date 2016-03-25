@@ -306,13 +306,6 @@ void SoftAMR::onQueueFilled(OMX_U32 /* portIndex */) {
         BufferInfo *inInfo = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
 
-        if (inHeader->nFilledLen == 0) {
-            inInfo->mOwnedByUs = false;
-            inQueue.erase(inQueue.begin());
-            notifyEmptyBufferDone(inHeader);
-            continue;
-        }
-
         BufferInfo *outInfo = *outQueue.begin();
         OMX_BUFFERHEADERTYPE *outHeader = outInfo->mHeader;
 
@@ -328,6 +321,13 @@ void SoftAMR::onQueueFilled(OMX_U32 /* portIndex */) {
             outInfo->mOwnedByUs = false;
             notifyFillBufferDone(outHeader);
             return;
+        }
+
+        if (inHeader->nFilledLen == 0) {
+            inInfo->mOwnedByUs = false;
+            inQueue.erase(inQueue.begin());
+            notifyEmptyBufferDone(inHeader);
+            continue;
         }
 
         if (inHeader->nOffset == 0) {
