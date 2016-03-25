@@ -1150,8 +1150,8 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
 
                 restartAudio(
-                        positionUs, false /* forceNonOffload */,
-                        reason == Renderer::kDueToError /* needsToCreateAudioDecoder */);
+                        positionUs, reason == Renderer::kForceNonOffload /* forceNonOffload */,
+                        reason != Renderer::kDueToTimeout /* needsToCreateAudioDecoder */);
             }
             break;
         }
@@ -1490,9 +1490,11 @@ void NuPlayer::closeAudioSink() {
 
 void NuPlayer::restartAudio(
         int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder) {
-    mAudioDecoder->pause();
-    mAudioDecoder.clear();
-    ++mAudioDecoderGeneration;
+    if (mAudioDecoder != NULL) {
+        mAudioDecoder->pause();
+        mAudioDecoder.clear();
+        ++mAudioDecoderGeneration;
+    }
     if (mFlushingAudio == FLUSHING_DECODER) {
         mFlushComplete[1 /* audio */][1 /* isDecoder */] = true;
         mFlushingAudio = FLUSHED;
@@ -1520,7 +1522,7 @@ void NuPlayer::restartAudio(
         mOffloadAudio = false;
     }
     if (needsToCreateAudioDecoder) {
-        instantiateDecoder(true /* audio */, &mAudioDecoder);
+        instantiateDecoder(true /* audio */, &mAudioDecoder, !forceNonOffload);
     }
 }
 
@@ -1557,7 +1559,8 @@ void NuPlayer::determineAudioModeChange() {
     }
 }
 
-status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
+status_t NuPlayer::instantiateDecoder(
+        bool audio, sp<DecoderBase> *decoder, bool checkAudioModeChange) {
     // The audio decoder could be cleared by tear down. If still in shut down
     // process, no need to create a new audio decoder.
     if (*decoder != NULL || (audio && mFlushingAudio == SHUT_DOWN)) {
@@ -1605,7 +1608,9 @@ status_t NuPlayer::instantiateDecoder(bool audio, sp<DecoderBase> *decoder) {
         ++mAudioDecoderGeneration;
         notify->setInt32("generation", mAudioDecoderGeneration);
 
-        determineAudioModeChange();
+        if (checkAudioModeChange) {
+            determineAudioModeChange();
+        }
         if (mOffloadAudio) {
             mSource->setOffloadAudio(true /* offload */);
 
