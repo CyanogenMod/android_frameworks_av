@@ -84,6 +84,10 @@ private:
         kIsVorbis       = 1,
     };
 
+    enum {
+        kMaxTrackCount = 16384,
+    };
+
     struct TrackInfo {
         sp<IMediaSource> mSource;
         size_t mTrackIndex;
@@ -113,7 +117,7 @@ private:
     void releaseTrackSamples();
 
     bool getTotalBitrate(int64_t *bitRate) const;
-    void updateDurationAndBitrate();
+    status_t updateDurationAndBitrate();
     status_t appendVorbisNumPageSamples(TrackInfo *info, const sp<ABuffer> &buffer);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuMediaExtractor);

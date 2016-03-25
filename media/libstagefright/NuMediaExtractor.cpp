@@ -121,9 +121,10 @@ status_t NuMediaExtractor::setDataSource(
         return ERROR_UNSUPPORTED;
     }
 
-    mDataSource = dataSource;
-
-    updateDurationAndBitrate();
+    status_t err = updateDurationAndBitrate();
+    if (err == OK) {
+        mDataSource = dataSource;
+    }
 
     return OK;
 }
@@ -152,9 +153,10 @@ status_t NuMediaExtractor::setDataSource(int fd, off64_t offset, off64_t size) {
         return ERROR_UNSUPPORTED;
     }
 
-    mDataSource = fileSource;
-
-    updateDurationAndBitrate();
+    err = updateDurationAndBitrate();
+    if (err == OK) {
+        mDataSource = fileSource;
+    }
 
     return OK;
 }
@@ -177,14 +179,19 @@ status_t NuMediaExtractor::setDataSource(const sp<DataSource> &source) {
         return ERROR_UNSUPPORTED;
     }
 
-    mDataSource = source;
+    err = updateDurationAndBitrate();
+    if (err == OK) {
+        mDataSource = source;
+    }
 
-    updateDurationAndBitrate();
-
-    return OK;
+    return err;
 }
 
-void NuMediaExtractor::updateDurationAndBitrate() {
+status_t NuMediaExtractor::updateDurationAndBitrate() {
+    if (mImpl->countTracks() > kMaxTrackCount) {
+        return ERROR_UNSUPPORTED;
+    }
+
     mTotalBitrate = 0ll;
     mDurationUs = -1ll;
 
@@ -212,6 +219,7 @@ void NuMediaExtractor::updateDurationAndBitrate() {
             mDurationUs = durationUs;
         }
     }
+    return OK;
 }
 
 size_t NuMediaExtractor::countTracks() const {
@@ -235,6 +243,12 @@ status_t NuMediaExtractor::getTrackFormat(
     }
 
     sp<MetaData> meta = mImpl->getTrackMetaData(index);
+    // Extractors either support trackID-s or not, so either all tracks have trackIDs or none.
+    // Generate trackID if missing.
+    int32_t trackID;
+    if (meta != NULL && !meta->findInt32(kKeyTrackID, &trackID)) {
+        meta->setInt32(kKeyTrackID, (int32_t)index + 1);
+    }
     return convertMetaDataToMessage(meta, format);
 }
 
