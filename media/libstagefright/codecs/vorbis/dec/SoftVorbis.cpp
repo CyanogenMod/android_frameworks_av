@@ -338,7 +338,13 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
             }
 
             if (inHeader->nFilledLen || !mSawInputEos) {
-                CHECK_GE(inHeader->nFilledLen, sizeof(numPageSamples));
+                if (inHeader->nFilledLen < sizeof(numPageSamples)) {
+                    notify(OMX_EventError, OMX_ErrorBadParameter, 0, NULL);
+                    mSignalledError = true;
+                    ALOGE("onQueueFilled, input header has nFilledLen %u, expected %zu",
+                            inHeader->nFilledLen, sizeof(numPageSamples));
+                    return;
+                }
                 memcpy(&numPageSamples,
                        inHeader->pBuffer
                         + inHeader->nOffset + inHeader->nFilledLen - 4,
