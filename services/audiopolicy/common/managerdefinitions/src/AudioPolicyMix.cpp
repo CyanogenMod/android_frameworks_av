@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define LOG_TAG "APM::AudioPolicyMix"
+#define LOG_TAG "APM_AudioPolicyMix"
 //#define LOG_NDEBUG 0
 
 #include "AudioPolicyMix.h"
@@ -107,6 +107,7 @@ void AudioPolicyMixCollection::closeOutput(sp<SwAudioOutputDescriptor> &desc)
 status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attributes, uid_t uid,
                                                     sp<SwAudioOutputDescriptor> &desc)
 {
+    ALOGV("getOutputForAttr() querying %zu mixes:", size());
     desc = 0;
     for (size_t i = 0; i < size(); i++) {
         sp<AudioPolicyMix> policyMix = valueAt(i);
@@ -129,7 +130,8 @@ status_t AudioPolicyMixCollection::getOutputForAttr(audio_attributes_t attribute
 
             // iterate over all mix criteria to list what rules this mix contains
             for (size_t j = 0; j < mix->mCriteria.size(); j++) {
-                ALOGV("getOutputForAttr: inspecting mix %zu of %zu", i, mix->mCriteria.size());
+                ALOGV(" getOutputForAttr: mix %zu: inspecting mix criteria %zu of %zu",
+                        i, j, mix->mCriteria.size());
 
                 // if there is an address match, prioritize that match
                 if (strncmp(attributes.tags, "addr=", strlen("addr=")) == 0 &&
