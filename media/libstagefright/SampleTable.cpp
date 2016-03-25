@@ -508,8 +508,9 @@ void SampleTable::buildSampleEntriesTable() {
     Mutex::Autolock autoLock(mLock);
 
     if (mSampleTimeEntries != NULL || mNumSampleSizes == 0) {
-        ALOGE("b/23247055, mNumSampleSizes(%u), mSampleTimeEntries(%p)",
-                mNumSampleSizes, mSampleTimeEntries);
+        if (mNumSampleSizes == 0) {
+            ALOGE("b/23247055, mNumSampleSizes(%u)", mNumSampleSizes);
+        }
         return;
     }
 
