@@ -56,7 +56,7 @@ struct MediaCodecSource : public MediaSource,
     virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
     virtual status_t pause();
-    virtual sp<MetaData> getFormat() { return mMeta; }
+    virtual sp<MetaData> getFormat();
     virtual status_t read(
             MediaBuffer **buffer,
             const ReadOptions *options = NULL);
@@ -105,7 +105,7 @@ private:
     sp<ALooper> mCodecLooper;
     sp<AHandlerReflector<MediaCodecSource> > mReflector;
     sp<AMessage> mOutputFormat;
-    sp<MetaData> mMeta;
+    Mutexed<sp<MetaData>> mMeta;
     sp<Puller> mPuller;
     sp<MediaCodec> mEncoder;
     uint32_t mFlags;
