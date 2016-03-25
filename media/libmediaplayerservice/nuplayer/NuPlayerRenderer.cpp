@@ -647,7 +647,10 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
         case kWhatAudioTearDown:
         {
-            onAudioTearDown(kDueToError);
+            int32_t reason;
+            CHECK(msg->findInt32("reason", &reason));
+
+            onAudioTearDown((AudioTearDownReason)reason);
             break;
         }
 
@@ -741,7 +744,7 @@ size_t NuPlayer::Renderer::AudioSinkCallback(
         case MediaPlayerBase::AudioSink::CB_EVENT_TEAR_DOWN:
         {
             ALOGV("AudioSink::CB_EVENT_TEAR_DOWN");
-            me->notifyAudioTearDown();
+            me->notifyAudioTearDown(kDueToError);
             break;
         }
     }
@@ -946,7 +949,7 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
                 ALOGE("AudioSink write error(%zd) when writing %zu bytes", written, copy);
                 // This can only happen when AudioSink was opened with doNotReconnect flag set to
                 // true, in which case the NuPlayer will handle the reconnect.
-                notifyAudioTearDown();
+                notifyAudioTearDown(kDueToError);
             }
             break;
         }
@@ -1299,8 +1302,10 @@ void NuPlayer::Renderer::notifyEOS(bool audio, status_t finalResult, int64_t del
     notify->post(delayUs);
 }
 
-void NuPlayer::Renderer::notifyAudioTearDown() {
-    (new AMessage(kWhatAudioTearDown, this))->post();
+void NuPlayer::Renderer::notifyAudioTearDown(AudioTearDownReason reason) {
+    sp<AMessage> msg = new AMessage(kWhatAudioTearDown, this);
+    msg->setInt32("reason", reason);
+    msg->post();
 }
 
 void NuPlayer::Renderer::onQueueBuffer(const sp<AMessage> &msg) {
@@ -1630,7 +1635,7 @@ void NuPlayer::Renderer::onResume() {
         status_t err = mAudioSink->start();
         if (err != OK) {
             ALOGE("cannot start AudioSink err %d", err);
-            notifyAudioTearDown();
+            notifyAudioTearDown(kDueToError);
         }
     }
 
@@ -1823,6 +1828,9 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                 onDisableOffloadAudio();
                 mCurrentOffloadInfo = AUDIO_INFO_INITIALIZER;
                 ALOGV("openAudioSink: offload failed");
+                if (offloadOnly) {
+                    notifyAudioTearDown(kForceNonOffload);
+                }
             } else {
                 mUseAudioCallback = true;  // offload mode transfers data through callback
                 ++mAudioDrainGeneration;  // discard pending kWhatDrainAudioQueue message.

@@ -234,10 +234,11 @@ private:
     void tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo);
     void closeAudioSink();
     void restartAudio(
-        int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder);
+            int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder);
     void determineAudioModeChange();
 
-    status_t instantiateDecoder(bool audio, sp<DecoderBase> *decoder);
+    status_t instantiateDecoder(
+            bool audio, sp<DecoderBase> *decoder, bool checkAudioModeChange = true);
 
     status_t onInstantiateSecureDecoders();
 
