@@ -40,6 +40,7 @@ sched_get_priority_min: 1
 statfs64: 1
 sched_setscheduler: 1
 fstatat64: 1
+ugetrlimit: 1
 
 # for attaching to debuggerd on process crash
 sigaction: 1
