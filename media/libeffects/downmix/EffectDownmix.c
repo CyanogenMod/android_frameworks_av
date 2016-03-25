@@ -141,6 +141,37 @@ void Downmix_testIndexComputation(uint32_t mask) {
 }
 #endif
 
+static bool Downmix_validChannelMask(uint32_t mask)
+{
+    if (!mask) {
+        return false;
+    }
+    // check against unsupported channels
+    if (mask & kUnsupported) {
+        ALOGE("Unsupported channels (top or front left/right of center)");
+        return false;
+    }
+    // verify has FL/FR
+    if ((mask & AUDIO_CHANNEL_OUT_STEREO) != AUDIO_CHANNEL_OUT_STEREO) {
+        ALOGE("Front channels must be present");
+        return false;
+    }
+    // verify uses SIDE as a pair (ok if not using SIDE at all)
+    if ((mask & kSides) != 0) {
+        if ((mask & kSides) != kSides) {
+            ALOGE("Side channels must be used as a pair");
+            return false;
+        }
+    }
+    // verify uses BACK as a pair (ok if not using BACK at all)
+    if ((mask & kBacks) != 0) {
+        if ((mask & kBacks) != kBacks) {
+            ALOGE("Back channels must be used as a pair");
+            return false;
+        }
+    }
+    return true;
+}
 
 /*----------------------------------------------------------------------------
  * Effect API implementation
@@ -624,9 +655,10 @@ int Downmix_Configure(downmix_module_t *pDwmModule, effect_config_t *pConfig, bo
         pDownmixer->apply_volume_correction = false;
         pDownmixer->input_channel_count = 8; // matches default input of AUDIO_CHANNEL_OUT_7POINT1
     } else {
-        // when configuring the effect, do not allow a blank channel mask
-        if (pConfig->inputCfg.channels == 0) {
-            ALOGE("Downmix_Configure error: input channel mask can't be 0");
+        // when configuring the effect, do not allow a blank or unsupported channel mask
+        if (!Downmix_validChannelMask(pConfig->inputCfg.channels)) {
+            ALOGE("Downmix_Configure error: input channel mask(0x%x) not supported",
+                                                        pConfig->inputCfg.channels);
             return -EINVAL;
         }
         pDownmixer->input_channel_count =
@@ -969,34 +1001,13 @@ void Downmix_foldFrom7Point1(int16_t *pSrc, int16_t*pDst, size_t numFrames, bool
  */
 bool Downmix_foldGeneric(
         uint32_t mask, int16_t *pSrc, int16_t*pDst, size_t numFrames, bool accumulate) {
-    // check against unsupported channels
-    if (mask & kUnsupported) {
-        ALOGE("Unsupported channels (top or front left/right of center)");
+
+    if (!Downmix_validChannelMask(mask)) {
         return false;
     }
-    // verify has FL/FR
-    if ((mask & AUDIO_CHANNEL_OUT_STEREO) != AUDIO_CHANNEL_OUT_STEREO) {
-        ALOGE("Front channels must be present");
-        return false;
-    }
-    // verify uses SIDE as a pair (ok if not using SIDE at all)
-    bool hasSides = false;
-    if ((mask & kSides) != 0) {
-        if ((mask & kSides) != kSides) {
-            ALOGE("Side channels must be used as a pair");
-            return false;
-        }
-        hasSides = true;
-    }
-    // verify uses BACK as a pair (ok if not using BACK at all)
-    bool hasBacks = false;
-    if ((mask & kBacks) != 0) {
-        if ((mask & kBacks) != kBacks) {
-            ALOGE("Back channels must be used as a pair");
-            return false;
-        }
-        hasBacks = true;
-    }
+
+    const bool hasSides = (mask & kSides) != 0;
+    const bool hasBacks = (mask & kBacks) != 0;
 
     const int numChan = audio_channel_count_from_out_mask(mask);
     const bool hasFC = ((mask & AUDIO_CHANNEL_OUT_FRONT_CENTER) == AUDIO_CHANNEL_OUT_FRONT_CENTER);
