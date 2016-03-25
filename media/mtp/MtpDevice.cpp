@@ -611,7 +611,7 @@ MtpProperty* MtpDevice::getObjectPropDesc(MtpObjectProperty code, MtpObjectForma
         return NULL;
     if (!readData())
         return NULL;
-    MtpResponseCode ret = readResponse();
+    const MtpResponseCode ret = readResponse();
     if (ret == MTP_RESPONSE_OK) {
         MtpProperty* property = new MtpProperty;
         if (property->read(mData))
@@ -620,6 +620,25 @@ MtpProperty* MtpDevice::getObjectPropDesc(MtpObjectProperty code, MtpObjectForma
             delete property;
     }
     return NULL;
+}
+
+bool MtpDevice::getObjectPropValue(MtpObjectHandle handle, MtpProperty* property) {
+    if (property == nullptr)
+        return false;
+
+    Mutex::Autolock autoLock(mMutex);
+
+    mRequest.reset();
+    mRequest.setParameter(1, handle);
+    mRequest.setParameter(2, property->getPropertyCode());
+    if (!sendRequest(MTP_OPERATION_GET_OBJECT_PROP_VALUE))
+        return false;
+    if (!readData())
+        return false;
+    if (readResponse() != MTP_RESPONSE_OK)
+        return false;
+    property->setCurrentValue(mData);
+    return true;
 }
 
 bool MtpDevice::readObject(MtpObjectHandle handle,
