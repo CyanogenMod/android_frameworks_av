@@ -70,7 +70,8 @@ void SoundTriggerHwService::onFirstRef()
               SOUND_TRIGGER_HARDWARE_MODULE_ID, HW_MODULE_PREFIX, strerror(-rc));
         return;
     }
-    if (dev->common.version != SOUND_TRIGGER_DEVICE_API_VERSION_CURRENT) {
+    if (dev->common.version < SOUND_TRIGGER_DEVICE_API_VERSION_1_0 ||
+        dev->common.version > SOUND_TRIGGER_DEVICE_API_VERSION_CURRENT) {
         ALOGE("wrong sound trigger hw device version %04x", dev->common.version);
         return;
     }
@@ -808,10 +809,20 @@ void SoundTriggerHwService::Module::setCaptureState_l(bool active)
             goto exit;
         }
 
+        const bool supports_stop_all =
+            (mHwDevice->common.version >= SOUND_TRIGGER_DEVICE_API_VERSION_1_1 &&
+             mHwDevice->stop_all_recognitions);
+
+        if (supports_stop_all) {
+            mHwDevice->stop_all_recognitions(mHwDevice);
+        }
+
         for (size_t i = 0; i < mModels.size(); i++) {
             sp<Model> model = mModels.valueAt(i);
             if (model->mState == Model::STATE_ACTIVE) {
-                mHwDevice->stop_recognition(mHwDevice, model->mHandle);
+                if (!supports_stop_all) {
+                    mHwDevice->stop_recognition(mHwDevice, model->mHandle);
+                }
                 // keep model in ACTIVE state so that event is processed by onCallbackEvent()
                 if (model->mType == SOUND_MODEL_TYPE_KEYPHRASE) {
                     struct sound_trigger_phrase_recognition_event event;
