@@ -96,6 +96,8 @@ class CameraDevice final : public RefBase {
 
     camera_status_t stopRepeatingLocked();
 
+    camera_status_t flushLocked(ACameraCaptureSession*);
+
     camera_status_t waitUntilIdleLocked();
 
 
@@ -152,13 +154,13 @@ class CameraDevice final : public RefBase {
     std::atomic_bool mClosing;
     inline bool isClosed() { return mClosing; }
 
-    bool mInError;
-    camera_status_t mError;
+    bool mInError = false;
+    camera_status_t mError = ACAMERA_OK;
     void onCaptureErrorLocked(
             int32_t errorCode,
             const CaptureResultExtras& resultExtras);
 
-    bool mIdle;
+    bool mIdle = true;
     // This will avoid a busy session being deleted before it's back to idle state
     sp<ACameraCaptureSession> mBusySession;
 
@@ -203,6 +205,7 @@ class CameraDevice final : public RefBase {
      ***********************************/
     // The current active session
     ACameraCaptureSession* mCurrentSession = nullptr;
+    bool mFlushing = false;
 
     int mNextSessionId = 0;
     // TODO: might need another looper/handler to handle callbacks from service
