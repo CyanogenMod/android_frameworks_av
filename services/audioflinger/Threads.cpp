@@ -1786,20 +1786,6 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     // client expresses a preference for FAST, but we get the final say
     if (*flags & IAudioFlinger::TRACK_FAST) {
       if (
-            // either of these use cases:
-            (
-              // use case 1: shared buffer with any frame count
-              (
-                (sharedBuffer != 0)
-              ) ||
-              // use case 2: frame count is default or at least as large as HAL
-              (
-                // we formerly checked for a callback handler (non-0 tid),
-                // but that is no longer required for TRANSFER_OBTAIN mode
-                ((frameCount == 0) ||
-                (frameCount >= mFrameCount))
-              )
-            ) &&
             // PCM data
             audio_is_linear_pcm(format) &&
             // TODO: extract as a data library function that checks that a computationally
@@ -1817,14 +1803,14 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // FIXME test that MixerThread for this fast track has a capable output HAL
             // FIXME add a permission test also?
         ) {
-        // if frameCount not specified, then it defaults to fast mixer (HAL) frame count
-        if (frameCount == 0) {
+        // static tracks can have any nonzero framecount, streaming tracks check against minimum.
+        if (sharedBuffer == 0) {
             // read the fast track multiplier property the first time it is needed
             int ok = pthread_once(&sFastTrackMultiplierOnce, sFastTrackMultiplierInit);
             if (ok != 0) {
                 ALOGE("%s pthread_once failed: %d", __func__, ok);
             }
-            frameCount = mFrameCount * sFastTrackMultiplier;
+            frameCount = max(frameCount, mFrameCount * sFastTrackMultiplier); // incl framecount 0
         }
         ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
                 frameCount, mFrameCount);
