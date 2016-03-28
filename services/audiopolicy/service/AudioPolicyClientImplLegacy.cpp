@@ -111,7 +111,7 @@ audio_io_handle_t aps_open_output(void *service __unused,
                                          uint32_t *pLatencyMs,
                                          audio_output_flags_t flags)
 {
-    return open_output((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask,
+    return open_output(AUDIO_MODULE_HANDLE_NONE, pDevices, pSamplingRate, pFormat, pChannelMask,
                           pLatencyMs, flags, NULL);
 }
 
@@ -219,7 +219,7 @@ audio_io_handle_t aps_open_input(void *service __unused,
                                         audio_channel_mask_t *pChannelMask,
                                         audio_in_acoustics_t acoustics __unused)
 {
-    return  open_input((audio_module_handle_t)0, pDevices, pSamplingRate, pFormat, pChannelMask);
+    return  open_input(AUDIO_MODULE_HANDLE_NONE, pDevices, pSamplingRate, pFormat, pChannelMask);
 }
 
 audio_io_handle_t aps_open_input_on_module(void *service __unused,

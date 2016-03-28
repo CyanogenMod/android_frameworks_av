@@ -2412,7 +2412,7 @@ status_t AudioPolicyManager::createAudioPatch(const struct audio_patch *patch,
             return INVALID_OPERATION;
         }
     } else {
-        *handle = 0;
+        *handle = AUDIO_PATCH_HANDLE_NONE;
     }
 
     if (patch->sources[0].type == AUDIO_PORT_TYPE_MIX) {
@@ -4692,7 +4692,7 @@ status_t AudioPolicyManager::resetOutputDevice(const sp<AudioOutputDescriptor>& 
     sp< AudioPatch> patchDesc = mAudioPatches.valueAt(index);
     status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, delayMs);
     ALOGV("resetOutputDevice() releaseAudioPatch returned %d", status);
-    outputDesc->setPatchHandle(0);
+    outputDesc->setPatchHandle(AUDIO_PATCH_HANDLE_NONE);
     removeAudioPatch(patchDesc->mHandle);
     nextAudioPortGeneration();
     mpClientInterface->onAudioPatchListUpdate();
@@ -4778,7 +4778,7 @@ status_t AudioPolicyManager::resetInputDevice(audio_io_handle_t input,
     sp< AudioPatch> patchDesc = mAudioPatches.valueAt(index);
     status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
     ALOGV("resetInputDevice() releaseAudioPatch returned %d", status);
-    inputDesc->setPatchHandle(0);
+    inputDesc->setPatchHandle(AUDIO_PATCH_HANDLE_NONE);
     removeAudioPatch(patchDesc->mHandle);
     nextAudioPortGeneration();
     mpClientInterface->onAudioPatchListUpdate();

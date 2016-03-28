@@ -27,7 +27,7 @@ namespace android {
 
 HwModule::HwModule(const char *name, uint32_t halVersion)
     : mName(String8(name)),
-      mHandle(0),
+      mHandle(AUDIO_MODULE_HANDLE_NONE),
       mHalVersion(halVersion)
 {
 }

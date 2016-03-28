@@ -1540,10 +1540,10 @@ Exit:
 audio_module_handle_t AudioFlinger::loadHwModule(const char *name)
 {
     if (name == NULL) {
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
     if (!settingsAllowed()) {
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
     Mutex::Autolock _l(mLock);
     return loadHwModule_l(name);
@@ -1564,7 +1564,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     int rc = load_audio_interface(name, &dev);
     if (rc) {
         ALOGE("loadHwModule() error %d loading module %s", rc, name);
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
 
     mHardwareStatus = AUDIO_HW_INIT;
@@ -1572,7 +1572,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
     mHardwareStatus = AUDIO_HW_IDLE;
     if (rc) {
         ALOGE("loadHwModule() init check error %d for module %s", rc, name);
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
 
     // Check and cache this HAL's level of support for master mute and master
@@ -1619,7 +1619,7 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
         mHardwareStatus = AUDIO_HW_IDLE;
     }
 
-    audio_module_handle_t handle = nextUniqueId(AUDIO_UNIQUE_ID_USE_MODULE);
+    audio_module_handle_t handle = (audio_module_handle_t) nextUniqueId(AUDIO_UNIQUE_ID_USE_MODULE);
     mAudioHwDevs.add(handle, new AudioHwDevice(handle, name, dev, flags));
 
     ALOGI("loadHwModule() Loaded %s audio interface from %s (%s) handle %d",

@@ -45,7 +45,7 @@ audio_port_handle_t AudioPort::getNextUniqueId()
 audio_module_handle_t AudioPort::getModuleHandle() const
 {
     if (mModule == 0) {
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
     return mModule->mHandle;
 }

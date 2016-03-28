@@ -50,7 +50,7 @@ public:
 };
 
 class AudioSourceCollection :
-        public DefaultKeyedVector< audio_patch_handle_t, sp<AudioSourceDescriptor> >
+        public DefaultKeyedVector< audio_io_handle_t, sp<AudioSourceDescriptor> >
 {
 public:
     status_t dump(int fd) const;
