@@ -12,6 +12,6 @@ LOCAL_SRC_FILES := \
 
 LOCAL_MODULE := fir
 
-LOCAL_CFLAGS := -Werror -Wall
-
 include $(BUILD_HOST_EXECUTABLE)
+
+
