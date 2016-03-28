@@ -907,6 +907,7 @@ void MediaPlayer::died()
 }
 
 status_t MediaPlayer::setNextMediaPlayer(const sp<MediaPlayer>& next) {
+    Mutex::Autolock _l(mLock);
     if (mPlayer == NULL) {
         return NO_INIT;
     }
