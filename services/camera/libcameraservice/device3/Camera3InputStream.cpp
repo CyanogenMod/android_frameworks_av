@@ -116,6 +116,7 @@ status_t Camera3InputStream::returnBufferCheckedLocked(
                 bufferFound = true;
                 bufferItem = tmp;
                 mBuffersInFlight.erase(it);
+                break;
             }
         }
     }
