@@ -5211,23 +5211,30 @@ void AudioPolicyManager::cleanUpForDevice(const sp<DeviceDescriptor>& deviceDesc
 
 // Modify the list of surround sound formats supported.
 void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
+    // TODO Change the ALOGIs to ALOGVs in this function after the feature is verified.
+
+    // TODO Set this based on Config properties.
+    const bool alwaysForceAC3 = true;
 
     audio_policy_forced_cfg_t forceUse = mEngine->getForceUse(
             AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND);
     ALOGI("%s: forced use = %d", __FUNCTION__, forceUse);
 
     // Analyze original support for various formats.
-    bool supportsRawSurround = false;
+    bool supportsAC3 = false;
+    bool supportsOtherSurround = false;
     bool supportsIEC61937 = false;
     for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
         audio_format_t format = formats[formatIndex];
-        ALOGI("%s: original formats: %#x", __FUNCTION__, format);
+        ALOGI("%s: original formats: 0x%08x", __FUNCTION__, format);
         switch (format) {
             case AUDIO_FORMAT_AC3:
+                supportsAC3 = true;
+                break;
             case AUDIO_FORMAT_E_AC3:
             case AUDIO_FORMAT_DTS:
             case AUDIO_FORMAT_DTS_HD:
-                supportsRawSurround = true;
+                supportsOtherSurround = true;
                 break;
             case AUDIO_FORMAT_IEC61937:
                 supportsIEC61937 = true;
@@ -5236,55 +5243,67 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
                 break;
         }
     }
-    ALOGI("%s: supportsRawSurround = %d, supportsIEC61937 = %d",
-            __FUNCTION__, supportsRawSurround, supportsIEC61937);
+    ALOGI("%s: original, supportsAC3 = %d, supportsOtherSurround = %d, supportsIEC61937 = %d",
+            __FUNCTION__, supportsAC3, supportsOtherSurround, supportsIEC61937);
 
     // Modify formats based on surround preferences.
     // If NEVER, remove support for surround formats.
-    if ((forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_NEVER)
-            && (supportsRawSurround || supportsIEC61937)) {
-        // Remove surround sound related formats.
-        for (size_t formatIndex = 0; formatIndex < formats.size(); ) {
-            audio_format_t format = formats[formatIndex];
-            switch(format) {
-                case AUDIO_FORMAT_AC3:
-                case AUDIO_FORMAT_E_AC3:
-                case AUDIO_FORMAT_DTS:
-                case AUDIO_FORMAT_DTS_HD:
-                case AUDIO_FORMAT_IEC61937:
-                    ALOGI("%s: remove %#x", __FUNCTION__, format);
-                    formats.removeAt(formatIndex);
-                    break;
-                default:
-                    formatIndex++; // keep it
-                    break;
+    if (forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_NEVER) {
+        if (supportsAC3 || supportsOtherSurround || supportsIEC61937) {
+            // Remove surround sound related formats.
+            for (size_t formatIndex = 0; formatIndex < formats.size(); ) {
+                audio_format_t format = formats[formatIndex];
+                switch(format) {
+                    case AUDIO_FORMAT_AC3:
+                    case AUDIO_FORMAT_E_AC3:
+                    case AUDIO_FORMAT_DTS:
+                    case AUDIO_FORMAT_DTS_HD:
+                    case AUDIO_FORMAT_IEC61937:
+                        ALOGI("%s: remove format 0x%08x", __FUNCTION__, format);
+                        formats.removeAt(formatIndex);
+                        break;
+                    default:
+                        formatIndex++; // keep it
+                        break;
+                }
             }
+            supportsAC3 = false;
+            supportsOtherSurround = false;
+            supportsIEC61937 = false;
         }
-        supportsRawSurround = false;
-        supportsIEC61937 = false;
-    }
-    // If ALWAYS, add support for raw surround formats if all are missing.
-    // This assumes that if any of these formats are reported by the HAL
-    // then the report is valid and should not be modified.
-    if ((forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS)
-            && !supportsRawSurround) {
-        formats.add(AUDIO_FORMAT_AC3);
-        formats.add(AUDIO_FORMAT_E_AC3);
-        formats.add(AUDIO_FORMAT_DTS);
-        formats.add(AUDIO_FORMAT_DTS_HD);
-        supportsRawSurround = true;
-    }
-    // Add support for IEC61937 if raw surround supported.
-    // The HAL could do this but add it here, just in case.
-    if (supportsRawSurround && !supportsIEC61937) {
-        formats.add(AUDIO_FORMAT_IEC61937);
-        // supportsIEC61937 = true;
+    } else { // AUTO or ALWAYS
+        // Most TVs support AC3 even if they do not report it in the EDID.
+        if ((alwaysForceAC3 || (forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS))
+                && !supportsAC3) {
+            formats.add(AUDIO_FORMAT_AC3);
+            supportsAC3 = true;
+        }
+
+        // If ALWAYS, add support for raw surround formats if all are missing.
+        // This assumes that if any of these formats are reported by the HAL
+        // then the report is valid and should not be modified.
+        if ((forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS)
+                && !supportsOtherSurround) {
+            formats.add(AUDIO_FORMAT_E_AC3);
+            formats.add(AUDIO_FORMAT_DTS);
+            formats.add(AUDIO_FORMAT_DTS_HD);
+            supportsOtherSurround = true;
+        }
+
+        // Add support for IEC61937 if any raw surround supported.
+        // The HAL could do this but add it here, just in case.
+        if ((supportsAC3 || supportsOtherSurround) && !supportsIEC61937) {
+            formats.add(AUDIO_FORMAT_IEC61937);
+            supportsIEC61937 = true;
+        }
     }
     // Just for debugging.
     for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
         audio_format_t format = formats[formatIndex];
-        ALOGI("%s: final formats: %#x", __FUNCTION__, format);
+        ALOGI("%s: final formats: 0x%08x", __FUNCTION__, format);
     }
+    ALOGI("%s: final, supportsAC3 = %d, supportsOtherSurround = %d, supportsIEC61937 = %d",
+            __FUNCTION__, supportsAC3, supportsOtherSurround, supportsIEC61937);
 }
 
 void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
