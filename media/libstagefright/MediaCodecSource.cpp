@@ -712,6 +712,9 @@ status_t MediaCodecSource::onStart(MetaData *params) {
 
     if (mStarted) {
         ALOGI("MediaCodecSource (%s) resuming", mIsVideo ? "video" : "audio");
+        if (mIsVideo) {
+            mEncoder->requestIDRFrame();
+        }
         if (mFlags & FLAG_USE_SURFACE_INPUT) {
             resume();
         } else {
