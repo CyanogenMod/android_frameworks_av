@@ -245,7 +245,7 @@ void DeviceDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,
     // without the test?
     // This has been demonstrated to NOT be true (at start up)
     // ALOG_ASSERT(mModule != NULL);
-    dstConfig->ext.device.hw_module = mModule != 0 ? mModule->mHandle : AUDIO_IO_HANDLE_NONE;
+    dstConfig->ext.device.hw_module = mModule != 0 ? mModule->mHandle : AUDIO_MODULE_HANDLE_NONE;
     strncpy(dstConfig->ext.device.address, mAddress.string(), AUDIO_DEVICE_MAX_ADDRESS_LEN);
 }
 

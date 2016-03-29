@@ -1355,7 +1355,7 @@ status_t BnAudioFlinger::onTransact(
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             struct audio_patch patch;
             data.read(&patch, sizeof(struct audio_patch));
-            audio_patch_handle_t handle = {};
+            audio_patch_handle_t handle = AUDIO_PATCH_HANDLE_NONE;
             if (data.read(&handle, sizeof(audio_patch_handle_t)) != NO_ERROR) {
                 ALOGE("b/23905951");
             }

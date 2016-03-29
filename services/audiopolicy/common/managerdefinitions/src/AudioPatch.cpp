@@ -31,7 +31,7 @@ AudioPatch::AudioPatch(const struct audio_patch *patch, uid_t uid) :
     mHandle(static_cast<audio_patch_handle_t>(android_atomic_inc(&mNextUniqueId))),
     mPatch(*patch),
     mUid(uid),
-    mAfPatchHandle(0)
+    mAfPatchHandle(AUDIO_PATCH_HANDLE_NONE)
 {
 }
 

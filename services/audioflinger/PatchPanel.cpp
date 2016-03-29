@@ -349,7 +349,7 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
 exit:
     ALOGV("createAudioPatch() status %d", status);
     if (status == NO_ERROR) {
-        *handle = audioflinger->nextUniqueId(AUDIO_UNIQUE_ID_USE_PATCH);
+        *handle = (audio_patch_handle_t) audioflinger->nextUniqueId(AUDIO_UNIQUE_ID_USE_PATCH);
         newPatch->mHandle = *handle;
         newPatch->mHalHandle = halHandle;
         mPatches.add(newPatch);

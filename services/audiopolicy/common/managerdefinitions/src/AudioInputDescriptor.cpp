@@ -29,7 +29,7 @@ namespace android {
 AudioInputDescriptor::AudioInputDescriptor(const sp<IOProfile>& profile)
     : mIoHandle(0),
       mDevice(AUDIO_DEVICE_NONE), mPolicyMix(NULL),
-      mProfile(profile), mPatchHandle(0), mId(0)
+      mProfile(profile), mPatchHandle(AUDIO_PATCH_HANDLE_NONE), mId(0)
 {
     if (profile != NULL) {
         profile->pickAudioProfile(mSamplingRate, mChannelMask, mFormat);
@@ -48,7 +48,7 @@ void AudioInputDescriptor::setIoHandle(audio_io_handle_t ioHandle)
 audio_module_handle_t AudioInputDescriptor::getModuleHandle() const
 {
     if (mProfile == 0) {
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
     return mProfile->getModuleHandle();
 }
@@ -157,7 +157,7 @@ status_t AudioInputDescriptor::removeAudioSession(audio_session_t session) {
     return mSessions.removeSession(session);
 }
 
-audio_port_handle_t AudioInputDescriptor::getPatchHandle() const
+audio_patch_handle_t AudioInputDescriptor::getPatchHandle() const
 {
     return mPatchHandle;
 }
