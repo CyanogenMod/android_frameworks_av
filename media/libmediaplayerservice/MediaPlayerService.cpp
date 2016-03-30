@@ -1578,7 +1578,19 @@ void MediaPlayerService::AudioOutput::deleteRecycledTrack_l()
         }
 
         if ((mRecycledTrack->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) {
-            mRecycledTrack->flush();
+            int32_t msec = 0;
+            if (!mRecycledTrack->stopped()) { // check if active
+                 (void)mRecycledTrack->pendingDuration(&msec);
+            }
+            mRecycledTrack->stop(); // ensure full data drain
+            ALOGD("deleting recycled track, waiting for data drain (%d msec)", msec);
+            if (msec > 0) {
+                static const int32_t WAIT_LIMIT_MS = 3000;
+                if (msec > WAIT_LIMIT_MS) {
+                    msec = WAIT_LIMIT_MS;
+                }
+                usleep(msec * 1000LL);
+            }
         }
         // An offloaded track isn't flushed because the STREAM_END is reported
         // slightly prematurely to allow time for the gapless track switch

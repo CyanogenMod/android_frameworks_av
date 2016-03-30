@@ -771,6 +771,9 @@ public:
      *                     Use getTimestamp(AudioTimestamp& timestamp) instead.
      */
             status_t getTimestamp(ExtendedTimestamp *timestamp);
+private:
+            status_t getTimestamp_l(ExtendedTimestamp *timestamp);
+public:
 
     /* Add an AudioDeviceCallback. The caller will be notified when the audio device to which this
      * AudioTrack is routed is updated.
@@ -793,6 +796,23 @@ public:
      */
             status_t removeAudioDeviceCallback(
                     const sp<AudioSystem::AudioDeviceCallback>& callback);
+
+    /* Obtain the pending duration in milliseconds for playback of pure PCM
+     * (mixable without embedded timing) data remaining in AudioTrack.
+     *
+     * This is used to estimate the drain time for the client-server buffer
+     * so the choice of ExtendedTimestamp::LOCATION_SERVER is default.
+     * One may optionally request to find the duration to play through the HAL
+     * by specifying a location ExtendedTimestamp::LOCATION_KERNEL; however,
+     * INVALID_OPERATION may be returned if the kernel location is unavailable.
+     *
+     * Returns NO_ERROR  if successful.
+     *         INVALID_OPERATION if ExtendedTimestamp::LOCATION_KERNEL cannot be obtained
+     *                   or the AudioTrack does not contain pure PCM data.
+     *         BAD_VALUE if msec is nullptr or location is invalid.
+     */
+            status_t pendingDuration(int32_t *msec,
+                    ExtendedTimestamp::Location location = ExtendedTimestamp::LOCATION_SERVER);
 
 protected:
     /* copying audio tracks is not allowed */
