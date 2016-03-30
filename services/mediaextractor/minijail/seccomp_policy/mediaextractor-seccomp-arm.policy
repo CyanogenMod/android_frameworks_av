@@ -33,6 +33,10 @@ gettid: 1
 rt_sigprocmask: 1
 sched_yield: 1
 ugetrlimit: 1
+geteuid32: 1
+getgid32: 1
+getegid32: 1
+getgroups32: 1
 
 # for attaching to debuggerd on process crash
 sigaction: 1
