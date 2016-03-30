@@ -23,6 +23,7 @@
  * Do not reference types that are not part of the NDK.
  * Do not #include files that aren't part of the NDK.
  */
+#include <android/native_window.h>
 #include "NdkCameraError.h"
 #include "NdkCameraMetadata.h"
 
@@ -78,6 +79,10 @@ typedef void (*ACameraCaptureSession_captureCallback_sequenceAbort)(
         void* context, ACameraCaptureSession* session,
         int sequenceId);
 
+typedef void (*ACameraCaptureSession_captureCallback_bufferLost)(
+        void* context, ACameraCaptureSession* session,
+        ACaptureRequest* request, ANativeWindow* window, int64_t frameNumber);
+
 typedef struct ACameraCaptureSession_captureCallbacks {
     void*                                             context;
     ACameraCaptureSession_captureCallback_start         onCaptureStarted;
@@ -86,6 +91,7 @@ typedef struct ACameraCaptureSession_captureCallbacks {
     ACameraCaptureSession_captureCallback_failed        onCaptureFailed;
     ACameraCaptureSession_captureCallback_sequenceEnd   onCaptureSequenceCompleted;
     ACameraCaptureSession_captureCallback_sequenceAbort onCaptureSequenceAborted;
+    ACameraCaptureSession_captureCallback_bufferLost    onCaptureBufferLost;
 } ACameraCaptureSession_captureCallbacks;
 
 enum {

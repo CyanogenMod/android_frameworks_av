@@ -20,6 +20,7 @@
 #include <map>
 #include <set>
 #include <atomic>
+#include <utility>
 #include <utils/StrongPointer.h>
 #include <utils/Mutex.h>
 #include <utils/String8.h>
@@ -134,8 +135,8 @@ class CameraDevice final : public RefBase {
 
     camera_status_t configureStreamsLocked(const ACaptureSessionOutputContainer* outputs);
 
-    static camera_status_t getIGBPfromSessionOutput(
-            const ACaptureSessionOutput& config, sp<IGraphicBufferProducer>& out);
+    static camera_status_t getIGBPfromAnw(
+            ANativeWindow* anw, sp<IGraphicBufferProducer>& out);
 
     static camera_status_t getSurfaceFromANativeWindow(
             ANativeWindow* anw, sp<Surface>& out);
@@ -147,8 +148,8 @@ class CameraDevice final : public RefBase {
     const sp<ServiceCallback> mServiceCallback;
     ACameraDevice* mWrapper;
 
-    // stream id -> OutputConfiguration map
-    std::map<int, OutputConfiguration> mConfiguredOutputs;
+    // stream id -> pair of (ANW* from application, OutputConfiguration used for camera service)
+    std::map<int, std::pair<ANativeWindow*, OutputConfiguration>> mConfiguredOutputs;
 
     // TODO: maybe a bool will suffice for synchronous implementation?
     std::atomic_bool mClosing;
@@ -171,16 +172,17 @@ class CameraDevice final : public RefBase {
     // definition of handler and message
     enum {
         // Device state callbacks
-        kWhatOnDisconnected, // onDisconnected
-        kWhatOnError,        // onError
+        kWhatOnDisconnected,   // onDisconnected
+        kWhatOnError,          // onError
         // Session state callbacks
-        kWhatSessionStateCb, // onReady, onActive
+        kWhatSessionStateCb,   // onReady, onActive
         // Capture callbacks
-        kWhatCaptureStart,   // onCaptureStarted
-        kWhatCaptureResult,  // onCaptureProgressed, onCaptureCompleted
-        kWhatCaptureFail,    // onCaptureFailed
-        kWhatCaptureSeqEnd,  // onCaptureSequenceCompleted
-        kWhatCaptureSeqAbort // onCaptureSequenceAborted
+        kWhatCaptureStart,     // onCaptureStarted
+        kWhatCaptureResult,    // onCaptureProgressed, onCaptureCompleted
+        kWhatCaptureFail,      // onCaptureFailed
+        kWhatCaptureSeqEnd,    // onCaptureSequenceCompleted
+        kWhatCaptureSeqAbort,  // onCaptureSequenceAborted
+        kWhatCaptureBufferLost // onCaptureBufferLost
     };
     static const char* kContextKey;
     static const char* kDeviceKey;
@@ -193,6 +195,7 @@ class CameraDevice final : public RefBase {
     static const char* kCaptureFailureKey;
     static const char* kSequenceIdKey;
     static const char* kFrameNumberKey;
+    static const char* kAnwKey;
     class CallbackHandler : public AHandler {
       public:
         CallbackHandler() {}
@@ -227,7 +230,7 @@ class CameraDevice final : public RefBase {
             if (cbs != nullptr) {
                 return *cbs;
             }
-            return { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+            return { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
         }
 
         sp<ACameraCaptureSession>   mSession;
