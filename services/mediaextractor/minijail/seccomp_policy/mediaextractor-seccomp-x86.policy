@@ -31,6 +31,10 @@ faccessat: 1
 sched_setscheduler: 1
 ugetrlimit: 1
 getrlimit: 1
+geteuid32: 1
+getgid32: 1
+getegid32: 1
+getgroups32: 1
 
 # for attaching to debuggerd on process crash
 socketcall: 1
