@@ -5,6 +5,7 @@ include $(CLEAR_VARS)
 LOCAL_SRC_FILES := register.cpp
 LOCAL_MODULE := libregistermsext
 LOCAL_MODULE_TAGS := optional
+LOCAL_CFLAGS := -Werror -Wall
 include $(BUILD_STATIC_LIBRARY)
 endif
 
@@ -38,5 +39,7 @@ LOCAL_MODULE:= mediaserver
 LOCAL_32_BIT_ONLY := true
 
 LOCAL_INIT_RC := mediaserver.rc
+
+LOCAL_CFLAGS := -Werror -Wall
 
 include $(BUILD_EXECUTABLE)
