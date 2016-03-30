@@ -1301,10 +1301,10 @@ void coder(
 
             for (i = 0; i < L_SUBFR; i++)
             {
-                L_tmp = (code2[i] * gain_code)<<1;
-                L_tmp = (L_tmp << 5);
-                L_tmp += (exc2[i] * gain_pit)<<1;
-                L_tmp = (L_tmp << 1);
+                L_tmp = L_mult(code2[i], gain_code);
+                L_tmp = L_shl(L_tmp, 5);
+                L_tmp = L_add(L_tmp, L_mult(exc2[i], gain_pit));
+                L_tmp = L_shl(L_tmp, 1);
                 exc2[i] = voround(L_tmp);
             }
 
