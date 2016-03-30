@@ -92,7 +92,7 @@ static ResourceInfo& getResourceInfoForEdit(
 
 static void notifyResourceGranted(int pid, const Vector<MediaResource> &resources) {
     static const char* const kServiceName = "media_resource_monitor";
-    sp<IBinder> binder = defaultServiceManager()->getService(String16(kServiceName));
+    sp<IBinder> binder = defaultServiceManager()->checkService(String16(kServiceName));
     if (binder != NULL) {
         sp<IMediaResourceMonitor> service = interface_cast<IMediaResourceMonitor>(binder);
         for (size_t i = 0; i < resources.size(); ++i) {
@@ -170,10 +170,7 @@ status_t ResourceManagerService::dump(int fd, const Vector<String16>& /* args */
 }
 
 ResourceManagerService::ResourceManagerService()
-    : mProcessInfo(new ProcessInfo()),
-      mServiceLog(new ServiceLog()),
-      mSupportsMultipleSecureCodecs(true),
-      mSupportsSecureWithNonSecureCodec(true) {}
+    : ResourceManagerService(new ProcessInfo()) {}
 
 ResourceManagerService::ResourceManagerService(sp<ProcessInfoInterface> processInfo)
     : mProcessInfo(processInfo),
