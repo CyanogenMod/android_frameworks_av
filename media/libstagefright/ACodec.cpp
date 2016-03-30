@@ -3945,14 +3945,13 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
 
         h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profile);
         h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(level);
-    }
-
-    // XXX
-    if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
-        ALOGW("Use baseline profile instead of %d for AVC recording",
-            h264type.eProfile);
+    } else {
+        // Use baseline profile for AVC recording if profile is not specified.
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
     }
+
+    ALOGI("setupAVCEncoderParameters with [profile: %s] [level: %s]",
+            asString(h264type.eProfile), asString(h264type.eLevel));
 
     if (h264type.eProfile == OMX_VIDEO_AVCProfileBaseline) {
         h264type.nSliceHeaderSpacing = 0;
@@ -3971,6 +3970,23 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.bDirect8x8Inference = OMX_FALSE;
         h264type.bDirectSpatialTemporal = OMX_FALSE;
         h264type.nCabacInitIdc = 0;
+    } else if (h264type.eProfile == OMX_VIDEO_AVCProfileMain ||
+            h264type.eProfile == OMX_VIDEO_AVCProfileHigh) {
+        h264type.nSliceHeaderSpacing = 0;
+        h264type.bUseHadamard = OMX_TRUE;
+        h264type.nRefFrames = 2;
+        h264type.nBFrames = 1;
+        h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate);
+        h264type.nAllowedPictureTypes =
+            OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP | OMX_VIDEO_PictureTypeB;
+        h264type.nRefIdx10ActiveMinus1 = 0;
+        h264type.nRefIdx11ActiveMinus1 = 0;
+        h264type.bEntropyCodingCABAC = OMX_TRUE;
+        h264type.bWeightedPPrediction = OMX_TRUE;
+        h264type.bconstIpred = OMX_TRUE;
+        h264type.bDirect8x8Inference = OMX_TRUE;
+        h264type.bDirectSpatialTemporal = OMX_TRUE;
+        h264type.nCabacInitIdc = 1;
     }
 
     if (h264type.nBFrames != 0) {
