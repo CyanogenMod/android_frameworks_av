@@ -107,6 +107,7 @@ uint32_t ClientProxy::setBufferSizeInFrames(uint32_t size)
     return clippedSize;
 }
 
+__attribute__((no_sanitize("integer")))
 status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *requested,
         struct timespec *elapsed)
 {
@@ -332,6 +333,7 @@ end:
     return status;
 }
 
+__attribute__((no_sanitize("integer")))
 void ClientProxy::releaseBuffer(Buffer* buffer)
 {
     LOG_ALWAYS_FATAL_IF(buffer == NULL);
@@ -619,6 +621,7 @@ ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
     cblk->mBufferSizeInFrames = frameCount;
 }
 
+__attribute__((no_sanitize("integer")))
 status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
 {
     LOG_ALWAYS_FATAL_IF(buffer == NULL || buffer->mFrameCount == 0);
@@ -728,6 +731,7 @@ no_init:
     return NO_INIT;
 }
 
+__attribute__((no_sanitize("integer")))
 void ServerProxy::releaseBuffer(Buffer* buffer)
 {
     LOG_ALWAYS_FATAL_IF(buffer == NULL);
@@ -780,6 +784,7 @@ void ServerProxy::releaseBuffer(Buffer* buffer)
 
 // ---------------------------------------------------------------------------
 
+__attribute__((no_sanitize("integer")))
 size_t AudioTrackServerProxy::framesReady()
 {
     LOG_ALWAYS_FATAL_IF(!mIsOut);
