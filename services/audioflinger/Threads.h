@@ -527,6 +527,8 @@ protected:
     // ThreadBase virtuals
     virtual     void        preExit();
 
+    virtual     bool        keepWakeLock() const { return true; }
+
 public:
 
     virtual     status_t    initCheck() const { return (mOutput == NULL) ? NO_INIT : NO_ERROR; }
@@ -996,9 +998,12 @@ protected:
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
 
+    virtual     bool        keepWakeLock() const { return mKeepWakeLock; }
+
 private:
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
+    bool        mKeepWakeLock;          // keep wake lock while waiting for write callback
 };
 
 class AsyncCallbackThread : public Thread {
