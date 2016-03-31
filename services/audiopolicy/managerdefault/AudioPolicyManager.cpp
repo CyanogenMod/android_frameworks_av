@@ -5210,15 +5210,14 @@ void AudioPolicyManager::cleanUpForDevice(const sp<DeviceDescriptor>& deviceDesc
 }
 
 // Modify the list of surround sound formats supported.
-void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
-    // TODO Change the ALOGIs to ALOGVs in this function after the feature is verified.
-
+void AudioPolicyManager::filterSurroundFormats(FormatVector *formatsPtr) {
+    FormatVector &formats = *formatsPtr;
     // TODO Set this based on Config properties.
     const bool alwaysForceAC3 = true;
 
     audio_policy_forced_cfg_t forceUse = mEngine->getForceUse(
             AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND);
-    ALOGI("%s: forced use = %d", __FUNCTION__, forceUse);
+    ALOGD("%s: forced use = %d", __FUNCTION__, forceUse);
 
     // Analyze original support for various formats.
     bool supportsAC3 = false;
@@ -5226,7 +5225,6 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
     bool supportsIEC61937 = false;
     for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
         audio_format_t format = formats[formatIndex];
-        ALOGI("%s: original formats: 0x%08x", __FUNCTION__, format);
         switch (format) {
             case AUDIO_FORMAT_AC3:
                 supportsAC3 = true;
@@ -5243,8 +5241,6 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
                 break;
         }
     }
-    ALOGI("%s: original, supportsAC3 = %d, supportsOtherSurround = %d, supportsIEC61937 = %d",
-            __FUNCTION__, supportsAC3, supportsOtherSurround, supportsIEC61937);
 
     // Modify formats based on surround preferences.
     // If NEVER, remove support for surround formats.
@@ -5259,7 +5255,6 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
                     case AUDIO_FORMAT_DTS:
                     case AUDIO_FORMAT_DTS_HD:
                     case AUDIO_FORMAT_IEC61937:
-                        ALOGI("%s: remove format 0x%08x", __FUNCTION__, format);
                         formats.removeAt(formatIndex);
                         break;
                     default:
@@ -5297,13 +5292,42 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
             supportsIEC61937 = true;
         }
     }
-    // Just for debugging.
-    for (size_t formatIndex = 0; formatIndex < formats.size(); formatIndex++) {
-        audio_format_t format = formats[formatIndex];
-        ALOGI("%s: final formats: 0x%08x", __FUNCTION__, format);
+}
+
+// Modify the list of channel masks supported.
+void AudioPolicyManager::filterSurroundChannelMasks(ChannelsVector *channelMasksPtr) {
+    ChannelsVector &channelMasks = *channelMasksPtr;
+    audio_policy_forced_cfg_t forceUse = mEngine->getForceUse(
+            AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND);
+
+    // If NEVER, then remove support for channelMasks > stereo.
+    if (forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_NEVER) {
+        for (size_t maskIndex = 0; maskIndex < channelMasks.size(); ) {
+            audio_channel_mask_t channelMask = channelMasks[maskIndex];
+            if (channelMask & ~AUDIO_CHANNEL_OUT_STEREO) {
+                ALOGI("%s: force NEVER, so remove channelMask 0x%08x", __FUNCTION__, channelMask);
+                channelMasks.removeAt(maskIndex);
+            } else {
+                maskIndex++;
+            }
+        }
+    // If ALWAYS, then make sure we at least support 5.1
+    } else if (forceUse == AUDIO_POLICY_FORCE_ENCODED_SURROUND_ALWAYS) {
+        bool supports5dot1 = false;
+        // Are there any channel masks that can be considered "surround"?
+        for (size_t maskIndex = 0; maskIndex < channelMasks.size(); maskIndex++) {
+            audio_channel_mask_t channelMask = channelMasks[maskIndex];
+            if ((channelMask & AUDIO_CHANNEL_OUT_5POINT1) == AUDIO_CHANNEL_OUT_5POINT1) {
+                supports5dot1 = true;
+                break;
+            }
+        }
+        // If not then add 5.1 support.
+        if (!supports5dot1) {
+            channelMasks.add(AUDIO_CHANNEL_OUT_5POINT1);
+            ALOGI("%s: force ALWAYS, so adding channelMask for 5.1 surround", __FUNCTION__);
+        }
     }
-    ALOGI("%s: final, supportsAC3 = %d, supportsOtherSurround = %d, supportsIEC61937 = %d",
-            __FUNCTION__, supportsAC3, supportsOtherSurround, supportsIEC61937);
 }
 
 void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
@@ -5312,11 +5336,12 @@ void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
 {
     String8 reply;
     char *value;
+
     // Format MUST be checked first to update the list of AudioProfile
     if (profiles.hasDynamicFormat()) {
         reply = mpClientInterface->getParameters(ioHandle,
                                                  String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS));
-        ALOGI("%s: supported formats %s", __FUNCTION__, reply.string());
+        ALOGV("%s: supported formats %s", __FUNCTION__, reply.string());
         AudioParameter repliedParameters(reply);
         if (repliedParameters.get(
                 String8(AUDIO_PARAMETER_STREAM_SUP_FORMATS), reply) != NO_ERROR) {
@@ -5325,7 +5350,7 @@ void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
         }
         FormatVector formats = formatsFromString(reply.string());
         if (device == AUDIO_DEVICE_OUT_HDMI) {
-            filterSurroundFormats(formats);
+            filterSurroundFormats(&formats);
         }
         profiles.setFormats(formats);
     }
@@ -5358,6 +5383,9 @@ void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
             if (repliedParameters.get(
                     String8(AUDIO_PARAMETER_STREAM_SUP_CHANNELS), reply) == NO_ERROR) {
                 channelMasks = channelMasksFromString(reply.string());
+                if (device == AUDIO_DEVICE_OUT_HDMI) {
+                    filterSurroundChannelMasks(&channelMasks);
+                }
             }
         }
         profiles.addProfileFromHal(new AudioProfile(format, channelMasks, samplingRates));
