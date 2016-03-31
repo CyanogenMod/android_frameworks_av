@@ -90,6 +90,24 @@ ACameraCaptureSession::stopRepeating() {
 }
 
 camera_status_t
+ACameraCaptureSession::abortCaptures() {
+    sp<CameraDevice> dev = getDeviceSp();
+    if (dev == nullptr) {
+        ALOGE("Error: Device associated with session %p has been closed!", this);
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+
+    camera_status_t ret;
+    dev->lockDeviceForSessionOps();
+    {
+        Mutex::Autolock _l(mSessionLock);
+        ret = dev->flushLocked(this);
+    }
+    dev->unlockDevice();
+    return ret;
+}
+
+camera_status_t
 ACameraCaptureSession::setRepeatingRequest(
         /*optional*/ACameraCaptureSession_captureCallbacks* cbs,
         int numRequests, ACaptureRequest** requests,

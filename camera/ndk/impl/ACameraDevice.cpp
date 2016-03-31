@@ -170,6 +170,7 @@ CameraDevice::createCaptureSession(
     // set new session as current session
     newSession->incStrong((void *) ACameraDevice_createCaptureSession);
     mCurrentSession = newSession;
+    mFlushing = false;
     *session = newSession;
     return ACAMERA_OK;
 }
@@ -384,6 +385,58 @@ CameraDevice::stopRepeatingLocked() {
             return ACAMERA_ERROR_UNKNOWN;
         }
         checkRepeatingSequenceCompleteLocked(repeatingSequenceId, lastFrameNumber);
+    }
+    return ACAMERA_OK;
+}
+
+camera_status_t
+CameraDevice::flushLocked(ACameraCaptureSession* session) {
+    camera_status_t ret = checkCameraClosedOrErrorLocked();
+    if (ret != ACAMERA_OK) {
+        ALOGE("Camera %s abort captures failed! ret %d", getId(), ret);
+        return ret;
+    }
+
+    // This should never happen because creating a new session will close
+    // previous one and thus reject any API call from previous session.
+    // But still good to check here in case something unexpected happen.
+    if (session != mCurrentSession) {
+        ALOGE("Camera %s session %p is not current active session!", getId(), session);
+        return ACAMERA_ERROR_INVALID_OPERATION;
+    }
+
+    if (mFlushing) {
+        ALOGW("Camera %s is already aborting captures", getId());
+        return ACAMERA_OK;
+    }
+
+    mFlushing = true;
+    // Send onActive callback to guarantee there is always active->ready transition
+    sp<AMessage> msg = new AMessage(kWhatSessionStateCb, mHandler);
+    msg->setPointer(kContextKey, session->mUserSessionCallback.context);
+    msg->setObject(kSessionSpKey, session);
+    msg->setPointer(kCallbackFpKey, (void*) session->mUserSessionCallback.onActive);
+    msg->post();
+
+    // If device is already idling, send callback and exit early
+    if (mIdle) {
+        sp<AMessage> msg = new AMessage(kWhatSessionStateCb, mHandler);
+        msg->setPointer(kContextKey, session->mUserSessionCallback.context);
+        msg->setObject(kSessionSpKey, session);
+        msg->setPointer(kCallbackFpKey, (void*) session->mUserSessionCallback.onReady);
+        msg->post();
+        mFlushing = false;
+        return ACAMERA_OK;
+    }
+
+    int64_t lastFrameNumber;
+    binder::Status remoteRet = mRemote->flush(&lastFrameNumber);
+    if (!remoteRet.isOk()) {
+        ALOGE("Abort captures fails in remote: %s", remoteRet.toString8().string());
+        return ACAMERA_ERROR_UNKNOWN;
+    }
+    if (mRepeatingSequenceId != REQUEST_ID_NONE) {
+        checkRepeatingSequenceCompleteLocked(mRepeatingSequenceId, lastFrameNumber);
     }
     return ACAMERA_OK;
 }
@@ -1109,6 +1162,7 @@ CameraDevice::ServiceCallback::onDeviceIdle() {
         msg->post();
     }
     dev->mIdle = true;
+    dev->mFlushing = false;
     return ret;
 }
 

@@ -77,6 +77,8 @@ struct ACameraCaptureSession : public RefBase {
 
     camera_status_t stopRepeating();
 
+    camera_status_t abortCaptures();
+
     camera_status_t setRepeatingRequest(
             /*optional*/ACameraCaptureSession_captureCallbacks* cbs,
             int numRequests, ACaptureRequest** requests,
@@ -104,7 +106,6 @@ struct ACameraCaptureSession : public RefBase {
     const wp<CameraDevice> mDevice;
     bool  mIsClosed = false;
     bool  mClosedByApp = false;
-    bool  mIdle = true;
     Mutex mSessionLock;
 };
 

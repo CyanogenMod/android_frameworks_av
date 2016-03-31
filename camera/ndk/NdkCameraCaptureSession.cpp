@@ -122,7 +122,16 @@ camera_status_t ACameraCaptureSession_stopRepeating(ACameraCaptureSession* sessi
 }
 
 EXPORT
-camera_status_t ACameraCaptureSession_abortCaptures(ACameraCaptureSession*) {
+camera_status_t ACameraCaptureSession_abortCaptures(ACameraCaptureSession* session) {
     ATRACE_CALL();
-    return ACAMERA_OK;
+    if (session == nullptr) {
+        ALOGE("%s: Error: session is null", __FUNCTION__);
+        return ACAMERA_ERROR_INVALID_PARAMETER;
+    }
+
+    if (session->isClosed()) {
+        ALOGE("%s: session %p is already closed", __FUNCTION__, session);
+        return ACAMERA_ERROR_SESSION_CLOSED;
+    }
+    return session->abortCaptures();
 }
