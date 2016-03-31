@@ -35,4 +35,6 @@ LOCAL_SHARED_LIBRARIES := \
 
 LOCAL_MODULE:= libsoundtrigger
 
+LOCAL_CFLAGS := -Werror -Wall
+
 include $(BUILD_SHARED_LIBRARY)
