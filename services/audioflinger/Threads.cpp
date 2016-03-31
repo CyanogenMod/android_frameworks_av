@@ -2924,11 +2924,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                     break;
                 }
                 bool released = false;
-                // The following works around a bug in the offload driver. Ideally we would release
-                // the wake lock every time, but that causes the last offload buffer(s) to be
-                // dropped while the device is on battery, so we need to hold a wake lock during
-                // the drain phase.
-                if (mBytesRemaining && !(mDrainSequence & 1)) {
+                if (!keepWakeLock()) {
                     releaseWakeLock_l();
                     released = true;
                 }
@@ -5165,10 +5161,11 @@ AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device, bool systemReady,
         uint32_t bitRate)
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD, systemReady, bitRate),
-        mPausedBytesRemaining(0)
+        mPausedWriteLength(0), mPausedBytesRemaining(0), mKeepWakeLock(true)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
     mStandby = true;
+    mKeepWakeLock = property_get_bool("ro.audio.offload_wakelock", true /* default_value */);
 }
 
 void AudioFlinger::OffloadThread::threadLoop_exit()
