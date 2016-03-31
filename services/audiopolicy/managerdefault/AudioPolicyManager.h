@@ -589,7 +589,8 @@ private:
         void filterSurroundFormats(FormatVector &formats);
 
         // If any, resolve any "dynamic" fields of an Audio Profiles collection
-        void updateAudioProfiles(audio_io_handle_t ioHandle, AudioProfileVector &profiles);
+        void updateAudioProfiles(audio_devices_t device, audio_io_handle_t ioHandle,
+                AudioProfileVector &profiles);
 
         // updates device caching and output for streams that can influence the
         //    routing of notifications
