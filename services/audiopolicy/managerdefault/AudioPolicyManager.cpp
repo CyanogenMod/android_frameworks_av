@@ -3678,7 +3678,7 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor> de
                     mpClientInterface->setParameters(output, String8(param));
                     free(param);
                 }
-                updateAudioProfiles(output, profile->getAudioProfiles());
+                updateAudioProfiles(device, output, profile->getAudioProfiles());
                 if (!profile->hasValidAudioProfile()) {
                     ALOGW("checkOutputsForDevice() missing param");
                     mpClientInterface->closeOutput(output);
@@ -3916,7 +3916,7 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor> dev
                     mpClientInterface->setParameters(input, String8(param));
                     free(param);
                 }
-                updateAudioProfiles(input, profile->getAudioProfiles());
+                updateAudioProfiles(device, input, profile->getAudioProfiles());
                 if (!profile->hasValidAudioProfile()) {
                     ALOGW("checkInputsForDevice() direct input missing param");
                     mpClientInterface->closeInput(input);
@@ -5306,7 +5306,8 @@ void AudioPolicyManager::filterSurroundFormats(FormatVector &formats) {
             __FUNCTION__, supportsAC3, supportsOtherSurround, supportsIEC61937);
 }
 
-void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
+void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
+                                             audio_io_handle_t ioHandle,
                                              AudioProfileVector &profiles)
 {
     String8 reply;
@@ -5323,7 +5324,9 @@ void AudioPolicyManager::updateAudioProfiles(audio_io_handle_t ioHandle,
             return;
         }
         FormatVector formats = formatsFromString(reply.string());
-        filterSurroundFormats(formats);
+        if (device == AUDIO_DEVICE_OUT_HDMI) {
+            filterSurroundFormats(formats);
+        }
         profiles.setFormats(formats);
     }
     const FormatVector &supportedFormats = profiles.getSupportedFormats();
