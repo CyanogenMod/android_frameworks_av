@@ -2531,6 +2531,10 @@ void AudioFlinger::PlaybackThread::checkSilentMode_l()
 {
     if (!mMasterMute) {
         char value[PROPERTY_VALUE_MAX];
+        if (mOutDevice == AUDIO_DEVICE_OUT_REMOTE_SUBMIX) {
+            ALOGD("ro.audio.silent will be ignored for threads on AUDIO_DEVICE_OUT_REMOTE_SUBMIX");
+            return;
+        }
         if (property_get("ro.audio.silent", value, "0") > 0) {
             char *endptr;
             unsigned long ul = strtoul(value, &endptr, 0);
