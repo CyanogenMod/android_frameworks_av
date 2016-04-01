@@ -910,7 +910,7 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     } else {
         zslMode = true;
     }
-    zslMode = false;
+
     ALOGI("%s: zslMode: %d slowJpegMode %d", __FUNCTION__, zslMode, slowJpegMode);
 
     lightFx = LIGHTFX_NONE;
