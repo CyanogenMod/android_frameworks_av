@@ -2550,8 +2550,8 @@ status_t MPEG4Writer::Track::threadEntry() {
             ((timestampUs * mTimeScale + 500000LL) / 1000000LL -
                 (lastTimestampUs * mTimeScale + 500000LL) / 1000000LL);
         if (currDurationTicks < 0ll) {
-            ALOGE("timestampUs %" PRId64 " < lastTimestampUs %" PRId64 " for %s track",
-                timestampUs, lastTimestampUs, trackName);
+            ALOGE("do not support out of order frames (timestamp: %lld < last: %lld for %s track",
+                    (long long)timestampUs, (long long)lastTimestampUs, trackName);
             copy->release();
             mSource->stop();
             return UNKNOWN_ERROR;
