@@ -767,31 +767,31 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                  * Thus, we could not say for sure whether a stream is
                  * AAC+/eAAC+ until the first data frame is decoded.
                  */
-                if (mInputBufferCount <= 2 || mOutputBufferCount > 1) { // TODO: <= 1
-                    if (mStreamInfo->sampleRate != prevSampleRate ||
-                        mStreamInfo->numChannels != prevNumChannels) {
-                        ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
-                              prevSampleRate, mStreamInfo->sampleRate,
-                              prevNumChannels, mStreamInfo->numChannels);
-
-                        notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
-                        mOutputPortSettingsChange = AWAITING_DISABLED;
-
-                        if (inHeader && inHeader->nFilledLen == 0) {
-                            inInfo->mOwnedByUs = false;
-                            mInputBufferCount++;
-                            inQueue.erase(inQueue.begin());
-                            mLastInHeader = NULL;
-                            inInfo = NULL;
-                            notifyEmptyBufferDone(inHeader);
-                            inHeader = NULL;
-                        }
+                if (!mStreamInfo->sampleRate || !mStreamInfo->numChannels) {
+                    if ((mInputBufferCount > 2) && (mOutputBufferCount <= 1)) {
+                        ALOGW("Invalid AAC stream");
+                        mSignalledError = true;
+                        notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
                         return;
                     }
-                } else if (!mStreamInfo->sampleRate || !mStreamInfo->numChannels) {
-                    ALOGW("Invalid AAC stream");
-                    mSignalledError = true;
-                    notify(OMX_EventError, OMX_ErrorUndefined, decoderErr, NULL);
+                } else if ((mStreamInfo->sampleRate != prevSampleRate) ||
+                           (mStreamInfo->numChannels != prevNumChannels)) {
+                    ALOGI("Reconfiguring decoder: %d->%d Hz, %d->%d channels",
+                          prevSampleRate, mStreamInfo->sampleRate,
+                          prevNumChannels, mStreamInfo->numChannels);
+
+                    notify(OMX_EventPortSettingsChanged, 1, 0, NULL);
+                    mOutputPortSettingsChange = AWAITING_DISABLED;
+
+                    if (inHeader && inHeader->nFilledLen == 0) {
+                        inInfo->mOwnedByUs = false;
+                        mInputBufferCount++;
+                        inQueue.erase(inQueue.begin());
+                        mLastInHeader = NULL;
+                        inInfo = NULL;
+                        notifyEmptyBufferDone(inHeader);
+                        inHeader = NULL;
+                    }
                     return;
                 }
                 if (inHeader && inHeader->nFilledLen == 0) {
@@ -826,10 +826,10 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
             while (mOutputDelayCompensated > 0) {
                 // a buffer big enough for MAX_CHANNEL_COUNT channels of decoded HE-AAC
                 INT_PCM tmpOutBuffer[2048 * MAX_CHANNEL_COUNT];
- 
-                 // run DRC check
-                 mDrcWrap.submitStreamData(mStreamInfo);
-                 mDrcWrap.update();
+
+                // run DRC check
+                mDrcWrap.submitStreamData(mStreamInfo);
+                mDrcWrap.update();
 
                 AAC_DECODER_ERROR decoderErr =
                     aacDecoder_DecodeFrame(mAACDecoder,
