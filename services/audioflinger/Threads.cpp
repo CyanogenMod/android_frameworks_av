@@ -3162,20 +3162,23 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 if ((mType == OFFLOAD) && !audio_has_proportional_frames(mFormat)) {
                     Mutex::Autolock _l(mLock);
                     if (!mSignalPending && !exitPending()) {
-                        // Do not sleep more than one buffer duration since last write and not
-                        // less than kDirectMinSleepTimeUs
+                        // If more than one buffer has been written to the audio HAL since exiting
+                        // standby or last flush, do not sleep more than one buffer duration
+                        // since last write and not less than kDirectMinSleepTimeUs.
                         // Wake up if a command is received
-                        nsecs_t now = systemTime();
-                        uint32_t deltaUs = (uint32_t)((now - mLastWriteTime) / 1000);
                         uint32_t timeoutUs = mSleepTimeUs;
-                        if (timeoutUs + deltaUs > mBufferDurationUs) {
-                            if (mBufferDurationUs > deltaUs) {
-                                timeoutUs = mBufferDurationUs - deltaUs;
-                                if (timeoutUs < kDirectMinSleepTimeUs) {
+                        if (mBytesWritten >= (int64_t) mBufferSize) {
+                            nsecs_t now = systemTime();
+                            uint32_t deltaUs = (uint32_t)((now - mLastWriteTime) / 1000);
+                            if (timeoutUs + deltaUs > mBufferDurationUs) {
+                                if (mBufferDurationUs > deltaUs) {
+                                    timeoutUs = mBufferDurationUs - deltaUs;
+                                    if (timeoutUs < kDirectMinSleepTimeUs) {
+                                        timeoutUs = kDirectMinSleepTimeUs;
+                                    }
+                                } else {
                                     timeoutUs = kDirectMinSleepTimeUs;
                                 }
-                            } else {
-                                timeoutUs = kDirectMinSleepTimeUs;
                             }
                         }
                         mWaitWorkCV.waitRelative(mLock, microseconds((nsecs_t)timeoutUs));
@@ -5418,6 +5421,8 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mBytesRemaining = 0;
     mPausedWriteLength = 0;
     mPausedBytesRemaining = 0;
+    // reset bytes written count to reflect that DSP buffers are empty after flush.
+    mBytesWritten = 0;
 
     if (mUseAsyncWrite) {
         // discard any pending drain or write ack by incrementing sequence
