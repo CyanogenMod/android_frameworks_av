@@ -172,8 +172,6 @@ typedef enum acamera_metadata_tag {
             ACAMERA_CONTROL_START + 32,
     ACAMERA_CONTROL_AWB_STATE =                                 // byte (enum)
             ACAMERA_CONTROL_START + 34,
-    ACAMERA_CONTROL_AVAILABLE_HIGH_SPEED_VIDEO_CONFIGURATIONS = // int32[5*n]
-            ACAMERA_CONTROL_START + 35,
     ACAMERA_CONTROL_AE_LOCK_AVAILABLE =                         // byte (enum)
             ACAMERA_CONTROL_START + 36,
     ACAMERA_CONTROL_AWB_LOCK_AVAILABLE =                        // byte (enum)
@@ -276,16 +274,6 @@ typedef enum acamera_metadata_tag {
             ACAMERA_NOISE_REDUCTION_START + 2,
     ACAMERA_NOISE_REDUCTION_END,
 
-    ACAMERA_QUIRKS_USE_PARTIAL_RESULT =                         // Deprecated! DO NOT USE
-            ACAMERA_QUIRKS_START + 3,
-    ACAMERA_QUIRKS_PARTIAL_RESULT =                             // Deprecated! DO NOT USE
-            ACAMERA_QUIRKS_START + 4,
-    ACAMERA_QUIRKS_END,
-
-    ACAMERA_REQUEST_FRAME_COUNT =                               // Deprecated! DO NOT USE
-            ACAMERA_REQUEST_START,
-    ACAMERA_REQUEST_ID =                                        // int32
-            ACAMERA_REQUEST_START + 1,
     ACAMERA_REQUEST_MAX_NUM_OUTPUT_STREAMS =                    // int32[3]
             ACAMERA_REQUEST_START + 6,
     ACAMERA_REQUEST_MAX_NUM_INPUT_STREAMS =                     // int32
@@ -308,20 +296,8 @@ typedef enum acamera_metadata_tag {
 
     ACAMERA_SCALER_CROP_REGION =                                // int32[4]
             ACAMERA_SCALER_START,
-    ACAMERA_SCALER_AVAILABLE_FORMATS =                          // Deprecated! DO NOT USE
-            ACAMERA_SCALER_START + 1,
-    ACAMERA_SCALER_AVAILABLE_JPEG_MIN_DURATIONS =               // Deprecated! DO NOT USE
-            ACAMERA_SCALER_START + 2,
-    ACAMERA_SCALER_AVAILABLE_JPEG_SIZES =                       // Deprecated! DO NOT USE
-            ACAMERA_SCALER_START + 3,
     ACAMERA_SCALER_AVAILABLE_MAX_DIGITAL_ZOOM =                 // float
             ACAMERA_SCALER_START + 4,
-    ACAMERA_SCALER_AVAILABLE_PROCESSED_MIN_DURATIONS =          // Deprecated! DO NOT USE
-            ACAMERA_SCALER_START + 5,
-    ACAMERA_SCALER_AVAILABLE_PROCESSED_SIZES =                  // Deprecated! DO NOT USE
-            ACAMERA_SCALER_START + 6,
-    ACAMERA_SCALER_AVAILABLE_INPUT_OUTPUT_FORMATS_MAP =         // int32
-            ACAMERA_SCALER_START + 9,
     ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS =            // int32[n*4] (enum)
             ACAMERA_SCALER_START + 10,
     ACAMERA_SCALER_AVAILABLE_MIN_FRAME_DURATIONS =              // int64[4*n]
@@ -430,10 +406,6 @@ typedef enum acamera_metadata_tag {
             ACAMERA_STATISTICS_START + 10,
     ACAMERA_STATISTICS_LENS_SHADING_MAP =                       // float[4*n*m]
             ACAMERA_STATISTICS_START + 11,
-    ACAMERA_STATISTICS_PREDICTED_COLOR_GAINS =                  // Deprecated! DO NOT USE
-            ACAMERA_STATISTICS_START + 12,
-    ACAMERA_STATISTICS_PREDICTED_COLOR_TRANSFORM =              // Deprecated! DO NOT USE
-            ACAMERA_STATISTICS_START + 13,
     ACAMERA_STATISTICS_SCENE_FLICKER =                          // byte (enum)
             ACAMERA_STATISTICS_START + 14,
     ACAMERA_STATISTICS_HOT_PIXEL_MAP =                          // int32[2*n]
@@ -470,12 +442,6 @@ typedef enum acamera_metadata_tag {
             ACAMERA_TONEMAP_START + 7,
     ACAMERA_TONEMAP_END,
 
-    ACAMERA_LED_TRANSMIT =                                      // byte (enum)
-            ACAMERA_LED_START,
-    ACAMERA_LED_AVAILABLE_LEDS =                                // byte[n] (enum)
-            ACAMERA_LED_START + 1,
-    ACAMERA_LED_END,
-
     ACAMERA_INFO_SUPPORTED_HARDWARE_LEVEL =                     // byte (enum)
             ACAMERA_INFO_START,
     ACAMERA_INFO_END,
@@ -489,12 +455,6 @@ typedef enum acamera_metadata_tag {
     ACAMERA_SYNC_MAX_LATENCY =                                  // int32 (enum)
             ACAMERA_SYNC_START + 1,
     ACAMERA_SYNC_END,
-
-    ACAMERA_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR =               // float
-            ACAMERA_REPROCESS_START,
-    ACAMERA_REPROCESS_MAX_CAPTURE_STALL =                       // int32
-            ACAMERA_REPROCESS_START + 1,
-    ACAMERA_REPROCESS_END,
 
     ACAMERA_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS =       // int32[n*4] (enum)
             ACAMERA_DEPTH_START + 1,
@@ -777,12 +737,6 @@ typedef enum acamera_metadata_enum_acamera_noise_reduction_mode {
 } acamera_metadata_enum_android_noise_reduction_mode_t;
 
 
-// ACAMERA_QUIRKS_PARTIAL_RESULT
-typedef enum acamera_metadata_enum_acamera_quirks_partial_result {
-    ACAMERA_QUIRKS_PARTIAL_RESULT_FINAL                              = 0,
-    ACAMERA_QUIRKS_PARTIAL_RESULT_PARTIAL                            = 1,
-} acamera_metadata_enum_android_quirks_partial_result_t;
-
 
 // ACAMERA_REQUEST_AVAILABLE_CAPABILITIES
 typedef enum acamera_metadata_enum_acamera_request_available_capabilities {
@@ -799,17 +753,6 @@ typedef enum acamera_metadata_enum_acamera_request_available_capabilities {
                                                                       = 9,
 } acamera_metadata_enum_android_request_available_capabilities_t;
 
-
-// ACAMERA_SCALER_AVAILABLE_FORMATS
-typedef enum acamera_metadata_enum_acamera_scaler_available_formats {
-    ACAMERA_SCALER_AVAILABLE_FORMATS_RAW16                           = 0x20,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_RAW_OPAQUE                      = 0x24,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_YV12                            = 0x32315659,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_YCrCb_420_SP                    = 0x11,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_IMPLEMENTATION_DEFINED          = 0x22,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_YCbCr_420_888                   = 0x23,
-    ACAMERA_SCALER_AVAILABLE_FORMATS_BLOB                            = 0x21,
-} acamera_metadata_enum_android_scaler_available_formats_t;
 
 // ACAMERA_SCALER_AVAILABLE_STREAM_CONFIGURATIONS
 typedef enum acamera_metadata_enum_acamera_scaler_available_stream_configurations {
@@ -931,17 +874,6 @@ typedef enum acamera_metadata_enum_acamera_tonemap_preset_curve {
     ACAMERA_TONEMAP_PRESET_CURVE_REC709                              = 1,
 } acamera_metadata_enum_android_tonemap_preset_curve_t;
 
-
-// ACAMERA_LED_TRANSMIT
-typedef enum acamera_metadata_enum_acamera_led_transmit {
-    ACAMERA_LED_TRANSMIT_OFF                                         = 0,
-    ACAMERA_LED_TRANSMIT_ON                                          = 1,
-} acamera_metadata_enum_android_led_transmit_t;
-
-// ACAMERA_LED_AVAILABLE_LEDS
-typedef enum acamera_metadata_enum_acamera_led_available_leds {
-    ACAMERA_LED_AVAILABLE_LEDS_TRANSMIT                              = 0,
-} acamera_metadata_enum_android_led_available_leds_t;
 
 
 // ACAMERA_INFO_SUPPORTED_HARDWARE_LEVEL

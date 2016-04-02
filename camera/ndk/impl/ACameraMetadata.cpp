@@ -294,7 +294,6 @@ ACameraMetadata::isCaptureRequestTag(const uint32_t tag) {
         case ACAMERA_LENS_FOCUS_DISTANCE:
         case ACAMERA_LENS_OPTICAL_STABILIZATION_MODE:
         case ACAMERA_NOISE_REDUCTION_MODE:
-        case ACAMERA_REQUEST_ID:
         case ACAMERA_SCALER_CROP_REGION:
         case ACAMERA_SENSOR_EXPOSURE_TIME:
         case ACAMERA_SENSOR_FRAME_DURATION:
@@ -311,9 +310,7 @@ ACameraMetadata::isCaptureRequestTag(const uint32_t tag) {
         case ACAMERA_TONEMAP_MODE:
         case ACAMERA_TONEMAP_GAMMA:
         case ACAMERA_TONEMAP_PRESET_CURVE:
-        case ACAMERA_LED_TRANSMIT:
         case ACAMERA_BLACK_LEVEL_LOCK:
-        case ACAMERA_REPROCESS_EFFECTIVE_EXPOSURE_FACTOR:
             return true;
         default:
             return false;

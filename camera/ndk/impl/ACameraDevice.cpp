@@ -1185,8 +1185,8 @@ CameraDevice::ServiceCallback::onResultReceived(
     }
 
     CameraMetadata metadataCopy = metadata;
-    // Copied from java implmentation. Why do we need this?
     metadataCopy.update(ANDROID_LENS_INFO_SHADING_MAP_SIZE, dev->mShadingMapSize, /*data_count*/2);
+    metadataCopy.update(ANDROID_SYNC_FRAME_NUMBER, &frameNumber, /*data_count*/1);
 
     auto it = dev->mSequenceCallbackMap.find(sequenceId);
     if (it != dev->mSequenceCallbackMap.end()) {
