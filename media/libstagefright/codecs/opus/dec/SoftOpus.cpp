@@ -461,7 +461,7 @@ void SoftOpus::onQueueFilled(OMX_U32 portIndex) {
         size_t frameSize = kMaxOpusOutputPacketSizeSamples;
         if (frameSize > outHeader->nAllocLen / sizeof(int16_t) / mHeader->channels) {
             frameSize = outHeader->nAllocLen / sizeof(int16_t) / mHeader->channels;
-            android_errorWriteLog(0x534e4554, "27887390");
+            android_errorWriteLog(0x534e4554, "27833616");
         }
 
         int numFrames = opus_multistream_decode(mDecoder,

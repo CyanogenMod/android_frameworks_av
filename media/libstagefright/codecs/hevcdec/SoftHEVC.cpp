@@ -377,7 +377,7 @@ bool SoftHEVC::setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
     uint8_t *pBuf;
     if (outHeader) {
         if (outHeader->nAllocLen < sizeY + (sizeUV * 2)) {
-            android_errorWriteLog(0x534e4554, "27569635");
+            android_errorWriteLog(0x534e4554, "27833616");
             return false;
         }
         pBuf = outHeader->pBuffer;
