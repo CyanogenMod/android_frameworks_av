@@ -206,15 +206,22 @@ status_t AudioPolicyService::doStartOutput(audio_io_handle_t output,
         Mutex::Autolock _l(mLock);
         audioPolicyEffects = mAudioPolicyEffects;
     }
+
+    status_t status = NO_ERROR;
     if (audioPolicyEffects != 0) {
         // create audio processors according to stream
-        status_t status = audioPolicyEffects->addOutputSessionEffects(output, stream, session);
-        if (status != NO_ERROR && status != ALREADY_EXISTS) {
+        status = audioPolicyEffects->addOutputSessionEffects(output, stream, session);
+        if (status <= 0 && (status != NO_ERROR && status != ALREADY_EXISTS)) {
             ALOGW("Failed to add effects on session %d", session);
         }
     }
     Mutex::Autolock _l(mLock);
-    return mAudioPolicyManager->startOutput(output, stream, session);
+    status_t status2 = mAudioPolicyManager->startOutput(output, stream, session);
+
+    if (audioPolicyEffects != 0 && status > 0 && status2 == NO_ERROR) {
+        onOutputSessionEffectsUpdate(stream, session, true);
+    }
+    return status2;
 }
 
 status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
