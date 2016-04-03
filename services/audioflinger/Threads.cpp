@@ -1266,16 +1266,24 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
 
             effect->setOffloaded(setVal, mId);
 
+            ALOGV("effectCreated = true mode=%d, mOutDevice=%d mInDevice=%d mAudioSource=%d", mAudioFlinger->getMode(), mOutDevice, mInDevice, mAudioSource);
+            effect->setDevice(mOutDevice);
+            effect->setDevice(mInDevice);
+            effect->setMode(mAudioFlinger->getMode());
+            effect->setAudioSource(mAudioSource);
+
+            if (mInDevice == AUDIO_DEVICE_NONE && mOutDevice == AUDIO_DEVICE_NONE) {
+                ALOGV("No device set, not adding effect!");
+                goto Exit;
+            }
+
             lStatus = chain->addEffect_l(effect);
             if (lStatus != NO_ERROR) {
                 goto Exit;
             }
             effectCreated = true;
 
-            effect->setDevice(mOutDevice);
-            effect->setDevice(mInDevice);
-            effect->setMode(mAudioFlinger->getMode());
-            effect->setAudioSource(mAudioSource);
+
         }
         // create effect handle and connect it to effect module
         handle = new EffectHandle(effect, client, effectClient, priority);
