@@ -1050,6 +1050,10 @@ void CameraDeviceClient::onResultAvailable(const CaptureResult& result) {
 }
 
 binder::Status CameraDeviceClient::checkPidStatus(const char* checkLocation) {
+    if (mDisconnected) {
+        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED,
+                "The camera device has been disconnected");
+    }
     status_t res = checkPid(checkLocation);
     return (res == OK) ? binder::Status::ok() :
             STATUS_ERROR(CameraService::ERROR_PERMISSION_DENIED,
