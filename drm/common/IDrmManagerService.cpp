@@ -303,7 +303,9 @@ DrmInfo* BpDrmManagerService::acquireDrmInfo(int uniqueId, const DrmInfoRequest*
         const String8 value = drmInforequest->get(key);
         if (key == String8("FileDescriptorKey")) {
             int fd = -1;
-            sscanf(value.string(), "FileDescriptor[%d]", &fd);
+            if (sscanf(value.string(), "FileDescriptor[%d]", &fd) != 1) {
+                sscanf(value.string(), "%d", &fd);
+            }
             data.writeFileDescriptor(fd);
         } else {
             data.writeString8((value == String8("")) ? String8("NULL") : value);
