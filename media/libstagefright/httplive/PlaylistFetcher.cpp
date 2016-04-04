@@ -355,7 +355,11 @@ status_t PlaylistFetcher::decryptBuffer(
     if (!n) {
         return OK;
     }
-    CHECK(n % 16 == 0);
+
+    if (n < 16 || n % 16) {
+        ALOGE("not enough or trailing bytes (%zu) in encrypted buffer", n);
+        return ERROR_MALFORMED;
+    }
 
     if (first) {
         // If decrypting the first block in a file, read the iv from the manifest
