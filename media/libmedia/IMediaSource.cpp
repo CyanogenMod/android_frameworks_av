@@ -295,13 +295,19 @@ status_t BnMediaSource::onTransact(
                             mGroup->add_buffer(new MediaBuffer(allocateSize));
                         }
 
+                        MediaBuffer *newBuf = NULL;
                         ret = mGroup->acquire_buffer(
-                                &transferBuf, false /* nonBlocking */, usedSize);
-                        if (ret != OK || transferBuf == NULL || transferBuf->mMemory == NULL) {
+                                &newBuf, false /* nonBlocking */, usedSize);
+                        if (ret != OK || newBuf == NULL || newBuf->mMemory == NULL) {
                             ALOGW("failed to acquire shared memory, ret %d", ret);
+                            buf->release();
+                            if (newBuf != NULL) {
+                                newBuf->release();
+                            }
                             reply->writeInt32(NULL_BUFFER);
                             return NO_ERROR;
                         }
+                        transferBuf = newBuf;
                         memcpy(transferBuf->data(), (uint8_t*)buf->data() + buf->range_offset(),
                                 buf->range_length());
                         offset = 0;
