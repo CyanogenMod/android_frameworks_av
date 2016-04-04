@@ -2188,6 +2188,11 @@ status_t AudioTrack::getTimestamp(ExtendedTimestamp *timestamp)
         return BAD_VALUE;
     }
     AutoMutex lock(mLock);
+    return getTimestamp_l(timestamp);
+}
+
+status_t AudioTrack::getTimestamp_l(ExtendedTimestamp *timestamp)
+{
     if (mCblk->mFlags & CBLK_INVALID) {
         const status_t status = restoreTrack_l("getTimestampExtended");
         if (status != OK) {
@@ -2512,6 +2517,56 @@ status_t AudioTrack::removeAudioDeviceCallback(
         AudioSystem::removeAudioDeviceCallback(mDeviceCallback, mOutput);
     }
     mDeviceCallback = 0;
+    return NO_ERROR;
+}
+
+status_t AudioTrack::pendingDuration(int32_t *msec, ExtendedTimestamp::Location location)
+{
+    if (msec == nullptr ||
+            (location != ExtendedTimestamp::LOCATION_SERVER
+                    && location != ExtendedTimestamp::LOCATION_KERNEL)) {
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    // inclusive of offloaded and direct tracks.
+    //
+    // It is possible, but not enabled, to allow duration computation for non-pcm
+    // audio_has_proportional_frames() formats because currently they have
+    // the drain rate equivalent to the pcm sample rate * framesize.
+    if (!isPurePcmData_l()) {
+        return INVALID_OPERATION;
+    }
+    ExtendedTimestamp ets;
+    if (getTimestamp_l(&ets) == OK
+            && ets.mTimeNs[location] > 0) {
+        int64_t diff = ets.mPosition[ExtendedTimestamp::LOCATION_CLIENT]
+                - ets.mPosition[location];
+        if (diff < 0) {
+            *msec = 0;
+        } else {
+            // ms is the playback time by frames
+            int64_t ms = (int64_t)((double)diff * 1000 /
+                    ((double)mSampleRate * mPlaybackRate.mSpeed));
+            // clockdiff is the timestamp age (negative)
+            int64_t clockdiff = (mState != STATE_ACTIVE) ? 0 :
+                    ets.mTimeNs[location]
+                    + ets.mTimebaseOffset[ExtendedTimestamp::TIMEBASE_MONOTONIC]
+                    - systemTime(SYSTEM_TIME_MONOTONIC);
+
+            //ALOGV("ms: %lld  clockdiff: %lld", (long long)ms, (long long)clockdiff);
+            static const int NANOS_PER_MILLIS = 1000000;
+            *msec = (int32_t)(ms + clockdiff / NANOS_PER_MILLIS);
+        }
+        return NO_ERROR;
+    }
+    if (location != ExtendedTimestamp::LOCATION_SERVER) {
+        return INVALID_OPERATION; // LOCATION_KERNEL is not available
+    }
+    // use server position directly (offloaded and direct arrive here)
+    updateAndGetPosition_l();
+    int32_t diff = (Modulo<uint32_t>(mFramesWritten) - mPosition).signedValue();
+    *msec = (diff <= 0) ? 0
+            : (int32_t)((double)diff * 1000 / ((double)mSampleRate * mPlaybackRate.mSpeed));
     return NO_ERROR;
 }
 
