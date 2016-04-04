@@ -69,12 +69,23 @@ struct ExtendedTimestamp {
     // or NTP adjustment.
     int64_t mTimebaseOffset[TIMEBASE_MAX];
 
+    // Playback only:
+    // mFlushed is number of flushed frames before entering the server mix;
+    // hence not included in mPosition. This is used for adjusting server positions
+    // information for frames "dropped".
+    // FIXME: This variable should be eliminated, with the offset added on the server side
+    // before sending to client, but differences in legacy position offset handling
+    // and new extended timestamps require this to be maintained as a separate quantity.
+    int64_t mFlushed;
+
+    // Call to reset the timestamp to the original (invalid) state
     void clear() {
         memset(mPosition, 0, sizeof(mPosition)); // actually not necessary if time is -1
         for (int i = 0; i < LOCATION_MAX; ++i) {
             mTimeNs[i] = -1;
         }
         memset(mTimebaseOffset, 0, sizeof(mTimebaseOffset));
+        mFlushed = 0;
     }
 
     // Returns the best timestamp as judged from the closest-to-hw stage in the

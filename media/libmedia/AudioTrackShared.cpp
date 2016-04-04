@@ -615,7 +615,7 @@ void StaticAudioTrackClientProxy::getBufferPositionAndLoopCount(
 ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCount,
         size_t frameSize, bool isOut, bool clientInServer)
     : Proxy(cblk, buffers, frameCount, frameSize, isOut, clientInServer),
-      mAvailToClient(0), mFlush(0), mReleased(0)
+      mAvailToClient(0), mFlush(0), mReleased(0), mFlushed(0)
     , mTimestampMutator(&cblk->mExtendedTimestampQueue)
 {
     cblk->mBufferSizeInFrames = frameCount;
@@ -671,6 +671,7 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
                             mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
                 }
             }
+            mFlushed += (newFront - front) & mask;
             front = newFront;
         }
     } else {
