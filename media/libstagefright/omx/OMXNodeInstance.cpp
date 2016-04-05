@@ -523,6 +523,7 @@ status_t OMXNodeInstance::storeMetaDataInBuffers(
 status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type) {
     if (portIndex != kPortIndexInput && portIndex != kPortIndexOutput) {
+        android_errorWriteLog(0x534e4554, "26324358");
         return BAD_VALUE;
     }
 
