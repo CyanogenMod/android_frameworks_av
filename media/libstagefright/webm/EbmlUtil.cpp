@@ -29,7 +29,9 @@ int NTZ_TABLE[] = {
 };
 
 int numberOfTrailingZeros32(int32_t i) {
-    uint32_t u = (i & -i) * 0x0450FBAF;
+    int64_t i64 = i;
+    i64 = (i64 & -i64) * 0x0450FBAF;
+    uint32_t u = i64;
     return NTZ_TABLE[(u) >> 26];
 }
 
