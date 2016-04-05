@@ -876,7 +876,7 @@ sp<MetaData> NuPlayer::GenericSource::doGetFormatMeta(bool audio) const {
 
 status_t NuPlayer::GenericSource::dequeueAccessUnit(
         bool audio, sp<ABuffer> *accessUnit) {
-    if (!mStarted) {
+    if (audio && !mStarted) {
         return -EWOULDBLOCK;
     }
 
