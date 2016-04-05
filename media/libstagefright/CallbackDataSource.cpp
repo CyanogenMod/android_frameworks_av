@@ -30,14 +30,15 @@ namespace android {
 
 CallbackDataSource::CallbackDataSource(
     const sp<IDataSource>& binderDataSource)
-    : mIDataSource(binderDataSource) {
+    : mIDataSource(binderDataSource),
+      mIsClosed(false) {
     // Set up the buffer to read into.
     mMemory = mIDataSource->getIMemory();
 }
 
 CallbackDataSource::~CallbackDataSource() {
     ALOGV("~CallbackDataSource");
-    mIDataSource->close();
+    close();
 }
 
 status_t CallbackDataSource::initCheck() const {
@@ -97,6 +98,13 @@ status_t CallbackDataSource::getSize(off64_t *size) {
 
 uint32_t CallbackDataSource::flags() {
     return mIDataSource->getFlags();
+}
+
+void CallbackDataSource::close() {
+    if (!mIsClosed) {
+        mIDataSource->close();
+        mIsClosed = true;
+    }
 }
 
 TinyCacheSource::TinyCacheSource(const sp<DataSource>& source)

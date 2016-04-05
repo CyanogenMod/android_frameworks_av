@@ -61,6 +61,7 @@ StagefrightMetadataRetriever::StagefrightMetadataRetriever()
 StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
     ALOGV("~StagefrightMetadataRetriever()");
     clearMetadata();
+    mSource->close();
 }
 
 status_t StagefrightMetadataRetriever::setDataSource(

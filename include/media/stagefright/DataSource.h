@@ -107,6 +107,8 @@ public:
 
     virtual String8 getMIMEType() const;
 
+    virtual void close() {};
+
 protected:
     virtual ~DataSource() {}
 

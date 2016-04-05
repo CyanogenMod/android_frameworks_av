@@ -67,7 +67,7 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
 
 FileSource::~FileSource() {
     if (mFd >= 0) {
-        close(mFd);
+        ::close(mFd);
         mFd = -1;
     }
 

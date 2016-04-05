@@ -55,6 +55,7 @@ NuMediaExtractor::~NuMediaExtractor() {
     }
 
     mSelectedTracks.clear();
+    mDataSource->close();
 }
 
 status_t NuMediaExtractor::setDataSource(

@@ -37,10 +37,12 @@ public:
     virtual ssize_t readAt(off64_t offset, void *data, size_t size);
     virtual status_t getSize(off64_t *size);
     virtual uint32_t flags();
+    virtual void close();
 
 private:
     sp<IDataSource> mIDataSource;
     sp<IMemory> mMemory;
+    bool mIsClosed;
 
     DISALLOW_EVIL_CONSTRUCTORS(CallbackDataSource);
 };
@@ -58,6 +60,7 @@ public:
     virtual ssize_t readAt(off64_t offset, void* data, size_t size);
     virtual status_t getSize(off64_t* size);
     virtual uint32_t flags();
+    virtual void close() { mSource->close(); }
 
 private:
     // 2kb comes from experimenting with the time-to-first-frame from a MediaPlayer
