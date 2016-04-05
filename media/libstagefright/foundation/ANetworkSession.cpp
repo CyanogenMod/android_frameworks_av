@@ -457,7 +457,7 @@ status_t ANetworkSession::Session::readMore() {
         while (mInBuffer.size() >= 2) {
             size_t offset = 2;
 
-            unsigned payloadLen = data[1] & 0x7f;
+            uint64_t payloadLen = data[1] & 0x7f;
             if (payloadLen == 126) {
                 if (offset + 2 > mInBuffer.size()) {
                     break;
@@ -485,7 +485,7 @@ status_t ANetworkSession::Session::readMore() {
                 offset += 4;
             }
 
-            if (offset + payloadLen > mInBuffer.size()) {
+            if (payloadLen > mInBuffer.size() || offset > mInBuffer.size() - payloadLen) {
                 break;
             }
 
