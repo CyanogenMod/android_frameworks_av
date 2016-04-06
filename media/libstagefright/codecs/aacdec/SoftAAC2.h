@@ -74,7 +74,6 @@ private:
     void initPorts();
     status_t initDecoder();
     bool isConfigured() const;
-    void configureDownmix() const;
     void drainDecoder();
 
 //      delay compensation
