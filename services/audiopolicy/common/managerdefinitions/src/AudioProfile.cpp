@@ -32,8 +32,8 @@ status_t AudioProfile::checkExact(uint32_t samplingRate, audio_channel_mask_t ch
                                   audio_format_t format) const
 {
     if (audio_formats_match(format, mFormat) &&
-            (mChannelMasks.isEmpty() || supportsChannels(channelMask)) &&
-            (mSamplingRates.isEmpty() || supportsRate(samplingRate))) {
+            supportsChannels(channelMask) &&
+            supportsRate(samplingRate)) {
         return NO_ERROR;
     }
     return BAD_VALUE;
