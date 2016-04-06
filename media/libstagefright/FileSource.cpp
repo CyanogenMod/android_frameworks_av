@@ -57,12 +57,34 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
       mDrmManagerClient(NULL),
       mDrmBufOffset(0),
       mDrmBufSize(0),
-      mDrmBuf(NULL){
+      mDrmBuf(NULL) {
     ALOGV("fd=%d (%s), offset=%lld, length=%lld",
             fd, nameForFd(fd).c_str(), (long long) offset, (long long) length);
 
-    CHECK(offset >= 0);
-    CHECK(length >= 0);
+    if (mOffset < 0) {
+        mOffset = 0;
+    }
+    if (mLength < 0) {
+        mLength = 0;
+    }
+    if (mLength > INT64_MAX - mOffset) {
+        mLength = INT64_MAX - mOffset;
+    }
+    struct stat s;
+    if (fstat(fd, &s) == 0) {
+        if (mOffset > s.st_size) {
+            mOffset = s.st_size;
+            mLength = 0;
+        }
+        if (mOffset + mLength > s.st_size) {
+            mLength = s.st_size - mOffset;
+        }
+    }
+    if (mOffset != offset || mLength != length) {
+        ALOGW("offset/length adjusted from %lld/%lld to %lld/%lld",
+                (long long) offset, (long long) length,
+                (long long) mOffset, (long long) mLength);
+    }
 }
 
 FileSource::~FileSource() {

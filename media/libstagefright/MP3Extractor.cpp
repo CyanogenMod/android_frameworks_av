@@ -252,6 +252,7 @@ MP3Extractor::MP3Extractor(
       mDataSource(source),
       mFirstFramePos(-1),
       mFixedHeader(0) {
+
     off64_t pos = 0;
     off64_t post_id3_pos;
     uint32_t header;
@@ -350,7 +351,13 @@ MP3Extractor::MP3Extractor(
     if (mSeeker == NULL || !mSeeker->getDuration(&durationUs)) {
         off64_t fileSize;
         if (mDataSource->getSize(&fileSize) == OK) {
-            durationUs = 8000LL * (fileSize - mFirstFramePos) / bitrate;
+            off64_t dataLength = fileSize - mFirstFramePos;
+            if (dataLength > INT64_MAX / 8000LL) {
+                // duration would overflow
+                durationUs = INT64_MAX;
+            } else {
+                durationUs = 8000LL * dataLength / bitrate;
+            }
         } else {
             durationUs = -1;
         }
