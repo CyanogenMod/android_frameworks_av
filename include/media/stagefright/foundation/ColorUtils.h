@@ -169,6 +169,13 @@ struct ColorUtils {
     // written.
     static void setColorAspectsIntoFormat(
             const ColorAspects &aspects, sp<AMessage> &format, bool force = false);
+
+    // finds HDR metadata in format as HDRStaticInfo, defaulting them to 0.
+    // Return |true| if could find HDR metadata in format. Otherwise, return |false|.
+    static bool getHDRStaticInfoFromFormat(const sp<AMessage> &format, HDRStaticInfo *info);
+
+    // writes |info| into format.
+    static void setHDRStaticInfoIntoFormat(const HDRStaticInfo &info, sp<AMessage> &format);
 };
 
 inline static const char *asString(android::ColorUtils::ColorStandard i, const char *def = "??") {

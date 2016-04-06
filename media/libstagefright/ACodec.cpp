@@ -521,7 +521,8 @@ ACodec::ACodec()
       mTimePerCaptureUs(-1ll),
       mCreateInputBuffersSuspended(false),
       mTunneled(false),
-      mDescribeColorAspectsIndex((OMX_INDEXTYPE)0) {
+      mDescribeColorAspectsIndex((OMX_INDEXTYPE)0),
+      mDescribeHDRStaticInfoIndex((OMX_INDEXTYPE)0) {
     mUninitializedState = new UninitializedState(this);
     mLoadedState = new LoadedState(this);
     mLoadedToIdleState = new LoadedToIdleState(this);
@@ -3186,6 +3187,15 @@ status_t ACodec::setupVideoDecoder(
     if (err == ERROR_UNSUPPORTED) { // support is optional
         err = OK;
     }
+
+    if (err != OK) {
+        return err;
+    }
+
+    err = setHDRStaticInfoForVideoDecoder(msg, outputFormat);
+    if (err == ERROR_UNSUPPORTED) { // support is optional
+        err = OK;
+    }
     return err;
 }
 
@@ -3216,7 +3226,7 @@ status_t ACodec::setCodecColorAspects(DescribeColorAspectsParams &params, bool v
     }
 
     ALOGW_IF(err == ERROR_UNSUPPORTED && mDescribeColorAspectsIndex,
-            "[%s] getting color aspects failed even though codec advertises support",
+            "[%s] setting color aspects failed even though codec advertises support",
             mComponentName.c_str());
     return err;
 }
@@ -3431,6 +3441,78 @@ status_t ACodec::setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(
     ALOGV("set default color aspects, updated input format to %s, output format to %s",
             mInputFormat->debugString(4).c_str(), mOutputFormat->debugString(4).c_str());
 
+    return err;
+}
+
+status_t ACodec::getHDRStaticInfoForVideoDecoder(sp<AMessage> &format) {
+    DescribeHDRStaticInfoParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+
+    status_t err = getHDRStaticInfo(params);
+    if (err == OK) {
+        // we only set decodec output HDRStaticInfo if codec supports them
+        setHDRStaticInfoIntoFormat(params.sInfo, format);
+    }
+    return err;
+}
+
+status_t ACodec::initDescribeHDRStaticInfoIndex() {
+    status_t err = mOMX->getExtensionIndex(
+            mNode, "OMX.google.android.index.describeHDRStaticInfo", &mDescribeHDRStaticInfoIndex);
+    if (err != OK) {
+        mDescribeHDRStaticInfoIndex = (OMX_INDEXTYPE)0;
+    }
+    return err;
+}
+
+status_t ACodec::setHDRStaticInfoForVideoDecoder(
+        const sp<AMessage> &configFormat, sp<AMessage> &outputFormat) {
+    DescribeHDRStaticInfoParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = kPortIndexOutput;
+
+    HDRStaticInfo *info = &params.sInfo;
+    if (getHDRStaticInfoFromFormat(configFormat, info)) {
+        setHDRStaticInfoIntoFormat(params.sInfo, outputFormat);
+    }
+
+    (void)initDescribeHDRStaticInfoIndex();
+
+    // communicate HDR static Info to codec
+    return setHDRStaticInfo(params);
+}
+
+status_t ACodec::setHDRStaticInfo(const DescribeHDRStaticInfoParams &params) {
+    status_t err = ERROR_UNSUPPORTED;
+    if (mDescribeHDRStaticInfoIndex) {
+        err = mOMX->setConfig(mNode, mDescribeHDRStaticInfoIndex, &params, sizeof(params));
+    }
+
+    const HDRStaticInfo *info = &params.sInfo;
+    ALOGV("[%s] setting  HDRStaticInfo (R: %u %u, G: %u %u, B: %u, %u, W: %u, %u, "
+            "MaxDispL: %u, MinDispL: %u, MaxContentL: %u, MaxFrameAvgL: %u)",
+            mComponentName.c_str(),
+            info->sType1.mR.x, info->sType1.mR.y, info->sType1.mG.x, info->sType1.mG.y,
+            info->sType1.mB.x, info->sType1.mB.y, info->sType1.mW.x, info->sType1.mW.y,
+            info->sType1.mMaxDisplayLuminance, info->sType1.mMinDisplayLuminance,
+            info->sType1.mMaxContentLightLevel, info->sType1.mMaxFrameAverageLightLevel);
+
+    ALOGW_IF(err == ERROR_UNSUPPORTED && mDescribeHDRStaticInfoIndex,
+            "[%s] setting HDRStaticInfo failed even though codec advertises support",
+            mComponentName.c_str());
+    return err;
+}
+
+status_t ACodec::getHDRStaticInfo(DescribeHDRStaticInfoParams &params) {
+    status_t err = ERROR_UNSUPPORTED;
+    if (mDescribeHDRStaticInfoIndex) {
+        err = mOMX->getConfig(mNode, mDescribeHDRStaticInfoIndex, &params, sizeof(params));
+    }
+
+    ALOGW_IF(err == ERROR_UNSUPPORTED && mDescribeHDRStaticInfoIndex,
+            "[%s] getting HDRStaticInfo failed even though codec advertises support",
+            mComponentName.c_str());
     return err;
 }
 
@@ -4647,6 +4729,7 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         if (mUsingNativeWindow) {
                             notify->setInt32("android._dataspace", dataSpace);
                         }
+                        (void)getHDRStaticInfoForVideoDecoder(notify);
                     } else {
                         (void)getInputColorAspectsForVideoEncoder(notify);
                     }

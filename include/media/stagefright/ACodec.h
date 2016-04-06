@@ -302,6 +302,7 @@ private:
     bool mTunneled;
 
     OMX_INDEXTYPE mDescribeColorAspectsIndex;
+    OMX_INDEXTYPE mDescribeHDRStaticInfoIndex;
 
     status_t setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_t mode);
     status_t allocateBuffersOnPort(OMX_U32 portIndex);
@@ -420,6 +421,23 @@ private:
     // updates the encoder output format with |aspects| defaulting to |dataSpace| for
     // unspecified values.
     void onDataSpaceChanged(android_dataspace dataSpace, const ColorAspects &aspects);
+
+    // gets index or sets it to 0 on error. Returns error from codec.
+    status_t initDescribeHDRStaticInfoIndex();
+
+    // sets HDR static information for the decoder based on |configFormat|, and
+    // set resulting HDRStaticInfo config into |outputFormat|. Returns error from the codec.
+    status_t setHDRStaticInfoForVideoDecoder(
+            const sp<AMessage> &configFormat, sp<AMessage> &outputFormat);
+
+    // sets |params|. Returns the codec error.
+    status_t setHDRStaticInfo(const DescribeHDRStaticInfoParams &params);
+
+    // gets |params|. Returns the codec error.
+    status_t getHDRStaticInfo(DescribeHDRStaticInfoParams &params);
+
+    // gets HDR static information for the video decoder port and sets them into |format|.
+    status_t getHDRStaticInfoForVideoDecoder(sp<AMessage> &format);
 
     typedef struct drcParams {
         int32_t drcCut;

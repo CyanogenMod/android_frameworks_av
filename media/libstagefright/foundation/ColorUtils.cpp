@@ -18,7 +18,8 @@
 #define LOG_TAG "ColorUtils"
 
 #include <inttypes.h>
-
+#include <arpa/inet.h>
+#include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/ALookup.h>
 #include <media/stagefright/foundation/ColorUtils.h>
@@ -28,6 +29,9 @@ namespace android {
 // shortcut names for brevity in the following tables
 typedef ColorAspects CA;
 typedef ColorUtils CU;
+
+#define HI_UINT16(a) (((a) >> 8) & 0xFF)
+#define LO_UINT16(a) ((a) & 0xFF)
 
 const static
 ALookup<CU::ColorRange, CA::Range> sRanges{
@@ -576,6 +580,106 @@ void ColorUtils::setColorAspectsIntoFormat(
             range, asString((ColorRange)range),
             standard, asString((ColorStandard)standard),
             transfer, asString((ColorTransfer)transfer));
+}
+
+// static
+void ColorUtils::setHDRStaticInfoIntoFormat(
+        const HDRStaticInfo &info, sp<AMessage> &format) {
+    sp<ABuffer> infoBuffer = new ABuffer(25);
+
+    // Convert the data in infoBuffer to little endian format as defined by CTA-861-3
+    uint8_t *data = infoBuffer->data();
+    // Static_Metadata_Descriptor_ID
+    data[0] = info.mID;
+
+    // display primary 0
+    data[1] = LO_UINT16(info.sType1.mR.x);
+    data[2] = HI_UINT16(info.sType1.mR.x);
+    data[3] = LO_UINT16(info.sType1.mR.y);
+    data[4] = HI_UINT16(info.sType1.mR.y);
+
+    // display primary 1
+    data[5] = LO_UINT16(info.sType1.mG.x);
+    data[6] = HI_UINT16(info.sType1.mG.x);
+    data[7] = LO_UINT16(info.sType1.mG.y);
+    data[8] = HI_UINT16(info.sType1.mG.y);
+
+    // display primary 2
+    data[9] = LO_UINT16(info.sType1.mB.x);
+    data[10] = HI_UINT16(info.sType1.mB.x);
+    data[11] = LO_UINT16(info.sType1.mB.y);
+    data[12] = HI_UINT16(info.sType1.mB.y);
+
+    // white point
+    data[13] = LO_UINT16(info.sType1.mW.x);
+    data[14] = HI_UINT16(info.sType1.mW.x);
+    data[15] = LO_UINT16(info.sType1.mW.y);
+    data[16] = HI_UINT16(info.sType1.mW.y);
+
+    // MaxDisplayLuminance
+    data[17] = LO_UINT16(info.sType1.mMaxDisplayLuminance);
+    data[18] = HI_UINT16(info.sType1.mMaxDisplayLuminance);
+
+    // MinDisplayLuminance
+    data[19] = LO_UINT16(info.sType1.mMinDisplayLuminance);
+    data[20] = HI_UINT16(info.sType1.mMinDisplayLuminance);
+
+    // MaxContentLightLevel
+    data[21] = LO_UINT16(info.sType1.mMaxContentLightLevel);
+    data[22] = HI_UINT16(info.sType1.mMaxContentLightLevel);
+
+    // MaxFrameAverageLightLevel
+    data[23] = LO_UINT16(info.sType1.mMaxFrameAverageLightLevel);
+    data[24] = HI_UINT16(info.sType1.mMaxFrameAverageLightLevel);
+
+    format->setBuffer("hdr-static-info", infoBuffer);
+}
+
+// a simple method copied from Utils.cpp
+static uint16_t U16LE_AT(const uint8_t *ptr) {
+    return ptr[0] | (ptr[1] << 8);
+}
+
+// static
+bool ColorUtils::getHDRStaticInfoFromFormat(const sp<AMessage> &format, HDRStaticInfo *info) {
+    sp<ABuffer> buf;
+    if (!format->findBuffer("hdr-static-info", &buf)) {
+        return false;
+    }
+
+    // TODO: Make this more flexible when adding more members to HDRStaticInfo
+    if (buf->size() != 25 /* static Metadata Type 1 size */) {
+        ALOGW("Ignore invalid HDRStaticInfo with size: %zu", buf->size());
+        return false;
+    }
+
+    const uint8_t *data = buf->data();
+    if (*data != HDRStaticInfo::kType1) {
+        ALOGW("Unsupported static Metadata Type %u", *data);
+        return false;
+    }
+
+    info->mID = HDRStaticInfo::kType1;
+    info->sType1.mR.x = U16LE_AT(&data[1]);
+    info->sType1.mR.y = U16LE_AT(&data[3]);
+    info->sType1.mG.x = U16LE_AT(&data[5]);
+    info->sType1.mG.y = U16LE_AT(&data[7]);
+    info->sType1.mB.x = U16LE_AT(&data[9]);
+    info->sType1.mB.y = U16LE_AT(&data[11]);
+    info->sType1.mW.x = U16LE_AT(&data[13]);
+    info->sType1.mW.y = U16LE_AT(&data[15]);
+    info->sType1.mMaxDisplayLuminance = U16LE_AT(&data[17]);
+    info->sType1.mMinDisplayLuminance = U16LE_AT(&data[19]);
+    info->sType1.mMaxContentLightLevel = U16LE_AT(&data[21]);
+    info->sType1.mMaxFrameAverageLightLevel = U16LE_AT(&data[23]);
+
+    ALOGV("Got HDRStaticInfo from config (R: %u %u, G: %u %u, B: %u, %u, W: %u, %u, "
+            "MaxDispL: %u, MinDispL: %u, MaxContentL: %u, MaxFrameAvgL: %u)",
+            info->sType1.mR.x, info->sType1.mR.y, info->sType1.mG.x, info->sType1.mG.y,
+            info->sType1.mB.x, info->sType1.mB.y, info->sType1.mW.x, info->sType1.mW.y,
+            info->sType1.mMaxDisplayLuminance, info->sType1.mMinDisplayLuminance,
+            info->sType1.mMaxContentLightLevel, info->sType1.mMaxFrameAverageLightLevel);
+    return true;
 }
 
 }  // namespace android
