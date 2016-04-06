@@ -42,6 +42,8 @@ public:
     {
         switchVolumeCurve(stream, stream);
     }
+    virtual bool hasVolumeIndexForDevice(audio_stream_type_t stream,
+                                         audio_devices_t device) const = 0;
 
     virtual status_t dump(int fd) const = 0;
 
