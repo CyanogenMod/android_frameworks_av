@@ -2258,6 +2258,12 @@ status_t AudioFlinger::invalidateStream(audio_stream_type_t stream)
 
 audio_unique_id_t AudioFlinger::newAudioUniqueId(audio_unique_id_use_t use)
 {
+    // This is a binder API, so a malicious client could pass in a bad parameter.
+    // Check for that before calling the internal API nextUniqueId().
+    if ((unsigned) use >= (unsigned) AUDIO_UNIQUE_ID_USE_MAX) {
+        ALOGE("newAudioUniqueId invalid use %d", use);
+        return AUDIO_UNIQUE_ID_ALLOCATE;
+    }
     return nextUniqueId(use);
 }
 
@@ -2421,6 +2427,7 @@ audio_unique_id_t AudioFlinger::nextUniqueId(audio_unique_id_use_t use)
     int32_t base = android_atomic_add(AUDIO_UNIQUE_ID_USE_MAX, &mNextUniqueId);
     // We have no way of recovering from wraparound
     LOG_ALWAYS_FATAL_IF(base == 0, "unique ID overflow");
+    // This is the internal API, so it is OK to assert on bad parameter.
     LOG_ALWAYS_FATAL_IF((unsigned) use >= (unsigned) AUDIO_UNIQUE_ID_USE_MAX);
     ALOG_ASSERT(audio_unique_id_get_use(base) == AUDIO_UNIQUE_ID_USE_UNSPECIFIED);
     return (audio_unique_id_t) (base | use);

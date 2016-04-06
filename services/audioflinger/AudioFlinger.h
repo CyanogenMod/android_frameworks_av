@@ -196,6 +196,7 @@ public:
 
     virtual uint32_t getInputFramesLost(audio_io_handle_t ioHandle) const;
 
+    // This is the binder API.  For the internal API see nextUniqueId().
     virtual audio_unique_id_t newAudioUniqueId(audio_unique_id_use_t use);
 
     virtual void acquireAudioSessionId(audio_session_t audioSession, pid_t pid);
@@ -559,6 +560,7 @@ private:
               //       or from positive to negative (for signed IDs).
               //       Thus it may fail by returning an ID of the wrong sign,
               //       or by returning a non-unique ID.
+              // This is the internal API.  For the binder API see newAudioUniqueId().
               audio_unique_id_t nextUniqueId(audio_unique_id_use_t use);
 
               status_t moveEffectChain_l(audio_session_t sessionId,
