@@ -196,6 +196,7 @@ private:
 protected:
     static void StripStartcode(MediaBuffer *buffer);
     virtual off64_t addLengthPrefixedSample_l(MediaBuffer *buffer);
+    off64_t addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer);
 
 private:
     bool exceedsFileSizeLimit();
