@@ -103,6 +103,10 @@ public:
     class Locked {
     public:
         inline Locked(Mutexed<T> &mParent);
+        inline Locked(Locked &&from) :
+            mLock(from.mLock),
+            mTreasure(from.mTreasure),
+            mLocked(from.mLocked) {}
         inline ~Locked();
 
         // dereference the protected structure. This returns nullptr if the
@@ -148,9 +152,9 @@ public:
     // Lock the mutex, and create an accessor-guard (a Locked object) to access the underlying
     // structure. This returns an object that dereferences to the wrapped structure when the mutex
     // is locked by it, or otherwise to "null".
-    inline Locked&& lock() {
-        // use rvalue as Locked has no copy constructor
-        return std::move(Locked(*this));
+    // This is just a shorthand for Locked() constructor to avoid specifying the template type.
+    inline Locked lock() {
+        return Locked(*this);
     }
 
 private:
@@ -169,7 +173,6 @@ inline Mutexed<T>::Locked::Locked(Mutexed<T> &mParent)
       mTreasure(mParent.mTreasure),
       mLocked(true) {
     mLock.lock();
-
 }
 
 template<typename T>
