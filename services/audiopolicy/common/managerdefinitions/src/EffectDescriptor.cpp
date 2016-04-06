@@ -45,7 +45,8 @@ status_t EffectDescriptor::dump(int fd)
 
 EffectDescriptorCollection::EffectDescriptorCollection() :
     mTotalEffectsCpuLoad(0),
-    mTotalEffectsMemory(0)
+    mTotalEffectsMemory(0),
+    mTotalEffectsMemoryMaxUsed(0)
 {
 
 }
@@ -62,6 +63,9 @@ status_t EffectDescriptorCollection::registerEffect(const effect_descriptor_t *d
         return INVALID_OPERATION;
     }
     mTotalEffectsMemory += desc->memoryUsage;
+    if (mTotalEffectsMemory > mTotalEffectsMemoryMaxUsed) {
+        mTotalEffectsMemoryMaxUsed = mTotalEffectsMemory;
+    }
     ALOGV("registerEffect() effect %s, io %d, strategy %d session %d id %d",
             desc->name, io, strategy, session, id);
     ALOGV("registerEffect() memory %d, total memory %d", desc->memoryUsage, mTotalEffectsMemory);
@@ -175,8 +179,9 @@ status_t EffectDescriptorCollection::dump(int fd)
     const size_t SIZE = 256;
     char buffer[SIZE];
 
-    snprintf(buffer, SIZE, "\nTotal Effects CPU: %f MIPS, Total Effects memory: %d KB\n",
-             (float)mTotalEffectsCpuLoad/10, mTotalEffectsMemory);
+    snprintf(buffer, SIZE,
+            "\nTotal Effects CPU: %f MIPS, Total Effects memory: %d KB, Max memory used: %d KB\n",
+             (float)mTotalEffectsCpuLoad/10, mTotalEffectsMemory, mTotalEffectsMemoryMaxUsed);
     write(fd, buffer, strlen(buffer));
 
     snprintf(buffer, SIZE, "Registered effects:\n");
