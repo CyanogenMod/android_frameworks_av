@@ -18,7 +18,6 @@
 #define LOG_TAG "ACameraDevice"
 
 #include <vector>
-#include <utility>
 #include <inttypes.h>
 #include <android/hardware/ICameraService.h>
 #include <camera2/SubmitInfo.h>
@@ -43,6 +42,7 @@ const char* CameraDevice::kCaptureResultKey  = "CaptureResult";
 const char* CameraDevice::kCaptureFailureKey = "CaptureFailure";
 const char* CameraDevice::kSequenceIdKey     = "SequenceId";
 const char* CameraDevice::kFrameNumberKey    = "FrameNumber";
+const char* CameraDevice::kAnwKey            = "Anw";
 
 /**
  * CameraDevice Implementation
@@ -465,10 +465,9 @@ CameraDevice::waitUntilIdleLocked() {
 }
 
 camera_status_t
-CameraDevice::getIGBPfromSessionOutput(
-        const ACaptureSessionOutput& config,
+CameraDevice::getIGBPfromAnw(
+        ANativeWindow* anw,
         sp<IGraphicBufferProducer>& out) {
-    ANativeWindow* anw = config.mWindow;
     if (anw == nullptr) {
         ALOGE("Error: output ANativeWindow is null");
         return ACAMERA_ERROR_INVALID_PARAMETER;
@@ -514,26 +513,28 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
         return ret;
     }
 
-    std::set<OutputConfiguration> outputSet;
+    std::set<std::pair<ANativeWindow*, OutputConfiguration>> outputSet;
     for (auto outConfig : outputs->mOutputs) {
+        ANativeWindow* anw = outConfig.mWindow;
         sp<IGraphicBufferProducer> iGBP(nullptr);
-        ret = getIGBPfromSessionOutput(outConfig, iGBP);
+        ret = getIGBPfromAnw(anw, iGBP);
         if (ret != ACAMERA_OK) {
             return ret;
         }
-        outputSet.insert(OutputConfiguration(iGBP, outConfig.mRotation));
+        outputSet.insert(std::make_pair(
+                anw, OutputConfiguration(iGBP, outConfig.mRotation)));
     }
-    std::set<OutputConfiguration> addSet = outputSet;
+    auto addSet = outputSet;
     std::vector<int> deleteList;
 
     // Determine which streams need to be created, which to be deleted
     for (auto& kvPair : mConfiguredOutputs) {
         int streamId = kvPair.first;
-        OutputConfiguration& outConfig = kvPair.second;
-        if (outputSet.count(outConfig) == 0) {
+        auto& outputPair = kvPair.second;
+        if (outputSet.count(outputPair) == 0) {
             deleteList.push_back(streamId); // Need to delete a no longer needed stream
         } else {
-            addSet.erase(outConfig);        // No need to add already existing stream
+            addSet.erase(outputPair);        // No need to add already existing stream
         }
     }
 
@@ -585,15 +586,15 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
     }
 
     // add new streams
-    for (auto outConfig : addSet) {
+    for (auto outputPair : addSet) {
         int streamId;
-        remoteRet = mRemote->createStream(outConfig, &streamId);
+        remoteRet = mRemote->createStream(outputPair.second, &streamId);
         if (!remoteRet.isOk()) {
             ALOGE("Camera device %s failed to create stream: %s", getId(),
                     remoteRet.toString8().string());
             return ACAMERA_ERROR_UNKNOWN;
         }
-        mConfiguredOutputs.insert(std::make_pair(streamId, outConfig));
+        mConfiguredOutputs.insert(std::make_pair(streamId, outputPair));
     }
 
     remoteRet = mRemote->endConfigure(/*isConstrainedHighSpeed*/ false);
@@ -682,26 +683,51 @@ CameraDevice::onCaptureErrorLocked(
     int sequenceId = resultExtras.requestId;
     int64_t frameNumber = resultExtras.frameNumber;
     int32_t burstId = resultExtras.burstId;
-
-    // No way to report buffer error now
-    if (errorCode == hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER) {
-        ALOGE("Camera %s Lost output buffer for frame %" PRId64,
-                getId(), frameNumber);
+    auto it = mSequenceCallbackMap.find(sequenceId);
+    if (it == mSequenceCallbackMap.end()) {
+        ALOGE("%s: Error: capture sequence index %d not found!",
+                __FUNCTION__, sequenceId);
+        setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_SERVICE);
         return;
     }
-    // Fire capture failure callback if there is one registered
-    auto it = mSequenceCallbackMap.find(sequenceId);
-    if (it != mSequenceCallbackMap.end()) {
-        CallbackHolder cbh = (*it).second;
-        ACameraCaptureSession_captureCallback_failed onError = cbh.mCallbacks.onCaptureFailed;
-        sp<ACameraCaptureSession> session = cbh.mSession;
-        if ((size_t) burstId >= cbh.mRequests.size()) {
-            ALOGE("%s: Error: request index %d out of bound (size %zu)",
-                    __FUNCTION__, burstId, cbh.mRequests.size());
+
+    CallbackHolder cbh = (*it).second;
+    sp<ACameraCaptureSession> session = cbh.mSession;
+    if ((size_t) burstId >= cbh.mRequests.size()) {
+        ALOGE("%s: Error: request index %d out of bound (size %zu)",
+                __FUNCTION__, burstId, cbh.mRequests.size());
+        setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_SERVICE);
+        return;
+    }
+    sp<CaptureRequest> request = cbh.mRequests[burstId];
+
+    // Handle buffer error
+    if (errorCode == hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER) {
+        int32_t streamId = resultExtras.errorStreamId;
+        ACameraCaptureSession_captureCallback_bufferLost onBufferLost =
+                cbh.mCallbacks.onCaptureBufferLost;
+        auto outputPairIt = mConfiguredOutputs.find(streamId);
+        if (outputPairIt == mConfiguredOutputs.end()) {
+            ALOGE("%s: Error: stream id %d does not exist", __FUNCTION__, streamId);
             setCameraDeviceErrorLocked(ACAMERA_ERROR_CAMERA_SERVICE);
             return;
         }
-        sp<CaptureRequest> request = cbh.mRequests[burstId];
+        ANativeWindow* anw = outputPairIt->second.first;
+
+        ALOGV("Camera %s Lost output buffer for ANW %p frame %" PRId64,
+                getId(), anw, frameNumber);
+
+        sp<AMessage> msg = new AMessage(kWhatCaptureBufferLost, mHandler);
+        msg->setPointer(kContextKey, cbh.mCallbacks.context);
+        msg->setObject(kSessionSpKey, session);
+        msg->setPointer(kCallbackFpKey, (void*) onBufferLost);
+        msg->setObject(kCaptureRequestKey, request);
+        msg->setPointer(kAnwKey, (void*) anw);
+        msg->setInt64(kFrameNumberKey, frameNumber);
+        msg->post();
+    } else { // Handle other capture failures
+        // Fire capture failure callback if there is one registered
+        ACameraCaptureSession_captureCallback_failed onError = cbh.mCallbacks.onCaptureFailed;
         sp<CameraCaptureFailure> failure(new CameraCaptureFailure());
         failure->frameNumber = frameNumber;
         // TODO: refine this when implementing flush
@@ -717,11 +743,12 @@ CameraDevice::onCaptureErrorLocked(
         msg->setObject(kCaptureRequestKey, request);
         msg->setObject(kCaptureFailureKey, failure);
         msg->post();
-    }
 
-    // Update tracker
-    mFrameNumberTracker.updateTracker(frameNumber, /*isError*/true);
-    checkAndFireSequenceCompleteLocked();
+        // Update tracker
+        mFrameNumberTracker.updateTracker(frameNumber, /*isError*/true);
+        checkAndFireSequenceCompleteLocked();
+    }
+    return;
 }
 
 void CameraDevice::CallbackHandler::onMessageReceived(
@@ -735,6 +762,7 @@ void CameraDevice::CallbackHandler::onMessageReceived(
         case kWhatCaptureFail:
         case kWhatCaptureSeqEnd:
         case kWhatCaptureSeqAbort:
+        case kWhatCaptureBufferLost:
             ALOGV("%s: Received msg %d", __FUNCTION__, msg->what());
             break;
         default:
@@ -801,6 +829,7 @@ void CameraDevice::CallbackHandler::onMessageReceived(
         case kWhatCaptureFail:
         case kWhatCaptureSeqEnd:
         case kWhatCaptureSeqAbort:
+        case kWhatCaptureBufferLost:
         {
             sp<RefBase> obj;
             found = msg->findObject(kSessionSpKey, &obj);
@@ -814,6 +843,7 @@ void CameraDevice::CallbackHandler::onMessageReceived(
                 case kWhatCaptureStart:
                 case kWhatCaptureResult:
                 case kWhatCaptureFail:
+                case kWhatCaptureBufferLost:
                     found = msg->findObject(kCaptureRequestKey, &obj);
                     if (!found) {
                         ALOGE("%s: Cannot find capture request!", __FUNCTION__);
@@ -954,6 +984,37 @@ void CameraDevice::CallbackHandler::onMessageReceived(
                         return;
                     }
                     (*onSeqAbort)(context, session.get(), seqId);
+                    break;
+                }
+                case kWhatCaptureBufferLost:
+                {
+                    ACameraCaptureSession_captureCallback_bufferLost onBufferLost;
+                    found = msg->findPointer(kCallbackFpKey, (void**) &onBufferLost);
+                    if (!found) {
+                        ALOGE("%s: Cannot find buffer lost callback!", __FUNCTION__);
+                        return;
+                    }
+                    if (onBufferLost == nullptr) {
+                        return;
+                    }
+
+                    ANativeWindow* anw;
+                    found = msg->findPointer(kAnwKey, (void**) &anw);
+                    if (!found) {
+                        ALOGE("%s: Cannot find ANativeWindow!", __FUNCTION__);
+                        return;
+                    }
+
+                    int64_t frameNumber;
+                    found = msg->findInt64(kFrameNumberKey, &frameNumber);
+                    if (!found) {
+                        ALOGE("%s: Cannot find frame number!", __FUNCTION__);
+                        return;
+                    }
+
+                    ACaptureRequest* request = allocateACaptureRequest(requestSp);
+                    (*onBufferLost)(context, session.get(), request, anw, frameNumber);
+                    freeACaptureRequest(request);
                     break;
                 }
             }
