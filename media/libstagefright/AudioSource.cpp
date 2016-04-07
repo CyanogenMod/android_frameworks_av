@@ -53,7 +53,11 @@ AudioSource::AudioSource(
         audio_source_t inputSource, uint32_t sampleRate, uint32_t channelCount)
     : mStarted(false),
       mSampleRate(sampleRate),
+      mTrackMaxAmplitude(false),
+      mStartTimeUs(0),
+      mMaxAmplitude(0),
       mPrevSampleTimeUs(0),
+      mInitialReadTimeUs(0),
       mNumFramesReceived(0),
       mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %d, channelCount: %d", sampleRate, channelCount);
