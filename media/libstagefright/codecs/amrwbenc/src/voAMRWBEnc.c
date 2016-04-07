@@ -1028,13 +1028,13 @@ void coder(
             vo_p1 = xn2;
             for (i = 0; i < L_SUBFR/2; i++)
             {
-                L_tmp += *vo_p0 * *vo_p0;
+                L_tmp = L_add(L_tmp, *vo_p0 * *vo_p0);
                 vo_p0++;
-                L_tmp -= *vo_p1 * *vo_p1;
+                L_tmp = L_sub(L_tmp, *vo_p1 * *vo_p1);
                 vo_p1++;
-                L_tmp += *vo_p0 * *vo_p0;
+                L_tmp = L_add(L_tmp, *vo_p0 * *vo_p0);
                 vo_p0++;
-                L_tmp -= *vo_p1 * *vo_p1;
+                L_tmp = L_sub(L_tmp, *vo_p1 * *vo_p1);
                 vo_p1++;
             }
 
