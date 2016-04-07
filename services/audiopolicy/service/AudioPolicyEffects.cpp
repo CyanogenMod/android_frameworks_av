@@ -236,16 +236,13 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         stream = AUDIO_STREAM_MUSIC;
     }
     ssize_t index = mOutputStreams.indexOfKey(stream);
-    if (index < 0) {
-        ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
-        return NO_ERROR;
-    }
 
     ssize_t idx = mOutputSessions.indexOfKey(audioSession);
     EffectVector *procDesc;
     if (idx < 0) {
         procDesc = new EffectVector(audioSession);
         mOutputSessions.add(audioSession, procDesc);
+
     } else {
         // EffectVector is existing and we just need to increase ref count
         procDesc = mOutputSessions.valueAt(idx);
@@ -273,9 +270,33 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         }
 
         procDesc->setProcessorEnabled(true);
-        return 1;
     }
     return status;
+}
+
+status_t AudioPolicyEffects::doAddOutputSessionEffects(audio_io_handle_t output,
+                                           audio_stream_type_t stream,
+                                           int session,
+                                           audio_output_flags_t flags,
+                                           audio_channel_mask_t channelMask, uid_t uid)
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
+    ALOGV("doAddOutputSessionEffects()");
+
+    // create audio processors according to stream
+    status_t status = addOutputSessionEffects(output, stream, session);
+    if (status <= 0 && (status != NO_ERROR && status != ALREADY_EXISTS)) {
+        ALOGW("Failed to add effects on session %d", session);
+    }
+
+    // notify listeners
+    mAudioPolicyService->onOutputSessionEffectsUpdate(stream, session,
+            flags, channelMask, uid, true);
+
+    // Never return an error if effects setup fails.
+    return NO_ERROR;
 }
 
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
@@ -335,10 +356,13 @@ status_t AudioPolicyEffects::doReleaseOutputSessionEffects(audio_io_handle_t out
         procDesc->mEffects.clear();
         delete procDesc;
         mOutputSessions.removeItemsAt(index);
-        mAudioPolicyService->onOutputSessionEffectsUpdate(stream, audioSession, false);
         ALOGV("doReleaseOutputSessionEffects(): output processing released from session: %d",
               audioSession);
     }
+
+    mAudioPolicyService->onOutputSessionEffectsUpdate(stream, audioSession,
+            AUDIO_OUTPUT_FLAG_NONE, 0, -1, false);
+
     return status;
 }
 
