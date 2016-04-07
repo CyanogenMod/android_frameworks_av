@@ -662,6 +662,20 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                             data->mOutput, data->mStream, data->mSessionId);
                     mLock.lock();
                     } break;
+                case ADD_OUTPUT_SESSION_EFFECTS: {
+                    AddOutputSessionEffectsData *data = (AddOutputSessionEffectsData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing add output session effects %d",
+                            data->mOutput);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->mAudioPolicyEffects->doAddOutputSessionEffects(
+                            data->mOutput, data->mStream, data->mSessionId,
+                            data->mFlags, data->mChannelMask);
+                    mLock.lock();
+                    }break;
 
 
                 default:
@@ -827,6 +841,27 @@ status_t AudioPolicyService::AudioCommandThread::startOutputCommand(audio_io_han
     ALOGV("AudioCommandThread() adding start output %d", output);
     return sendCommand(command);
 }
+
+status_t AudioPolicyService::AudioCommandThread::addOutputSessionEffectsCommand(audio_io_handle_t output,
+                                                                    audio_stream_type_t stream,
+                                                                    audio_session_t session,
+                                                                    audio_output_flags_t flags,
+                                                                    audio_channel_mask_t channelMask)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = ADD_OUTPUT_SESSION_EFFECTS;
+    sp<AddOutputSessionEffectsData> data = new AddOutputSessionEffectsData();
+    data->mOutput = output;
+    data->mStream = stream;
+    data->mSessionId = session;
+    data->mFlags = flags;
+    data->mChannelMask = channelMask;
+    command->mParam = data;
+    command->mWaitStatus = false;
+    ALOGV("AudioCommandThread() adding start output %d", output);
+    return sendCommand(command);
+}
+
 
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,
                                                                audio_stream_type_t stream,
