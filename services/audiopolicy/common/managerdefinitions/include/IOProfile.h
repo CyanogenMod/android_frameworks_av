@@ -51,7 +51,8 @@ public:
                              audio_format_t *updatedFormat,
                              audio_channel_mask_t channelMask,
                              audio_channel_mask_t *updatedChannelMask,
-                             uint32_t flags) const;
+                             uint32_t flags,
+                             bool checkExactFormatMatch = false) const;
 
     void dump(int fd);
     void log();

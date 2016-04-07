@@ -200,7 +200,8 @@ public:
     status_t checkCompatibleProfile(uint32_t &samplingRate, audio_channel_mask_t &channelMask,
                                     audio_format_t &format,
                                     audio_port_type_t portType,
-                                    audio_port_role_t portRole) const;
+                                    audio_port_role_t portRole,
+                                    bool checkExactFormat = false) const;
 
     FormatVector getSupportedFormats() const
     {
