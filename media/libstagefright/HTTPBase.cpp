@@ -38,6 +38,7 @@ HTTPBase::HTTPBase()
       mPrevBandwidthMeasureTimeUs(0),
       mPrevEstimatedBandWidthKbps(0),
       mBandWidthCollectFreqMs(5000) {
+    mName = String8("HTTPBase(<disconnected>)");
 }
 
 void HTTPBase::addBandwidthMeasurement(

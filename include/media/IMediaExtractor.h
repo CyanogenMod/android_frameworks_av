@@ -19,6 +19,7 @@
 #define IMEDIA_EXTRACTOR_BASE_H_
 
 #include <media/IMediaSource.h>
+#include <media/IDataSource.h>
 
 namespace android {
 
@@ -68,6 +69,17 @@ public:
     virtual status_t    onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                                 uint32_t flags = 0);
 };
+
+void registerMediaExtractor(
+        const sp<IMediaExtractor> &extractor,
+        const sp<IDataSource> &source,
+        const char *mime);
+
+void registerMediaSource(
+        const sp<IMediaExtractor> &extractor,
+        const sp<IMediaSource> &source);
+
+status_t dumpExtractors(int fd, const Vector<String16>& args);
 
 
 }  // namespace android

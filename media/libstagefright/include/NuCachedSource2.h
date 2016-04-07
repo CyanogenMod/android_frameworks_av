@@ -48,6 +48,10 @@ struct NuCachedSource2 : public DataSource {
 
     virtual String8 getMIMEType() const;
 
+    virtual String8 toString() {
+        return mName;
+    }
+
     ////////////////////////////////////////////////////////////////////////////
 
     size_t cachedSize();
@@ -99,6 +103,7 @@ private:
     sp<DataSource> mSource;
     sp<AHandlerReflector<NuCachedSource2> > mReflector;
     sp<ALooper> mLooper;
+    String8 mName;
 
     Mutex mSerializer;
     mutable Mutex mLock;

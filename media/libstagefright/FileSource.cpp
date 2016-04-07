@@ -33,12 +33,16 @@ FileSource::FileSource(const char *filename)
     : mFd(-1),
       mOffset(0),
       mLength(-1),
+      mName("<null>"),
       mDecryptHandle(NULL),
       mDrmManagerClient(NULL),
       mDrmBufOffset(0),
       mDrmBufSize(0),
       mDrmBuf(NULL){
 
+    if (filename) {
+        mName = String8::format("FileSource(%s)", filename);
+    }
     ALOGV("%s", filename);
     mFd = open(filename, O_LARGEFILE | O_RDONLY);
 
@@ -53,6 +57,7 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
     : mFd(fd),
       mOffset(offset),
       mLength(length),
+      mName("<null>"),
       mDecryptHandle(NULL),
       mDrmManagerClient(NULL),
       mDrmBufOffset(0),
@@ -85,6 +90,13 @@ FileSource::FileSource(int fd, int64_t offset, int64_t length)
                 (long long) offset, (long long) length,
                 (long long) mOffset, (long long) mLength);
     }
+
+    mName = String8::format(
+            "FileSource(fd(%s), %lld, %lld)",
+            nameForFd(fd).c_str(),
+            (long long) mOffset,
+            (long long) mLength);
+
 }
 
 FileSource::~FileSource() {

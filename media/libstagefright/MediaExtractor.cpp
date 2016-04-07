@@ -87,10 +87,12 @@ public:
     virtual status_t getSize(off64_t* size);
     virtual void close();
     virtual uint32_t getFlags();
+    virtual String8 toString();
 
 private:
     sp<IMemory> mMemory;
     sp<DataSource> mSource;
+    String8 mName;
     RemoteDataSource(const sp<DataSource> &source);
     DISALLOW_EVIL_CONSTRUCTORS(RemoteDataSource);
 };
@@ -106,6 +108,7 @@ RemoteDataSource::RemoteDataSource(const sp<DataSource> &source) {
     if (mMemory == NULL) {
         ALOGE("Failed to allocate memory!");
     }
+    mName = String8::format("RemoteDataSource(%s)", mSource->toString().string());
 }
 RemoteDataSource::~RemoteDataSource() {
     close();
@@ -125,6 +128,10 @@ void RemoteDataSource::close() {
 }
 uint32_t RemoteDataSource::getFlags() {
     return mSource->flags();
+}
+
+String8 RemoteDataSource::toString() {
+    return mName;
 }
 
 // static
