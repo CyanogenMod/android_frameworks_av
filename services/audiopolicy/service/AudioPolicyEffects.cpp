@@ -224,7 +224,8 @@ status_t AudioPolicyEffects::queryDefaultOutputSessionEffects(int audioSession,
 
 status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
-                         int audioSession)
+                         int audioSession,
+                         audio_output_flags_t flags, audio_channel_mask_t channelMask)
 {
     status_t status = NO_ERROR;
 
@@ -236,7 +237,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         stream = AUDIO_STREAM_MUSIC;
     }
     ssize_t index = mOutputStreams.indexOfKey(stream);
-    if (index < 0) {
+    if (index < 0 || !((flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER || flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) &&
+                            channelMask > 1)) {
         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
         return NO_ERROR;
     }
@@ -246,6 +248,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     if (idx < 0) {
         procDesc = new EffectVector(audioSession);
         mOutputSessions.add(audioSession, procDesc);
+
+        mAudioPolicyService->onOutputSessionEffectsUpdate(stream, audioSession, true);
     } else {
         // EffectVector is existing and we just need to increase ref count
         procDesc = mOutputSessions.valueAt(idx);
@@ -273,7 +277,6 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
         }
 
         procDesc->setProcessorEnabled(true);
-        return 1;
     }
     return status;
 }

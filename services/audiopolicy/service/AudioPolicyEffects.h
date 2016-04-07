@@ -79,7 +79,9 @@ public:
     // Effects are attached depending on the audio_stream_type_t
     status_t addOutputSessionEffects(audio_io_handle_t output,
                              audio_stream_type_t stream,
-                             int audioSession);
+                             int audioSession,
+                             audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                             audio_channel_mask_t channelMask = 0);
 
     // release all output effects associated with this output stream and audiosession
     status_t releaseOutputSessionEffects(audio_io_handle_t output,

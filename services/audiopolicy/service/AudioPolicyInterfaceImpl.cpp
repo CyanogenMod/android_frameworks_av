@@ -18,6 +18,7 @@
 //#define LOG_NDEBUG 0
 
 #include <utils/Log.h>
+#include <media/AudioPolicyHelper.h>
 #include "AudioPolicyService.h"
 #include "ServiceUtilities.h"
 
@@ -162,8 +163,9 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
         return NO_INIT;
     }
     ALOGV("getOutput()");
-    Mutex::Autolock _l(mLock);
 
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    status_t status;
     // if the caller is us, trust the specified uid
     if (IPCThreadState::self()->getCallingPid() != getpid_cached || uid == (uid_t)-1) {
         uid_t newclientUid = IPCThreadState::self()->getCallingUid();
@@ -172,8 +174,20 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
         }
         uid = newclientUid;
     }
-    return mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
-                                    format, channelMask, flags, selectedDeviceId, offloadInfo);
+    Mutex::Autolock _l(mLock);
+    status = mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
+                                 format, channelMask, flags, selectedDeviceId, offloadInfo);
+
+	audioPolicyEffects = mAudioPolicyEffects;
+
+    if (audioPolicyEffects != 0) {
+        // create audio processors according to stream
+        status_t status2 = audioPolicyEffects->addOutputSessionEffects(*output, *stream, session, flags, channelMask);
+        if (status2 <= 0 && (status2 != NO_ERROR && status2 != ALREADY_EXISTS)) {
+            ALOGW("Failed to add effects on session %d", session);
+        }
+    }
+	return status;
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -201,27 +215,9 @@ status_t AudioPolicyService::doStartOutput(audio_io_handle_t output,
         return NO_INIT;
     }
     ALOGV("doStartOutput()");
-    sp<AudioPolicyEffects>audioPolicyEffects;
-    {
-        Mutex::Autolock _l(mLock);
-        audioPolicyEffects = mAudioPolicyEffects;
-    }
-
-    status_t status = NO_ERROR;
-    if (audioPolicyEffects != 0) {
-        // create audio processors according to stream
-        status = audioPolicyEffects->addOutputSessionEffects(output, stream, session);
-        if (status <= 0 && (status != NO_ERROR && status != ALREADY_EXISTS)) {
-            ALOGW("Failed to add effects on session %d", session);
-        }
-    }
     Mutex::Autolock _l(mLock);
-    status_t status2 = mAudioPolicyManager->startOutput(output, stream, session);
 
-    if (audioPolicyEffects != 0 && status > 0 && status2 == NO_ERROR) {
-        onOutputSessionEffectsUpdate(stream, session, true);
-    }
-    return status2;
+    return mAudioPolicyManager->startOutput(output, stream, session);
 }
 
 status_t AudioPolicyService::stopOutput(audio_io_handle_t output,
