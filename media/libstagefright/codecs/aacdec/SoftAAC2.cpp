@@ -198,6 +198,10 @@ status_t SoftAAC2::initDecoder() {
         mDrcWrap.setParam(DRC_PRES_MODE_WRAP_ENCODER_TARGET, DRC_DEFAULT_MOBILE_ENC_LEVEL);
     }
 
+    // By default, the decoder creates a 5.1 channel downmix signal.
+    // For seven and eight channel input streams, enable 6.1 and 7.1 channel output
+    aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, -1);
+
     return status;
 }
 
@@ -341,7 +345,7 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
 
             // for the following parameters of the OMX_AUDIO_PARAM_AACPROFILETYPE structure,
             // a value of -1 implies the parameter is not set by the application:
-            //   nMaxOutputChannels     uses default platform properties, see configureDownmix()
+            //   nMaxOutputChannels     -1 by default 
             //   nDrcCut                uses default platform properties, see initDecoder()
             //   nDrcBoost                idem
             //   nHeavyCompression        idem
@@ -423,18 +427,6 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
 
 bool SoftAAC2::isConfigured() const {
     return mInputBufferCount > 0;
-}
-
-void SoftAAC2::configureDownmix() const {
-    char value[PROPERTY_VALUE_MAX];
-    if (!(property_get("media.aac_51_output_enabled", value, NULL)
-            && (!strcmp(value, "1") || !strcasecmp(value, "true")))) {
-        ALOGI("limiting to stereo output");
-        aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, 2);
-        // By default, the decoder creates a 5.1 channel downmix signal
-        // for seven and eight channel input streams. To enable 6.1 and 7.1 channel output
-        // use aacDecoder_SetParam(mAACDecoder, AAC_PCM_MAX_OUTPUT_CHANNELS, -1)
-    }
 }
 
 bool SoftAAC2::outputDelayRingBufferPutSamples(INT_PCM *samples, int32_t numSamples) {
@@ -571,7 +563,6 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                 notifyEmptyBufferDone(inHeader);
                 inHeader = NULL;
 
-                configureDownmix();
                 // Only send out port settings changed event if both sample rate
                 // and numChannels are valid.
                 if (mStreamInfo->sampleRate && mStreamInfo->numChannels) {
