@@ -272,21 +272,27 @@ status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_co
 }
 
 void AudioPolicyService::onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                      audio_unique_id_t sessionId,
-                                                      bool added)
+                                                      audio_session_t sessionId,
+                                                      audio_output_flags_t flags,
+                                                      audio_channel_mask_t channelMask,
+                                                      uid_t uid, bool added)
 {
     ALOGV("AudioPolicyService::onOutputSessionEffectsUpdate(%d, %d, %d)",
             stream, sessionId, added);
-    mOutputCommandThread->effectSessionUpdateCommand(stream, sessionId, added);
+    mOutputCommandThread->effectSessionUpdateCommand(stream, sessionId,
+            flags, channelMask, uid, added);
 }
 
 void AudioPolicyService::doOnOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                        audio_unique_id_t sessionId,
-                                                        bool added)
+                                                        audio_session_t sessionId,
+                                                        audio_output_flags_t flags,
+                                                        audio_channel_mask_t channelMask,
+                                                        uid_t uid, bool added)
 {
     Mutex::Autolock _l(mNotificationClientsLock);
     for (size_t i = 0; i < mNotificationClients.size(); i++) {
-        mNotificationClients.valueAt(i)->onOutputSessionEffectsUpdate(stream, sessionId, added);
+        mNotificationClients.valueAt(i)->onOutputSessionEffectsUpdate(stream, sessionId,
+                flags, channelMask, uid, added);
     }
 }
 
@@ -327,10 +333,13 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 }
 
 void AudioPolicyService::NotificationClient::onOutputSessionEffectsUpdate(
-        audio_stream_type_t stream, audio_unique_id_t sessionId, bool added)
+        audio_stream_type_t stream, audio_session_t sessionId,
+        audio_output_flags_t flags, audio_channel_mask_t channelMask,
+        uid_t uid, bool added)
 {
     if (mAudioPolicyServiceClient != 0 && mEffectSessionCallbacksEnabled) {
-        mAudioPolicyServiceClient->onOutputSessionEffectsUpdate(stream, sessionId, added);
+        mAudioPolicyServiceClient->onOutputSessionEffectsUpdate(stream, sessionId,
+                flags, channelMask, uid, added);
     }
 }
 
@@ -645,7 +654,8 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                         break;
                     }
                     mLock.unlock();
-                    svc->doOnOutputSessionEffectsUpdate(data->mStream, data->mSessionId, data->mAdded);
+                    svc->doOnOutputSessionEffectsUpdate(data->mStream, data->mSessionId,
+                            data->mFlags, data->mChannelMask, data->mUid, data->mAdded);
                     mLock.lock();
                     } break;
                 case RELEASE_OUTPUT_SESSION_EFFECTS: {
@@ -662,6 +672,20 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                             data->mOutput, data->mStream, data->mSessionId);
                     mLock.lock();
                     } break;
+                case ADD_OUTPUT_SESSION_EFFECTS: {
+                    AddOutputSessionEffectsData *data = (AddOutputSessionEffectsData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing add output session effects %d",
+                            data->mOutput);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->mAudioPolicyEffects->doAddOutputSessionEffects(
+                            data->mOutput, data->mStream, data->mSessionId,
+                            data->mFlags, data->mChannelMask, data->mUid);
+                    mLock.lock();
+                    }break;
 
 
                 default:
@@ -828,6 +852,29 @@ status_t AudioPolicyService::AudioCommandThread::startOutputCommand(audio_io_han
     return sendCommand(command);
 }
 
+status_t AudioPolicyService::AudioCommandThread::addOutputSessionEffectsCommand(audio_io_handle_t output,
+                                                                    audio_stream_type_t stream,
+                                                                    audio_session_t session,
+                                                                    audio_output_flags_t flags,
+                                                                    audio_channel_mask_t channelMask,
+                                                                    uid_t uid)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = ADD_OUTPUT_SESSION_EFFECTS;
+    sp<AddOutputSessionEffectsData> data = new AddOutputSessionEffectsData();
+    data->mOutput = output;
+    data->mStream = stream;
+    data->mSessionId = session;
+    data->mFlags = flags;
+    data->mChannelMask = channelMask;
+    data->mUid = uid;
+    command->mParam = data;
+    command->mWaitStatus = false;
+    ALOGV("AudioCommandThread() adding start output %d", output);
+    return sendCommand(command);
+}
+
+
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,
                                                                audio_stream_type_t stream,
                                                                audio_session_t session)
@@ -937,13 +984,18 @@ void AudioPolicyService::AudioCommandThread::dynamicPolicyMixStateUpdateCommand(
 }
 
 void AudioPolicyService::AudioCommandThread::effectSessionUpdateCommand(
-        audio_stream_type_t stream, audio_unique_id_t sessionId, bool added)
+        audio_stream_type_t stream, audio_session_t sessionId,
+        audio_output_flags_t flags, audio_channel_mask_t channelMask,
+        uid_t uid, bool added)
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = EFFECT_SESSION_UPDATE;
     EffectSessionUpdateData *data = new EffectSessionUpdateData();
     data->mStream = stream;
     data->mSessionId = sessionId;
+    data->mFlags = flags;
+    data->mChannelMask = channelMask;
+    data->mUid = uid;
     data->mAdded = added;
     command->mParam = data;
     ALOGV("AudioCommandThread() sending effect session update (id=%d) for stream %d (added=%d)",

@@ -1239,7 +1239,9 @@ void AudioSystem::AudioPolicyServiceClient::onDynamicPolicyMixStateUpdate(
 }
 
 void AudioSystem::AudioPolicyServiceClient::onOutputSessionEffectsUpdate(
-        audio_stream_type_t stream, audio_unique_id_t sessionId, bool added)
+        audio_stream_type_t stream, audio_session_t sessionId,
+        audio_output_flags_t flags, audio_channel_mask_t channelMask,
+        uid_t uid, bool added)
 {
     ALOGV("AudioPolicyServiceClient::onOutputSessionEffectsUpdate(%d, %d, %d)", stream, sessionId, added);
     effect_session_callback cb = NULL;
@@ -1249,7 +1251,7 @@ void AudioSystem::AudioPolicyServiceClient::onOutputSessionEffectsUpdate(
     }
 
     if (cb != NULL) {
-        cb(AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE, stream, sessionId, added);
+        cb(AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE, stream, sessionId, flags, channelMask, uid, added);
     }
 }
 

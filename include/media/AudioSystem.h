@@ -32,7 +32,9 @@ namespace android {
 typedef void (*audio_error_callback)(status_t err);
 typedef void (*dynamic_policy_callback)(int event, String8 regId, int val);
 typedef void (*effect_session_callback)(int event,
-        audio_stream_type_t stream, audio_unique_id_t sessionId, bool added);
+        audio_stream_type_t stream, audio_unique_id_t sessionId,
+        audio_output_flags_t flags, audio_channel_mask_t channelMask,
+        uid_t uid, bool added);
 
 class IAudioFlinger;
 class IAudioPolicyService;
@@ -423,8 +425,10 @@ private:
         virtual void onAudioPatchListUpdate();
         virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state);
         virtual void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                                  audio_unique_id_t sessionId,
-                                                  bool added);
+                                                  audio_session_t sessionId,
+                                                  audio_output_flags_t flags,
+                                                  audio_channel_mask_t channelMask,
+                                                  uid_t uid, bool added);
 
     private:
         Mutex                               mLock;
