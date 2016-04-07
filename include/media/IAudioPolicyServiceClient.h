@@ -39,8 +39,10 @@ public:
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
     // Notifies when a default effect set is attached to a session/stream
     virtual void onOutputSessionEffectsUpdate(audio_stream_type_t stream,
-                                              audio_unique_id_t sessionId,
-                                              bool added) = 0;
+                                              audio_session_t sessionId,
+                                              audio_output_flags_t flags,
+                                              audio_channel_mask_t channelMask,
+                                              uid_t uid, bool added) = 0;
 };
 
 

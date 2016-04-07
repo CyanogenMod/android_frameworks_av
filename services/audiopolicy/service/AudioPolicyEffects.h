@@ -91,6 +91,11 @@ public:
                                            audio_stream_type_t stream,
                                            int audioSession);
 
+    status_t doAddOutputSessionEffects(audio_io_handle_t output,
+                             audio_stream_type_t stream,
+                             int audioSession,
+                             audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
+                             audio_channel_mask_t channelMask = 0, uid_t uid = 0);
 
 private:
 
