@@ -484,6 +484,12 @@ private:
     status_t getIntraRefreshPeriod(uint32_t *intraRefreshPeriod);
     status_t setIntraRefreshPeriod(uint32_t intraRefreshPeriod, bool inConfigure);
 
+    // Configures temporal layering based on |msg|. |inConfigure| shall be true iff this is called
+    // during configure() call. on success the configured layering is set in |outputFormat|. If
+    // |outputFormat| is mOutputFormat, it is copied to trigger an output format changed event.
+    status_t configureTemporalLayers(
+            const sp<AMessage> &msg, bool inConfigure, sp<AMessage> &outputFormat);
+
     status_t setMinBufferSize(OMX_U32 portIndex, size_t size);
 
     status_t setupMPEG4EncoderParameters(const sp<AMessage> &msg);

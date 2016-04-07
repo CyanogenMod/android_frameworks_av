@@ -2462,6 +2462,109 @@ status_t ACodec::setIntraRefreshPeriod(uint32_t intraRefreshPeriod, bool inConfi
     return OK;
 }
 
+status_t ACodec::configureTemporalLayers(
+        const sp<AMessage> &msg, bool inConfigure, sp<AMessage> &outputFormat) {
+    if (!mIsVideo || !mIsEncoder) {
+        return INVALID_OPERATION;
+    }
+
+    AString tsSchema;
+    if (!msg->findString("ts-schema", &tsSchema)) {
+        return OK;
+    }
+
+    unsigned int numLayers = 0;
+    unsigned int numBLayers = 0;
+    int tags;
+    char dummy;
+    OMX_VIDEO_ANDROID_TEMPORALLAYERINGPATTERNTYPE pattern =
+        OMX_VIDEO_AndroidTemporalLayeringPatternNone;
+    if (sscanf(tsSchema.c_str(), "webrtc.vp8.%u-layer%c", &numLayers, &dummy) == 1
+            && numLayers > 0) {
+        pattern = OMX_VIDEO_AndroidTemporalLayeringPatternWebRTC;
+    } else if ((tags = sscanf(tsSchema.c_str(), "android.generic.%u%c%u%c",
+                    &numLayers, &dummy, &numBLayers, &dummy))
+            && (tags == 1 || (tags == 3 && dummy == '+'))
+            && numLayers > 0 && numLayers < UINT32_MAX - numBLayers) {
+        numLayers += numBLayers;
+        pattern = OMX_VIDEO_AndroidTemporalLayeringPatternAndroid;
+    } else {
+        ALOGI("Ignoring unsupported ts-schema [%s]", tsSchema.c_str());
+        return BAD_VALUE;
+    }
+
+    OMX_VIDEO_PARAM_ANDROID_TEMPORALLAYERINGTYPE layerParams;
+    InitOMXParams(&layerParams);
+    layerParams.nPortIndex = kPortIndexOutput;
+
+    status_t err = mOMX->getParameter(
+        mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
+        &layerParams, sizeof(layerParams));
+
+    if (err != OK) {
+        return err;
+    } else if (!(layerParams.eSupportedPatterns & pattern)) {
+        return BAD_VALUE;
+    }
+
+    numLayers = min(numLayers, layerParams.nLayerCountMax);
+    numBLayers = min(numBLayers, layerParams.nBLayerCountMax);
+
+    if (!inConfigure) {
+        OMX_VIDEO_CONFIG_ANDROID_TEMPORALLAYERINGTYPE layerConfig;
+        InitOMXParams(&layerConfig);
+        layerConfig.nPortIndex = kPortIndexOutput;
+        layerConfig.ePattern = pattern;
+        layerConfig.nPLayerCountActual = numLayers - numBLayers;
+        layerConfig.nBLayerCountActual = numBLayers;
+        layerConfig.bBitrateRatiosSpecified = OMX_FALSE;
+
+        err = mOMX->setConfig(
+                mNode, (OMX_INDEXTYPE)OMX_IndexConfigAndroidVideoTemporalLayering,
+                &layerConfig, sizeof(layerConfig));
+    } else {
+        layerParams.ePattern = pattern;
+        layerParams.nPLayerCountActual = numLayers - numBLayers;
+        layerParams.nBLayerCountActual = numBLayers;
+        layerParams.bBitrateRatiosSpecified = OMX_FALSE;
+
+        err = mOMX->setParameter(
+                mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
+                &layerParams, sizeof(layerParams));
+    }
+
+    AString configSchema;
+    if (pattern == OMX_VIDEO_AndroidTemporalLayeringPatternAndroid) {
+        configSchema = AStringPrintf("android.generic.%u+%u", numLayers - numBLayers, numBLayers);
+    } else if (pattern == OMX_VIDEO_AndroidTemporalLayeringPatternWebRTC) {
+        configSchema = AStringPrintf("webrtc.vp8.%u", numLayers);
+    }
+
+    if (err != OK) {
+        ALOGW("Failed to set temporal layers to %s (requested %s)",
+                configSchema.c_str(), tsSchema.c_str());
+        return err;
+    }
+
+    err = mOMX->getParameter(
+            mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
+            &layerParams, sizeof(layerParams));
+
+    if (err == OK) {
+        ALOGD("Temporal layers requested:%s configured:%s got:%s(%u: P=%u, B=%u)",
+                tsSchema.c_str(), configSchema.c_str(),
+                asString(layerParams.ePattern), layerParams.ePattern,
+                layerParams.nPLayerCountActual, layerParams.nBLayerCountActual);
+
+        if (outputFormat.get() == mOutputFormat.get()) {
+            mOutputFormat = mOutputFormat->dup(); // trigger an output format change event
+        }
+        // assume we got what we configured
+        outputFormat->setString("ts-schema", configSchema);
+    }
+    return err;
+}
+
 status_t ACodec::setMinBufferSize(OMX_U32 portIndex, size_t size) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
@@ -3776,6 +3879,10 @@ status_t ACodec::setupVideoEncoder(
             break;
     }
 
+    if (err != OK) {
+        return err;
+    }
+
     // Set up color aspects on input, but propagate them to the output format, as they will
     // not be read back from encoder.
     err = setColorAspectsForVideoEncoder(msg, outputFormat, inputFormat);
@@ -3792,6 +3899,29 @@ status_t ACodec::setupVideoEncoder(
     if (err == ERROR_UNSUPPORTED) { // support is optional
         ALOGI("[%s] cannot encode HDR static metadata. Ignoring.", mComponentName.c_str());
         err = OK;
+    }
+
+    if (err != OK) {
+        return err;
+    }
+
+    switch (compressionFormat) {
+        case OMX_VIDEO_CodingAVC:
+        case OMX_VIDEO_CodingHEVC:
+            err = configureTemporalLayers(msg, true /* inConfigure */, outputFormat);
+            if (err != OK) {
+                err = OK; // ignore failure
+            }
+            break;
+
+        case OMX_VIDEO_CodingVP8:
+        case OMX_VIDEO_CodingVP9:
+            // TODO: do we need to support android.generic layering? webrtc layering is
+            // already set up in setupVPXEncoderParameters.
+            break;
+
+        default:
+            break;
     }
 
     if (err == OK) {
@@ -7342,7 +7472,12 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
         }
     }
 
-    return OK;
+    status_t err = configureTemporalLayers(params, false /* inConfigure */, mOutputFormat);
+    if (err != OK) {
+        err = OK; // ignore failure
+    }
+
+    return err;
 }
 
 void ACodec::onSignalEndOfInputStream() {
