@@ -875,6 +875,24 @@ ssize_t AudioTrack::getBufferSizeInFrames()
     return (ssize_t) mProxy->getBufferSizeInFrames();
 }
 
+status_t AudioTrack::getBufferDurationInUs(int64_t *duration)
+{
+    if (duration == nullptr) {
+        return BAD_VALUE;
+    }
+    AutoMutex lock(mLock);
+    if (mOutput == AUDIO_IO_HANDLE_NONE || mProxy.get() == 0) {
+        return NO_INIT;
+    }
+    ssize_t bufferSizeInFrames = (ssize_t) mProxy->getBufferSizeInFrames();
+    if (bufferSizeInFrames < 0) {
+        return (status_t)bufferSizeInFrames;
+    }
+    *duration = (int64_t)((double)bufferSizeInFrames * 1000000
+            / ((double)mSampleRate * mPlaybackRate.mSpeed));
+    return NO_ERROR;
+}
+
 ssize_t AudioTrack::setBufferSizeInFrames(size_t bufferSizeInFrames)
 {
     AutoMutex lock(mLock);

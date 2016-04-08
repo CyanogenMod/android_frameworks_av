@@ -19,6 +19,7 @@
 #include <utils/Log.h>
 
 #include "NuPlayerRenderer.h"
+#include <algorithm>
 #include <cutils/properties.h>
 #include <media/stagefright/foundation/ABuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -487,8 +488,14 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
 
                 // Let's give it more data after about half that time
                 // has elapsed.
+                delayUs /= 2;
+                // check the buffer size to estimate maximum delay permitted.
+                const int64_t maxDrainDelayUs = std::max(
+                        mAudioSink->getBufferDurationInUs(), (int64_t)500000 /* half second */);
+                ALOGD_IF(delayUs > maxDrainDelayUs, "postDrainAudioQueue long delay: %lld > %lld",
+                        (long long)delayUs, (long long)maxDrainDelayUs);
                 Mutex::Autolock autoLock(mLock);
-                postDrainAudioQueue_l(delayUs / 2);
+                postDrainAudioQueue_l(delayUs);
             }
             break;
         }
