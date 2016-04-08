@@ -458,12 +458,17 @@ void SoftOpus::onQueueFilled(OMX_U32 portIndex) {
 
         const uint8_t *data = inHeader->pBuffer + inHeader->nOffset;
         const uint32_t size = inHeader->nFilledLen;
+        size_t frameSize = kMaxOpusOutputPacketSizeSamples;
+        if (frameSize > outHeader->nAllocLen / sizeof(int16_t) / mHeader->channels) {
+            frameSize = outHeader->nAllocLen / sizeof(int16_t) / mHeader->channels;
+            android_errorWriteLog(0x534e4554, "27833616");
+        }
 
         int numFrames = opus_multistream_decode(mDecoder,
                                                 data,
                                                 size,
                                                 (int16_t *)outHeader->pBuffer,
-                                                kMaxOpusOutputPacketSizeSamples,
+                                                frameSize,
                                                 0);
         if (numFrames < 0) {
             ALOGE("opus_multistream_decode returned %d", numFrames);
