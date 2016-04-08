@@ -70,6 +70,7 @@ static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
 #endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
+static const char kMetaKey_TemporalLayerCount[] = "com.android.video.temporal_layers_count";
 
 static const uint8_t kMandatoryHevcNalUnitTypes[3] = {
     kHevcNalUnitTypeVps,
@@ -1377,6 +1378,19 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
 
     mMetaKeys->setFloat(kMetaKey_CaptureFps, captureFps);
     mMoovExtraSize += sizeof(kMetaKey_CaptureFps) + 4 + 32;
+
+    return OK;
+}
+
+status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
+    if (layerCount > 9) {
+        return BAD_VALUE;
+    }
+
+    if (layerCount > 0) {
+        mMetaKeys->setInt32(kMetaKey_TemporalLayerCount, layerCount);
+        mMoovExtraSize += sizeof(kMetaKey_TemporalLayerCount) + 4 + 32;
+    }
 
     return OK;
 }
