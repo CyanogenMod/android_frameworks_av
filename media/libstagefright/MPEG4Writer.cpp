@@ -72,6 +72,7 @@ static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
 #endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
+static const char kMetaKey_TemporalLayerCount[] = "com.android.video.temporal_layers_count";
 
 static const uint8_t kMandatoryHevcNalUnitTypes[3] = {
     kHevcNalUnitTypeVps,
@@ -1425,6 +1426,19 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
     return OK;
 }
 
+status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
+    if (layerCount > 9) {
+        return BAD_VALUE;
+    }
+
+    if (layerCount > 0) {
+        mMetaKeys->setInt32(kMetaKey_TemporalLayerCount, layerCount);
+        mMoovExtraSize += sizeof(kMetaKey_TemporalLayerCount) + 4 + 32;
+    }
+
+    return OK;
+}
+
 void MPEG4Writer::write(const void *data, size_t size) {
     write(data, 1, size);
 }
@@ -1540,6 +1554,13 @@ MPEG4Writer::Track::Track(
     mIsAudio = !strncasecmp(mime, "audio/", 6);
     mIsMPEG4 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC);
+
+    if (!mIsAudio) {
+        int32_t numLayers = 0;
+        if (mMeta->findInt32(kKeyTemporalLayerCount, &numLayers) && numLayers > 1) {
+            mOwner->setTemporalLayerCount(numLayers);
+        }
+    }
 
     setTimeScale();
 }
