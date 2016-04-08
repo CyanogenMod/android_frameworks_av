@@ -1428,7 +1428,11 @@ void NuPlayer::GenericSource::readBuffer(
 
         if (err == OK) {
             int64_t timeUs;
-            CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
+            if (!mbuf->meta_data()->findInt64(kKeyTime, &timeUs)) {
+                mbuf->meta_data()->dumpToLog();
+                track->mPackets->signalEOS(ERROR_MALFORMED);
+                break;
+            }
             if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
                 mAudioTimeUs = timeUs;
                 mBufferingMonitor->updateQueuedTime(true /* isAudio */, timeUs);
