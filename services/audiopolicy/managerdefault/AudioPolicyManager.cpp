@@ -1821,14 +1821,8 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     // Force max volume if stream cannot be muted
     if (!mVolumeCurves->canBeMuted(stream)) index = mVolumeCurves->getVolumeIndexMax(stream);
 
-    ALOGV("setStreamVolumeIndex() stream %d, device %04x, index %d",
+    ALOGV("setStreamVolumeIndex() stream %d, device %08x, index %d",
           stream, device, index);
-
-    // if device is AUDIO_DEVICE_OUT_DEFAULT set default value and
-    // clear all device specific values
-    if (device == AUDIO_DEVICE_OUT_DEFAULT) {
-        mVolumeCurves->clearCurrentVolumeIndex(stream);
-    }
 
     // update other private stream volumes which follow this one
     for (int curStream = 0; curStream < AUDIO_STREAM_FOR_POLICY_CNT; curStream++) {
@@ -1838,8 +1832,14 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
         mVolumeCurves->addCurrentVolumeIndex((audio_stream_type_t)curStream, device, index);
     }
 
-    // update volume on all outputs whose current device is also selected by the same
-    // strategy as the device specified by the caller
+    // update volume on all outputs and streams matching the following:
+    // - The requested stream (or a stream matching for volume control) is active on the output
+    // - The device (or devices) selected by the strategy corresponding to this stream includes
+    // the requested device
+    // - For non default requested device, currently selected device on the output is either the
+    // requested device or one of the devices selected by the strategy
+    // - For default requested device (AUDIO_DEVICE_OUT_DEFAULT), apply volume only if no specific
+    // device volume value exists for currently selected device.
     status_t status = NO_ERROR;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
@@ -1848,16 +1848,23 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
             if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
                 continue;
             }
+            if (!desc->isStreamActive((audio_stream_type_t)curStream)) {
+                continue;
+            }
             routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
             audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, true /*fromCache*/);
-            // it is possible that the requested device is not selected by the strategy
-            // (e.g an explicit audio patch is active causing getDevicesForStream()
-            // to return this device. We must make sure that the device passed is part of the
-            // devices considered when applying volume below.
-            curStreamDevice |= device;
+            if ((curStreamDevice & device) == 0) {
+                continue;
+            }
+            bool applyDefault = false;
+            if (device != AUDIO_DEVICE_OUT_DEFAULT) {
+                curStreamDevice |= device;
+            } else if (!mVolumeCurves->hasVolumeIndexForDevice(
+                    stream, Volume::getDeviceForVolume(curStreamDevice))) {
+                applyDefault = true;
+            }
 
-            if (((device == AUDIO_DEVICE_OUT_DEFAULT) ||
-                    ((curDevice & curStreamDevice) != 0))) {
+            if (applyDefault || ((curDevice & curStreamDevice) != 0)) {
                 status_t volStatus =
                         checkAndSetVolume((audio_stream_type_t)curStream, index, desc, curDevice);
                 if (volStatus != NO_ERROR) {

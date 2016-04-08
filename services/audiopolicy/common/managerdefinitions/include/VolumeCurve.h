@@ -44,8 +44,8 @@ inline bool operator< (const CurvePoint &lhs, const CurvePoint &rhs)
     return lhs.mIndex < rhs.mIndex;
 }
 
-// A volume curve for a given use case and device cateory
-// It contains of list of points of this cuive expressing the atteunation in Millibels for
+// A volume curve for a given use case and device category
+// It contains of list of points of this curve expressing the attenuation in Millibels for
 // a given volume index from 0 to 100
 class VolumeCurve : public RefBase
 {
@@ -104,6 +104,12 @@ public:
 
     void setVolumeIndexMax(int volIndexMax) { mIndexMax = volIndexMax; }
     int getVolumeIndexMax() const { return mIndexMax; }
+
+    bool hasVolumeIndexForDevice(audio_devices_t device) const
+    {
+        device = Volume::getDeviceForVolume(device);
+        return mIndexCur.indexOfKey(device) >= 0;
+    }
 
     const sp<VolumeCurve> getOriginVolumeCurve(device_category deviceCategory) const
     {
@@ -199,6 +205,11 @@ public:
     virtual float volIndexToDb(audio_stream_type_t stream, device_category cat, int indexInUi) const
     {
         return getCurvesFor(stream).volIndexToDb(cat, indexInUi);
+    }
+    virtual bool hasVolumeIndexForDevice(audio_stream_type_t stream,
+                                         audio_devices_t device) const
+    {
+        return getCurvesFor(stream).hasVolumeIndexForDevice(device);
     }
 
     virtual status_t dump(int fd) const;

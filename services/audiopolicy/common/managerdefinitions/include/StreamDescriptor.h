@@ -38,6 +38,11 @@ public:
     int getVolumeIndexMax() const { return mIndexMax; }
     void setVolumeIndexMin(int volIndexMin);
     void setVolumeIndexMax(int volIndexMax);
+    bool hasVolumeIndexForDevice(audio_devices_t device) const
+    {
+        device = Volume::getDeviceForVolume(device);
+        return mIndexCur.indexOfKey(device) >= 0;
+    }
 
     void dump(int fd) const;
 
@@ -85,6 +90,11 @@ public:
     virtual status_t initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax);
     virtual void initializeVolumeCurves(bool isSpeakerDrcEnabled);
     virtual void switchVolumeCurve(audio_stream_type_t streamSrc, audio_stream_type_t streamDst);
+    virtual bool hasVolumeIndexForDevice(audio_stream_type_t stream,
+                                         audio_devices_t device) const
+    {
+        return valueFor(stream).hasVolumeIndexForDevice(device);
+    }
 
     virtual status_t dump(int fd) const;
 
