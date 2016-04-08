@@ -1337,7 +1337,6 @@ MediaPlayerService::AudioOutput::AudioOutput(audio_session_t sessionId, int uid,
     : mCallback(NULL),
       mCallbackCookie(NULL),
       mCallbackData(NULL),
-      mBytesWritten(0),
       mStreamType(AUDIO_STREAM_MUSIC),
       mLeftVolume(1.0),
       mRightVolume(1.0),
@@ -1526,8 +1525,12 @@ status_t MediaPlayerService::AudioOutput::getFramesWritten(uint32_t *frameswritt
 {
     Mutex::Autolock lock(mLock);
     if (mTrack == 0) return NO_INIT;
-    *frameswritten = mBytesWritten / mFrameSize;
-    return OK;
+    ExtendedTimestamp ets;
+    status_t status = mTrack->getTimestamp(&ets);
+    if (status == OK || status == WOULD_BLOCK) {
+        *frameswritten = (uint32_t)ets.mPosition[ExtendedTimestamp::LOCATION_CLIENT];
+    }
+    return status;
 }
 
 status_t MediaPlayerService::AudioOutput::setParameters(const String8& keyValuePairs)
@@ -1817,10 +1820,6 @@ status_t MediaPlayerService::AudioOutput::open(
     mFlags = flags;
     mMsecsPerFrame = 1E3f / (mPlaybackRate.mSpeed * sampleRate);
     mFrameSize = t->frameSize();
-    uint32_t pos;
-    if (t->getPosition(&pos) == OK) {
-        mBytesWritten = uint64_t(pos) * mFrameSize;
-    }
     mTrack = t;
 
     status_t res = NO_ERROR;
@@ -1914,7 +1913,6 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
                 mNextOutput->mRecycledTrack = mTrack;
                 mNextOutput->mSampleRateHz = mSampleRateHz;
                 mNextOutput->mMsecsPerFrame = mMsecsPerFrame;
-                mNextOutput->mBytesWritten = mBytesWritten;
                 mNextOutput->mFlags = mFlags;
                 mNextOutput->mFrameSize = mFrameSize;
                 close_l();
@@ -1939,11 +1937,7 @@ ssize_t MediaPlayerService::AudioOutput::write(const void* buffer, size_t size, 
 
     //ALOGV("write(%p, %u)", buffer, size);
     if (mTrack != 0) {
-        ssize_t ret = mTrack->write(buffer, size, blocking);
-        if (ret >= 0) {
-            mBytesWritten += ret;
-        }
-        return ret;
+        return mTrack->write(buffer, size, blocking);
     }
     return NO_INIT;
 }
@@ -1952,7 +1946,6 @@ void MediaPlayerService::AudioOutput::stop()
 {
     ALOGV("stop");
     Mutex::Autolock lock(mLock);
-    mBytesWritten = 0;
     if (mTrack != 0) mTrack->stop();
 }
 
@@ -1960,7 +1953,6 @@ void MediaPlayerService::AudioOutput::flush()
 {
     ALOGV("flush");
     Mutex::Autolock lock(mLock);
-    mBytesWritten = 0;
     if (mTrack != 0) mTrack->flush();
 }
 
@@ -2086,7 +2078,6 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
 
         ALOGV_IF(actualSize == 0 && buffer->size > 0, "callbackwrapper: empty buffer returned");
 
-        me->mBytesWritten += actualSize;  // benign race with reader.
         buffer->size = actualSize;
         } break;
 
