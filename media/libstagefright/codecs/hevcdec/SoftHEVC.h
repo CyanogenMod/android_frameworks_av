@@ -106,7 +106,7 @@ private:
     status_t resetDecoder();
     status_t resetPlugin();
 
-    void setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
+    bool setDecodeArgs(ivd_video_decode_ip_t *ps_dec_ip,
         ivd_video_decode_op_t *ps_dec_op,
         OMX_BUFFERHEADERTYPE *inHeader,
         OMX_BUFFERHEADERTYPE *outHeader,
