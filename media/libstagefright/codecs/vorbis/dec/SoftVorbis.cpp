@@ -271,6 +271,12 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
 
         const uint8_t *data = header->pBuffer + header->nOffset;
         size_t size = header->nFilledLen;
+        if (size < 7) {
+            ALOGE("Too small input buffer: %zu bytes", size);
+            android_errorWriteLog(0x534e4554, "27833616");
+            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+            return;
+        }
 
         ogg_buffer buf;
         ogg_reference ref;
@@ -371,9 +377,14 @@ void SoftVorbis::onQueueFilled(OMX_U32 portIndex) {
         if (err != 0) {
             ALOGW("vorbis_dsp_synthesis returned %d", err);
         } else {
+            size_t numSamplesPerBuffer = kMaxNumSamplesPerBuffer;
+            if (numSamplesPerBuffer > outHeader->nAllocLen / sizeof(int16_t)) {
+                numSamplesPerBuffer = outHeader->nAllocLen / sizeof(int16_t);
+                android_errorWriteLog(0x534e4554, "27833616");
+            }
             numFrames = vorbis_dsp_pcmout(
                     mState, (int16_t *)outHeader->pBuffer,
-                    (kMaxNumSamplesPerBuffer / mVi->channels));
+                    (numSamplesPerBuffer / mVi->channels));
 
             if (numFrames < 0) {
                 ALOGE("vorbis_dsp_pcmout returned %d", numFrames);
