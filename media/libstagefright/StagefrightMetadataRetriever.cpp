@@ -61,7 +61,9 @@ StagefrightMetadataRetriever::StagefrightMetadataRetriever()
 StagefrightMetadataRetriever::~StagefrightMetadataRetriever() {
     ALOGV("~StagefrightMetadataRetriever()");
     clearMetadata();
-    mSource->close();
+    if (mSource != NULL) {
+        mSource->close();
+    }
 }
 
 status_t StagefrightMetadataRetriever::setDataSource(
@@ -704,7 +706,7 @@ void StagefrightMetadataRetriever::parseMetaData() {
         mMetaData.add(METADATA_KEY_BITRATE, String8(tmp));
     } else {
         off64_t sourceSize;
-        if (mSource->getSize(&sourceSize) == OK) {
+        if (mSource != NULL && mSource->getSize(&sourceSize) == OK) {
             int64_t avgBitRate = (int64_t)(sourceSize * 8E6 / maxDurationUs);
 
             sprintf(tmp, "%" PRId64, avgBitRate);
