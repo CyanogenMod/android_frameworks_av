@@ -828,8 +828,13 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     }
 
     int32_t fps;
+    float fpsFloat;
     if (msg->findInt32("frame-rate", &fps) && fps > 0) {
         meta->setInt32(kKeyFrameRate, fps);
+    } else if (msg->findFloat("frame-rate", &fpsFloat)
+            && fpsFloat >= 1 && fpsFloat <= INT32_MAX) {
+        // truncate values to distinguish between e.g. 24 vs 23.976 fps
+        meta->setInt32(kKeyFrameRate, (int32_t)fpsFloat);
     }
 
     // reassemble the csd data into its original form
