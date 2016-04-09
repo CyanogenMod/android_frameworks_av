@@ -55,8 +55,9 @@ public:
 private:
     status_t setEffectEnabled(const sp<EffectDescriptor> &effectDesc, bool enabled);
 
-    uint32_t mTotalEffectsCpuLoad; // current CPU load used by effects
-    uint32_t mTotalEffectsMemory;  // current memory used by effects
+    uint32_t mTotalEffectsCpuLoad; // current CPU load used by effects (in MIPS)
+    uint32_t mTotalEffectsMemory;  // current memory used by effects (in KB)
+    uint32_t mTotalEffectsMemoryMaxUsed; // maximum memory used by effects (in KB)
 
     /**
      * Maximum CPU load allocated to audio effects in 0.1 MIPS (ARMv5TE, 0 WS memory) units
