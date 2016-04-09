@@ -248,7 +248,7 @@ status_t StagefrightRecorder::setInputSurface(
 }
 
 status_t StagefrightRecorder::setOutputFile(int fd, int64_t offset, int64_t length) {
-    ALOGV("setOutputFile: %d, %lld, %lld", fd, offset, length);
+    ALOGV("setOutputFile: %d, %lld, %lld", fd, (long long)offset, (long long)length);
     // These don't make any sense, do they?
     CHECK_EQ(offset, 0ll);
     CHECK_EQ(length, 0ll);
@@ -415,39 +415,40 @@ status_t StagefrightRecorder::setParamVideoRotation(int32_t degrees) {
 }
 
 status_t StagefrightRecorder::setParamMaxFileDurationUs(int64_t timeUs) {
-    ALOGV("setParamMaxFileDurationUs: %lld us", timeUs);
+    ALOGV("setParamMaxFileDurationUs: %lld us", (long long)timeUs);
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (timeUs <= 0) {
-        ALOGW("Max file duration is not positive: %lld us. Disabling duration limit.", timeUs);
+        ALOGW("Max file duration is not positive: %lld us. Disabling duration limit.",
+                (long long)timeUs);
         timeUs = 0; // Disable the duration limit for zero or negative values.
     } else if (timeUs <= 100000LL) {  // XXX: 100 milli-seconds
-        ALOGE("Max file duration is too short: %lld us", timeUs);
+        ALOGE("Max file duration is too short: %lld us", (long long)timeUs);
         return BAD_VALUE;
     }
 
     if (timeUs <= 15 * 1000000LL) {
-        ALOGW("Target duration (%lld us) too short to be respected", timeUs);
+        ALOGW("Target duration (%lld us) too short to be respected", (long long)timeUs);
     }
     mMaxFileDurationUs = timeUs;
     return OK;
 }
 
 status_t StagefrightRecorder::setParamMaxFileSizeBytes(int64_t bytes) {
-    ALOGV("setParamMaxFileSizeBytes: %lld bytes", bytes);
+    ALOGV("setParamMaxFileSizeBytes: %lld bytes", (long long)bytes);
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (bytes <= 0) {
         ALOGW("Max file size is not positive: %lld bytes. "
-             "Disabling file size limit.", bytes);
+             "Disabling file size limit.", (long long)bytes);
         bytes = 0; // Disable the file size limit for zero or negative values.
     } else if (bytes <= 1024) {  // XXX: 1 kB
-        ALOGE("Max file size is too small: %lld bytes", bytes);
+        ALOGE("Max file size is too small: %lld bytes", (long long)bytes);
         return BAD_VALUE;
     }
 
     if (bytes <= 100 * 1024) {
-        ALOGW("Target file size (%lld bytes) is too small to be respected", bytes);
+        ALOGW("Target file size (%lld bytes) is too small to be respected", (long long)bytes);
     }
 
     mMaxFileSizeBytes = bytes;
@@ -499,9 +500,9 @@ status_t StagefrightRecorder::setParamVideoCameraId(int32_t cameraId) {
 }
 
 status_t StagefrightRecorder::setParamTrackTimeStatus(int64_t timeDurationUs) {
-    ALOGV("setParamTrackTimeStatus: %lld", timeDurationUs);
+    ALOGV("setParamTrackTimeStatus: %lld", (long long)timeDurationUs);
     if (timeDurationUs < 20000) {  // Infeasible if shorter than 20 ms?
-        ALOGE("Tracking time duration too short: %lld us", timeDurationUs);
+        ALOGE("Tracking time duration too short: %lld us", (long long)timeDurationUs);
         return BAD_VALUE;
     }
     mTrackEveryTimeDurationUs = timeDurationUs;
@@ -584,7 +585,7 @@ status_t StagefrightRecorder::setParamCaptureFps(float fps) {
 
     // Not allowing time more than a day
     if (timeUs <= 0 || timeUs > 86400*1E6) {
-        ALOGE("Time between frame capture (%lld) is out of range [0, 1 Day]", timeUs);
+        ALOGE("Time between frame capture (%lld) is out of range [0, 1 Day]", (long long)timeUs);
         return BAD_VALUE;
     }
 
@@ -1433,7 +1434,7 @@ status_t StagefrightRecorder::setupCameraSource(
     if (mCaptureFpsEnable) {
         if (mTimeBetweenCaptureUs < 0) {
             ALOGE("Invalid mTimeBetweenTimeLapseFrameCaptureUs value: %lld",
-                mTimeBetweenCaptureUs);
+                    (long long)mTimeBetweenCaptureUs);
             return BAD_VALUE;
         }
 
@@ -1538,7 +1539,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
         if (mCaptureFpsEnable) {
             if (mTimeBetweenCaptureUs <= 0) {
                 ALOGE("Invalid mTimeBetweenCaptureUs value: %lld",
-                        mTimeBetweenCaptureUs);
+                        (long long)mTimeBetweenCaptureUs);
                 return BAD_VALUE;
             }
             format->setInt64("time-lapse", mTimeBetweenCaptureUs);
