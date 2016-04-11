@@ -457,6 +457,12 @@ class Camera3Stream :
 
     status_t        cancelPrepareLocked();
 
+    // Return whether the buffer is in the list of outstanding buffers.
+    bool isOutstandingBuffer(const camera3_stream_buffer& buffer);
+
+    // Remove the buffer from the list of outstanding buffers.
+    void removeOutstandingBuffer(const camera3_stream_buffer& buffer);
+
     // Tracking for PREPARING state
 
     // State of buffer preallocation. Only true if either prepareNextBuffer
@@ -469,6 +475,9 @@ class Camera3Stream :
 
     // Number of buffers allocated on last prepare call.
     size_t mLastMaxCount;
+
+    // Outstanding buffers dequeued from the stream's buffer queue.
+    List<buffer_handle_t> mOutstandingBuffers;
 
 }; // class Camera3Stream
 

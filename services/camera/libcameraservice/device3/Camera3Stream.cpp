@@ -476,15 +476,50 @@ status_t Camera3Stream::getBuffer(camera3_stream_buffer *buffer) {
     res = getBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/true);
+        if (buffer->buffer) {
+            mOutstandingBuffers.push_back(*buffer->buffer);
+        }
     }
 
     return res;
+}
+
+bool Camera3Stream::isOutstandingBuffer(const camera3_stream_buffer &buffer) {
+    if (buffer.buffer == nullptr) {
+        return false;
+    }
+
+    for (auto b : mOutstandingBuffers) {
+        if (b == *buffer.buffer) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Camera3Stream::removeOutstandingBuffer(const camera3_stream_buffer &buffer) {
+    if (buffer.buffer == nullptr) {
+        return;
+    }
+
+    for (auto b = mOutstandingBuffers.begin(); b != mOutstandingBuffers.end(); b++) {
+        if (*b == *buffer.buffer) {
+            mOutstandingBuffers.erase(b);
+            return;
+        }
+    }
 }
 
 status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
         nsecs_t timestamp) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
+
+    // Check if this buffer is outstanding.
+    if (!isOutstandingBuffer(buffer)) {
+        ALOGE("%s: Stream %d: Returning an unknown buffer.", __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
 
     /**
      * TODO: Check that the state is valid first.
@@ -503,6 +538,7 @@ status_t Camera3Stream::returnBuffer(const camera3_stream_buffer &buffer,
     // buffer to be returned.
     mOutputBufferReturnedSignal.signal();
 
+    removeOutstandingBuffer(buffer);
     return res;
 }
 
@@ -535,6 +571,9 @@ status_t Camera3Stream::getInputBuffer(camera3_stream_buffer *buffer) {
     res = getInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(*buffer, /*acquired*/true, /*output*/false);
+        if (buffer->buffer) {
+            mOutstandingBuffers.push_back(*buffer->buffer);
+        }
     }
 
     return res;
@@ -544,11 +583,19 @@ status_t Camera3Stream::returnInputBuffer(const camera3_stream_buffer &buffer) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
 
+    // Check if this buffer is outstanding.
+    if (!isOutstandingBuffer(buffer)) {
+        ALOGE("%s: Stream %d: Returning an unknown buffer.", __FUNCTION__, mId);
+        return BAD_VALUE;
+    }
+
     status_t res = returnInputBufferLocked(buffer);
     if (res == OK) {
         fireBufferListenersLocked(buffer, /*acquired*/false, /*output*/false);
         mInputBufferReturnedSignal.signal();
     }
+
+    removeOutstandingBuffer(buffer);
     return res;
 }
 
