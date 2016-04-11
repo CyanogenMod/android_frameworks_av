@@ -679,9 +679,8 @@ private:
                 // protected by mClientLock
                 DefaultKeyedVector< pid_t, sp<NotificationClient> >    mNotificationClients;
 
-                volatile int32_t                    mNextUniqueId;  // updated by android_atomic_inc
-                // nextUniqueId() returns uint32_t, but this is declared int32_t
-                // because the atomic operations require an int32_t
+                // updated by atomic_fetch_add_explicit
+                volatile atomic_uint_fast32_t       mNextUniqueIds[AUDIO_UNIQUE_ID_USE_MAX];
 
                 audio_mode_t                        mMode;
                 bool                                mBtNrecIsOff;
