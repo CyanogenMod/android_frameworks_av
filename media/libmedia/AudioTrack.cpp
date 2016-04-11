@@ -191,7 +191,8 @@ AudioTrack::AudioTrack(
         int uid,
         pid_t pid,
         const audio_attributes_t* pAttributes,
-        bool doNotReconnect)
+        bool doNotReconnect,
+        float maxRequiredSpeed)
     : mStatus(NO_INIT),
       mState(STATE_STOPPED),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -202,7 +203,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
             0 /*sharedBuffer*/, false /*threadCanCallJava*/, sessionId, transferType,
-            offloadInfo, uid, pid, pAttributes, doNotReconnect);
+            offloadInfo, uid, pid, pAttributes, doNotReconnect, maxRequiredSpeed);
 }
 
 AudioTrack::AudioTrack(
@@ -221,7 +222,8 @@ AudioTrack::AudioTrack(
         int uid,
         pid_t pid,
         const audio_attributes_t* pAttributes,
-        bool doNotReconnect)
+        bool doNotReconnect,
+        float maxRequiredSpeed)
     : mStatus(NO_INIT),
       mState(STATE_STOPPED),
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
@@ -232,7 +234,7 @@ AudioTrack::AudioTrack(
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
             sharedBuffer, false /*threadCanCallJava*/, sessionId, transferType, offloadInfo,
-            uid, pid, pAttributes, doNotReconnect);
+            uid, pid, pAttributes, doNotReconnect, maxRequiredSpeed);
 }
 
 AudioTrack::~AudioTrack()
@@ -281,7 +283,8 @@ status_t AudioTrack::set(
         int uid,
         pid_t pid,
         const audio_attributes_t* pAttributes,
-        bool doNotReconnect)
+        bool doNotReconnect,
+        float maxRequiredSpeed)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
           "flags #%x, notificationFrames %u, sessionId %d, transferType %d, uid %d, pid %d",
@@ -422,6 +425,8 @@ status_t AudioTrack::set(
     mSampleRate = sampleRate;
     mOriginalSampleRate = sampleRate;
     mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
+    // 1.0 <= mMaxRequiredSpeed <= AUDIO_TIMESTRETCH_SPEED_MAX
+    mMaxRequiredSpeed = min(max(maxRequiredSpeed, 1.0f), AUDIO_TIMESTRETCH_SPEED_MAX);
 
     // Make copy of input parameter offloadInfo so that in the future:
     //  (a) createTrack_l doesn't need it as an input parameter
@@ -824,6 +829,9 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         return INVALID_OPERATION;
     }
+
+    ALOGV("setPlaybackRate (input): mSampleRate:%u  mSpeed:%f  mPitch:%f",
+            mSampleRate, playbackRate.mSpeed, playbackRate.mPitch);
     // pitch is emulated by adjusting speed and sampleRate
     const uint32_t effectiveRate = adjustSampleRate(mSampleRate, playbackRate.mPitch);
     const float effectiveSpeed = adjustSpeed(playbackRate.mSpeed, playbackRate.mPitch);
@@ -832,12 +840,18 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     playbackRateTemp.mSpeed = effectiveSpeed;
     playbackRateTemp.mPitch = effectivePitch;
 
+    ALOGV("setPlaybackRate (effective): mSampleRate:%u  mSpeed:%f  mPitch:%f",
+            effectiveRate, effectiveSpeed, effectivePitch);
+
     if (!isAudioPlaybackRateValid(playbackRateTemp)) {
+        ALOGV("setPlaybackRate(%f, %f) failed (effective rate out of bounds)",
+                playbackRate.mSpeed, playbackRate.mPitch);
         return BAD_VALUE;
     }
     // Check if the buffer size is compatible.
     if (!isSampleRateSpeedAllowed_l(effectiveRate, effectiveSpeed)) {
-        ALOGV("setPlaybackRate(%f, %f) failed", playbackRate.mSpeed, playbackRate.mPitch);
+        ALOGV("setPlaybackRate(%f, %f) failed (buffer size)",
+                playbackRate.mSpeed, playbackRate.mPitch);
         return BAD_VALUE;
     }
 
@@ -1275,9 +1289,11 @@ status_t AudioTrack::createTrack_l()
 
         if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
             // for normal tracks precompute the frame count based on speed.
+            const float speed = !isPurePcmData_l() || isOffloadedOrDirect_l() ? 1.0f :
+                            max(mMaxRequiredSpeed, mPlaybackRate.mSpeed);
             const size_t minFrameCount = calculateMinFrameCount(
                     mAfLatency, mAfFrameCount, mAfSampleRate, mSampleRate,
-                    mPlaybackRate.mSpeed);
+                    speed);
             if (frameCount < minFrameCount) {
                 frameCount = minFrameCount;
             }

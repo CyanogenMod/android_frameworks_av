@@ -1876,6 +1876,10 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
         // NuPlayer a chance to switch from non-offload mode to offload mode.
         // So we only set doNotReconnect when there's no video.
         const bool doNotReconnect = !hasVideo;
+
+        // We should always be able to set our playback settings if the sink is closed.
+        LOG_ALWAYS_FATAL_IF(mAudioSink->setPlaybackRate(mPlaybackSettings) != OK,
+                "onOpenAudioSink: can't set playback rate on closed sink");
         status_t err = mAudioSink->open(
                     sampleRate,
                     numChannels,
@@ -1888,9 +1892,6 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
                     NULL,
                     doNotReconnect,
                     frameCount);
-        if (err == OK) {
-            err = mAudioSink->setPlaybackRate(mPlaybackSettings);
-        }
         if (err != OK) {
             ALOGW("openAudioSink: non offloaded open failed status: %d", err);
             mAudioSink->close();

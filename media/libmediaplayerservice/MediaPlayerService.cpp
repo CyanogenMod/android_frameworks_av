@@ -94,6 +94,8 @@ using android::Parcel;
 // Max number of entries in the filter.
 const int kMaxFilterSize = 64;  // I pulled that out of thin air.
 
+const float kMaxRequiredSpeed = 8.0f; // for PCM tracks allow up to 8x speedup.
+
 // FIXME: Move all the metadata related function in the Metadata.cpp
 
 
@@ -1749,6 +1751,14 @@ status_t MediaPlayerService::AudioOutput::open(
                     mAttributes,
                     doNotReconnect);
         } else {
+            // TODO: Due to buffer memory concerns, we use a max target playback speed
+            // based on mPlaybackRate at the time of open (instead of kMaxRequiredSpeed),
+            // also clamping the target speed to 1.0 <= targetSpeed <= kMaxRequiredSpeed.
+            const float targetSpeed =
+                    std::min(std::max(mPlaybackRate.mSpeed, 1.0f), kMaxRequiredSpeed);
+            ALOGW_IF(targetSpeed != mPlaybackRate.mSpeed,
+                    "track target speed:%f clamped from playback speed:%f",
+                    targetSpeed, mPlaybackRate.mSpeed);
             t = new AudioTrack(
                     mStreamType,
                     sampleRate,
@@ -1765,7 +1775,8 @@ status_t MediaPlayerService::AudioOutput::open(
                     mUid,
                     mPid,
                     mAttributes,
-                    doNotReconnect);
+                    doNotReconnect,
+                    targetSpeed);
         }
 
         if ((t == 0) || (t->initCheck() != NO_ERROR)) {

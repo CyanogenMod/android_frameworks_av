@@ -201,6 +201,10 @@ public:
                            binder to AudioFlinger.
                            It will return an error instead.  The application will recreate
                            the track based on offloading or different channel configuration, etc.
+     * maxRequiredSpeed:   For PCM tracks, this creates an appropriate buffer size that will allow
+     *                     maxRequiredSpeed playback. Values less than 1.0f and greater than
+     *                     AUDIO_TIMESTRETCH_SPEED_MAX will be clamped.  For non-PCM tracks
+     *                     and direct or offloaded tracks, this parameter is ignored.
      * threadCanCallJava:  Not present in parameter list, and so is fixed at false.
      */
 
@@ -219,7 +223,8 @@ public:
                                     int uid = -1,
                                     pid_t pid = -1,
                                     const audio_attributes_t* pAttributes = NULL,
-                                    bool doNotReconnect = false);
+                                    bool doNotReconnect = false,
+                                    float maxRequiredSpeed = 1.0f);
 
     /* Creates an audio track and registers it with AudioFlinger.
      * With this constructor, the track is configured for static buffer mode.
@@ -248,7 +253,8 @@ public:
                                     int uid = -1,
                                     pid_t pid = -1,
                                     const audio_attributes_t* pAttributes = NULL,
-                                    bool doNotReconnect = false);
+                                    bool doNotReconnect = false,
+                                    float maxRequiredSpeed = 1.0f);
 
     /* Terminates the AudioTrack and unregisters it from AudioFlinger.
      * Also destroys all resources associated with the AudioTrack.
@@ -293,7 +299,8 @@ public:
                             int uid = -1,
                             pid_t pid = -1,
                             const audio_attributes_t* pAttributes = NULL,
-                            bool doNotReconnect = false);
+                            bool doNotReconnect = false,
+                            float maxRequiredSpeed = 1.0f);
 
     /* Result of constructing the AudioTrack. This must be checked for successful initialization
      * before using any AudioTrack API (except for set()), because using
@@ -916,6 +923,7 @@ protected:
     mutable uint32_t        mSampleRate;            // mutable because getSampleRate() can update it
     uint32_t                mOriginalSampleRate;
     AudioPlaybackRate       mPlaybackRate;
+    float                   mMaxRequiredSpeed;      // use PCM buffer size to allow this speed
 
     // Corresponds to current IAudioTrack, value is reported back by AudioFlinger to the client.
     // This allocated buffer size is maintained by the proxy.
