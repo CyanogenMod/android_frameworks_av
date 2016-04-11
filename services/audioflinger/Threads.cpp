@@ -3488,7 +3488,7 @@ AudioFlinger::MixerThread::MixerThread(const sp<AudioFlinger>& audioFlinger, Aud
         MonoPipe *monoPipe = new MonoPipe(mNormalFrameCount * 4, format, true /*writeCanBlock*/);
         const NBAIO_Format offers[1] = {format};
         size_t numCounterOffers = 0;
-#if !LOG_NDEBUG
+#if !LOG_NDEBUG || defined(TEE_SINK)
         ssize_t index =
 #else
         (void)
