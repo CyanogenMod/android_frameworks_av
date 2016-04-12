@@ -247,12 +247,14 @@ supDomain: DeviceForStrategy
 				ANY
 					#
 					# Sonification follows Phone strategy if in call (widely speaking)
+					# but Line has a lower priority than WiredHeadset in this case.
 					#
 					ALL
 						ANY
 							TelephonyMode Is InCall
 							TelephonyMode Is InCommunication
-						ForceUseForCommunication Is ForceSpeaker
+						ForceUseForCommunication IsNot ForceSpeaker
+						AvailableOutputDevices Excludes WiredHeadset
 					#
 					# Sonification falls through media strategy if not in call (widely speaking)
 					#

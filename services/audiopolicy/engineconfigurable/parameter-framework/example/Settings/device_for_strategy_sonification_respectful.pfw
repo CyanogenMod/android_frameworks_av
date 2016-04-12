@@ -267,15 +267,29 @@ domainGroup: DeviceForStrategy
 					usb_device = 0
 					hdmi = 0
 
-			conf: LineWhenFollowMediaStrategy
-				#
-				# SonificationRespectful Follows Sonification that falls through Media strategy if not in call
-				# SonificationRespectful follows media if music stream is active
-				#
-				TelephonyMode IsNot InCall
-				TelephonyMode IsNot InCommunication
-				AvailableOutputDevices Includes WiredHeadphone
-				ForceUseForMedia IsNot ForceSpeaker
+			conf: Line
+				ANY
+					#
+					# SonificationRespectful Follows Phone strategy if in call
+					# but Line has a lower priority than WiredHeadset in this case.
+					#
+					#
+					ALL
+						ANY
+							TelephonyMode Is InCall
+							TelephonyMode Is InCommunication
+						ForceUseForCommunication IsNot ForceSpeaker
+						AvailableOutputDevices Excludes WiredHeadset
+					#
+					# SonificationRespectful Follows Sonification that falls through Media strategy if not in call
+					# SonificationRespectful follows media if music stream is active
+					#
+					ALL
+						TelephonyMode IsNot InCall
+						TelephonyMode IsNot InCommunication
+						AvailableOutputDevices Includes WiredHeadphone
+						ForceUseForMedia IsNot ForceSpeaker
+				AvailableOutputDevices Includes Line
 
 				component: /Policy/policy/strategies/sonification_respectful/selected_output_devices/mask
 					earpiece = 0
@@ -517,29 +531,3 @@ domainGroup: DeviceForStrategy
 					usb_device = 0
 					hdmi = 0
 
-			conf: Line
-				#
-				# SonificationRespectful Follows Phone strategy if in call
-				#
-				ANY
-					TelephonyMode Is InCall
-					TelephonyMode Is InCommunication
-				ForceUseForCommunication Is ForceSpeaker
-				AvailableOutputDevices Includes Line
-
-				component: /Policy/policy/strategies/sonification_respectful/selected_output_devices/mask
-					earpiece = 0
-					bluetooth_sco = 0
-					bluetooth_sco_headset = 0
-					bluetooth_sco_carkit = 0
-					bluetooth_a2dp_headphones = 0
-					bluetooth_a2dp_speaker = 0
-					bluetooth_a2dp = 0
-					wired_headset = 0
-					wired_headphone = 0
-					line = 1
-					angl_dock_headset = 0
-					dgtl_dock_headset = 0
-					usb_accessory = 0
-					usb_device = 0
-					hdmi = 0
