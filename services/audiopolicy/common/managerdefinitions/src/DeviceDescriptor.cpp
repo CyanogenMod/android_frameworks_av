@@ -228,7 +228,17 @@ audio_policy_dev_state_t DeviceVector::getDeviceConnectionState(const sp<DeviceD
 void DeviceDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,
                                          const struct audio_port_config *srcConfig) const
 {
-    dstConfig->config_mask = AUDIO_PORT_CONFIG_CHANNEL_MASK|AUDIO_PORT_CONFIG_GAIN;
+    dstConfig->config_mask = AUDIO_PORT_CONFIG_GAIN;
+    if (mSamplingRate != 0) {
+        dstConfig->config_mask |= AUDIO_PORT_CONFIG_SAMPLE_RATE;
+    }
+    if (mChannelMask != AUDIO_CHANNEL_NONE) {
+        dstConfig->config_mask |= AUDIO_PORT_CONFIG_CHANNEL_MASK;
+    }
+    if (mFormat != AUDIO_FORMAT_INVALID) {
+        dstConfig->config_mask |= AUDIO_PORT_CONFIG_FORMAT;
+    }
+
     if (srcConfig != NULL) {
         dstConfig->config_mask |= srcConfig->config_mask;
     }

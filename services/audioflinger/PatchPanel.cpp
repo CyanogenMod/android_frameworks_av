@@ -248,14 +248,27 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                         goto exit;
                     }
                 }
-                uint32_t channelCount = newPatch->mPlaybackThread->channelCount();
                 audio_devices_t device = patch->sources[0].ext.device.type;
                 String8 address = String8(patch->sources[0].ext.device.address);
                 audio_config_t config = AUDIO_CONFIG_INITIALIZER;
-                audio_channel_mask_t inChannelMask = audio_channel_in_mask_from_count(channelCount);
-                config.sample_rate = newPatch->mPlaybackThread->sampleRate();
-                config.channel_mask = inChannelMask;
-                config.format = newPatch->mPlaybackThread->format();
+                // open input stream with source device audio properties if provided or
+                // default to peer output stream properties otherwise.
+                if (patch->sources[0].config_mask & AUDIO_PORT_CONFIG_SAMPLE_RATE) {
+                    config.sample_rate = patch->sources[0].sample_rate;
+                } else {
+                    config.sample_rate = newPatch->mPlaybackThread->sampleRate();
+                }
+                if (patch->sources[0].config_mask & AUDIO_PORT_CONFIG_CHANNEL_MASK) {
+                    config.channel_mask = patch->sources[0].channel_mask;
+                } else {
+                    config.channel_mask =
+                        audio_channel_in_mask_from_count(newPatch->mPlaybackThread->channelCount());
+                }
+                if (patch->sources[0].config_mask & AUDIO_PORT_CONFIG_FORMAT) {
+                    config.format = patch->sources[0].format;
+                } else {
+                    config.format = newPatch->mPlaybackThread->format();
+                }
                 audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
                 newPatch->mRecordThread = audioflinger->openInput_l(srcModule,
                                                                     &input,
@@ -265,7 +278,7 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                                                                     AUDIO_SOURCE_MIC,
                                                                     AUDIO_INPUT_FLAG_NONE);
                 ALOGV("audioflinger->openInput_l() returned %p inChannelMask %08x",
-                      newPatch->mRecordThread.get(), inChannelMask);
+                      newPatch->mRecordThread.get(), config.channel_mask);
                 if (newPatch->mRecordThread == 0) {
                     status = NO_MEMORY;
                     goto exit;

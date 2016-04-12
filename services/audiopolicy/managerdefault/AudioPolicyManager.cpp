@@ -309,9 +309,6 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
 void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs)
 {
     bool createTxPatch = false;
-    struct audio_patch patch;
-    patch.num_sources = 1;
-    patch.num_sinks = 1;
     status_t status;
     audio_patch_handle_t afPatchHandle;
     DeviceVector deviceList;
@@ -344,8 +341,11 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
                 == AUDIO_DEVICE_NONE) {
             createTxPatch = true;
         }
-    } else {
-        // create RX path audio patch
+    } else { // create RX path audio patch
+        struct audio_patch patch;
+
+        patch.num_sources = 1;
+        patch.num_sinks = 1;
         deviceList = mAvailableOutputDevices.getDevicesFromType(rxDevice);
         ALOG_ASSERT(!deviceList.isEmpty(),
                     "updateCallRouting() selected device not in output device list");
@@ -384,9 +384,9 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         }
         createTxPatch = true;
     }
-    if (createTxPatch) {
-
+    if (createTxPatch) { // create TX path audio patch
         struct audio_patch patch;
+
         patch.num_sources = 1;
         patch.num_sinks = 1;
         deviceList = mAvailableInputDevices.getDevicesFromType(txDevice);
