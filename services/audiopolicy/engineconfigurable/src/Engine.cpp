@@ -140,15 +140,6 @@ Property Engine::getPropertyForKey(Key key) const
 
 routing_strategy Engine::ManagerInterfaceImpl::getStrategyForUsage(audio_usage_t usage)
 {
-    const SwAudioOutputCollection &outputs = mPolicyEngine->mApmObserver->getOutputs();
-
-    //FIXME: getStrategyForUsage() should return STRATEGY_ACCESSIBILITY and getDeviceForStrategy()
-    // should be implemented accordingly for STRATEGY_ACCESSIBILITY
-    if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY &&
-            (outputs.isStreamActive(AUDIO_STREAM_RING) ||
-             outputs.isStreamActive(AUDIO_STREAM_ALARM))) {
-        return STRATEGY_SONIFICATION;
-    }
     return mPolicyEngine->getPropertyForKey<routing_strategy, audio_usage_t>(usage);
 }
 
@@ -172,6 +163,14 @@ audio_devices_t Engine::ManagerInterfaceImpl::getDeviceForStrategy(routing_strat
                                     SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY) &&
             outputs.isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_RESPECTFUL_AFTER_MUSIC_DELAY)) {
         return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(STRATEGY_MEDIA);
+    }
+    if (strategy == STRATEGY_ACCESSIBILITY &&
+        (outputs.isStreamActive(AUDIO_STREAM_RING) || outputs.isStreamActive(AUDIO_STREAM_ALARM))) {
+            // do not route accessibility prompts to a digital output currently configured with a
+            // compressed format as they would likely not be mixed and dropped.
+            // Device For Sonification conf file has HDMI, SPDIF and HDMI ARC unreacheable.
+        return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(
+                    STRATEGY_SONIFICATION);
     }
     return mPolicyEngine->getPropertyForKey<audio_devices_t, routing_strategy>(strategy);
 }
