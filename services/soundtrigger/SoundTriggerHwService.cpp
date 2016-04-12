@@ -545,33 +545,9 @@ status_t SoundTriggerHwService::Module::loadSoundModel(const sp<IMemory>& modelM
     AutoMutex lock(mLock);
 
     if (mModels.size() >= mDescriptor.properties.max_sound_models) {
-        /* Make space for a keyphrase sound model by first trying to swap out a previously loaded
-         * keyphrase sound model, or if needed, another sound model. This decision would optimally
-         * happen in SoundTriggerHelper, but is happening here because state tracking isn't good
-         * enough in SoundTriggerHelper to ensure that state is consistent between it and the HAL,
-         * nor does sufficient error handling exist to recover from inconsistencies.
-         * Once that exists:
-         * TODO: we should return an error instead of unloading a previous sound model here.
-         */
-        if (mModels.size() == 0) {
-            return INVALID_OPERATION;
-        }
-        if (sound_model->type == SOUND_MODEL_TYPE_KEYPHRASE) {
-            ALOGW("loadSoundModel() max number of models exceeded %d making room for a new one",
-                  mDescriptor.properties.max_sound_models);
-            sound_model_handle_t unload_handle = mModels.valueAt(0)->mHandle;
-            for (size_t i = 0; i < mModels.size(); i++) {
-                if (mModels.valueAt(i)->mType == SOUND_MODEL_TYPE_KEYPHRASE) {
-                    unload_handle = mModels.keyAt(i);
-                    break;
-                }
-            }
-            unloadSoundModel_l(unload_handle);
-        } else {
-            ALOGW("loadSoundModel(): Not loading, max number of models (%d) would be exceeded",
-                  mDescriptor.properties.max_sound_models);
-            return INVALID_OPERATION;
-        }
+        ALOGW("loadSoundModel(): Not loading, max number of models (%d) would be exceeded",
+              mDescriptor.properties.max_sound_models);
+        return INVALID_OPERATION;
     }
 
     status_t status = mHwDevice->load_sound_model(mHwDevice, sound_model,
