@@ -532,24 +532,23 @@ status_t AudioTrack::start()
         mTimestampStartupGlitchReported = false;
         mRetrogradeMotionReported = false;
 
-        // If previousState == STATE_STOPPED, we clear the timestamp so that it
-        // needs a new server push. We also reactivate markers (mMarkerPosition != 0)
-        // as the position is reset to 0. This is legacy behavior. This is not done
-        // in stop() to avoid a race condition where the last marker event is issued twice.
-        // Note: the if is technically unnecessary because previousState == STATE_FLUSHED
-        // is only for streaming tracks, and mMarkerReached is already set to false.
-        if (previousState == STATE_STOPPED) {
-            // read last server side position change via timestamp
-            ExtendedTimestamp ets;
-            if (mProxy->getTimestamp(&ets) == OK &&
-                    ets.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] > 0) {
-                mFramesWrittenServerOffset = -(ets.mPosition[ExtendedTimestamp::LOCATION_SERVER]
-                                                             + ets.mFlushed);
-            }
-            mFramesWritten = 0;
-            mProxy->clearTimestamp(); // need new server push for valid timestamp
-            mMarkerReached = false;
+        // read last server side position change via timestamp.
+        ExtendedTimestamp ets;
+        if (mProxy->getTimestamp(&ets) == OK &&
+                ets.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] > 0) {
+            // Server side has consumed something, but is it finished consuming?
+            // It is possible since flush and stop are asynchronous that the server
+            // is still active at this point.
+            ALOGV("start: server read:%lld  cumulative flushed:%lld  client written:%lld",
+                    (long long)(mFramesWrittenServerOffset
+                            + ets.mPosition[ExtendedTimestamp::LOCATION_SERVER]),
+                    (long long)ets.mFlushed,
+                    (long long)mFramesWritten);
+            mFramesWrittenServerOffset = -ets.mPosition[ExtendedTimestamp::LOCATION_SERVER];
         }
+        mFramesWritten = 0;
+        mProxy->clearTimestamp(); // need new server push for valid timestamp
+        mMarkerReached = false;
 
         // For offloaded tracks, we don't know if the hardware counters are really zero here,
         // since the flush is asynchronous and stop may not fully drain.
@@ -2206,18 +2205,18 @@ status_t AudioTrack::getTimestamp_l(ExtendedTimestamp *timestamp)
         return INVALID_OPERATION; // not supported
     }
     status_t status = mProxy->getTimestamp(timestamp);
+    LOG_ALWAYS_FATAL_IF(status != OK, "status %d not allowed from proxy getTimestamp", status);
     bool found = false;
-    if (status == OK) {
-        timestamp->mPosition[ExtendedTimestamp::LOCATION_CLIENT] = mFramesWritten;
-        timestamp->mTimeNs[ExtendedTimestamp::LOCATION_CLIENT] = 0;
-        // server side frame offset in case AudioTrack has been restored.
-        for (int i = ExtendedTimestamp::LOCATION_SERVER;
-                i < ExtendedTimestamp::LOCATION_MAX; ++i) {
-            if (timestamp->mTimeNs[i] >= 0) {
-                // apply server offset and the "flush frame correction here"
-                timestamp->mPosition[i] += mFramesWrittenServerOffset + timestamp->mFlushed;
-                found = true;
-            }
+    timestamp->mPosition[ExtendedTimestamp::LOCATION_CLIENT] = mFramesWritten;
+    timestamp->mTimeNs[ExtendedTimestamp::LOCATION_CLIENT] = 0;
+    // server side frame offset in case AudioTrack has been restored.
+    for (int i = ExtendedTimestamp::LOCATION_SERVER;
+            i < ExtendedTimestamp::LOCATION_MAX; ++i) {
+        if (timestamp->mTimeNs[i] >= 0) {
+            // apply server offset (frames flushed is ignored
+            // so we don't report the jump when the flush occurs).
+            timestamp->mPosition[i] += mFramesWrittenServerOffset;
+            found = true;
         }
     }
     return found ? OK : WOULD_BLOCK;
