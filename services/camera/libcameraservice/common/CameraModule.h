@@ -57,8 +57,10 @@ public:
 private:
     // Derive camera characteristics keys defined after HAL device version
     static void deriveCameraCharacteristicsKeys(uint32_t deviceVersion, CameraMetadata &chars);
+    // Helper function to append available[request|result|chars]Keys
+    static void appendAvailableKeys(CameraMetadata &chars,
+            int32_t keyTag, const Vector<int32_t>& appendKeys);
     status_t filterOpenErrorCode(status_t err);
-
     camera_module_t *mModule;
     KeyedVector<int, camera_info> mCameraInfoMap;
     Mutex mCameraInfoLock;

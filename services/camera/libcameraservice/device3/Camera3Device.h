@@ -203,6 +203,10 @@ class Camera3Device :
 
     uint32_t                   mDeviceVersion;
 
+    // whether Camera3Device should derive ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST for
+    // backward compatibility. Should not be changed after initialization.
+    bool                       mDerivePostRawSensKey = false;
+
     struct Size {
         uint32_t width;
         uint32_t height;

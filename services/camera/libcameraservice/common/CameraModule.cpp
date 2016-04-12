@@ -29,6 +29,8 @@ void CameraModule::deriveCameraCharacteristicsKeys(
     ATRACE_CALL();
 
     Vector<int32_t> derivedCharKeys;
+    Vector<int32_t> derivedRequestKeys;
+    Vector<int32_t> derivedResultKeys;
     // Keys added in HAL3.3
     if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_3) {
         Vector<uint8_t> controlModes;
@@ -180,6 +182,9 @@ void CameraModule::deriveCameraCharacteristicsKeys(
                         ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE,
                         defaultRange, 2);
                 derivedCharKeys.push(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE);
+                // Actual request/results will be derived by camera device.
+                derivedRequestKeys.push(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST);
+                derivedResultKeys.push(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST);
             }
         }
     }
@@ -196,17 +201,33 @@ void CameraModule::deriveCameraCharacteristicsKeys(
 
     // Add those newly added keys to AVAILABLE_CHARACTERISTICS_KEYS
     // This has to be done at this end of this function.
-    entry = chars.find(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
-    Vector<int32_t> availableCharsKeys;
-    availableCharsKeys.setCapacity(entry.count + derivedCharKeys.size());
-    for (size_t i = 0; i < entry.count; i++) {
-        availableCharsKeys.push(entry.data.i32[i]);
+    if (derivedCharKeys.size() > 0) {
+        appendAvailableKeys(
+                chars, ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, derivedCharKeys);
     }
-    for (size_t i = 0; i < derivedCharKeys.size(); i++) {
-        availableCharsKeys.push(derivedCharKeys[i]);
+    if (derivedRequestKeys.size() > 0) {
+        appendAvailableKeys(
+                chars, ANDROID_REQUEST_AVAILABLE_REQUEST_KEYS, derivedRequestKeys);
     }
-    chars.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS, availableCharsKeys);
+    if (derivedResultKeys.size() > 0) {
+        appendAvailableKeys(
+                chars, ANDROID_REQUEST_AVAILABLE_RESULT_KEYS, derivedResultKeys);
+    }
     return;
+}
+
+void CameraModule::appendAvailableKeys(CameraMetadata &chars,
+        int32_t keyTag, const Vector<int32_t>& appendKeys) {
+    camera_metadata_entry entry = chars.find(keyTag);
+    Vector<int32_t> availableKeys;
+    availableKeys.setCapacity(entry.count + appendKeys.size());
+    for (size_t i = 0; i < entry.count; i++) {
+        availableKeys.push(entry.data.i32[i]);
+    }
+    for (size_t i = 0; i < appendKeys.size(); i++) {
+        availableKeys.push(appendKeys[i]);
+    }
+    chars.update(keyTag, availableKeys);
 }
 
 CameraModule::CameraModule(camera_module_t *module) {
