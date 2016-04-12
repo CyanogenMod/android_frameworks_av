@@ -6192,10 +6192,6 @@
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/aux_line"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/fm"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker_safe"/>
-      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece"/>
-      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco"/>
-      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset"/>
-      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/telephony_tx"/>
     </ConfigurableElements>
     <Settings>
@@ -6215,39 +6211,33 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker_safe">
           <BitParameter Name="speaker_safe">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
-          <BitParameter Name="earpiece">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
-          <BitParameter Name="bluetooth_sco">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
-          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
-          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/telephony_tx">
           <BitParameter Name="telephony_tx">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
   </ConfigurableDomain>
-  <ConfigurableDomain Name="DeviceForStrategy.Accessibility.Device2" SequenceAware="false">
+  <ConfigurableDomain Name="DeviceForStrategy.Accessibility.Device" SequenceAware="false">
     <Configurations>
       <Configuration Name="RemoteSubmix">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="RemoteSubmix"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dp">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dp"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="BluetoothA2dpHeadphone">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dpHeadphones"/>
         </CompoundRule>
@@ -6255,54 +6245,157 @@
       <Configuration Name="BluetoothA2dpSpeaker">
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceNoBtA2dp"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothA2dpSpeaker"/>
         </CompoundRule>
       </Configuration>
-      <Configuration Name="ForceSpeaker">
+      <Configuration Name="ForceSpeakerWhenNotInCall">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="Is" Value="ForceSpeaker"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Speaker"/>
         </CompoundRule>
       </Configuration>
+      <Configuration Name="BluetoothScoCarkit">
+        <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothScoCarkit"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceBtSco"/>
+        </CompoundRule>
+      </Configuration>
+      <Configuration Name="BluetoothScoHeadset">
+        <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothScoHeadset"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceBtSco"/>
+        </CompoundRule>
+      </Configuration>
+      <Configuration Name="BluetoothSco">
+        <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="BluetoothSco"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceBtSco"/>
+        </CompoundRule>
+      </Configuration>
       <Configuration Name="WiredHeadphone">
         <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+            </CompoundRule>
+            <CompoundRule Type="All">
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+            </CompoundRule>
+          </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadphone"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="Line">
         <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Excludes" Value="WiredHeadset"/>
+            </CompoundRule>
+          </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="WiredHeadset">
         <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+            </CompoundRule>
+            <CompoundRule Type="All">
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+            </CompoundRule>
+          </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadset"/>
-        </CompoundRule>
-      </Configuration>
-      <Configuration Name="UsbAccessory">
-        <CompoundRule Type="All">
-          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="UsbAccessory"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="UsbDevice">
         <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+            </CompoundRule>
+            <CompoundRule Type="All">
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Excludes" Value="UsbAccessory"/>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceSpeaker"/>
+            </CompoundRule>
+          </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="UsbDevice"/>
+        </CompoundRule>
+      </Configuration>
+      <Configuration Name="UsbAccessory">
+        <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="UsbAccessory"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="DgtlDockHeadset">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="DgtlDockHeadset"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="AuxDigital">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Hdmi"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="AnlgDockHeadset">
         <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="AnlgDockHeadset"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForDock" MatchesWhen="Is" Value="ForceAnalogDock"/>
+        </CompoundRule>
+      </Configuration>
+      <Configuration Name="Earpiece">
+        <CompoundRule Type="All">
+          <CompoundRule Type="Any">
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Earpiece"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="Speaker">
@@ -6316,9 +6409,13 @@
     </Configurations>
     <ConfigurableElements>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone"/>
@@ -6334,6 +6431,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">1</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6342,6 +6442,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6375,6 +6484,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">1</BitParameter>
         </ConfigurableElement>
@@ -6383,6 +6495,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6416,6 +6537,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6424,6 +6548,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6457,6 +6590,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6465,6 +6601,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6494,9 +6639,12 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="ForceSpeaker">
+      <Configuration Name="ForceSpeakerWhenNotInCall">
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
@@ -6506,6 +6654,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">1</BitParameter>
@@ -6535,9 +6692,12 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="WiredHeadphone">
+      <Configuration Name="BluetoothScoCarkit">
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
@@ -6547,6 +6707,174 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
+      <Configuration Name="BluetoothScoHeadset">
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
+      <Configuration Name="BluetoothSco">
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
+      <Configuration Name="WiredHeadphone">
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6580,6 +6908,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6588,6 +6919,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6621,6 +6961,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6629,6 +6972,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6658,51 +7010,13 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="UsbAccessory">
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
-          <BitParameter Name="remote_submix">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
-          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
-          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
-          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
-          <BitParameter Name="speaker">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
-          <BitParameter Name="wired_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
-          <BitParameter Name="wired_headphone">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
-          <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
-          <BitParameter Name="angl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
-          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
-          <BitParameter Name="usb_accessory">1</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
-          <BitParameter Name="usb_device">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
-          <BitParameter Name="hdmi">0</BitParameter>
-        </ConfigurableElement>
-      </Configuration>
       <Configuration Name="UsbDevice">
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6711,6 +7025,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6740,9 +7063,12 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="DgtlDockHeadset">
+      <Configuration Name="UsbAccessory">
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
@@ -6752,6 +7078,68 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
+      <Configuration Name="DgtlDockHeadset">
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6785,6 +7173,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6793,6 +7184,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6826,6 +7226,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6834,6 +7237,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
@@ -6863,9 +7275,12 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="Speaker">
+      <Configuration Name="Earpiece">
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
@@ -6875,6 +7290,68 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
+      <Configuration Name="Speaker">
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">1</BitParameter>
@@ -6908,6 +7385,9 @@
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp">
           <BitParameter Name="bluetooth_a2dp">0</BitParameter>
         </ConfigurableElement>
@@ -6916,6 +7396,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_a2dp_speaker">
           <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>
