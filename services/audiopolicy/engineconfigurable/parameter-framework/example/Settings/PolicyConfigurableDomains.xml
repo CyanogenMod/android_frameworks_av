@@ -939,6 +939,12 @@
           <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
         </CompoundRule>
       </Configuration>
+      <Configuration Name="Line">
+        <CompoundRule Type="All">
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
+          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+        </CompoundRule>
+      </Configuration>
       <Configuration Name="UsbDevice">
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="UsbDevice"/>
@@ -986,12 +992,6 @@
         <CompoundRule Type="All">
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Earpiece"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
-        </CompoundRule>
-      </Configuration>
-      <Configuration Name="Line">
-        <CompoundRule Type="All">
-          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
-          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceSpeaker"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="Speaker">
@@ -1448,6 +1448,59 @@
           <BitParameter Name="speaker">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
+      <Configuration Name="Line">
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/telephony_tx">
+          <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/line">
+          <BitParameter Name="line">1</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/speaker">
+          <BitParameter Name="speaker">0</BitParameter>
+        </ConfigurableElement>
+      </Configuration>
       <Configuration Name="UsbDevice">
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/earpiece">
           <BitParameter Name="earpiece">0</BitParameter>
@@ -1766,59 +1819,6 @@
           <BitParameter Name="speaker">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="Line">
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/earpiece">
-          <BitParameter Name="earpiece">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/wired_headset">
-          <BitParameter Name="wired_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/wired_headphone">
-          <BitParameter Name="wired_headphone">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco">
-          <BitParameter Name="bluetooth_sco">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco_headset">
-          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_sco_carkit">
-          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp">
-          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_headphones">
-          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bluetooth_a2dp_speaker">
-          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/hdmi">
-          <BitParameter Name="hdmi">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/angl_dock_headset">
-          <BitParameter Name="angl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/dgtl_dock_headset">
-          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/usb_accessory">
-          <BitParameter Name="usb_accessory">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/usb_device">
-          <BitParameter Name="usb_device">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/telephony_tx">
-          <BitParameter Name="telephony_tx">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/line">
-          <BitParameter Name="line">1</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/speaker">
-          <BitParameter Name="speaker">0</BitParameter>
-        </ConfigurableElement>
-      </Configuration>
       <Configuration Name="Speaker">
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/earpiece">
           <BitParameter Name="earpiece">0</BitParameter>
@@ -2093,7 +2093,8 @@
                 <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
                 <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
               </CompoundRule>
-              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceSpeaker"/>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Excludes" Value="WiredHeadset"/>
             </CompoundRule>
             <CompoundRule Type="All">
               <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
@@ -3082,12 +3083,25 @@
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadphone"/>
         </CompoundRule>
       </Configuration>
-      <Configuration Name="LineWhenFollowMediaStrategy">
+      <Configuration Name="Line">
         <CompoundRule Type="All">
-          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
-          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
-          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadphone"/>
-          <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Excludes" Value="WiredHeadset"/>
+            </CompoundRule>
+            <CompoundRule Type="All">
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadphone"/>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForMedia" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+            </CompoundRule>
+          </CompoundRule>
+          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="WiredHeadset">
@@ -3170,16 +3184,6 @@
           </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Earpiece"/>
-        </CompoundRule>
-      </Configuration>
-      <Configuration Name="Line">
-        <CompoundRule Type="All">
-          <CompoundRule Type="Any">
-            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
-            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
-          </CompoundRule>
-          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceSpeaker"/>
-          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
         </CompoundRule>
       </Configuration>
     </Configurations>
@@ -3530,7 +3534,7 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="LineWhenFollowMediaStrategy">
+      <Configuration Name="Line">
         <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/earpiece">
           <BitParameter Name="earpiece">0</BitParameter>
         </ConfigurableElement>
@@ -3906,53 +3910,6 @@
           <BitParameter Name="hdmi">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="Line">
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/earpiece">
-          <BitParameter Name="earpiece">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_sco">
-          <BitParameter Name="bluetooth_sco">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_sco_headset">
-          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_sco_carkit">
-          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_a2dp_headphones">
-          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_a2dp_speaker">
-          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bluetooth_a2dp">
-          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/wired_headset">
-          <BitParameter Name="wired_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/wired_headphone">
-          <BitParameter Name="wired_headphone">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/line">
-          <BitParameter Name="line">1</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/angl_dock_headset">
-          <BitParameter Name="angl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/dgtl_dock_headset">
-          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/usb_accessory">
-          <BitParameter Name="usb_accessory">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/usb_device">
-          <BitParameter Name="usb_device">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/hdmi">
-          <BitParameter Name="hdmi">0</BitParameter>
-        </ConfigurableElement>
-      </Configuration>
     </Settings>
   </ConfigurableDomain>
   <ConfigurableDomain Name="DeviceForStrategy.Dtmf.UnreachableDevices" SequenceAware="false">
@@ -4060,10 +4017,22 @@
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="WiredHeadphone"/>
         </CompoundRule>
       </Configuration>
-      <Configuration Name="LineWhenFollowingMedia">
+      <Configuration Name="Line">
         <CompoundRule Type="All">
-          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
-          <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+          <CompoundRule Type="Any">
+            <CompoundRule Type="All">
+              <CompoundRule Type="Any">
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
+                <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
+              </CompoundRule>
+              <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
+              <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Excludes" Value="WiredHeadset"/>
+            </CompoundRule>
+            <CompoundRule Type="All">
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCall"/>
+              <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="IsNot" Value="InCommunication"/>
+            </CompoundRule>
+          </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
         </CompoundRule>
       </Configuration>
@@ -4142,16 +4111,6 @@
           </CompoundRule>
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Earpiece"/>
           <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="IsNot" Value="ForceSpeaker"/>
-        </CompoundRule>
-      </Configuration>
-      <Configuration Name="LineWhenFallThroughPhone">
-        <CompoundRule Type="All">
-          <CompoundRule Type="Any">
-            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCall"/>
-            <SelectionCriterionRule SelectionCriterion="TelephonyMode" MatchesWhen="Is" Value="InCommunication"/>
-          </CompoundRule>
-          <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="Line"/>
-          <SelectionCriterionRule SelectionCriterion="ForceUseForCommunication" MatchesWhen="Is" Value="ForceSpeaker"/>
         </CompoundRule>
       </Configuration>
       <Configuration Name="Speaker">
@@ -4621,7 +4580,7 @@
           <BitParameter Name="speaker">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
-      <Configuration Name="LineWhenFollowingMedia">
+      <Configuration Name="Line">
         <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/remote_submix">
           <BitParameter Name="remote_submix">0</BitParameter>
         </ConfigurableElement>
@@ -5040,59 +4999,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/speaker">
-          <BitParameter Name="speaker">0</BitParameter>
-        </ConfigurableElement>
-      </Configuration>
-      <Configuration Name="LineWhenFallThroughPhone">
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/remote_submix">
-          <BitParameter Name="remote_submix">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/earpiece">
-          <BitParameter Name="earpiece">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/wired_headset">
-          <BitParameter Name="wired_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/wired_headphone">
-          <BitParameter Name="wired_headphone">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_sco">
-          <BitParameter Name="bluetooth_sco">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_sco_headset">
-          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_a2dp">
-          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_a2dp_headphones">
-          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_a2dp_speaker">
-          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/hdmi">
-          <BitParameter Name="hdmi">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/angl_dock_headset">
-          <BitParameter Name="angl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/dgtl_dock_headset">
-          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/usb_accessory">
-          <BitParameter Name="usb_accessory">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/usb_device">
-          <BitParameter Name="usb_device">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/telephony_tx">
-          <BitParameter Name="telephony_tx">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/line">
-          <BitParameter Name="line">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/speaker">
           <BitParameter Name="speaker">0</BitParameter>

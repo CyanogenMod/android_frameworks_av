@@ -227,6 +227,29 @@ supDomain: DeviceForStrategy
 					line = 0
 					speaker = 0
 
+			conf: Line
+				AvailableOutputDevices Includes Line
+				ForceUseForCommunication IsNot ForceSpeaker
+
+				component: /Policy/policy/strategies/phone/selected_output_devices/mask
+					earpiece = 0
+					wired_headset = 0
+					wired_headphone = 0
+					bluetooth_sco = 0
+					bluetooth_sco_headset = 0
+					bluetooth_sco_carkit = 0
+					bluetooth_a2dp = 0
+					bluetooth_a2dp_headphones = 0
+					bluetooth_a2dp_speaker = 0
+					hdmi = 0
+					angl_dock_headset = 0
+					dgtl_dock_headset = 0
+					usb_accessory = 0
+					usb_device = 0
+					telephony_tx = 0
+					line = 1
+					speaker = 0
+
 			conf: UsbDevice
 				#
 				# Fallback BT Sco devices in case of FORCE_BT_SCO
@@ -402,33 +425,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					speaker = 0
-
-			conf: Line
-				#
-				# Fallback BT Sco devices in case of FORCE_BT_SCO
-				# or FORCE_NONE
-				#
-				AvailableOutputDevices Includes Line
-				ForceUseForCommunication Is ForceSpeaker
-
-				component: /Policy/policy/strategies/phone/selected_output_devices/mask
-					earpiece = 0
-					wired_headset = 0
-					wired_headphone = 0
-					bluetooth_sco = 0
-					bluetooth_sco_headset = 0
-					bluetooth_sco_carkit = 0
-					bluetooth_a2dp = 0
-					bluetooth_a2dp_headphones = 0
-					bluetooth_a2dp_speaker = 0
-					hdmi = 0
-					angl_dock_headset = 0
-					dgtl_dock_headset = 0
-					usb_accessory = 0
-					usb_device = 0
-					telephony_tx = 0
-					line = 1
 					speaker = 0
 
 			conf: Speaker
