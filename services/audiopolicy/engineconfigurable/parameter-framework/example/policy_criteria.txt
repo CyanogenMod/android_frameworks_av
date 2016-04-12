@@ -7,3 +7,4 @@ ExclusiveCriterion ForceUseForRecord            :   ForceNone       ForceBtSco  
 ExclusiveCriterion ForceUseForDock              :   ForceNone       ForceWiredAccessory     ForceBtCarDock      ForceBtDeskDock     ForceAnalogDock ForceDigitalDock
 ExclusiveCriterion ForceUseForSystem            :   ForceNone       ForceSystemEnforced
 ExclusiveCriterion ForceUseForHdmiSystemAudio   :   ForceNone       ForceHdmiSystemEnforced
+ExclusiveCriterion ForceUseForEncodedSurround   :   ForceNone       ForceEncodedSurroundNever   ForceEncodedSurroundAlways

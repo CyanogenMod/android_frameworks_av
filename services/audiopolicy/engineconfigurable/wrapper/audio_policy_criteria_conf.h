@@ -61,7 +61,8 @@ static const std::string gForceUseCriterionTag[AUDIO_POLICY_FORCE_USE_CNT] =
     [AUDIO_POLICY_FORCE_FOR_RECORD] =               "ForceUseForRecord",
     [AUDIO_POLICY_FORCE_FOR_DOCK] =                 "ForceUseForDock",
     [AUDIO_POLICY_FORCE_FOR_SYSTEM] =               "ForceUseForSystem",
-    [AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO] =    "ForceUseForHdmiSystemAudio"
+    [AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO] =    "ForceUseForHdmiSystemAudio",
+    [AUDIO_POLICY_FORCE_FOR_ENCODED_SURROUND] =     "ForceUseForEncodedSurround"
 };
 
 
