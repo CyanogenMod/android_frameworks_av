@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Camera
+ * @{
+ */
+
+/**
+ * @file NdkCaptureRequest.h
+ */
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -95,3 +104,5 @@ void ACaptureRequest_free(ACaptureRequest* request);
 #endif
 
 #endif // _NDK_CAPTURE_REQUEST_H
+
+/** @} */

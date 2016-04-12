@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Camera
+ * @{
+ */
+
+/**
+ * @file NdkCameraMetadata.h
+ */
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -119,3 +128,5 @@ void ACameraMetadata_free(ACameraMetadata*);
 #endif
 
 #endif //_NDK_CAMERA_METADATA_H
+
+/** @} */
