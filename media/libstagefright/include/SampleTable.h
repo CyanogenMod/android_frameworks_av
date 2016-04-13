@@ -24,6 +24,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <utils/RefBase.h>
 #include <utils/threads.h>
+#include <utils/Vector.h>
 
 namespace android {
 
@@ -109,7 +110,7 @@ private:
     uint32_t mNumSampleSizes;
 
     uint32_t mTimeToSampleCount;
-    uint32_t *mTimeToSample;
+    Vector<uint32_t> mTimeToSample;
 
     struct SampleTimeEntry {
         uint32_t mSampleIndex;
