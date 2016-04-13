@@ -62,6 +62,7 @@
 #include <media/stagefright/foundation/ALooperRoster.h>
 #include <mediautils/BatteryNotifier.h>
 
+#include <memunreachable/memunreachable.h>
 #include <system/audio.h>
 
 #include <private/android_filesystem_config.h>
@@ -536,13 +537,22 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
         gLooperRoster.dump(fd, args);
 
         bool dumpMem = false;
+        bool unreachableMemory = false;
         for (size_t i = 0; i < args.size(); i++) {
             if (args[i] == String16("-m")) {
                 dumpMem = true;
+            } else if (args[i] == String16("--unreachable")) {
+                unreachableMemory = true;
             }
         }
         if (dumpMem) {
             dumpMemoryAddresses(fd);
+        }
+        if (unreachableMemory) {
+            result.append("\nDumping unreachable memory:\n");
+            // TODO - should limit be an argument parameter?
+            std::string s = GetUnreachableMemoryString(true /* contents */, 10000 /* limit */);
+            result.append(s.c_str(), s.size());
         }
     }
     write(fd, result.string(), result.size());
