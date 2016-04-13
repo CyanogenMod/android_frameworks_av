@@ -888,9 +888,13 @@ status_t CameraHardwareInterfaceFlashControl::disconnectCameraDevice() {
         return OK;
     }
 
-    mParameters.set(CameraParameters::KEY_FLASH_MODE,
-            CameraParameters::FLASH_MODE_OFF);
-    mDevice->setParameters(mParameters);
+    if (mParameters.get(CameraParameters::KEY_FLASH_MODE)) {
+        // There is a flash, turn if off.
+        // (If there isn't one, leave the parameter null)
+        mParameters.set(CameraParameters::KEY_FLASH_MODE,
+                CameraParameters::FLASH_MODE_OFF);
+        mDevice->setParameters(mParameters);
+    }
     mDevice->stopPreview();
     status_t res = native_window_api_disconnect(mSurface.get(),
             NATIVE_WINDOW_API_CAMERA);
