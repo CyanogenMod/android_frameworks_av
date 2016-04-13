@@ -57,12 +57,6 @@ MediaExtractor* AVFactory::createExtendedExtractor(
     return NULL;
 }
 
-MediaExtractor* AVFactory::updateExtractor(
-         MediaExtractor* ext, const sp<DataSource> &,
-         const char *, const sp<AMessage> &) {
-    return ext;
-}
-
 CameraSource* AVFactory::CreateCameraSourceFromCamera(
             const sp<hardware::ICamera> &camera,
             const sp<ICameraRecordingProxy> &proxy,

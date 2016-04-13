@@ -61,9 +61,6 @@ struct AVFactory {
     virtual sp<ACodec> createACodec();
     virtual MediaExtractor* createExtendedExtractor(
             const sp<DataSource> &source, const char *mime, const sp<AMessage> &meta);
-    virtual MediaExtractor* updateExtractor(
-            MediaExtractor* ext, const sp<DataSource> &source,
-            const char *mime, const sp<AMessage> &meta);
     virtual ElementaryStreamQueue* createESQueue(
             ElementaryStreamQueue::Mode mode, uint32_t flags = 0);
     virtual CameraSource *CreateCameraSourceFromCamera(

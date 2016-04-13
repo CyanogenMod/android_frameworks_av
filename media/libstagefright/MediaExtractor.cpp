@@ -265,15 +265,6 @@ sp<MediaExtractor> MediaExtractor::CreateFromService(
         ret = new MidiExtractor(source);
     }
 
-    ret = AVFactory::get()->updateExtractor(ret, source, mime, meta);
-    if (ret != NULL) {
-       if (isDrm) {
-           ret->setDrmFlag(true);
-       } else {
-           ret->setDrmFlag(false);
-       }
-    }
-
     return ret;
 }
 
