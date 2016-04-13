@@ -200,6 +200,14 @@ status_t Camera3Device::initialize(CameraModule *module)
     mDeviceInfo = info.static_camera_characteristics;
     mHal3Device = device;
 
+    // Determine whether we need to derive sensitivity boost values for older devices.
+    // If post-RAW sensitivity boost range is listed, so should post-raw sensitivity control
+    // be listed (as the default value 100)
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_4 &&
+            mDeviceInfo.exists(ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST_RANGE)) {
+        mDerivePostRawSensKey = true;
+    }
+
     internalUpdateStatusLocked(STATUS_UNCONFIGURED);
     mNextStreamId = 0;
     mDummyStreamId = NO_STREAM;
@@ -1310,9 +1318,19 @@ status_t Camera3Device::createDefaultRequest(int templateId,
               __FUNCTION__, templateId);
         return BAD_VALUE;
     }
-    *request = rawRequest;
+
     mRequestTemplateCache[templateId] = rawRequest;
 
+    // Derive some new keys for backward compatibility
+    if (mDerivePostRawSensKey && !mRequestTemplateCache[templateId].exists(
+            ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST)) {
+        int32_t defaultBoost[1] = {100};
+        mRequestTemplateCache[templateId].update(
+                ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST,
+                defaultBoost, 1);
+    }
+
+    *request = mRequestTemplateCache[templateId];
     return OK;
 }
 
@@ -2254,6 +2272,15 @@ void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
     // Append any previous partials to form a complete result
     if (mUsePartialResult && !collectedPartialResult.isEmpty()) {
         captureResult.mMetadata.append(collectedPartialResult);
+    }
+
+    // Derive some new keys for backward compaibility
+    if (mDerivePostRawSensKey && !captureResult.mMetadata.exists(
+            ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST)) {
+        int32_t defaultBoost[1] = {100};
+        captureResult.mMetadata.update(
+                ANDROID_CONTROL_POST_RAW_SENSITIVITY_BOOST,
+                defaultBoost, 1);
     }
 
     captureResult.mMetadata.sort();
