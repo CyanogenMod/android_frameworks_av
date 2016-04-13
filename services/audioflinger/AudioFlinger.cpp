@@ -31,6 +31,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <binder/Parcel.h>
+#include <memunreachable/memunreachable.h>
 #include <utils/String16.h>
 #include <utils/threads.h>
 #include <utils/Atomic.h>
@@ -461,6 +462,21 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
                 Vector<String16> args;
                 binder->dump(fd, args);
             }
+        }
+
+        // check for optional arguments
+        bool unreachableMemory = false;
+        for (const auto &arg : args) {
+            if (arg == String16("--unreachable")) {
+                unreachableMemory = true;
+            }
+        }
+
+        if (unreachableMemory) {
+            dprintf(fd, "\nDumping unreachable memory:\n");
+            // TODO - should limit be an argument parameter?
+            std::string s = GetUnreachableMemoryString(true /* contents */, 10000 /* limit */);
+            write(fd, s.c_str(), s.size());
         }
     }
     return NO_ERROR;
