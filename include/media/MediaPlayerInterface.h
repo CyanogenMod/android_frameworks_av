@@ -104,6 +104,7 @@ public:
         virtual audio_session_t getSessionId() const = 0;
         virtual audio_stream_type_t getAudioStreamType() const = 0;
         virtual uint32_t    getSampleRate() const = 0;
+        virtual int64_t     getBufferDurationInUs() const = 0;
 
         // If no callback is specified, use the "write" API below to submit
         // audio data.

@@ -333,6 +333,10 @@ public:
      */
             ssize_t     getBufferSizeInFrames();
 
+    /* Returns the buffer duration in microseconds at current playback rate.
+     */
+            status_t    getBufferDurationInUs(int64_t *duration);
+
     /* Set the effective size of audio buffer that an application writes to.
      * This is used to determine the amount of available room in the buffer,
      * which determines when a write will block.
