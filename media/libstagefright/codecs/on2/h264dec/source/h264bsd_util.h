@@ -141,7 +141,7 @@
 /* macro to allocate memory */
 #define ALLOCATE(ptr, count, type) \
 { \
-    (ptr) = H264SwDecMalloc((count) * sizeof(type)); \
+    (ptr) = H264SwDecMalloc(sizeof(type), (count)); \
 }
 
 /* macro to free allocated memory */
