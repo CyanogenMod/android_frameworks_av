@@ -85,7 +85,7 @@ int main(int argc, char **argv)
     rewind(finput);
 
     /* allocate memory for stream buffer, exit if unsuccessful */
-    byteStrm = byteStrmStart = (u8 *)H264SwDecMalloc(sizeof(u8)*strmLen);
+    byteStrm = byteStrmStart = (u8 *)H264SwDecMalloc(sizeof(u8), strmLen);
     if (byteStrm == NULL)
     {
         printf("UNABLE TO ALLOCATE MEMORY\n");
@@ -298,9 +298,12 @@ void H264SwDecTrace(char *string)
         library function malloc for allocation of memory.
 
 ------------------------------------------------------------------------------*/
-void* H264SwDecMalloc(u32 size)
+void* H264SwDecMalloc(u32 size, u32 num)
 {
-    return malloc(size);
+    if (size > UINT32_MAX / num) {
+        return NULL;
+    }
+    return malloc(size * num);
 }
 
 /*------------------------------------------------------------------------------
