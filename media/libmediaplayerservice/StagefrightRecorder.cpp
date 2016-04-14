@@ -1793,6 +1793,7 @@ status_t StagefrightRecorder::stop() {
         mWriter.clear();
     }
     mTotalPausedDurationUs = 0;
+    mPauseStartTimeUs = 0;
 
     mGraphicBufferProducer.clear();
     mPersistentSurface.clear();
@@ -1873,7 +1874,6 @@ status_t StagefrightRecorder::reset() {
     mTotalBitRate = 0;
 
     mOutputFd = -1;
-    mPauseStartTimeUs = 0;
 
     return OK;
 }
