@@ -216,13 +216,15 @@ String8 ExtractorInstance::toString() const {
     return str;
 }
 
-static Vector<ExtractorInstance> extractors;
+static Vector<ExtractorInstance> sExtractors;
+static Mutex sExtractorsLock;
 
 void registerMediaSource(
         const sp<IMediaExtractor> &ex,
         const sp<IMediaSource> &source) {
-    for (size_t i = 0; i < extractors.size(); i++) {
-        ExtractorInstance &instance = extractors.editItemAt(i);
+    Mutex::Autolock lock(sExtractorsLock);
+    for (size_t i = 0; i < sExtractors.size(); i++) {
+        ExtractorInstance &instance = sExtractors.editItemAt(i);
         sp<IMediaExtractor> extractor = instance.extractor.promote();
         if (extractor != NULL && extractor == ex) {
             if (instance.tracks.size() > 5) {
@@ -246,19 +248,25 @@ void registerMediaExtractor(
     ex.owner = IPCThreadState::self()->getCallingPid();
     ex.extractor = extractor;
 
-    if (extractors.size() > 10) {
-        extractors.resize(10);
+    {
+        Mutex::Autolock lock(sExtractorsLock);
+        if (sExtractors.size() > 10) {
+            sExtractors.resize(10);
+        }
+        sExtractors.push_front(ex);
     }
-    extractors.push_front(ex);
 }
 
 status_t dumpExtractors(int fd, const Vector<String16>&) {
     String8 out;
     out.append("Recent extractors, most recent first:\n");
-    for (size_t i = 0; i < extractors.size(); i++) {
-        const ExtractorInstance &instance = extractors.itemAt(i);
-        out.append("  ");
-        out.append(instance.toString());
+    {
+        Mutex::Autolock lock(sExtractorsLock);
+        for (size_t i = 0; i < sExtractors.size(); i++) {
+            const ExtractorInstance &instance = sExtractors.itemAt(i);
+            out.append("  ");
+            out.append(instance.toString());
+        }
     }
     write(fd, out.string(), out.size());
     return OK;
