@@ -49,10 +49,8 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 // Attenuation applied to STRATEGY_SONIFICATION streams when a headset is connected: 6dB
-#define SONIFICATION_HEADSET_VOLUME_FACTOR 0.5
 #define SONIFICATION_HEADSET_VOLUME_FACTOR_DB (-6)
 // Min volume for STRATEGY_SONIFICATION streams when limited by music volume: -36dB
-#define SONIFICATION_HEADSET_VOLUME_MIN  0.016
 #define SONIFICATION_HEADSET_VOLUME_MIN_DB  (-36)
 
 // Time in milliseconds during which we consider that music is still active after a music
