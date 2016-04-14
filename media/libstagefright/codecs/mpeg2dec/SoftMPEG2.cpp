@@ -74,7 +74,8 @@ SoftMPEG2::SoftMPEG2(
       mIvColorFormat(IV_YUV_420P),
       mNewWidth(mWidth),
       mNewHeight(mHeight),
-      mChangingResolution(false) {
+      mChangingResolution(false),
+      mStride(mWidth) {
     initPorts(kNumBuffers, INPUT_BUF_SIZE, kNumBuffers, CODEC_MIME_TYPE);
 
     // If input dump is enabled, then open create an empty file
@@ -201,6 +202,8 @@ status_t SoftMPEG2::resetDecoder() {
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
+
+    mStride = 0;
 
     return OK;
 }
@@ -384,7 +387,8 @@ status_t SoftMPEG2::initDecoder() {
     resetPlugin();
 
     /* Set the run time (dynamic) parameters */
-    setParams(displayStride);
+    mStride = outputBufferWidth();
+    setParams(mStride);
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
@@ -548,6 +552,12 @@ void SoftMPEG2::onQueueFilled(OMX_U32 portIndex) {
     List<BufferInfo *> &inQueue = getPortQueue(kInputPortIndex);
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
 
+    if (outputBufferWidth() != mStride) {
+        /* Set the run-time (dynamic) parameters */
+        mStride = outputBufferWidth();
+        setParams(mStride);
+    }
+
     /* If input EOS is seen and decoder is not in flush mode,
      * set the decoder in flush mode.
      * There can be a case where EOS is sent along with last picture data
@@ -686,6 +696,8 @@ void SoftMPEG2::onQueueFilled(OMX_U32 portIndex) {
                 mChangingResolution = false;
                 resetDecoder();
                 resetPlugin();
+                mStride = outputBufferWidth();
+                setParams(mStride);
                 continue;
             }
 
