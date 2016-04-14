@@ -484,6 +484,7 @@ protected:
         status_t startSource(sp<AudioOutputDescriptor> outputDesc,
                              audio_stream_type_t stream,
                              audio_devices_t device,
+                             const char *address,
                              uint32_t *delayMs);
         status_t stopSource(sp<AudioOutputDescriptor> outputDesc,
                             audio_stream_type_t stream,

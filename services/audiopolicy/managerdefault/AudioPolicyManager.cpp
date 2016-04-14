@@ -1080,8 +1080,16 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
     mOutputRoutes.incRouteActivity(session);
 
     audio_devices_t newDevice;
+    AudioMix *policyMix = NULL;
+    const char *address = NULL;
     if (outputDesc->mPolicyMix != NULL) {
-        newDevice = AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
+        policyMix = outputDesc->mPolicyMix;
+        address = policyMix->mDeviceAddress.string();
+        if ((policyMix->mRouteFlags & MIX_ROUTE_FLAG_RENDER) == MIX_ROUTE_FLAG_RENDER) {
+            newDevice = policyMix->mDeviceType;
+        } else {
+            newDevice = AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
+        }
     } else if (mOutputRoutes.hasRouteChanged(session)) {
         newDevice = getNewOutputDevice(outputDesc, false /*fromCache*/);
         checkStrategyRoute(getStrategy(stream), output);
@@ -1091,7 +1099,7 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
 
     uint32_t delayMs = 0;
 
-    status_t status = startSource(outputDesc, stream, newDevice, &delayMs);
+    status_t status = startSource(outputDesc, stream, newDevice, address, &delayMs);
 
     if (status != NO_ERROR) {
         mOutputRoutes.decRouteActivity(session);
@@ -1099,11 +1107,11 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
     }
     // Automatically enable the remote submix input when output is started on a re routing mix
     // of type MIX_TYPE_RECORDERS
-    if (audio_is_remote_submix_device(newDevice) && outputDesc->mPolicyMix != NULL &&
-            outputDesc->mPolicyMix->mMixType == MIX_TYPE_RECORDERS) {
+    if (audio_is_remote_submix_device(newDevice) && policyMix != NULL &&
+            policyMix->mMixType == MIX_TYPE_RECORDERS) {
             setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                     AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                    outputDesc->mPolicyMix->mDeviceAddress,
+                    address,
                     "remote-submix");
     }
 
@@ -1117,6 +1125,7 @@ status_t AudioPolicyManager::startOutput(audio_io_handle_t output,
 status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
                                              audio_stream_type_t stream,
                                              audio_devices_t device,
+                                             const char *address,
                                              uint32_t *delayMs)
 {
     // cannot start playback of STREAM_TTS if any other output is being used
@@ -1173,7 +1182,7 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
                 }
             }
         }
-        uint32_t muteWaitMs = setOutputDevice(outputDesc, device, force);
+        uint32_t muteWaitMs = setOutputDevice(outputDesc, device, force, 0, NULL, address);
 
         // handle special case for sonification while in call
         if (isInCall()) {
@@ -2097,7 +2106,6 @@ status_t AudioPolicyManager::registerPolicyMixes(Vector<AudioMix> mixes)
                         && (patch->mPatch.sinks[0].ext.device.type == device)
                         && (strncmp(patch->mPatch.sinks[0].ext.device.address, address.string(),
                                 AUDIO_DEVICE_MAX_ADDRESS_LEN) == 0)) {
-
                     if (mPolicyMixes.registerMix(address, mixes[i], desc) != NO_ERROR) {
                         res = INVALID_OPERATION;
                     } else {
@@ -2976,7 +2984,7 @@ status_t AudioPolicyManager::connectAudioSource(const sp<AudioSourceDescriptor>&
             return INVALID_OPERATION;
         }
         uint32_t delayMs = 0;
-        status = startSource(outputDesc, stream, sinkDevice, &delayMs);
+        status = startSource(outputDesc, stream, sinkDevice, NULL, &delayMs);
 
         if (status != NO_ERROR) {
             mpClientInterface->releaseAudioPatch(sourceDesc->mPatchDesc->mAfPatchHandle, 0);
@@ -3200,6 +3208,10 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
             }
             sp<SwAudioOutputDescriptor> outputDesc = new SwAudioOutputDescriptor(outProfile,
                                                                                  mpClientInterface);
+            const DeviceVector &supportedDevices = outProfile->getSupportedDevices();
+            const DeviceVector &devicesForType = supportedDevices.getDevicesFromType(profileType);
+            String8 address = devicesForType.size() > 0 ? devicesForType.itemAt(0)->mAddress
+                    : String8("");
 
             outputDesc->mDevice = profileType;
             audio_config_t config = AUDIO_CONFIG_INITIALIZER;
@@ -3211,7 +3223,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                                                             &output,
                                                             &config,
                                                             &outputDesc->mDevice,
-                                                            String8(""),
+                                                            address,
                                                             &outputDesc->mLatency,
                                                             outputDesc->mFlags);
 
@@ -3224,7 +3236,6 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 outputDesc->mChannelMask = config.channel_mask;
                 outputDesc->mFormat = config.format;
 
-                const DeviceVector &supportedDevices = outProfile->getSupportedDevices();
                 for (size_t k = 0; k  < supportedDevices.size(); k++) {
                     ssize_t index = mAvailableOutputDevices.indexOf(supportedDevices[k]);
                     // give a valid ID to an attached device once confirmed it is reachable
@@ -3239,7 +3250,10 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
                 addOutput(output, outputDesc);
                 setOutputDevice(outputDesc,
                                 outputDesc->mDevice,
-                                true);
+                                true,
+                                0,
+                                NULL,
+                                address.string());
             }
         }
         // open input streams needed to access attached devices to validate
@@ -4614,9 +4628,13 @@ uint32_t AudioPolicyManager::setOutputDevice(const sp<AudioOutputDescriptor>& ou
     if (device == AUDIO_DEVICE_NONE) {
         resetOutputDevice(outputDesc, delayMs, NULL);
     } else {
-        DeviceVector deviceList = (address == NULL) ?
-                mAvailableOutputDevices.getDevicesFromType(device)
-                : mAvailableOutputDevices.getDevicesFromTypeAddr(device, String8(address));
+        DeviceVector deviceList;
+        if ((address == NULL) || (strlen(address) == 0)) {
+            deviceList = mAvailableOutputDevices.getDevicesFromType(device);
+        } else {
+            deviceList = mAvailableOutputDevices.getDevicesFromTypeAddr(device, String8(address));
+        }
+
         if (!deviceList.isEmpty()) {
             struct audio_patch patch;
             outputDesc->toAudioPortConfig(&patch.sources[0]);
