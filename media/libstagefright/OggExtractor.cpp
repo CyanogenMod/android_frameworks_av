@@ -713,6 +713,7 @@ status_t MyOggExtractor::_readNextPacket(MediaBuffer **out, bool calcVorbisTimes
                     packetSize);
 
             if (n < (ssize_t)packetSize) {
+                buffer->release();
                 ALOGV("failed to read %zu bytes at %#016llx, got %zd bytes",
                         packetSize, (long long)dataOffset, n);
                 return ERROR_IO;
