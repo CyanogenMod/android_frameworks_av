@@ -2807,6 +2807,11 @@ bool Camera3Device::RequestThread::isRepeatingRequestLocked(const sp<CaptureRequ
 
 status_t Camera3Device::RequestThread::clearRepeatingRequests(/*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
+    return clearRepeatingRequestsLocked(lastFrameNumber);
+
+}
+
+status_t Camera3Device::RequestThread::clearRepeatingRequestsLocked(/*out*/int64_t *lastFrameNumber) {
     mRepeatingRequests.clear();
     if (lastFrameNumber != NULL) {
         *lastFrameNumber = mRepeatingLastFrameNumber;
@@ -2961,6 +2966,22 @@ void Camera3Device::overrideResultForPrecaptureCancel(
     }
 }
 
+void Camera3Device::RequestThread::checkAndStopRepeatingRequest() {
+    Mutex::Autolock l(mRequestLock);
+    // Check all streams needed by repeating requests are still valid. Otherwise, stop
+    // repeating requests.
+    for (const auto& request : mRepeatingRequests) {
+        for (const auto& s : request->mOutputStreams) {
+            if (s->isAbandoned()) {
+                int64_t lastFrameNumber = 0;
+                clearRepeatingRequestsLocked(&lastFrameNumber);
+                mListener->notifyRepeatingRequestError(lastFrameNumber);
+                return;
+            }
+        }
+    }
+}
+
 bool Camera3Device::RequestThread::threadLoop() {
     ATRACE_CALL();
     status_t res;
@@ -2992,6 +3013,8 @@ bool Camera3Device::RequestThread::threadLoop() {
     if (res == TIMED_OUT) {
         // Not a fatal error if getting output buffers time out.
         cleanUpFailedRequests(/*sendRequestError*/ true);
+        // Check if any stream is abandoned.
+        checkAndStopRepeatingRequest();
         return true;
     } else if (res != OK) {
         cleanUpFailedRequests(/*sendRequestError*/ false);

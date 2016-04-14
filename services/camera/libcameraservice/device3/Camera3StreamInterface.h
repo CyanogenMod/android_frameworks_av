@@ -262,6 +262,11 @@ class Camera3StreamInterface : public virtual RefBase {
     virtual status_t disconnect() = 0;
 
     /**
+     * Return if the buffer queue of the stream is abandoned.
+     */
+    virtual bool isAbandoned() const = 0;
+
+    /**
      * Debug dump of the stream's state.
      */
     virtual void     dump(int fd, const Vector<String16> &args) const = 0;

@@ -36,7 +36,10 @@ interface ICameraDeviceUser
      * Cancel the repeating request specified by requestId
      * Returns the frame number of the last frame that will be produced from this
      * repeating request, or NO_IN_FLIGHT_REPEATING_FRAMES if no frames were produced
-     * by this repeating request
+     * by this repeating request.
+     *
+     * Repeating request may be stopped by camera device due to an error. Canceling a stopped
+     * repeating request will trigger ERROR_ILLEGAL_ARGUMENT.
      */
     long cancelRequest(int requestId);
 

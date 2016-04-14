@@ -323,6 +323,11 @@ bool Camera3Stream::isPreparing() const {
     return mState == STATE_PREPARING;
 }
 
+bool Camera3Stream::isAbandoned() const {
+    Mutex::Autolock l(mLock);
+    return mState == STATE_ABANDONED;
+}
+
 status_t Camera3Stream::prepareNextBuffer() {
     ATRACE_CALL();
 

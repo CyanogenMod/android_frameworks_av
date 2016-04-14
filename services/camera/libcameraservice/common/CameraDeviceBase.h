@@ -209,6 +209,7 @@ class CameraDeviceBase : public virtual RefBase {
         virtual void notifyAutoExposure(uint8_t newState, int triggerId) = 0;
         virtual void notifyAutoWhitebalance(uint8_t newState,
                 int triggerId) = 0;
+        virtual void notifyRepeatingRequestError(long lastFrameNumber) = 0;
       protected:
         virtual ~NotificationListener();
     };

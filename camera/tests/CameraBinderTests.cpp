@@ -149,7 +149,8 @@ public:
         PREPARED,
         RUNNING,
         SENT_RESULT,
-        UNINITIALIZED
+        UNINITIALIZED,
+        REPEATING_REQUEST_ERROR,
     };
 
 protected:
@@ -210,6 +211,15 @@ public:
         (void) streamId;
         Mutex::Autolock l(mLock);
         mLastStatus = PREPARED;
+        mStatusesHit.push_back(mLastStatus);
+        mStatusCondition.broadcast();
+        return binder::Status::ok();
+    }
+
+    virtual binder::Status onRepeatingRequestError(int64_t lastFrameNumber) {
+        (void) lastFrameNumber;
+        Mutex::Autolock l(mLock);
+        mLastStatus = REPEATING_REQUEST_ERROR;
         mStatusesHit.push_back(mLastStatus);
         mStatusCondition.broadcast();
         return binder::Status::ok();

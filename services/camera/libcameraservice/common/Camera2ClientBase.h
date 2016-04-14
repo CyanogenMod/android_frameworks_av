@@ -73,6 +73,7 @@ public:
     virtual void          notifyAutoWhitebalance(uint8_t newState,
                                                  int triggerId);
     virtual void          notifyPrepared(int streamId);
+    virtual void          notifyRepeatingRequestError(long lastFrameNumber);
 
     int                   getCameraId() const;
     const sp<CameraDeviceBase>&

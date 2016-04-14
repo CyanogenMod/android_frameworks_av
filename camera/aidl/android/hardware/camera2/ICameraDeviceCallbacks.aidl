@@ -37,4 +37,11 @@ interface ICameraDeviceCallbacks
     oneway void onResultReceived(in CameraMetadataNative result,
                                  in CaptureResultExtras resultExtras);
     oneway void onPrepared(int streamId);
+
+    /**
+     * Repeating request encountered an error and was stopped.
+     *
+     * @param lastFrameNumber Frame number of the last frame of the streaming request.
+     */
+    oneway void onRepeatingRequestError(in long lastFrameNumber);
 }

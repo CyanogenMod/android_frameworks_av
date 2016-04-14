@@ -95,6 +95,8 @@ namespace camera3 {
  *    STATE_PREPARING      => STATE_CONFIGURED:
  *        When sufficient prepareNextBuffer calls have been made to allocate
  *        all stream buffers, or cancelPrepare is called.
+ *    STATE_CONFIGURED     => STATE_ABANDONED:
+ *        When the buffer queue of the stream is abandoned.
  *
  * Status Tracking:
  *    Each stream is tracked by StatusTracker as a separate component,
@@ -353,6 +355,11 @@ class Camera3Stream :
     void             removeBufferListener(
             const sp<Camera3StreamBufferListener>& listener);
 
+    /**
+     * Return if the buffer queue of the stream is abandoned.
+     */
+    bool             isAbandoned() const;
+
   protected:
     const int mId;
     /**
@@ -380,7 +387,8 @@ class Camera3Stream :
         STATE_IN_CONFIG,
         STATE_IN_RECONFIG,
         STATE_CONFIGURED,
-        STATE_PREPARING
+        STATE_PREPARING,
+        STATE_ABANDONED
     } mState;
 
     mutable Mutex mLock;
