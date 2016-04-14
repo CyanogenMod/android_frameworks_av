@@ -32,6 +32,7 @@ LOCAL_SHARED_LIBRARIES :=       \
     libgui                      \
     libmedia                    \
     libmediautils               \
+    libmemunreachable           \
     libsonivox                  \
     libstagefright              \
     libstagefright_foundation   \
@@ -54,6 +55,7 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/av/include/camera                             \
     $(TOP)/frameworks/native/include/media/openmax                  \
     $(TOP)/external/tremolo/Tremolo                                 \
+    libcore/include                                                 \
 
 LOCAL_CFLAGS += -Werror -Wno-error=deprecated-declarations -Wall
 LOCAL_CLANG := true
