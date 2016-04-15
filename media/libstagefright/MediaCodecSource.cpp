@@ -664,11 +664,13 @@ status_t MediaCodecSource::onStart(MetaData *params) {
     status_t err = OK;
 
     if (mFlags & FLAG_USE_SURFACE_INPUT) {
-        auto key = kKeyTimeBoot;
+        auto key = kKeyTime;
         char value[PROPERTY_VALUE_MAX];
-        if (property_get("media.camera.ts.monotonic", value, "0") &&
-            atoi(value)) {
-            key = kKeyTime;
+        if ((!property_get("persist.camera.HAL3.enabled", value, "0") ||
+              atoi(value)) &&
+             (property_get("media.camera.ts.monotonic", value, "0") &&
+              !atoi(value))) {
+            key = kKeyTimeBoot;
         }
 
         int64_t startTimeUs;
