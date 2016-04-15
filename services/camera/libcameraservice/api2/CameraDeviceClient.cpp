@@ -75,6 +75,7 @@ CameraDeviceClient::CameraDeviceClient(const sp<CameraService>& cameraService,
     Camera2ClientBase(cameraService, remoteCallback, clientPackageName,
                 cameraId, cameraFacing, clientPid, clientUid, servicePid),
     mInputStream(),
+    mStreamingRequestId(REQUEST_ID_NONE),
     mRequestIdCounter(0) {
 
     ATRACE_CALL();
@@ -233,7 +234,7 @@ binder::Status CameraDeviceClient::submitRequestList(
             res = STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION,
                     msg.string());
         } else {
-            mStreamingRequestList.push_back(submitInfo->mRequestId);
+            mStreamingRequestId = submitInfo->mRequestId;
         }
     } else {
         err = mDevice->captureList(metadataRequestList, &(submitInfo->mLastFrameNumber));
@@ -270,17 +271,9 @@ binder::Status CameraDeviceClient::cancelRequest(
         return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
     }
 
-    Vector<int>::iterator it, end;
-    for (it = mStreamingRequestList.begin(), end = mStreamingRequestList.end();
-         it != end; ++it) {
-        if (*it == requestId) {
-            break;
-        }
-    }
-
-    if (it == end) {
-        String8 msg = String8::format("Camera %d: Did not find request ID %d in list of "
-                "streaming requests", mCameraId, requestId);
+    if (mStreamingRequestId != requestId) {
+        String8 msg = String8::format("Camera %d: Canceling request ID %d doesn't match "
+                "current request ID %d", mCameraId, requestId, mStreamingRequestId);
         ALOGE("%s: %s", __FUNCTION__, msg.string());
         return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.string());
     }
@@ -290,7 +283,7 @@ binder::Status CameraDeviceClient::cancelRequest(
     if (err == OK) {
         ALOGV("%s: Camera %d: Successfully cleared streaming request",
               __FUNCTION__, mCameraId);
-        mStreamingRequestList.erase(it);
+        mStreamingRequestId = REQUEST_ID_NONE;
     } else {
         res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
                 "Camera %d: Error clearing streaming request: %s (%d)",
@@ -767,7 +760,7 @@ binder::Status CameraDeviceClient::waitUntilIdle()
     }
 
     // FIXME: Also need check repeating burst.
-    if (!mStreamingRequestList.isEmpty()) {
+    if (mStreamingRequestId != REQUEST_ID_NONE) {
         String8 msg = String8::format(
             "Camera %d: Try to waitUntilIdle when there are active streaming requests",
             mCameraId);
@@ -799,7 +792,7 @@ binder::Status CameraDeviceClient::flush(
         return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
     }
 
-    mStreamingRequestList.clear();
+    mStreamingRequestId = REQUEST_ID_NONE;
     status_t err = mDevice->flush(lastFrameNumber);
     if (err != OK) {
         res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
@@ -980,6 +973,17 @@ void CameraDeviceClient::notifyError(int32_t errorCode,
     if (remoteCb != 0) {
         remoteCb->onDeviceError(errorCode, resultExtras);
     }
+}
+
+void CameraDeviceClient::notifyRepeatingRequestError(long lastFrameNumber) {
+    sp<hardware::camera2::ICameraDeviceCallbacks> remoteCb = getRemoteCallback();
+
+    if (remoteCb != 0) {
+        remoteCb->onRepeatingRequestError(lastFrameNumber);
+    }
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+    mStreamingRequestId = REQUEST_ID_NONE;
 }
 
 void CameraDeviceClient::notifyIdle() {

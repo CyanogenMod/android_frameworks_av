@@ -157,6 +157,13 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
         if (res != OK) {
             ALOGE("%s: Stream %d: Can't dequeue next output buffer: %s (%d)",
                     __FUNCTION__, mId, strerror(-res), res);
+
+            // Only transition to STATE_ABANDONED from STATE_CONFIGURED. (If it is STATE_PREPARING,
+            // let prepareNextBuffer handle the error.)
+            if (res == NO_INIT && mState == STATE_CONFIGURED) {
+                mState = STATE_ABANDONED;
+            }
+
             return res;
         }
     }

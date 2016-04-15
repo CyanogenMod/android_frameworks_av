@@ -160,6 +160,7 @@ public:
                              const CaptureResultExtras& resultExtras);
     virtual void notifyShutter(const CaptureResultExtras& resultExtras, nsecs_t timestamp);
     virtual void notifyPrepared(int streamId);
+    virtual void notifyRepeatingRequestError(long lastFrameNumber);
 
     /**
      * Interface used by independent components of CameraDeviceClient.
@@ -205,8 +206,9 @@ private:
         int32_t id;
     } mInputStream;
 
-    // Request ID
-    Vector<int> mStreamingRequestList;
+    // Streaming request ID
+    int32_t mStreamingRequestId;
+    static const int32_t REQUEST_ID_NONE = -1;
 
     int32_t mRequestIdCounter;
 

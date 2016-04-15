@@ -565,6 +565,9 @@ class Camera3Device :
         // ERROR state to mark them as not having valid data. mNextRequests will be cleared.
         void cleanUpFailedRequests(bool sendRequestError);
 
+        // Stop the repeating request if any of its output streams is abandoned.
+        void checkAndStopRepeatingRequest();
+
         // Pause handling
         bool               waitIfPaused();
         void               unpauseForNewRequests();
@@ -577,6 +580,9 @@ class Camera3Device :
 
         // Handle AE precapture trigger cancel for devices <= CAMERA_DEVICE_API_VERSION_3_2.
         void handleAePrecaptureCancelRequest(sp<CaptureRequest> request);
+
+        // Clear repeating requests. Must be called with mRequestLock held.
+        status_t clearRepeatingRequestsLocked(/*out*/ int64_t *lastFrameNumber = NULL);
 
         wp<Camera3Device>  mParent;
         wp<camera3::StatusTracker>  mStatusTracker;

@@ -306,6 +306,14 @@ void Camera2ClientBase<TClientBase>::notifyPrepared(int streamId) {
 }
 
 template <typename TClientBase>
+void Camera2ClientBase<TClientBase>::notifyRepeatingRequestError(long lastFrameNumber) {
+    (void)lastFrameNumber;
+
+    ALOGV("%s: Repeating request was stopped. Last frame number is %ld",
+            __FUNCTION__, lastFrameNumber);
+}
+
+template <typename TClientBase>
 int Camera2ClientBase<TClientBase>::getCameraId() const {
     return TClientBase::mCameraId;
 }

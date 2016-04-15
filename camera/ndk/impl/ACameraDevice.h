@@ -74,6 +74,7 @@ class CameraDevice final : public RefBase {
         binder::Status onResultReceived(const CameraMetadata& metadata,
                               const CaptureResultExtras& resultExtras) override;
         binder::Status onPrepared(int streamId) override;
+        binder::Status onRepeatingRequestError(int64_t lastFrameNumber) override;
       private:
         const wp<CameraDevice> mDevice;
     };

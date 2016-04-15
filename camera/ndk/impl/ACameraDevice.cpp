@@ -380,7 +380,11 @@ CameraDevice::stopRepeatingLocked() {
 
         int64_t lastFrameNumber;
         binder::Status remoteRet = mRemote->cancelRequest(repeatingSequenceId, &lastFrameNumber);
-        if (!remoteRet.isOk()) {
+        if (remoteRet.serviceSpecificErrorCode() ==
+                hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT) {
+            ALOGV("Repeating request is already stopped.");
+            return ACAMERA_OK;
+        } else if (!remoteRet.isOk()) {
             ALOGE("Stop repeating request fails in remote: %s", remoteRet.toString8().string());
             return ACAMERA_ERROR_UNKNOWN;
         }
@@ -1341,5 +1345,25 @@ CameraDevice::ServiceCallback::onPrepared(int) {
     // Prepare not yet implemented in NDK
     return binder::Status::ok();
 }
+
+binder::Status
+CameraDevice::ServiceCallback::onRepeatingRequestError(int64_t lastFrameNumber) {
+    binder::Status ret = binder::Status::ok();
+
+    sp<CameraDevice> dev = mDevice.promote();
+    if (dev == nullptr) {
+        return ret; // device has been closed
+    }
+
+    Mutex::Autolock _l(dev->mDeviceLock);
+
+    int repeatingSequenceId = dev->mRepeatingSequenceId;
+    dev->mRepeatingSequenceId = REQUEST_ID_NONE;
+
+    dev->checkRepeatingSequenceCompleteLocked(repeatingSequenceId, lastFrameNumber);
+
+    return ret;
+}
+
 
 } // namespace android
