@@ -1847,8 +1847,8 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
     // the requested device
     // - For non default requested device, currently selected device on the output is either the
     // requested device or one of the devices selected by the strategy
-    // - For default requested device (AUDIO_DEVICE_OUT_DEFAULT), apply volume only if no specific
-    // device volume value exists for currently selected device.
+    // - For default requested device (AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME), apply volume only if
+    // no specific device volume value exists for currently selected device.
     status_t status = NO_ERROR;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
@@ -1866,7 +1866,7 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
                 continue;
             }
             bool applyDefault = false;
-            if (device != AUDIO_DEVICE_OUT_DEFAULT) {
+            if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
                 curStreamDevice |= device;
             } else if (!mVolumeCurves->hasVolumeIndexForDevice(
                     stream, Volume::getDeviceForVolume(curStreamDevice))) {
@@ -1895,9 +1895,9 @@ status_t AudioPolicyManager::getStreamVolumeIndex(audio_stream_type_t stream,
     if (!audio_is_output_device(device)) {
         return BAD_VALUE;
     }
-    // if device is AUDIO_DEVICE_OUT_DEFAULT, return volume for device corresponding to
+    // if device is AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME, return volume for device corresponding to
     // the strategy the stream belongs to.
-    if (device == AUDIO_DEVICE_OUT_DEFAULT) {
+    if (device == AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
         device = getDeviceForStrategy(getStrategy(stream), true /*fromCache*/);
     }
     device = Volume::getDeviceForVolume(device);
@@ -2331,19 +2331,29 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
     size_t portsMax = *num_ports;
     *num_ports = 0;
     if (type == AUDIO_PORT_TYPE_NONE || type == AUDIO_PORT_TYPE_DEVICE) {
+        // do not report devices with type AUDIO_DEVICE_IN_STUB or AUDIO_DEVICE_OUT_STUB
+        // as they are used by stub HALs by convention
         if (role == AUDIO_PORT_ROLE_SINK || role == AUDIO_PORT_ROLE_NONE) {
-            for (size_t i = 0;
-                    i  < mAvailableOutputDevices.size() && portsWritten < portsMax; i++) {
-                mAvailableOutputDevices[i]->toAudioPort(&ports[portsWritten++]);
+            for (size_t i = 0; i < mAvailableOutputDevices.size(); i++) {
+                if (mAvailableOutputDevices[i]->type() == AUDIO_DEVICE_OUT_STUB) {
+                    continue;
+                }
+                if (portsWritten < portsMax) {
+                    mAvailableOutputDevices[i]->toAudioPort(&ports[portsWritten++]);
+                }
+                (*num_ports)++;
             }
-            *num_ports += mAvailableOutputDevices.size();
         }
         if (role == AUDIO_PORT_ROLE_SOURCE || role == AUDIO_PORT_ROLE_NONE) {
-            for (size_t i = 0;
-                    i  < mAvailableInputDevices.size() && portsWritten < portsMax; i++) {
-                mAvailableInputDevices[i]->toAudioPort(&ports[portsWritten++]);
+            for (size_t i = 0; i < mAvailableInputDevices.size(); i++) {
+                if (mAvailableInputDevices[i]->type() == AUDIO_DEVICE_IN_STUB) {
+                    continue;
+                }
+                if (portsWritten < portsMax) {
+                    mAvailableInputDevices[i]->toAudioPort(&ports[portsWritten++]);
+                }
+                (*num_ports)++;
             }
-            *num_ports += mAvailableInputDevices.size();
         }
     }
     if (type == AUDIO_PORT_TYPE_NONE || type == AUDIO_PORT_TYPE_MIX) {
