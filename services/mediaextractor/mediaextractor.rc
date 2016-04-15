@@ -3,3 +3,4 @@ service mediaextractor /system/bin/mediaextractor
     user mediaex
     group drmrpc mediadrm
     ioprio rt 4
+    writepid /dev/cpuset/foreground/tasks
