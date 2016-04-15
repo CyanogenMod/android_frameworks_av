@@ -140,6 +140,7 @@ private:
     bool mUIDValid;
     uid_t mUID;
     pid_t mPID;
+    Mutex mSourceLock;  // guard |mSource|.
     sp<Source> mSource;
     uint32_t mSourceFlags;
     sp<Surface> mSurface;
