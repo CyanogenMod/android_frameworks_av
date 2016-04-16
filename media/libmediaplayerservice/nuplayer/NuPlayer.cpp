@@ -400,14 +400,20 @@ void NuPlayer::pause() {
 }
 
 void NuPlayer::resetAsync() {
-    if (mSource != NULL) {
+    sp<Source> source;
+    {
+        Mutex::Autolock autoLock(mSourceLock);
+        source = mSource;
+    }
+
+    if (source != NULL) {
         // During a reset, the data source might be unresponsive already, we need to
         // disconnect explicitly so that reads exit promptly.
         // We can't queue the disconnect request to the looper, as it might be
         // queued behind a stuck read and never gets processed.
         // Doing a disconnect outside the looper to allows the pending reads to exit
         // (either successfully or with error).
-        mSource->disconnect();
+        source->disconnect();
     }
 
     (new AMessage(kWhatReset, this))->post();
@@ -484,6 +490,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             sp<RefBase> obj;
             CHECK(msg->findObject("source", &obj));
             if (obj != NULL) {
+                Mutex::Autolock autoLock(mSourceLock);
                 mSource = static_cast<Source *>(obj.get());
             } else {
                 err = UNKNOWN_ERROR;
@@ -1998,6 +2005,7 @@ void NuPlayer::performReset() {
     if (mSource != NULL) {
         mSource->stop();
 
+        Mutex::Autolock autoLock(mSourceLock);
         mSource.clear();
     }
 
