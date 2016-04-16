@@ -1857,7 +1857,8 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
             if (!streamsMatchForvolume(stream, (audio_stream_type_t)curStream)) {
                 continue;
             }
-            if (!desc->isStreamActive((audio_stream_type_t)curStream)) {
+            if (!(desc->isStreamActive((audio_stream_type_t)curStream) ||
+                    (isInCall() && (curStream == AUDIO_STREAM_VOICE_CALL)))) {
                 continue;
             }
             routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
