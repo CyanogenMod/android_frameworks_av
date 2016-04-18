@@ -240,6 +240,15 @@ void SoftG711::onQueueFilled(OMX_U32 /* portIndex */) {
             mSignalledError = true;
         }
 
+        if (inHeader->nFilledLen * sizeof(int16_t) > outHeader->nAllocLen) {
+            ALOGE("output buffer too small (%d).", outHeader->nAllocLen);
+            android_errorWriteLog(0x534e4554, "27793163");
+
+            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+            mSignalledError = true;
+            return;
+        }
+
         const uint8_t *inputptr = inHeader->pBuffer + inHeader->nOffset;
 
         if (mIsMLaw) {
