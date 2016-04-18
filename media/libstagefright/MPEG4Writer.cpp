@@ -2261,6 +2261,7 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
 
     HevcParameterSets paramSets;
     if (parseHEVCCodecSpecificData(data, size, paramSets) != OK) {
+        ALOGE("failed parsing codec specific data");
         return ERROR_MALFORMED;
     }
 
@@ -2271,8 +2272,9 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
         return NO_MEMORY;
     }
     status_t err = paramSets.makeHvcc((uint8_t *)mCodecSpecificData,
-            &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 5 : 2);
+            &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
     if (err != OK) {
+        ALOGE("failed constructing HVCC atom");
         return err;
     }
 
