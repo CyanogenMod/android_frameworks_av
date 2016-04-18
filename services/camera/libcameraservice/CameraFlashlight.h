@@ -203,7 +203,11 @@ class CameraHardwareInterfaceFlashControl : public FlashControlBase {
         status_t getSmallestSurfaceSize(int32_t *width, int32_t *height);
 
         // protected by mLock
-        status_t hasFlashUnitLocked(const String8& cameraId, bool *hasFlash);
+        // If this function opens camera device in order to check if it has a flash unit, the
+        // camera device will remain open if keepDeviceOpen is true and the camera device will be
+        // closed if keepDeviceOpen is false. If camera device is already open when calling this
+        // function, keepDeviceOpen is ignored.
+        status_t hasFlashUnitLocked(const String8& cameraId, bool *hasFlash, bool keepDeviceOpen);
 
         CameraModule *mCameraModule;
         const camera_module_callbacks_t *mCallbacks;

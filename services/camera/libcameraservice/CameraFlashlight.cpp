@@ -679,7 +679,8 @@ status_t CameraHardwareInterfaceFlashControl::setTorchMode(
     status_t res;
     if (enabled) {
         bool hasFlash = false;
-        res = hasFlashUnitLocked(cameraId, &hasFlash);
+        // Check if it has a flash unit and leave camera device open.
+        res = hasFlashUnitLocked(cameraId, &hasFlash, /*keepDeviceOpen*/true);
         // invalid camera?
         if (res) {
             // hasFlashUnitLocked() returns BAD_INDEX if mDevice is connected to
@@ -688,6 +689,8 @@ status_t CameraHardwareInterfaceFlashControl::setTorchMode(
         }
         // no flash unit?
         if (!hasFlash) {
+            // Disconnect camera device if it has no flash.
+            disconnectCameraDevice();
             return -ENOSYS;
         }
     } else if (mDevice == NULL || cameraId != mCameraId) {
@@ -716,21 +719,28 @@ status_t CameraHardwareInterfaceFlashControl::setTorchMode(
 status_t CameraHardwareInterfaceFlashControl::hasFlashUnit(
         const String8& cameraId, bool *hasFlash) {
     Mutex::Autolock l(mLock);
-    return hasFlashUnitLocked(cameraId, hasFlash);
+    // Close device after checking if it has a flash unit.
+    return hasFlashUnitLocked(cameraId, hasFlash, /*keepDeviceOpen*/false);
 }
 
 status_t CameraHardwareInterfaceFlashControl::hasFlashUnitLocked(
-        const String8& cameraId, bool *hasFlash) {
+        const String8& cameraId, bool *hasFlash, bool keepDeviceOpen) {
+    bool closeCameraDevice = false;
+
     if (!hasFlash) {
         return BAD_VALUE;
     }
 
     status_t res;
     if (mDevice == NULL) {
+        // Connect to camera device to query if it has a flash unit.
         res = connectCameraDevice(cameraId);
         if (res) {
             return res;
         }
+        // Close camera device only when it is just opened and the caller doesn't want to keep
+        // the camera device open.
+        closeCameraDevice = !keepDeviceOpen;
     }
 
     if (cameraId != mCameraId) {
@@ -743,6 +753,15 @@ status_t CameraHardwareInterfaceFlashControl::hasFlashUnitLocked(
         *hasFlash = true;
     } else {
         *hasFlash = false;
+    }
+
+    if (closeCameraDevice) {
+        res = disconnectCameraDevice();
+        if (res != OK) {
+            ALOGE("%s: Failed to disconnect camera device. %s (%d)", __FUNCTION__,
+                    strerror(-res), res);
+            return res;
+        }
     }
 
     return OK;
