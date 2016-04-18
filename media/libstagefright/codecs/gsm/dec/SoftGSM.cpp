@@ -228,6 +228,14 @@ void SoftGSM::onQueueFilled(OMX_U32 /* portIndex */) {
             mSignalledError = true;
         }
 
+        if (outHeader->nAllocLen < (inHeader->nFilledLen / kMSGSMFrameSize) * 320) {
+            ALOGE("output buffer is not large enough (%d).", outHeader->nAllocLen);
+            android_errorWriteLog(0x534e4554, "27793367");
+            notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
+            mSignalledError = true;
+            return;
+        }
+
         uint8_t *inputptr = inHeader->pBuffer + inHeader->nOffset;
 
         int n = mSignalledError ? 0 : DecodeGSM(mGsm,
