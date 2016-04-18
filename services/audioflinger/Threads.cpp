@@ -182,13 +182,9 @@ static const int kPriorityAudioApp = 2;
 static const int kPriorityFastMixer = 3;
 static const int kPriorityFastCapture = 3;
 
-// IAudioFlinger::createTrack() reports back to client the total size of shared memory area
-// for the track.  The client then sub-divides this into smaller buffers for its use.
-// Currently the client uses N-buffering by default, but doesn't tell us about the value of N.
-// So for now we just assume that client is double-buffered for fast tracks.
-// FIXME It would be better for client to tell AudioFlinger the value of N,
-// so AudioFlinger could allocate the right amount of memory.
-// See the client's minBufCount and mNotificationFramesAct calculations for details.
+// IAudioFlinger::createTrack() has an in/out parameter 'pFrameCount' for the total size of the
+// track buffer in shared memory.  Zero on input means to use a default value.  For fast tracks,
+// AudioFlinger derives the default from HAL buffer size and 'fast track multiplier'.
 
 // This is the default value, if not specified by property.
 static const int kFastTrackMultiplier = 2;

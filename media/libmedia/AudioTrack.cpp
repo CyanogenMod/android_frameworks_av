@@ -90,16 +90,24 @@ static inline float adjustPitch(float pitch)
 // TODO: Move to a common library
 static size_t calculateMinFrameCount(
         uint32_t afLatencyMs, uint32_t afFrameCount, uint32_t afSampleRate,
-        uint32_t sampleRate, float speed)
+        uint32_t sampleRate, float speed /*, uint32_t notificationsPerBufferReq*/)
 {
     // Ensure that buffer depth covers at least audio hardware latency
     uint32_t minBufCount = afLatencyMs / ((1000 * afFrameCount) / afSampleRate);
     if (minBufCount < 2) {
         minBufCount = 2;
     }
+#if 0
+    // The notificationsPerBufferReq parameter is not yet used for non-fast tracks,
+    // but keeping the code here to make it easier to add later.
+    if (minBufCount < notificationsPerBufferReq) {
+        minBufCount = notificationsPerBufferReq;
+    }
+#endif
     ALOGV("calculateMinFrameCount afLatency %u  afFrameCount %u  afSampleRate %u  "
-            "sampleRate %u  speed %f  minBufCount: %u",
-            afLatencyMs, afFrameCount, afSampleRate, sampleRate, speed, minBufCount);
+            "sampleRate %u  speed %f  minBufCount: %u" /*"  notificationsPerBufferReq %u"*/,
+            afLatencyMs, afFrameCount, afSampleRate, sampleRate, speed, minBufCount
+            /*, notificationsPerBufferReq*/);
     return minBufCount * sourceFramesNeededWithTimestretch(
             sampleRate, afFrameCount, afSampleRate, speed);
 }
@@ -144,7 +152,8 @@ status_t AudioTrack::getMinFrameCount(
 
     // When called from createTrack, speed is 1.0f (normal speed).
     // This is rechecked again on setting playback rate (TODO: on setting sample rate, too).
-    *frameCount = calculateMinFrameCount(afLatency, afFrameCount, afSampleRate, sampleRate, 1.0f);
+    *frameCount = calculateMinFrameCount(afLatency, afFrameCount, afSampleRate, sampleRate, 1.0f
+            /*, 0 notificationsPerBufferReq*/);
 
     // The formula above should always produce a non-zero value under normal circumstances:
     // AudioTrack.SAMPLE_RATE_HZ_MIN <= sampleRate <= AudioTrack.SAMPLE_RATE_HZ_MAX.
@@ -184,7 +193,7 @@ AudioTrack::AudioTrack(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        uint32_t notificationFrames,
+        int32_t notificationFrames,
         audio_session_t sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
@@ -215,7 +224,7 @@ AudioTrack::AudioTrack(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        uint32_t notificationFrames,
+        int32_t notificationFrames,
         audio_session_t sessionId,
         transfer_type transferType,
         const audio_offload_info_t *offloadInfo,
@@ -274,7 +283,7 @@ status_t AudioTrack::set(
         audio_output_flags_t flags,
         callback_t cbf,
         void* user,
-        uint32_t notificationFrames,
+        int32_t notificationFrames,
         const sp<IMemory>& sharedBuffer,
         bool threadCanCallJava,
         audio_session_t sessionId,
@@ -287,7 +296,7 @@ status_t AudioTrack::set(
         float maxRequiredSpeed)
 {
     ALOGV("set(): streamType %d, sampleRate %u, format %#x, channelMask %#x, frameCount %zu, "
-          "flags #%x, notificationFrames %u, sessionId %d, transferType %d, uid %d, pid %d",
+          "flags #%x, notificationFrames %d, sessionId %d, transferType %d, uid %d, pid %d",
           streamType, sampleRate, format, channelMask, frameCount, flags, notificationFrames,
           sessionId, transferType, uid, pid);
 
@@ -443,7 +452,29 @@ status_t AudioTrack::set(
     mSendLevel = 0.0f;
     // mFrameCount is initialized in createTrack_l
     mReqFrameCount = frameCount;
-    mNotificationFramesReq = notificationFrames;
+    if (notificationFrames >= 0) {
+        mNotificationFramesReq = notificationFrames;
+        mNotificationsPerBufferReq = 0;
+    } else {
+        if (!(flags & AUDIO_OUTPUT_FLAG_FAST)) {
+            ALOGE("notificationFrames=%d not permitted for non-fast track",
+                    notificationFrames);
+            return BAD_VALUE;
+        }
+        if (frameCount > 0) {
+            ALOGE("notificationFrames=%d not permitted with non-zero frameCount=%zu",
+                    notificationFrames, frameCount);
+            return BAD_VALUE;
+        }
+        mNotificationFramesReq = 0;
+        const uint32_t minNotificationsPerBuffer = 1;
+        const uint32_t maxNotificationsPerBuffer = 8;
+        mNotificationsPerBufferReq = min(maxNotificationsPerBuffer,
+                max((uint32_t) -notificationFrames, minNotificationsPerBuffer));
+        ALOGW_IF(mNotificationsPerBufferReq != (uint32_t) -notificationFrames,
+                "notificationFrames=%d clamped to the range -%u to -%u",
+                notificationFrames, minNotificationsPerBuffer, maxNotificationsPerBuffer);
+    }
     mNotificationFramesAct = 0;
     if (sessionId == AUDIO_SESSION_ALLOCATE) {
         mSessionId = (audio_session_t) AudioSystem::newAudioUniqueId(AUDIO_UNIQUE_ID_USE_SESSION);
@@ -1231,6 +1262,15 @@ status_t AudioTrack::createTrack_l()
         goto release;
     }
 
+    // TODO consider making this a member variable if there are other uses for it later
+    size_t afFrameCountHAL;
+    status = AudioSystem::getFrameCountHAL(output, &afFrameCountHAL);
+    if (status != NO_ERROR) {
+        ALOGE("getFrameCountHAL(output=%d) status %d", output, status);
+        goto release;
+    }
+    ALOG_ASSERT(afFrameCountHAL > 0);
+
     status = AudioSystem::getSamplingRate(output, &mAfSampleRate);
     if (status != NO_ERROR) {
         ALOGE("getSamplingRate(output=%d) status %d", output, status);
@@ -1303,18 +1343,30 @@ status_t AudioTrack::createTrack_l()
         // there _is_ a frameCount parameter.  We silently ignore it.
         frameCount = mSharedBuffer->size() / mFrameSize;
     } else {
-        // For fast tracks the frame count calculations and checks are done by server
-
-        if ((mFlags & AUDIO_OUTPUT_FLAG_FAST) == 0) {
+        size_t minFrameCount = 0;
+        // For fast tracks the frame count calculations and checks are mostly done by server,
+        // but we try to respect the application's request for notifications per buffer.
+        if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
+            if (mNotificationsPerBufferReq > 0) {
+                // Avoid possible arithmetic overflow during multiplication.
+                // mNotificationsPerBuffer is clamped to a small integer earlier, so it is unlikely.
+                if (mNotificationsPerBufferReq > SIZE_MAX / afFrameCountHAL) {
+                    ALOGE("Requested notificationPerBuffer=%u ignored for HAL frameCount=%zu",
+                            mNotificationsPerBufferReq, afFrameCountHAL);
+                } else {
+                    minFrameCount = afFrameCountHAL * mNotificationsPerBufferReq;
+                }
+            }
+        } else {
             // for normal tracks precompute the frame count based on speed.
             const float speed = !isPurePcmData_l() || isOffloadedOrDirect_l() ? 1.0f :
                             max(mMaxRequiredSpeed, mPlaybackRate.mSpeed);
-            const size_t minFrameCount = calculateMinFrameCount(
+            minFrameCount = calculateMinFrameCount(
                     mAfLatency, mAfFrameCount, mAfSampleRate, mSampleRate,
-                    speed);
-            if (frameCount < minFrameCount) {
-                frameCount = minFrameCount;
-            }
+                    speed /*, 0 mNotificationsPerBufferReq*/);
+        }
+        if (frameCount < minFrameCount) {
+            frameCount = minFrameCount;
         }
     }
 
@@ -1408,22 +1460,26 @@ status_t AudioTrack::createTrack_l()
     }
 
     // Make sure that application is notified with sufficient margin before underrun.
-    // The client's AudioTrack buffer is divided into n parts for purpose of wakeup by server, where
-    //  n = 1   fast track with single buffering; nBuffering is ignored
-    //  n = 2   fast track with double buffering
-    //  n = 2   normal track, (including those with sample rate conversion)
-    //  n >= 3  very high latency or very small notification interval (unused).
-    // FIXME Move the computation from client side to server side,
-    //       and allow nBuffering to be larger than 1 for OpenSL ES, like it can be for Java.
+    // The client can divide the AudioTrack buffer into sub-buffers,
+    // and expresses its desire to server as the notification frame count.
     if (mSharedBuffer == 0 && audio_is_linear_pcm(mFormat)) {
-        size_t maxNotificationFrames = frameCount;
-        if (!(trackFlags & IAudioFlinger::TRACK_FAST)) {
-            const uint32_t nBuffering = 2;
-            maxNotificationFrames /= nBuffering;
+        size_t maxNotificationFrames;
+        if (trackFlags & IAudioFlinger::TRACK_FAST) {
+            // notify every HAL buffer, regardless of the size of the track buffer
+            maxNotificationFrames = afFrameCountHAL;
+        } else {
+            // For normal tracks, use double-buffering
+            const int nBuffering = 2;
+            maxNotificationFrames = frameCount / nBuffering;
         }
         if (mNotificationFramesAct == 0 || mNotificationFramesAct > maxNotificationFrames) {
-            ALOGW("Client adjusted notificationFrames from %u to %zu for frameCount %zu",
+            if (mNotificationFramesAct == 0) {
+                ALOGD("Client defaulted notificationFrames to %zu for frameCount %zu",
+                    maxNotificationFrames, frameCount);
+            } else {
+                ALOGW("Client adjusted notificationFrames from %u to %zu for frameCount %zu",
                     mNotificationFramesAct, maxNotificationFrames, frameCount);
+            }
             mNotificationFramesAct = (uint32_t) maxNotificationFrames;
         }
     }
@@ -2043,6 +2099,7 @@ nsecs_t AudioTrack::processAudioBuffer()
                 const nsecs_t datans = mRemainingFrames <= avail ? 0 :
                         framesToNanoseconds(mRemainingFrames - avail, sampleRate, speed);
                 // audio flinger thread buffer size (TODO: adjust for fast tracks)
+                // FIXME: use mAfFrameCountHAL instead of mAfFrameCount below for fast tracks.
                 const nsecs_t afns = framesToNanoseconds(mAfFrameCount, mAfSampleRate, speed);
                 // add a half the AudioFlinger buffer time to avoid soaking CPU if datans is 0.
                 myns = datans + (afns / 2);
@@ -2203,7 +2260,8 @@ bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed) co
         return true; // static tracks do not have issues with buffer sizing.
     }
     const size_t minFrameCount =
-            calculateMinFrameCount(mAfLatency, mAfFrameCount, mAfSampleRate, sampleRate, speed);
+            calculateMinFrameCount(mAfLatency, mAfFrameCount, mAfSampleRate, sampleRate, speed
+                /*, 0 mNotificationsPerBufferReq*/);
     ALOGV("isSampleRateSpeedAllowed_l mFrameCount %zu  minFrameCount %zu",
             mFrameCount, minFrameCount);
     return mFrameCount >= minFrameCount;
