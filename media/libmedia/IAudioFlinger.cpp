@@ -81,7 +81,8 @@ enum {
     LIST_AUDIO_PATCHES,
     SET_AUDIO_PORT_CONFIG,
     GET_AUDIO_HW_SYNC,
-    SYSTEM_READY
+    SYSTEM_READY,
+    FRAME_COUNT_HAL,
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -273,6 +274,8 @@ public:
         remote()->transact(SAMPLE_RATE, data, &reply);
         return reply.readInt32();
     }
+
+    // RESERVED for channelCount()
 
     virtual audio_format_t format(audio_io_handle_t output) const
     {
@@ -911,6 +914,18 @@ public:
         data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
         return remote()->transact(SYSTEM_READY, data, &reply, IBinder::FLAG_ONEWAY);
     }
+    virtual size_t frameCountHAL(audio_io_handle_t ioHandle) const
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioFlinger::getInterfaceDescriptor());
+        data.writeInt32((int32_t) ioHandle);
+        status_t status = remote()->transact(FRAME_COUNT_HAL, data, &reply);
+        if (status != NO_ERROR) {
+            return 0;
+        }
+        return reply.readInt64();
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioFlinger, "android.media.IAudioFlinger");
@@ -993,6 +1008,9 @@ status_t BnAudioFlinger::onTransact(
             reply->writeInt32( sampleRate((audio_io_handle_t) data.readInt32()) );
             return NO_ERROR;
         } break;
+
+        // RESERVED for channelCount()
+
         case FORMAT: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             reply->writeInt32( format((audio_io_handle_t) data.readInt32()) );
@@ -1417,6 +1435,11 @@ status_t BnAudioFlinger::onTransact(
         case SYSTEM_READY: {
             CHECK_INTERFACE(IAudioFlinger, data, reply);
             systemReady();
+            return NO_ERROR;
+        } break;
+        case FRAME_COUNT_HAL: {
+            CHECK_INTERFACE(IAudioFlinger, data, reply);
+            reply->writeInt64( frameCountHAL((audio_io_handle_t) data.readInt32()) );
             return NO_ERROR;
         } break;
         default:

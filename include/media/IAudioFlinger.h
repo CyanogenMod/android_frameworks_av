@@ -103,6 +103,9 @@ public:
      * and therefore can be cached.
      */
     virtual     uint32_t    sampleRate(audio_io_handle_t ioHandle) const = 0;
+
+    // reserved; formerly channelCount()
+
     virtual     audio_format_t format(audio_io_handle_t output) const = 0;
     virtual     size_t      frameCount(audio_io_handle_t ioHandle) const = 0;
 
@@ -247,6 +250,9 @@ public:
 
     /* Indicate JAVA services are ready (scheduling, power management ...) */
     virtual status_t systemReady() = 0;
+
+    // Returns the number of frames per audio HAL buffer.
+    virtual size_t frameCountHAL(audio_io_handle_t ioHandle) const = 0;
 };
 
 

@@ -43,6 +43,8 @@ class AudioSystem
 {
 public:
 
+    // FIXME Declare in binder opcode order, similarly to IAudioFlinger.h and IAudioFlinger.cpp
+
     /* These are static methods to control the system-wide AudioFlinger
      * only privileged processes can have access to them
      */
@@ -117,8 +119,8 @@ public:
     // returns the audio HAL sample rate
     static status_t getSamplingRate(audio_io_handle_t ioHandle,
                                           uint32_t* samplingRate);
-    // returns the number of frames per audio HAL buffer. Corresponds to
-    // audio_stream->get_buffer_size()/audio_stream_out/in_frame_size()
+    // For output threads with a fast mixer, returns the number of frames per normal mixer buffer.
+    // For output threads without a fast mixer, or for input, this is same as getFrameCountHAL().
     static status_t getFrameCount(audio_io_handle_t ioHandle,
                                   size_t* frameCount);
     // returns the audio output latency in ms. Corresponds to
@@ -165,6 +167,12 @@ public:
 
     // Indicate JAVA services are ready (scheduling, power management ...)
     static status_t systemReady();
+
+    // Returns the number of frames per audio HAL buffer.
+    // Corresponds to audio_stream->get_buffer_size()/audio_stream_in_frame_size() for input.
+    // See also getFrameCount().
+    static status_t getFrameCountHAL(audio_io_handle_t ioHandle,
+                                     size_t* frameCount);
 
     // Events used to synchronize actions between audio sessions.
     // For instance SYNC_EVENT_PRESENTATION_COMPLETE can be used to delay recording start until

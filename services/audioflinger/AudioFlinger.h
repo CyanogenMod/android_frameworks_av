@@ -131,6 +131,7 @@ public:
     virtual     uint32_t    sampleRate(audio_io_handle_t ioHandle) const;
     virtual     audio_format_t format(audio_io_handle_t output) const;
     virtual     size_t      frameCount(audio_io_handle_t ioHandle) const;
+    virtual     size_t      frameCountHAL(audio_io_handle_t ioHandle) const;
     virtual     uint32_t    latency(audio_io_handle_t output) const;
 
     virtual     status_t    setMasterVolume(float value);
