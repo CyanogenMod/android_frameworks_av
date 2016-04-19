@@ -740,6 +740,13 @@ const ToneGenerator::ToneDescriptor ToneGenerator::sToneDescriptors[] = {
                         { .duration = 0 , .waveFreq = { 0 }, 0, 0}},
           .repeatCnt = ToneGenerator::TONEGEN_INF,
           .repeatSegment = 0 },                              // TONE_JAPAN_RADIO_ACK
+        { .segments = { { .duration = 400, .waveFreq = { 400, 450, 0 }, 0, 0 },
+                        { .duration = 200, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 400, .waveFreq = { 400, 450, 0 }, 0, 0 },
+                        { .duration = 2000, .waveFreq = { 0 }, 0, 0},
+                        { .duration = 0, .waveFreq = { 0 }, 0, 0}},
+          .repeatCnt = ToneGenerator::TONEGEN_INF,
+          .repeatSegment = 0 },                              // TONE_UK_RINGTONE
 
 
 
@@ -767,7 +774,18 @@ const unsigned char /*tone_type*/ ToneGenerator::sToneMappingTable[NUM_REGIONS-1
             TONE_SUP_ERROR,              // TONE_SUP_ERROR
             TONE_SUP_CALL_WAITING,       // TONE_SUP_CALL_WAITING
             TONE_SUP_RINGTONE            // TONE_SUP_RINGTONE
+        },
+        {   // UK
+            TONE_SUP_DIAL,               // TONE_SUP_DIAL
+            TONE_SUP_BUSY,               // TONE_SUP_BUSY
+            TONE_SUP_CONGESTION,         // TONE_SUP_CONGESTION
+            TONE_SUP_RADIO_ACK,          // TONE_SUP_RADIO_ACK
+            TONE_SUP_RADIO_NOTAVAIL,     // TONE_SUP_RADIO_NOTAVAIL
+            TONE_SUP_ERROR,              // TONE_SUP_ERROR
+            TONE_SUP_CALL_WAITING,       // TONE_SUP_CALL_WAITING
+            TONE_UK_RINGTONE             // TONE_SUP_RINGTONE
         }
+
 };
 
 
@@ -819,6 +837,9 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
         mRegion = ANSI;
     } else if (strcmp(value,"jp") == 0) {
         mRegion = JAPAN;
+    } else if (strcmp(value,"uk") == 0 ||
+               strcmp(value,"uk,uk") == 0) {
+        mRegion = UK;
     } else {
         mRegion = CEPT;
     }
