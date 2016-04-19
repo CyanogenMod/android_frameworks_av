@@ -86,11 +86,6 @@ public:
                              audio_stream_type_t stream,
                              int audioSession);
 
-    // For deferred release
-    status_t doReleaseOutputSessionEffects(audio_io_handle_t output,
-                                           audio_stream_type_t stream,
-                                           int audioSession);
-
     status_t doAddOutputSessionEffects(audio_io_handle_t output,
                              audio_stream_type_t stream,
                              int audioSession,

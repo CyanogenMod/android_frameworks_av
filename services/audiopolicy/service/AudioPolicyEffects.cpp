@@ -275,10 +275,11 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
         procDesc->setProcessorEnabled(true);
     }
+
     return status;
 }
 
-status_t AudioPolicyEffects::doAddOutputSessionEffects(audio_io_handle_t output,
+status_t AudioPolicyEffects::doAddOutputSessionEffects(audio_io_handle_t /* output */,
                                            audio_stream_type_t stream,
                                            int session,
                                            audio_output_flags_t flags,
@@ -288,12 +289,6 @@ status_t AudioPolicyEffects::doAddOutputSessionEffects(audio_io_handle_t output,
         return BAD_VALUE;
     }
     ALOGV("doAddOutputSessionEffects()");
-
-    // create audio processors according to stream
-    status_t status = addOutputSessionEffects(output, stream, session);
-    if (status <= 0 && (status != NO_ERROR && status != ALREADY_EXISTS)) {
-        ALOGW("Failed to add effects on session %d", session);
-    }
 
     // notify listeners
     mAudioPolicyService->onOutputSessionEffectsUpdate(stream, (audio_session_t)session,
@@ -319,42 +314,9 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     }
 
     EffectVector *procDesc = mOutputSessions.valueAt(index);
-
-    // just in case it already has a death wish
-    if (procDesc->mRefCount == 0) {
-        return NO_ERROR;
-    }
-
     procDesc->mRefCount--;
     ALOGV("releaseOutputSessionEffects(): session: %d, refCount: %d",
           audioSession, procDesc->mRefCount);
-
-    if (procDesc->mRefCount == 0) {
-        mAudioPolicyService->releaseOutputSessionEffectsDelayed(
-                output, stream, audioSession, 10000);
-    }
-
-    return status;
-}
-
-status_t AudioPolicyEffects::doReleaseOutputSessionEffects(audio_io_handle_t output,
-                         audio_stream_type_t stream,
-                         int audioSession)
-{
-    status_t status = NO_ERROR;
-    (void) output; // argument not used for now
-
-    Mutex::Autolock _l(mLock);
-    ssize_t index = mOutputSessions.indexOfKey(audioSession);
-    if (index < 0) {
-        ALOGV("doReleaseOutputSessionEffects: no output processing was attached to this stream");
-        return NO_ERROR;
-    }
-
-    EffectVector *procDesc = mOutputSessions.valueAt(index);
-    ALOGV("doReleaseOutputSessionEffects(): session: %d, refCount: %d",
-          audioSession, procDesc->mRefCount);
-
     if (procDesc->mRefCount == 0) {
         procDesc->setProcessorEnabled(false);
         procDesc->mEffects.clear();
