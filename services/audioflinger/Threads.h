@@ -247,6 +247,10 @@ public:
                 // Called by AudioFlinger::frameCount(audio_io_handle_t output) and effects,
                 // and returns the [normal mix] buffer's frame count.
     virtual     size_t      frameCount() const = 0;
+
+                // Return's the HAL's frame count i.e. fast mixer buffer size.
+                size_t      frameCountHAL() const { return mFrameCount; }
+
                 size_t      frameSize() const { return mFrameSize; }
 
     // Should be "virtual status_t requestExitAndWait()" and override same
@@ -605,9 +609,6 @@ public:
                         void     invalidateTracks(audio_stream_type_t streamType);
 
     virtual     size_t      frameCount() const { return mNormalFrameCount; }
-
-                // Return's the HAL's frame count i.e. fast mixer buffer size.
-                size_t      frameCountHAL() const { return mFrameCount; }
 
                 status_t    getTimestamp_l(AudioTimestamp& timestamp);
 

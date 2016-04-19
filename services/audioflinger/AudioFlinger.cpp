@@ -746,6 +746,17 @@ size_t AudioFlinger::frameCount(audio_io_handle_t ioHandle) const
     return thread->frameCount();
 }
 
+size_t AudioFlinger::frameCountHAL(audio_io_handle_t ioHandle) const
+{
+    Mutex::Autolock _l(mLock);
+    ThreadBase *thread = checkThread_l(ioHandle);
+    if (thread == NULL) {
+        ALOGW("frameCountHAL() unknown thread %d", ioHandle);
+        return 0;
+    }
+    return thread->frameCountHAL();
+}
+
 uint32_t AudioFlinger::latency(audio_io_handle_t output) const
 {
     Mutex::Autolock _l(mLock);
