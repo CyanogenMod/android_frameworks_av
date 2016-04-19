@@ -128,14 +128,35 @@ status_t AudioPatchCollection::listAudioPatches(unsigned int *num_patches,
 
     size_t patchesWritten = 0;
     size_t patchesMax = *num_patches;
-    for (size_t i = 0; i  < size() && patchesWritten < patchesMax; i++) {
-        const sp<AudioPatch>  patch = valueAt(i);
-        patches[patchesWritten] = patch->mPatch;
-        patches[patchesWritten++].id = patch->mHandle;
+    *num_patches = 0;
+    for (size_t patchIndex = 0; patchIndex < size(); patchIndex++) {
+        // do not report patches with AUDIO_DEVICE_IN_STUB as source or
+        // AUDIO_DEVICE_OUT_STUB as sink as those devices are used by stub HALs by convention
+        const sp<AudioPatch> patch = valueAt(patchIndex);
+        bool skip = false;
+        for (size_t srcIndex = 0; srcIndex < patch->mPatch.num_sources && !skip; srcIndex++) {
+            if (patch->mPatch.sources[srcIndex].type == AUDIO_PORT_TYPE_DEVICE &&
+                    patch->mPatch.sources[srcIndex].ext.device.type == AUDIO_DEVICE_IN_STUB) {
+                skip = true;
+            }
+        }
+        for (size_t sinkIndex = 0; sinkIndex < patch->mPatch.num_sinks && !skip; sinkIndex++) {
+            if (patch->mPatch.sinks[sinkIndex].type == AUDIO_PORT_TYPE_DEVICE &&
+                    patch->mPatch.sinks[sinkIndex].ext.device.type == AUDIO_DEVICE_OUT_STUB) {
+                skip = true;
+            }
+        }
+        if (skip) {
+            continue; // to next audio patch
+        }
+        if (patchesWritten < patchesMax) {
+            patches[patchesWritten] = patch->mPatch;
+            patches[patchesWritten++].id = patch->mHandle;
+        }
+        (*num_patches)++;
         ALOGV("listAudioPatches() patch %zu num_sources %d num_sinks %d",
-              i, patch->mPatch.num_sources, patch->mPatch.num_sinks);
+              patchIndex, patch->mPatch.num_sources, patch->mPatch.num_sinks);
     }
-    *num_patches = size();
 
     ALOGV("listAudioPatches() got %zu patches needed %d", patchesWritten, *num_patches);
     return NO_ERROR;

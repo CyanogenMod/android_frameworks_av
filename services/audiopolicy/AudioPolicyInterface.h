@@ -158,14 +158,14 @@ public:
                                       int indexMax) = 0;
 
     // sets the new stream volume at a level corresponding to the supplied index for the
-    // supplied device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT means
+    // supplied device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME means
     // setting volume for all devices
     virtual status_t setStreamVolumeIndex(audio_stream_type_t stream,
                                           int index,
                                           audio_devices_t device) = 0;
 
     // retrieve current volume index for the specified stream and the
-    // specified device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT means
+    // specified device. By convention, specifying AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME means
     // querying the volume of the active device.
     virtual status_t getStreamVolumeIndex(audio_stream_type_t stream,
                                           int *index,
