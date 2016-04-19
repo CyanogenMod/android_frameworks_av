@@ -254,10 +254,6 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
 
     case STRATEGY_TRANSMITTED_THROUGH_SPEAKER:
         device = availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER;
-        if (!device) {
-            ALOGE("getDeviceForStrategy() no device found for "\
-                    "STRATEGY_TRANSMITTED_THROUGH_SPEAKER");
-        }
         break;
 
     case STRATEGY_SONIFICATION_RESPECTFUL:
@@ -373,11 +369,6 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
                 if (device) break;
             }
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_EARPIECE;
-            if (device) break;
-            device = mApmObserver->getDefaultOutputDevice()->type();
-            if (device == AUDIO_DEVICE_NONE) {
-                ALOGE("getDeviceForStrategy() no device found for STRATEGY_PHONE");
-            }
             break;
 
         case AUDIO_POLICY_FORCE_SPEAKER:
@@ -402,11 +393,6 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
                 if (device) break;
             }
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER;
-            if (device) break;
-            device = mApmObserver->getDefaultOutputDevice()->type();
-            if (device == AUDIO_DEVICE_NONE) {
-                ALOGE("getDeviceForStrategy() no device found for STRATEGY_PHONE, FORCE_SPEAKER");
-            }
             break;
         }
     break;
@@ -431,9 +417,6 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
         if ((strategy == STRATEGY_SONIFICATION) ||
                 (mForceUse[AUDIO_POLICY_FORCE_FOR_SYSTEM] == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED)) {
             device = availableOutputDevicesType & AUDIO_DEVICE_OUT_SPEAKER;
-            if (device == AUDIO_DEVICE_NONE) {
-                ALOGE("getDeviceForStrategy() speaker device not found for STRATEGY_SONIFICATION");
-            }
         }
         // The second device used for sonification is the same as the device used by media strategy
         // FALL THROUGH
@@ -545,12 +528,6 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
                 AUDIO_POLICY_FORCE_HDMI_SYSTEM_AUDIO_ENFORCED)) {
             device &= ~AUDIO_DEVICE_OUT_SPEAKER;
         }
-
-        if (device) break;
-        device = mApmObserver->getDefaultOutputDevice()->type();
-        if (device == AUDIO_DEVICE_NONE) {
-            ALOGE("getDeviceForStrategy() no device found for STRATEGY_MEDIA");
-        }
         } break;
 
     default:
@@ -558,6 +535,12 @@ audio_devices_t Engine::getDeviceForStrategyInt(routing_strategy strategy,
         break;
     }
 
+    if (device == AUDIO_DEVICE_NONE) {
+        ALOGV("getDeviceForStrategy() no device found for strategy %d", strategy);
+        device = mApmObserver->getDefaultOutputDevice()->type();
+        ALOGE_IF(device == AUDIO_DEVICE_NONE,
+                 "getDeviceForStrategy() no default device defined");
+    }
     ALOGVV("getDeviceForStrategy() strategy %d, device %x", strategy, device);
     return device;
 }
@@ -676,6 +659,14 @@ audio_devices_t Engine::getDeviceForInputSource(audio_source_t inputSource) cons
     default:
         ALOGW("getDeviceForInputSource() invalid input source %d", inputSource);
         break;
+    }
+    if (device == AUDIO_DEVICE_NONE) {
+        ALOGV("getDeviceForInputSource() no device found for source %d", inputSource);
+        if (availableDeviceTypes & AUDIO_DEVICE_IN_STUB) {
+            device = AUDIO_DEVICE_IN_STUB;
+        }
+        ALOGE_IF(device == AUDIO_DEVICE_NONE,
+                 "getDeviceForInputSource() no default device defined");
     }
     ALOGV("getDeviceForInputSource()input source %d, device %08x", inputSource, device);
     return device;

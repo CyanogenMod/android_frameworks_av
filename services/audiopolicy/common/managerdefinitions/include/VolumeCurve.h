@@ -74,7 +74,7 @@ class VolumeCurvesForStream : public KeyedVector<device_category, sp<VolumeCurve
 public:
     VolumeCurvesForStream() : mIndexMin(0), mIndexMax(1), mCanBeMuted(true)
     {
-        mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT, 0);
+        mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME, 0);
     }
 
     sp<VolumeCurve> getCurvesFor(device_category device) const
@@ -88,9 +88,9 @@ public:
     int getVolumeIndex(audio_devices_t device) const
     {
         device = Volume::getDeviceForVolume(device);
-        // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT
+        // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME
         if (mIndexCur.indexOfKey(device) < 0) {
-            device = AUDIO_DEVICE_OUT_DEFAULT;
+            device = AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME;
         }
         return mIndexCur.valueFor(device);
     }

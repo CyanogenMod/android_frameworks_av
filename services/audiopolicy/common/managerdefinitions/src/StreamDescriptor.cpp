@@ -39,15 +39,15 @@ StreamDescriptor::StreamDescriptor()
     // Initialize the current stream's index to mIndexMax so volume isn't 0 in
     // cases where the Java layer doesn't call into the audio policy service to
     // set the default volume.
-    mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT, mIndexMax);
+    mIndexCur.add(AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME, mIndexMax);
 }
 
 int StreamDescriptor::getVolumeIndex(audio_devices_t device) const
 {
     device = Volume::getDeviceForVolume(device);
-    // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT
+    // there is always a valid entry for AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME
     if (mIndexCur.indexOfKey(device) < 0) {
-        device = AUDIO_DEVICE_OUT_DEFAULT;
+        device = AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME;
     }
     return mIndexCur.valueFor(device);
 }
