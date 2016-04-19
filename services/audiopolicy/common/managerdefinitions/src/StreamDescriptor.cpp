@@ -26,6 +26,7 @@
 
 #include "StreamDescriptor.h"
 #include "Gains.h"
+#include "policy.h"
 #include <utils/Log.h>
 #include <utils/String8.h>
 
