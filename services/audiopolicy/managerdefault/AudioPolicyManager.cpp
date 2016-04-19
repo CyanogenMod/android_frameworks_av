@@ -4881,7 +4881,9 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
     float volumeDb = mVolumeCurves->volIndexToDb(stream, Volume::getDeviceCategory(device), index);
     // if a headset is connected, apply the following rules to ring tones and notifications
     // to avoid sound level bursts in user's ears:
-    // - always attenuate ring tones and notifications volume by 6dB
+    // - always attenuate notifications volume by 6dB
+    // - attenuate ring tones volume by 6dB unless music is not playing and
+    // speaker is part of the select devices
     // - if music is playing, always limit the volume to current music volume,
     // with a minimum threshold at -36dB so that notification is always perceived.
     const routing_strategy stream_strategy = getStrategy(stream);
@@ -4895,12 +4897,12 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                 || ((stream_strategy == STRATEGY_ENFORCED_AUDIBLE) &&
                     (mEngine->getForceUse(AUDIO_POLICY_FORCE_FOR_SYSTEM) == AUDIO_POLICY_FORCE_NONE))) &&
             mVolumeCurves->canBeMuted(stream)) {
-        volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
         // when the phone is ringing we must consider that music could have been paused just before
         // by the music application and behave as if music was active if the last music track was
         // just stopped
         if (isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_HEADSET_MUSIC_DELAY) ||
                 mLimitRingtoneVolume) {
+            volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
             audio_devices_t musicDevice = getDeviceForStrategy(STRATEGY_MEDIA, true /*fromCache*/);
             float musicVolDB = computeVolume(AUDIO_STREAM_MUSIC,
                                              mVolumeCurves->getVolumeIndex(AUDIO_STREAM_MUSIC,
@@ -4912,6 +4914,9 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                 volumeDb = minVolDB;
                 ALOGV("computeVolume limiting volume to %f musicVol %f", minVolDB, musicVolDB);
             }
+        } else if ((Volume::getDeviceForVolume(device) != AUDIO_DEVICE_OUT_SPEAKER) ||
+                stream_strategy != STRATEGY_SONIFICATION) {
+            volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
         }
     }
 
