@@ -204,13 +204,6 @@ public:
 
     virtual status_t setEffectSessionCallbacksEnabled(bool enabled);
 
-    virtual status_t addOutputSessionEffects(audio_io_handle_t output,
-                                 audio_stream_type_t stream,
-                                 audio_session_t session,
-                                 audio_output_flags_t flags,
-                                 audio_channel_mask_t channelMask,
-                                 uid_t uid);
-
             status_t doStartOutput(audio_io_handle_t output,
                                    audio_stream_type_t stream,
                                    audio_session_t session);
@@ -248,10 +241,6 @@ public:
                                                 audio_output_flags_t flags,
                                                 audio_channel_mask_t channelMask,
                                                 uid_t uid, bool added);
-            void releaseOutputSessionEffectsDelayed(audio_io_handle_t output,
-                                                    audio_stream_type_t stream,
-                                                    audio_unique_id_t sessionId,
-                                                    int delayMs);
 
 private:
                         AudioPolicyService() ANDROID_API;
@@ -286,8 +275,6 @@ private:
             SET_AUDIOPORT_CONFIG,
             DYN_POLICY_MIX_STATE_UPDATE,
             EFFECT_SESSION_UPDATE,
-            RELEASE_OUTPUT_SESSION_EFFECTS,
-            ADD_OUTPUT_SESSION_EFFECTS
         };
 
         AudioCommandThread (String8 name, const wp<AudioPolicyService>& service);
@@ -335,17 +322,6 @@ private:
                                                            audio_output_flags_t flags,
                                                            audio_channel_mask_t channelMask,
                                                            uid_t uid, bool added);
-                    void        releaseOutputSessionEffectsCommand(audio_io_handle_t output,
-                                                                   audio_stream_type_t stream,
-                                                                   audio_unique_id_t sessionId,
-                                                                   int delayMs = 0);
-                    status_t    addOutputSessionEffectsCommand(audio_io_handle_t output,
-                                                                   audio_stream_type_t stream,
-                                                                   audio_session_t sessionId,
-                                                                   audio_output_flags_t flags,
-                                                                   audio_channel_mask_t channelMask,
-                                                                   uid_t uid);
-
 
     private:
         class AudioCommandData;
@@ -450,23 +426,6 @@ private:
             audio_channel_mask_t mChannelMask;
             uid_t mUid;
             bool mAdded;
-        };
-
-        class ReleaseOutputSessionEffectsData : public AudioCommandData {
-        public:
-            audio_io_handle_t mOutput;
-            audio_stream_type_t mStream;
-            audio_unique_id_t mSessionId;
-        };
-
-        class AddOutputSessionEffectsData : public AudioCommandData {
-        public:
-            audio_io_handle_t mOutput;
-            audio_stream_type_t mStream;
-            audio_session_t mSessionId;
-            audio_output_flags_t mFlags;
-            audio_channel_mask_t mChannelMask;
-            uid_t mUid;
         };
 
         Mutex   mLock;
