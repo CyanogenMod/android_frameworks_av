@@ -176,7 +176,7 @@ AudioFlinger::AudioFlinger()
       mHardwareStatus(AUDIO_HW_IDLE),
       mMasterVolume(1.0f),
       mMasterMute(false),
-      mNextUniqueId(AUDIO_UNIQUE_ID_USE_MAX),   // zero has a special meaning, so unavailable
+      // mNextUniqueId(AUDIO_UNIQUE_ID_USE_MAX),
       mMode(AUDIO_MODE_INVALID),
       mBtNrecIsOff(false),
       mIsLowRamDevice(true),
@@ -184,6 +184,12 @@ AudioFlinger::AudioFlinger()
       mGlobalEffectEnableTime(0),
       mSystemReady(false)
 {
+    // unsigned instead of audio_unique_id_use_t, because ++ operator is unavailable for enum
+    for (unsigned use = AUDIO_UNIQUE_ID_USE_UNSPECIFIED; use < AUDIO_UNIQUE_ID_USE_MAX; use++) {
+        // zero ID has a special meaning, so unavailable
+        mNextUniqueIds[use] = AUDIO_UNIQUE_ID_USE_MAX;
+    }
+
     getpid_cached = getpid();
     const bool doLog = property_get_bool("ro.test_harness", false);
     if (doLog) {
@@ -2440,13 +2446,23 @@ AudioFlinger::RecordThread *AudioFlinger::checkRecordThread_l(audio_io_handle_t 
 
 audio_unique_id_t AudioFlinger::nextUniqueId(audio_unique_id_use_t use)
 {
-    int32_t base = android_atomic_add(AUDIO_UNIQUE_ID_USE_MAX, &mNextUniqueId);
-    // We have no way of recovering from wraparound
-    LOG_ALWAYS_FATAL_IF(base == 0, "unique ID overflow");
     // This is the internal API, so it is OK to assert on bad parameter.
     LOG_ALWAYS_FATAL_IF((unsigned) use >= (unsigned) AUDIO_UNIQUE_ID_USE_MAX);
-    ALOG_ASSERT(audio_unique_id_get_use(base) == AUDIO_UNIQUE_ID_USE_UNSPECIFIED);
-    return (audio_unique_id_t) (base | use);
+    const int maxRetries = use == AUDIO_UNIQUE_ID_USE_SESSION ? 3 : 1;
+    for (int retry = 0; retry < maxRetries; retry++) {
+        // The cast allows wraparound from max positive to min negative instead of abort
+        uint32_t base = (uint32_t) atomic_fetch_add_explicit(&mNextUniqueIds[use],
+                (uint_fast32_t) AUDIO_UNIQUE_ID_USE_MAX, memory_order_acq_rel);
+        ALOG_ASSERT(audio_unique_id_get_use(base) == AUDIO_UNIQUE_ID_USE_UNSPECIFIED);
+        // allow wrap by skipping 0 and -1 for session ids
+        if (!(base == 0 || base == (~0u & ~AUDIO_UNIQUE_ID_USE_MASK))) {
+            ALOGW_IF(retry != 0, "unique ID overflow for use %d", use);
+            return (audio_unique_id_t) (base | use);
+        }
+    }
+    // We have no way of recovering from wraparound
+    LOG_ALWAYS_FATAL("unique ID overflow for use %d", use);
+    // TODO Use a floor after wraparound.  This may need a mutex.
 }
 
 AudioFlinger::PlaybackThread *AudioFlinger::primaryPlaybackThread_l() const
