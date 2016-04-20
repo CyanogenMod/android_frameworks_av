@@ -66,7 +66,8 @@ LOCAL_SHARED_LIBRARIES:= \
     libhardware \
     libsync \
     libcamera_metadata \
-    libjpeg
+    libjpeg \
+    libmemunreachable
 
 LOCAL_C_INCLUDES += \
     system/media/private/camera/include \
