@@ -104,6 +104,8 @@ sp<AudioIoDescriptor> AudioSystem::getIoDescriptor(audio_io_handle_t ioHandle)
     return DEAD_OBJECT;
 }
 
+// FIXME Declare in binder opcode order, similarly to IAudioFlinger.h and IAudioFlinger.cpp
+
 status_t AudioSystem::muteMicrophone(bool state)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
@@ -429,6 +431,27 @@ status_t AudioSystem::systemReady()
     return af->systemReady();
 }
 
+status_t AudioSystem::getFrameCountHAL(audio_io_handle_t ioHandle,
+                                       size_t* frameCount)
+{
+    const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+    if (af == 0) return PERMISSION_DENIED;
+    sp<AudioIoDescriptor> desc = getIoDescriptor(ioHandle);
+    if (desc == 0) {
+        *frameCount = af->frameCountHAL(ioHandle);
+    } else {
+        *frameCount = desc->mFrameCountHAL;
+    }
+    if (*frameCount == 0) {
+        ALOGE("AudioSystem::getFrameCountHAL failed for ioHandle %d", ioHandle);
+        return BAD_VALUE;
+    }
+
+    ALOGV("getFrameCountHAL() ioHandle %d, frameCount %zu", ioHandle, *frameCount);
+
+    return NO_ERROR;
+}
+
 // ---------------------------------------------------------------------------
 
 
@@ -528,10 +551,10 @@ void AudioSystem::AudioFlingerClient::ioConfigChanged(audio_io_config_event even
                 }
             }
             ALOGV("ioConfigChanged() new config for %s %d samplingRate %u, format %#x "
-                    "channel mask %#x frameCount %zu deviceId %d",
+                    "channel mask %#x frameCount %zu frameCountHAL %zu deviceId %d",
                     event == AUDIO_OUTPUT_CONFIG_CHANGED ? "output" : "input",
                     ioDesc->mIoHandle, ioDesc->mSamplingRate, ioDesc->mFormat,
-                    ioDesc->mChannelMask, ioDesc->mFrameCount, ioDesc->getDeviceId());
+                    ioDesc->mChannelMask, ioDesc->mFrameCount, ioDesc->mFrameCountHAL, ioDesc->getDeviceId());
 
         } break;
         }

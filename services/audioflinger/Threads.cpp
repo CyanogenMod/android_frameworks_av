@@ -2153,6 +2153,7 @@ void AudioFlinger::PlaybackThread::ioConfigChanged(audio_io_config_event event, 
         desc->mFormat = mFormat;
         desc->mFrameCount = mNormalFrameCount; // FIXME see
                                              // AudioFlinger::frameCount(audio_io_handle_t)
+        desc->mFrameCountHAL = mFrameCount;
         desc->mLatency = latency_l();
         break;
 
@@ -7117,6 +7118,7 @@ void AudioFlinger::RecordThread::ioConfigChanged(audio_io_config_event event, pi
         desc->mSamplingRate = mSampleRate;
         desc->mFormat = mFormat;
         desc->mFrameCount = mFrameCount;
+        desc->mFrameCountHAL = mFrameCount;
         desc->mLatency = 0;
         break;
 
