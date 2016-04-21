@@ -291,7 +291,15 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(audio_devices_t device,
 audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devices_t device,
                                                                       const char *device_address)
 {
-    sp<DeviceDescriptor> devDesc = mHwModules.getDeviceDescriptor(device, device_address, "");
+    sp<DeviceDescriptor> devDesc =
+            mHwModules.getDeviceDescriptor(device, device_address, "",
+                                           (strlen(device_address) != 0)/*matchAddress*/);
+
+    if (devDesc == 0) {
+        ALOGW("getDeviceConnectionState() undeclared device, type %08x, address: %s",
+              device, device_address);
+        return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
+    }
 
     DeviceVector *deviceVector;
 
@@ -303,7 +311,9 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
         ALOGW("getDeviceConnectionState() invalid device type %08x", device);
         return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
-    return deviceVector->getDeviceConnectionState(devDesc);
+
+    return (deviceVector->getDevice(device, String8(device_address)) != 0) ?
+            AUDIO_POLICY_DEVICE_STATE_AVAILABLE : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
 }
 
 void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs)

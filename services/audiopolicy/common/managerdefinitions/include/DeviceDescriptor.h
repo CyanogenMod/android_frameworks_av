@@ -84,8 +84,6 @@ public:
 
     audio_devices_t getDevicesFromHwModule(audio_module_handle_t moduleHandle) const;
 
-    audio_policy_dev_state_t getDeviceConnectionState(const sp<DeviceDescriptor> &devDesc) const;
-
     status_t dump(int fd, const String8 &tag, int spaces = 0, bool verbose = true) const;
 
 private:
