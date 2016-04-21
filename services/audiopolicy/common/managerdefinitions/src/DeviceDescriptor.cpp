@@ -219,12 +219,6 @@ status_t DeviceVector::dump(int fd, const String8 &tag, int spaces, bool verbose
     return NO_ERROR;
 }
 
-audio_policy_dev_state_t DeviceVector::getDeviceConnectionState(const sp<DeviceDescriptor> &devDesc) const
-{
-    ssize_t index = indexOf(devDesc);
-    return index >= 0 ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
-}
-
 void DeviceDescriptor::toAudioPortConfig(struct audio_port_config *dstConfig,
                                          const struct audio_port_config *srcConfig) const
 {
