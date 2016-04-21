@@ -1722,10 +1722,16 @@ void NuPlayer::Renderer::startAudioOffloadPauseTimeout() {
 }
 
 void NuPlayer::Renderer::cancelAudioOffloadPauseTimeout() {
-    if (offloadingAudio()) {
-        mWakeLock->release(true);
-        ++mAudioOffloadPauseTimeoutGeneration;
-    }
+    // We may have called startAudioOffloadPauseTimeout() without
+    // the AudioSink open and with offloadingAudio enabled.
+    //
+    // When we cancel, it may be that offloadingAudio is subsequently disabled, so regardless
+    // we always release the wakelock and increment the pause timeout generation.
+    //
+    // Note: The acquired wakelock prevents the device from suspending
+    // immediately after offload pause (in case a resume happens shortly thereafter).
+    mWakeLock->release(true);
+    ++mAudioOffloadPauseTimeoutGeneration;
 }
 
 status_t NuPlayer::Renderer::onOpenAudioSink(
