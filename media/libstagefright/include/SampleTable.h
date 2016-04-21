@@ -111,6 +111,7 @@ private:
     uint32_t mDefaultSampleSize;
     uint32_t mNumSampleSizes;
 
+    bool mHasTimeToSample;
     uint32_t mTimeToSampleCount;
     Vector<uint32_t> mTimeToSample;
 
