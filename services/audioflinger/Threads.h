@@ -913,7 +913,7 @@ private:
 public:
     virtual     bool        hasFastMixer() const { return mFastMixer != 0; }
     virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const {
-                              ALOG_ASSERT(fastIndex < FastMixerState::kMaxFastTracks);
+                              ALOG_ASSERT(fastIndex < FastMixerState::sMaxFastTracks);
                               return mFastMixerDumpState.mTracks[fastIndex].mUnderruns;
                             }
 

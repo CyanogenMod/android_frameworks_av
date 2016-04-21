@@ -77,7 +77,7 @@ FastMixer::FastMixer() : FastThread(),
     mSinkChannelMask = audio_channel_out_mask_from_count(mSinkChannelCount);
 
     unsigned i;
-    for (i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
+    for (i = 0; i < FastMixerState::sMaxFastTracks; ++i) {
         mFastTrackNames[i] = -1;
         mGenerations[i] = 0;
     }
@@ -187,7 +187,7 @@ void FastMixer::onStateChange()
             // FIXME new may block for unbounded time at internal mutex of the heap
             //       implementation; it would be better to have normal mixer allocate for us
             //       to avoid blocking here and to prevent possible priority inversion
-            mMixer = new AudioMixer(frameCount, mSampleRate, FastMixerState::kMaxFastTracks);
+            mMixer = new AudioMixer(frameCount, mSampleRate, FastMixerState::sMaxFastTracks);
             const size_t mixerFrameSize = mSinkChannelCount
                     * audio_bytes_per_sample(mMixerBufferFormat);
             mMixerBufferSize = mixerFrameSize * frameCount;
@@ -214,7 +214,7 @@ void FastMixer::onStateChange()
         }
         mMixerBufferState = UNDEFINED;
 #if !LOG_NDEBUG
-        for (unsigned i = 0; i < FastMixerState::kMaxFastTracks; ++i) {
+        for (unsigned i = 0; i < FastMixerState::sMaxFastTracks; ++i) {
             mFastTrackNames[i] = -1;
         }
 #endif
