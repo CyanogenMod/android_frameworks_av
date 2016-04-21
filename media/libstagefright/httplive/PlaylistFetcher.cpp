@@ -368,9 +368,13 @@ status_t PlaylistFetcher::decryptBuffer(
         AString iv;
         if (itemMeta->findString("cipher-iv", &iv)) {
             if ((!iv.startsWith("0x") && !iv.startsWith("0X"))
-                    || iv.size() != 16 * 2 + 2) {
+                    || iv.size() > 16 * 2 + 2) {
                 ALOGE("malformed cipher IV '%s'.", iv.c_str());
                 return ERROR_MALFORMED;
+            }
+
+            while (iv.size() < 16 * 2 + 2) {
+                iv.insert("0", 1, 2);
             }
 
             memset(mAESInitVec, 0, sizeof(mAESInitVec));
