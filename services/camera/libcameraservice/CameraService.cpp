@@ -41,6 +41,7 @@
 #include <cutils/properties.h>
 #include <gui/Surface.h>
 #include <hardware/hardware.h>
+#include <memunreachable/memunreachable.h>
 #include <media/AudioSystem.h>
 #include <media/IMediaHTTPService.h>
 #include <media/mediaplayer.h>
@@ -2595,16 +2596,32 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         write(fd, "\n", 1);
         camera3::CameraTraces::dump(fd, args);
 
-        // change logging level
+        // Process dump arguments, if any
         int n = args.size();
-        for (int i = 0; i + 1 < n; i++) {
-            String16 verboseOption("-v");
+        String16 verboseOption("-v");
+        String16 unreachableOption("--unreachable");
+        for (int i = 0; i < n; i++) {
             if (args[i] == verboseOption) {
+                // change logging level
+                if (i + 1 >= n) continue;
                 String8 levelStr(args[i+1]);
                 int level = atoi(levelStr.string());
                 result = String8::format("\nSetting log level to %d.\n", level);
                 setLogLevel(level);
                 write(fd, result.string(), result.size());
+            } else if (args[i] == unreachableOption) {
+                // Dump memory analysis
+                // TODO - should limit be an argument parameter?
+                UnreachableMemoryInfo info;
+                bool success = GetUnreachableMemory(info, /*limit*/ 10000);
+                if (!success) {
+                    dprintf(fd, "\nUnable to dump unreachable memory. "
+                            "Try disabling SELinux enforcement.\n");
+                } else {
+                    dprintf(fd, "\nDumping unreachable memory:\n");
+                    std::string s = info.ToString(/*log_contents*/ true);
+                    write(fd, s.c_str(), s.size());
+                }
             }
         }
     }
