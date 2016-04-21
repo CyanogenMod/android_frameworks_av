@@ -344,7 +344,7 @@ protected:
             ssize_t *index = NULL);
 
     virtual status_t setComponentRole(bool isEncoder, const char *mime);
-    static const char *getComponentRole(bool isEncoder, const char *mime);
+    virtual const char *getComponentRole(bool isEncoder, const char *mime);
     static status_t setComponentRole(
             const sp<IOMX> &omx, IOMX::node_id node, const char *role);
     virtual status_t configureCodec(const char *mime, const sp<AMessage> &msg);
