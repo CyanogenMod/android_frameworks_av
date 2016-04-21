@@ -122,7 +122,7 @@ SampleTable::SampleTable(const sp<DataSource> &source)
       mDefaultSampleSize(0),
       mNumSampleSizes(0),
       mTimeToSampleCount(0),
-      mTimeToSample(NULL),
+      mTimeToSample(),
       mSampleTimeEntries(NULL),
       mCompositionTimeDeltaEntries(NULL),
       mNumCompositionTimeDeltaEntries(0),
@@ -151,9 +151,6 @@ SampleTable::~SampleTable() {
     delete[] mSampleTimeEntries;
     mSampleTimeEntries = NULL;
 
-    delete[] mTimeToSample;
-    mTimeToSample = NULL;
-
     delete mSampleIterator;
     mSampleIterator = NULL;
 }
@@ -162,7 +159,7 @@ bool SampleTable::isValid() const {
     return mChunkOffsetOffset >= 0
         && mSampleToChunkOffset >= 0
         && mSampleSizeOffset >= 0
-        && mTimeToSample != NULL;
+        && !mTimeToSample.empty();
 }
 
 status_t SampleTable::setChunkOffsetParams(
@@ -327,7 +324,7 @@ status_t SampleTable::setSampleSizeParams(
 
 status_t SampleTable::setTimeToSampleParams(
         off64_t data_offset, size_t data_size) {
-    if (mTimeToSample != NULL || data_size < 8) {
+    if (!mTimeToSample.empty() || data_size < 8) {
         return ERROR_MALFORMED;
     }
 
@@ -343,24 +340,30 @@ status_t SampleTable::setTimeToSampleParams(
     }
 
     mTimeToSampleCount = U32_AT(&header[4]);
-    uint64_t allocSize = (uint64_t)mTimeToSampleCount * 2 * sizeof(uint32_t);
-    if (allocSize > UINT32_MAX) {
+    if ((uint64_t)mTimeToSampleCount >
+        (uint64_t)UINT32_MAX / (2 * sizeof(uint32_t))) {
+        // Choose this bound because
+        // 1) 2 * sizeof(uint32_t) is the amount of memory needed for one
+        //    time-to-sample entry in the time-to-sample table.
+        // 2) mTimeToSampleCount is the number of entries of the time-to-sample
+        //    table.
+        // 3) We hope that the table size does not exceed UINT32_MAX.
+        ALOGE("  Error: Time-to-sample table size too large.");
+
         return ERROR_OUT_OF_RANGE;
     }
-    mTimeToSample = new (std::nothrow) uint32_t[mTimeToSampleCount * 2];
-    if (!mTimeToSample)
-        return ERROR_OUT_OF_RANGE;
 
-    size_t size = sizeof(uint32_t) * mTimeToSampleCount * 2;
-    if (mDataSource->readAt(
-                data_offset + 8, mTimeToSample, size) < (ssize_t)size) {
+    // Note: At this point, we know that mTimeToSampleCount * 2 will not
+    // overflow because of the above condition.
+    if (!mDataSource->getVector(data_offset + 8, &mTimeToSample,
+                                mTimeToSampleCount * 2)) {
+        ALOGE("  Error: Incomplete data read for time-to-sample table.");
         return ERROR_IO;
     }
 
-    for (uint32_t i = 0; i < mTimeToSampleCount * 2; ++i) {
-        mTimeToSample[i] = ntohl(mTimeToSample[i]);
+    for (size_t i = 0; i < mTimeToSample.size(); ++i) {
+        mTimeToSample.editItemAt(i) = ntohl(mTimeToSample[i]);
     }
-
     return OK;
 }
 
