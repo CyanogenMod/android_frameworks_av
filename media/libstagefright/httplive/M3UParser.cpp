@@ -603,6 +603,18 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                     return ERROR_MALFORMED;
                 }
                 err = parseMetaDataDuration(line, &itemMeta, "durationUs");
+            } else if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
+                if (mIsVariantPlaylist) {
+                    return ERROR_MALFORMED;
+                }
+                size_t seq;
+                err = parseDiscontinuitySequence(line, &seq);
+                if (err == OK) {
+                    mDiscontinuitySeq = seq;
+                    ALOGI("mDiscontinuitySeq %zu", mDiscontinuitySeq);
+                } else {
+                    ALOGI("Failed to parseDiscontinuitySequence %d", err);
+                }
             } else if (line.startsWith("#EXT-X-DISCONTINUITY")) {
                 if (mIsVariantPlaylist) {
                     return ERROR_MALFORMED;
@@ -638,15 +650,6 @@ status_t M3UParser::parse(const void *_data, size_t size) {
                 }
             } else if (line.startsWith("#EXT-X-MEDIA")) {
                 err = parseMedia(line);
-            } else if (line.startsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) {
-                if (mIsVariantPlaylist) {
-                    return ERROR_MALFORMED;
-                }
-                size_t seq;
-                err = parseDiscontinuitySequence(line, &seq);
-                if (err == OK) {
-                    mDiscontinuitySeq = seq;
-                }
             }
 
             if (err != OK) {
