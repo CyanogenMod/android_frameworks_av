@@ -422,6 +422,10 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
             OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
 
+            if (!isValidOMXParam(formatParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (formatParams->nPortIndex == kInputPortIndex) {
                 if (formatParams->nIndex >= kNumberOfSupportedColorFormats) {
                     return OMX_ErrorNoMore;
@@ -497,6 +501,10 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
         case OMX_IndexParamVideoAndroidVp8Encoder: {
             OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE *vp8AndroidParams =
                 (OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE *)param;
+
+                if (!isValidOMXParam(vp8AndroidParams)) {
+                    return OMX_ErrorBadParameter;
+                }
 
                 if (vp8AndroidParams->nPortIndex != kOutputPortIndex) {
                     return OMX_ErrorUnsupportedIndex;

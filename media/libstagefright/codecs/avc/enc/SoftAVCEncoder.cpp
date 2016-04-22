@@ -441,6 +441,10 @@ OMX_ERRORTYPE SoftAVCEncoder::internalGetParameter(
             OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
 
+            if (!isValidOMXParam(formatParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (formatParams->nPortIndex > 1) {
                 return OMX_ErrorUndefined;
             }
@@ -508,6 +512,10 @@ OMX_ERRORTYPE SoftAVCEncoder::internalGetParameter(
             OMX_VIDEO_PARAM_PROFILELEVELTYPE *profileLevel =
                 (OMX_VIDEO_PARAM_PROFILELEVELTYPE *)params;
 
+            if (!isValidOMXParam(profileLevel)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (profileLevel->nPortIndex != 1) {
                 return OMX_ErrorUndefined;
             }
@@ -562,6 +570,11 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
         {
             OMX_PARAM_PORTDEFINITIONTYPE *def =
                 (OMX_PARAM_PORTDEFINITIONTYPE *)params;
+
+            if (!isValidOMXParam(def)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (def->nPortIndex > 1) {
                 return OMX_ErrorUndefined;
             }
@@ -613,6 +626,10 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
             const OMX_PARAM_COMPONENTROLETYPE *roleParams =
                 (const OMX_PARAM_COMPONENTROLETYPE *)params;
 
+            if (!isValidOMXParam(roleParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (strncmp((const char *)roleParams->cRole,
                         "video_encoder.avc",
                         OMX_MAX_STRINGNAME_SIZE - 1)) {
@@ -626,6 +643,10 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
         {
             const OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
                 (const OMX_VIDEO_PARAM_PORTFORMATTYPE *)params;
+
+            if (!isValidOMXParam(formatParams)) {
+                return OMX_ErrorBadParameter;
+            }
 
             if (formatParams->nPortIndex > 1) {
                 return OMX_ErrorUndefined;
@@ -697,6 +718,11 @@ OMX_ERRORTYPE SoftAVCEncoder::internalSetParameter(
         {
             StoreMetaDataInBuffersParams *storeParams =
                     (StoreMetaDataInBuffersParams*)params;
+
+            if (!isValidOMXParam(storeParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (storeParams->nPortIndex != 0) {
                 ALOGE("%s: StoreMetadataInBuffersParams.nPortIndex not zero!",
                         __FUNCTION__);

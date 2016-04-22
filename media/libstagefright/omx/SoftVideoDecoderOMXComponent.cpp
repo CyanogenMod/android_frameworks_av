@@ -354,6 +354,11 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
         {
             const PrepareForAdaptivePlaybackParams* adaptivePlaybackParams =
                     (const PrepareForAdaptivePlaybackParams *)params;
+
+            if (!isValidOMXParam(adaptivePlaybackParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             mIsAdaptive = adaptivePlaybackParams->bEnable;
             if (mIsAdaptive) {
                 mAdaptiveMaxWidth = adaptivePlaybackParams->nMaxFrameWidth;
@@ -372,6 +377,11 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
         {
             OMX_PARAM_PORTDEFINITIONTYPE *newParams =
                 (OMX_PARAM_PORTDEFINITIONTYPE *)params;
+
+            if (!isValidOMXParam(newParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             OMX_VIDEO_PORTDEFINITIONTYPE *video_def = &newParams->format.video;
             OMX_PARAM_PORTDEFINITIONTYPE *def = &editPortInfo(newParams->nPortIndex)->mDef;
 
