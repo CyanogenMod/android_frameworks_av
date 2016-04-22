@@ -1184,8 +1184,7 @@ bool PlaylistFetcher::initDownloadState(
         // Signal a format discontinuity to ATSParser to clear partial data
         // from previous streams. Not doing this causes bitstream corruption.
         if (mTSParser != NULL) {
-            mTSParser->signalDiscontinuity(
-                    ATSParser::DISCONTINUITY_FORMATCHANGE, NULL /* extra */);
+            mTSParser.clear();
         }
 
         queueDiscontinuity(
