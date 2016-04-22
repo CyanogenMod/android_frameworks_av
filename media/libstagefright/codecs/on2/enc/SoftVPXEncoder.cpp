@@ -353,6 +353,10 @@ OMX_ERRORTYPE SoftVPXEncoder::internalGetParameter(OMX_INDEXTYPE index,
             OMX_VIDEO_PARAM_PORTFORMATTYPE *formatParams =
                 (OMX_VIDEO_PARAM_PORTFORMATTYPE *)param;
 
+            if (!isValidOMXParam(formatParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             if (formatParams->nPortIndex == kInputPortIndex) {
                 if (formatParams->nIndex >= kNumberOfSupportedColorFormats) {
                     return OMX_ErrorNoMore;

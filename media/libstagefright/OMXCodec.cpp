@@ -654,9 +654,11 @@ status_t OMXCodec::setVideoPortFormatType(
     OMX_U32 index = 0;
     for (;;) {
         format.nIndex = index;
+        ALOGI("calling getparam %d size %d", index, format.nSize);
         status_t err = mOMX->getParameter(
                 mNode, OMX_IndexParamVideoPortFormat,
                 &format, sizeof(format));
+        ALOGI("called getparam %d size %d: %d", index, format.nSize, err);
 
         if (err != OK) {
             return err;
@@ -690,9 +692,11 @@ status_t OMXCodec::setVideoPortFormatType(
     }
 
     CODEC_LOGV("found a match.");
+    ALOGI("calling setparam size %d", format.nSize);
     status_t err = mOMX->setParameter(
             mNode, OMX_IndexParamVideoPortFormat,
             &format, sizeof(format));
+    ALOGI("called setparam: %d", err);
 
     return err;
 }
