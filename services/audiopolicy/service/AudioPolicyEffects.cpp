@@ -307,6 +307,10 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     (void) stream; // argument not used for now
 
     Mutex::Autolock _l(mLock);
+
+    mAudioPolicyService->onOutputSessionEffectsUpdate(stream, (audio_session_t)audioSession,
+            AUDIO_OUTPUT_FLAG_NONE, 0, -1, false);
+
     ssize_t index = mOutputSessions.indexOfKey(audioSession);
     if (index < 0) {
         ALOGV("releaseOutputSessionEffects: no output processing was attached to this stream");
@@ -325,10 +329,6 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
         ALOGV("doReleaseOutputSessionEffects(): output processing released from session: %d",
               audioSession);
     }
-
-    mAudioPolicyService->onOutputSessionEffectsUpdate(stream, (audio_session_t)audioSession,
-            AUDIO_OUTPUT_FLAG_NONE, 0, -1, false);
-
     return status;
 }
 
