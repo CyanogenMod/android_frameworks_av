@@ -334,6 +334,11 @@ OMX_ERRORTYPE SoftAAC2::internalSetParameter(
         {
             const OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE *aacPresParams =
                     (const OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE *)params;
+
+            if (!isValidOMXParam(aacPresParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
             // for the following parameters of the OMX_AUDIO_PARAM_AACPROFILETYPE structure,
             // a value of -1 implies the parameter is not set by the application:
             //   nMaxOutputChannels     uses default platform properties, see configureDownmix()
