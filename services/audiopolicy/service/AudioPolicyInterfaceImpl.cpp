@@ -282,6 +282,8 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
 {
     ALOGV("doReleaseOutput from tid %d", gettid());
     Mutex::Autolock _l(mLock);
+    onOutputSessionEffectsUpdate(stream, session,
+                        AUDIO_OUTPUT_FLAG_NONE, 0, -1, false);
     mAudioPolicyManager->releaseOutput(output, stream, session);
 }
 
