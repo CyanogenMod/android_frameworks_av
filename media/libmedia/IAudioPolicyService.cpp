@@ -74,6 +74,7 @@ enum {
     START_AUDIO_SOURCE,
     STOP_AUDIO_SOURCE,
     SET_AUDIO_PORT_CALLBACK_ENABLED,
+    LIST_AUDIO_SESSIONS,
 };
 
 #define MAX_ITEMS_PER_LIST 1024
@@ -767,6 +768,30 @@ public:
         status = (status_t)reply.readInt32();
         return status;
     }
+
+    virtual status_t listAudioSessions(audio_stream_type_t streams,
+                                       Vector< sp<AudioSessionInfo>> &sessions)
+    {
+        Parcel data, reply;
+        data.writeInterfaceToken(IAudioPolicyService::getInterfaceDescriptor());
+        data.writeInt32(streams);
+        status_t status = remote()->transact(LIST_AUDIO_SESSIONS, data, &reply);
+        if (status != NO_ERROR) {
+            return status;
+        }
+
+        status = reply.readInt32();
+        if (status == NO_ERROR) {
+            size_t size = (size_t)reply.readUint32();
+            for (size_t i = 0; i < size && reply.dataAvail() > 0; i++) {
+                sp<AudioSessionInfo> info = new AudioSessionInfo();
+                info->readFromParcel(reply);
+                sessions.push_back(info);
+            }
+        }
+        return status;
+    }
+
 };
 
 IMPLEMENT_META_INTERFACE(AudioPolicyService, "android.media.IAudioPolicyService");
@@ -1237,6 +1262,23 @@ status_t BnAudioPolicyService::onTransact(
             setAudioPortCallbacksEnabled(data.readInt32() == 1);
             return NO_ERROR;
         } break;
+
+        case LIST_AUDIO_SESSIONS: {
+            CHECK_INTERFACE(IAudioPolicyService, data, reply);
+            audio_stream_type_t streams = (audio_stream_type_t)data.readInt32();
+
+            Vector< sp<AudioSessionInfo>> sessions;
+            status_t status = listAudioSessions(streams, sessions);
+
+            reply->writeInt32(status);
+            if (status == NO_ERROR) {
+                reply->writeUint32(static_cast<uint32_t>(sessions.size()));
+                for (size_t i = 0; i < sessions.size(); i++) {
+                    sessions[i]->writeToParcel(reply);
+                }
+            }
+            return NO_ERROR;
+        }
 
         case ACQUIRE_SOUNDTRIGGER_SESSION: {
             CHECK_INTERFACE(IAudioPolicyService, data, reply);

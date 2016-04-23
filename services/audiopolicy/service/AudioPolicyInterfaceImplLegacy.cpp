@@ -642,4 +642,9 @@ status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
     return INVALID_OPERATION;
 }
 
+status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
+                                  Vector< sp<AudioSessionInfo>> &sessions)
+{
+    return INVALID_OPERATION;
+}
 }; // namespace android
