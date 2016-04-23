@@ -161,17 +161,30 @@ status_t AudioPolicyService::getOutputForAttr(const audio_attributes_t *attr,
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
-    ALOGV("getOutput()");
-    Mutex::Autolock _l(mLock);
+    ALOGV("getOutputForAttr()");
+    status_t status = NO_ERROR;
+    sp<AudioPolicyEffects> audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
 
-    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
-    if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
-        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
-                "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
-        uid = callingUid;
+        const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+        if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
+            ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
+                    "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
+            uid = callingUid;
+        }
+        status = mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
+                                 format, channelMask, flags, selectedDeviceId, offloadInfo);
+
+        audioPolicyEffects = mAudioPolicyEffects;
     }
-    return mAudioPolicyManager->getOutputForAttr(attr, output, session, stream, uid, samplingRate,
-                                    format, channelMask, flags, selectedDeviceId, offloadInfo);
+
+    if (status == NO_ERROR && audioPolicyEffects != 0) {
+        audioPolicyEffects->updateOutputAudioSessionInfo(*output,
+                *stream, session, flags, channelMask, uid);
+    }
+
+    return status;
 }
 
 status_t AudioPolicyService::startOutput(audio_io_handle_t output,
@@ -267,8 +280,16 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
                                          audio_session_t session)
 {
     ALOGV("doReleaseOutput from tid %d", gettid());
-    Mutex::Autolock _l(mLock);
-    mAudioPolicyManager->releaseOutput(output, stream, session);
+    sp<AudioPolicyEffects>audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        audioPolicyEffects = mAudioPolicyEffects;
+        mAudioPolicyManager->releaseOutput(output, stream, session);
+    }
+    if (audioPolicyEffects != 0) {
+        audioPolicyEffects->releaseOutputAudioSessionInfo(output,
+                stream, session);
+    }
 }
 
 status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
@@ -751,5 +772,26 @@ status_t AudioPolicyService::getMasterMono(bool *mono)
     Mutex::Autolock _l(mLock);
     return mAudioPolicyManager->getMasterMono(mono);
 }
+
+status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
+                                               Vector< sp<AudioSessionInfo>> &sessions)
+{
+    sp<AudioPolicyEffects> audioPolicyEffects;
+    {
+        Mutex::Autolock _l(mLock);
+        if (mAudioPolicyManager == NULL) {
+            return NO_INIT;
+        }
+        audioPolicyEffects = mAudioPolicyEffects;
+    }
+
+    if (audioPolicyEffects != 0) {
+        return audioPolicyEffects->listAudioSessions(streams, sessions);
+    }
+
+    // no errors here if effects are not available
+    return NO_ERROR;
+}
+
 
 }; // namespace android

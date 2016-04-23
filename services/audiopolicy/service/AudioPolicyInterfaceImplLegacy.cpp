@@ -630,4 +630,9 @@ status_t AudioPolicyService::getMasterMono(bool *mono)
     return INVALID_OPERATION;
 }
 
+status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
+                                  Vector< sp<AudioSessionInfo>> &sessions)
+{
+    return INVALID_OPERATION;
+}
 }; // namespace android
