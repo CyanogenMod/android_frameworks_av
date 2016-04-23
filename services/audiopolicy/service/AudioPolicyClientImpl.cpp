@@ -219,6 +219,12 @@ void AudioPolicyService::AudioPolicyClient::onDynamicPolicyMixStateUpdate(
     mAudioPolicyService->onDynamicPolicyMixStateUpdate(regId, state);
 }
 
+void AudioPolicyService::AudioPolicyClient::onOutputSessionEffectsUpdate(
+        sp<AudioSessionInfo>& info, bool added)
+{
+    mAudioPolicyService->onOutputSessionEffectsUpdate(info, added);
+}
+
 audio_unique_id_t AudioPolicyService::AudioPolicyClient::newAudioUniqueId()
 {
     return AudioSystem::newAudioUniqueId();

@@ -165,6 +165,11 @@ public:
                                       const audio_attributes_t *attributes,
                                       audio_io_handle_t *handle) = 0;
     virtual status_t stopAudioSource(audio_io_handle_t handle) = 0;
+
+    virtual status_t setEffectSessionCallbacksEnabled(bool enabled) = 0;
+
+    virtual status_t listAudioSessions(audio_stream_type_t streams,
+                                       Vector< sp<AudioSessionInfo>> &sessions) = 0;
 };
 
 
