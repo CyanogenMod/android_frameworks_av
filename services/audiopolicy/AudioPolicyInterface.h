@@ -227,6 +227,9 @@ public:
                                       const audio_attributes_t *attributes,
                                       audio_io_handle_t *handle) = 0;
     virtual status_t stopAudioSource(audio_io_handle_t handle) = 0;
+
+    virtual status_t listAudioSessions(audio_stream_type_t streams,
+                                       Vector< sp<AudioSessionInfo>> &sessions) = 0;
 };
 
 
@@ -331,6 +334,8 @@ public:
     virtual audio_unique_id_t newAudioUniqueId() = 0;
 
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
+
+    virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& streamInfo, bool added) = 0;
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
