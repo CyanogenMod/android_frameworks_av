@@ -28,7 +28,6 @@
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 #include <cutils/config_utils.h>
-#include "AudioPolicyService.h"
 #include "AudioPolicyEffects.h"
 #include "ServiceUtilities.h"
 
@@ -38,8 +37,7 @@ namespace android {
 // AudioPolicyEffects Implementation
 // ----------------------------------------------------------------------------
 
-AudioPolicyEffects::AudioPolicyEffects(AudioPolicyService *audioPolicyService) :
-    mAudioPolicyService(audioPolicyService)
+AudioPolicyEffects::AudioPolicyEffects()
 {
     // load automatic audio effect modules
     if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE2, R_OK) == 0) {
@@ -246,7 +244,6 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     if (idx < 0) {
         procDesc = new EffectVector(audioSession);
         mOutputSessions.add(audioSession, procDesc);
-
     } else {
         // EffectVector is existing and we just need to increase ref count
         procDesc = mOutputSessions.valueAt(idx);
@@ -275,27 +272,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
         procDesc->setProcessorEnabled(true);
     }
-
     return status;
-}
-
-status_t AudioPolicyEffects::doAddOutputSessionEffects(audio_io_handle_t /* output */,
-                                           audio_stream_type_t stream,
-                                           int session,
-                                           audio_output_flags_t flags,
-                                           audio_channel_mask_t channelMask, uid_t uid)
-{
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
-        return BAD_VALUE;
-    }
-    ALOGV("doAddOutputSessionEffects()");
-
-    // notify listeners
-    mAudioPolicyService->onOutputSessionEffectsUpdate(stream, (audio_session_t)session,
-            flags, channelMask, uid, true);
-
-    // Never return an error if effects setup fails.
-    return NO_ERROR;
 }
 
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
@@ -322,7 +299,7 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
         procDesc->mEffects.clear();
         delete procDesc;
         mOutputSessions.removeItemsAt(index);
-        ALOGV("doReleaseOutputSessionEffects(): output processing released from session: %d",
+        ALOGV("releaseOutputSessionEffects(): output processing released from session: %d",
               audioSession);
     }
     return status;
