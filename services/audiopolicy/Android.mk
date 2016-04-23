@@ -50,7 +50,7 @@ LOCAL_STATIC_LIBRARIES := \
 
 LOCAL_MODULE:= libaudiopolicyservice
 
-LOCAL_CFLAGS += -fvisibility=hidden
+LOCAL_CFLAGS += -fvisibility=hidden -DLOG_NDEBUG=0
 
 include $(BUILD_SHARED_LIBRARY)
 
