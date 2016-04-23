@@ -28,6 +28,7 @@
 #include <utils/Vector.h>
 #include <utils/SortedVector.h>
 #include <cutils/config_utils.h>
+#include "AudioPolicyService.h"
 #include "AudioPolicyEffects.h"
 #include "ServiceUtilities.h"
 
@@ -37,7 +38,8 @@ namespace android {
 // AudioPolicyEffects Implementation
 // ----------------------------------------------------------------------------
 
-AudioPolicyEffects::AudioPolicyEffects()
+AudioPolicyEffects::AudioPolicyEffects(AudioPolicyService *audioPolicyService) :
+    mAudioPolicyService(audioPolicyService)
 {
     // load automatic audio effect modules
     if (access(AUDIO_EFFECT_VENDOR_CONFIG_FILE2, R_OK) == 0) {
@@ -226,6 +228,8 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 {
     status_t status = NO_ERROR;
 
+    ALOGV("addOutputSessionEffects %d", audioSession);
+
     Mutex::Autolock _l(mLock);
     // create audio processors according to stream
     // FIXME: should we have specific post processing settings for internal streams?
@@ -233,6 +237,22 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     if (stream >= AUDIO_STREAM_PUBLIC_CNT) {
         stream = AUDIO_STREAM_MUSIC;
     }
+
+    // send the streaminfo notification only once
+    ssize_t sidx = mOutputAudioSessionInfo.indexOfKey(audioSession);
+    if (sidx >= 0) {
+        // AudioSessionInfo is existing and we just need to increase ref count
+        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(sidx);
+        info->mRefCount++;
+
+        if (info->mRefCount == 1) {
+            mAudioPolicyService->onOutputSessionEffectsUpdate(info, true);
+        }
+        ALOGV("addOutputSessionEffects(): session info %d refCount=%d", audioSession, info->mRefCount);
+    } else {
+        ALOGV("addOutputSessionEffects(): no output stream info found for stream");
+    }
+
     ssize_t index = mOutputStreams.indexOfKey(stream);
     if (index < 0) {
         ALOGV("addOutputSessionEffects(): no output processing needed for this stream");
@@ -275,6 +295,81 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
     return status;
 }
 
+status_t AudioPolicyEffects::releaseOutputAudioSessionInfo(audio_io_handle_t /* output */,
+                                           audio_stream_type_t stream,
+                                           int session)
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
+    if (idx >= 0) {
+        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(idx); 
+        if (info->mRefCount == 0) {
+            mOutputAudioSessionInfo.removeItemsAt(idx);
+        }
+        ALOGV("releaseOutputAudioSessionInfo() sessionId=%d refcount=%d",
+                session, info->mRefCount);
+    } else {
+        ALOGV("releaseOutputAudioSessionInfo() no session info found");
+    }
+    return NO_ERROR;
+}
+
+status_t AudioPolicyEffects::updateOutputAudioSessionInfo(audio_io_handle_t /* output */,
+                                           audio_stream_type_t stream,
+                                           int session,
+                                           audio_output_flags_t flags,
+                                           audio_channel_mask_t channelMask, uid_t uid)
+{
+    if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
+        return BAD_VALUE;
+    }
+
+    Mutex::Autolock _l(mLock);
+
+    // update AudioSessionInfo. This is used in the stream open/close path
+    // to notify userspace applications about session creation and
+    // teardown, allowing the app to make decisions about effects for
+    // a particular stream. This is independent of the current
+    // output_session_processing feature which forcibly attaches a
+    // static list of effects to a stream.
+    ssize_t idx = mOutputAudioSessionInfo.indexOfKey(session);
+    sp<AudioSessionInfo> info;
+    if (idx < 0) {
+        info = new AudioSessionInfo(session, stream, flags, channelMask, uid);
+        mOutputAudioSessionInfo.add(session, info);
+    } else {
+        // the streaminfo may actually change
+        info = mOutputAudioSessionInfo.valueAt(idx);
+        info->mFlags = flags;
+        info->mChannelMask = channelMask;
+    }
+
+    ALOGV("updateOutputAudioSessionInfo() sessionId=%d, flags=0x%x, channelMask=0x%x uid=%d refCount=%d",
+            info->mSessionId, info->mFlags, info->mChannelMask, info->mUid, info->mRefCount);
+
+    return NO_ERROR;
+}
+
+status_t AudioPolicyEffects::listAudioSessions(audio_stream_type_t streams,
+                                               Vector< sp<AudioSessionInfo>> &sessions)
+{
+    ALOGV("listAudioSessions() streams %d", streams);
+
+    for (unsigned int i = 0; i < mOutputAudioSessionInfo.size(); i++) {
+        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(i);
+        if (streams == -1 || info->mStream == streams) {
+            sessions.push_back(info);
+        }
+    }
+
+    return NO_ERROR;
+}
+
 status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t output,
                          audio_stream_type_t stream,
                          int audioSession)
@@ -284,7 +379,19 @@ status_t AudioPolicyEffects::releaseOutputSessionEffects(audio_io_handle_t outpu
     (void) stream; // argument not used for now
 
     Mutex::Autolock _l(mLock);
-    ssize_t index = mOutputSessions.indexOfKey(audioSession);
+    ssize_t index = mOutputAudioSessionInfo.indexOfKey(audioSession);
+    if (index >= 0) {
+        sp<AudioSessionInfo> info = mOutputAudioSessionInfo.valueAt(index);
+        info->mRefCount--;
+        if (info->mRefCount == 0) {
+            mAudioPolicyService->onOutputSessionEffectsUpdate(info, false);
+        }
+        ALOGV("releaseOutputSessionEffects(): session=%d refCount=%d", info->mSessionId, info->mRefCount);
+    } else {
+        ALOGV("releaseOutputSessionEffects: no stream info was attached to this stream");
+    }
+
+    index = mOutputSessions.indexOfKey(audioSession);
     if (index < 0) {
         ALOGV("releaseOutputSessionEffects: no output processing was attached to this stream");
         return NO_ERROR;
