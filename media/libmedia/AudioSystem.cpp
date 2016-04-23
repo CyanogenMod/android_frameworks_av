@@ -38,7 +38,7 @@ sp<AudioSystem::AudioFlingerClient> AudioSystem::gAudioFlingerClient;
 audio_error_callback AudioSystem::gAudioErrorCallback = NULL;
 dynamic_policy_callback AudioSystem::gDynPolicyCallback = NULL;
 record_config_callback  AudioSystem::gRecordConfigCallback = NULL;
-
+audio_session_callback AudioSystem::gAudioSessionCallback = NULL;
 
 // establish binder interface to AudioFlinger service
 const sp<IAudioFlinger> AudioSystem::get_audio_flinger()
@@ -680,6 +680,17 @@ status_t AudioSystem::AudioFlingerClient::removeAudioDeviceCallback(
     gRecordConfigCallback = cb;
 }
 
+/*static*/ status_t AudioSystem::setAudioSessionCallback(audio_session_callback cb)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+
+    Mutex::Autolock _l(gLock);
+    gAudioSessionCallback = cb;
+
+    return NO_ERROR;
+}
+
 // client singleton for AudioPolicyService binder interface
 // protected by gLockAPS
 sp<IAudioPolicyService> AudioSystem::gAudioPolicyService;
@@ -1279,6 +1290,32 @@ void AudioSystem::AudioPolicyServiceClient::onRecordingConfigurationUpdate(
 
     if (cb != NULL) {
         cb(event, session, source, clientConfig, deviceConfig, patchHandle);
+    }
+}
+
+// ---------------------------------------------------------------------------
+
+status_t AudioSystem::listAudioSessions(audio_stream_type_t stream,
+                                        Vector< sp<AudioSessionInfo>> &sessions)
+{
+    const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+    return aps->listAudioSessions(stream, sessions);
+}
+
+void AudioSystem::AudioPolicyServiceClient::onOutputSessionEffectsUpdate(
+        sp<AudioSessionInfo>& info, bool added)
+{
+    ALOGV("AudioPolicyServiceClient::onOutputSessionEffectsUpdate(%d, %d, %d)",
+            info->mStream, info->mSessionId, added);
+    audio_session_callback cb = NULL;
+    {
+        Mutex::Autolock _l(AudioSystem::gLock);
+        cb = gAudioSessionCallback;
+    }
+
+    if (cb != NULL) {
+        cb(AUDIO_OUTPUT_SESSION_EFFECTS_UPDATE, info, added);
     }
 }
 

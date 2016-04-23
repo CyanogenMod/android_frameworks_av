@@ -116,7 +116,7 @@ void AudioPolicyService::onFirstRef()
 #endif
     }
     // load audio processing modules
-    sp<AudioPolicyEffects>audioPolicyEffects = new AudioPolicyEffects();
+    sp<AudioPolicyEffects>audioPolicyEffects = new AudioPolicyEffects(this);
     {
         Mutex::Autolock _l(mLock);
         mAudioPolicyEffects = audioPolicyEffects;
@@ -276,6 +276,21 @@ status_t AudioPolicyService::clientSetAudioPortConfig(const struct audio_port_co
     return mAudioCommandThread->setAudioPortConfigCommand(config, delayMs);
 }
 
+void AudioPolicyService::onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
+{
+    ALOGV("AudioPolicyService::onOutputSessionEffectsUpdate(%d, %d, %d)",
+            info->mStream, info->mSessionId, added);
+    mOutputCommandThread->effectSessionUpdateCommand(info, added);
+}
+
+void AudioPolicyService::doOnOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added)
+{
+    Mutex::Autolock _l(mNotificationClientsLock);
+    for (size_t i = 0; i < mNotificationClients.size(); i++) {
+        mNotificationClients.valueAt(i)->onOutputSessionEffectsUpdate(info, added);
+    }
+}
+
 AudioPolicyService::NotificationClient::NotificationClient(const sp<AudioPolicyService>& service,
                                                      const sp<IAudioPolicyServiceClient>& client,
                                                      uid_t uid)
@@ -308,6 +323,14 @@ void AudioPolicyService::NotificationClient::onAudioPatchListUpdate()
 {
     if (mAudioPolicyServiceClient != 0 && mAudioPortCallbacksEnabled) {
         mAudioPolicyServiceClient->onAudioPatchListUpdate();
+    }
+}
+
+void AudioPolicyService::NotificationClient::onOutputSessionEffectsUpdate(
+        sp<AudioSessionInfo>& info, bool added)
+{
+    if (mAudioPolicyServiceClient != 0) {
+        mAudioPolicyServiceClient->onOutputSessionEffectsUpdate(info, added);
     }
 }
 
@@ -625,6 +648,21 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                             data->mPatchHandle);
                     mLock.lock();
                     } break;
+                case EFFECT_SESSION_UPDATE: {
+                    EffectSessionUpdateData *data =
+                            (EffectSessionUpdateData *)command->mParam.get();
+                    ALOGV("AudioCommandThread() processing effect session update %d %d %d",
+                            data->mAudioSessionInfo->mStream, data->mAudioSessionInfo->mSessionId,
+                            data->mAdded);
+                    svc = mService.promote();
+                    if (svc == 0) {
+                        break;
+                    }
+                    mLock.unlock();
+                    svc->doOnOutputSessionEffectsUpdate(data->mAudioSessionInfo, data->mAdded);
+                    mLock.lock();
+                    } break;
+
                 default:
                     ALOGW("AudioCommandThread() unknown command %d", command->mCommand);
                 }
@@ -918,6 +956,20 @@ void AudioPolicyService::AudioCommandThread::recordingConfigurationUpdateCommand
     command->mParam = data;
     ALOGV("AudioCommandThread() adding recording configuration update event %d, source %d",
             event, source);
+    sendCommand(command);
+}
+
+void AudioPolicyService::AudioCommandThread::effectSessionUpdateCommand(
+        sp<AudioSessionInfo>& streamInfo, bool added)
+{
+    sp<AudioCommand> command = new AudioCommand();
+    command->mCommand = EFFECT_SESSION_UPDATE;
+    EffectSessionUpdateData *data = new EffectSessionUpdateData();
+    data->mAudioSessionInfo = streamInfo;
+    data->mAdded = added;
+    command->mParam = data;
+    ALOGV("AudioCommandThread() sending effect session update (id=%d) for stream %d (added=%d)",
+            streamInfo->mStream, streamInfo->mSessionId, added);
     sendCommand(command);
 }
 

@@ -21,6 +21,7 @@
 #include <utils/RefBase.h>
 #include <binder/IInterface.h>
 #include <system/audio.h>
+#include <media/AudioSession.h>
 
 namespace android {
 
@@ -43,6 +44,8 @@ public:
             const audio_config_base_t *clientConfig,
             const audio_config_base_t *deviceConfig,
             audio_patch_handle_t patchHandle) = 0;
+    // Notifies when a default effect set is attached to a session/stream
+    virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& info, bool added) = 0;
 };
 
 
