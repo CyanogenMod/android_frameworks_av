@@ -331,6 +331,9 @@ public:
     virtual audio_unique_id_t newAudioUniqueId() = 0;
 
     virtual void onDynamicPolicyMixStateUpdate(String8 regId, int32_t state) = 0;
+
+    virtual void onOutputSessionEffectsUpdate(sp<AudioSessionInfo>& streamInfo, bool added) = 0;
+
 };
 
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
