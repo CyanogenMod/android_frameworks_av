@@ -21,10 +21,9 @@
 #include <dirent.h>
 #include <dlfcn.h>
 
-#include "Drm.h"
-
-#include "DrmSessionClientInterface.h"
-#include "DrmSessionManager.h"
+#include <media/DrmSessionClientInterface.h>
+#include <media/DrmSessionManager.h>
+#include <media/Drm.h>
 #include <media/drm/DrmAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>

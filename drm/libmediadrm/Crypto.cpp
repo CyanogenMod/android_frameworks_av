@@ -20,9 +20,8 @@
 #include <dirent.h>
 #include <dlfcn.h>
 
-#include "Crypto.h"
-
 #include <binder/IMemory.h>
+#include <media/Crypto.h>
 #include <media/hardware/CryptoAPI.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
