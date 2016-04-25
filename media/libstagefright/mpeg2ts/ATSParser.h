@@ -182,10 +182,10 @@ private:
     // see feedTSPacket().
     status_t parseTS(ABitReader *br, SyncEvent *event);
 
-    void updatePCR(unsigned PID, uint64_t PCR, size_t byteOffsetFromStart);
+    void updatePCR(unsigned PID, uint64_t PCR, uint64_t byteOffsetFromStart);
 
     uint64_t mPCR[2];
-    size_t mPCRBytes[2];
+    uint64_t mPCRBytes[2];
     int64_t mSystemTimeUs[2];
     size_t mNumPCRs;
 

@@ -1438,8 +1438,8 @@ status_t ATSParser::parseAdaptationField(ABitReader *br, unsigned PID) {
 
             // The number of bytes received by this parser up to and
             // including the final byte of this PCR_ext field.
-            size_t byteOffsetFromStart =
-                mNumTSPacketsParsed * 188 + byteOffsetFromStartOfTSPacket;
+            uint64_t byteOffsetFromStart =
+                uint64_t(mNumTSPacketsParsed) * 188 + byteOffsetFromStartOfTSPacket;
 
             for (size_t i = 0; i < mPrograms.size(); ++i) {
                 updatePCR(PID, PCR, byteOffsetFromStart);
@@ -1558,8 +1558,8 @@ bool ATSParser::PTSTimeDeltaEstablished() {
 
 __attribute__((no_sanitize("integer")))
 void ATSParser::updatePCR(
-        unsigned /* PID */, uint64_t PCR, size_t byteOffsetFromStart) {
-    ALOGV("PCR 0x%016" PRIx64 " @ %zu", PCR, byteOffsetFromStart);
+        unsigned /* PID */, uint64_t PCR, uint64_t byteOffsetFromStart) {
+    ALOGV("PCR 0x%016" PRIx64 " @ %" PRIx64, PCR, byteOffsetFromStart);
 
     if (mNumPCRs == 2) {
         mPCR[0] = mPCR[1];
