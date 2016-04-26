@@ -3192,7 +3192,7 @@ status_t ACodec::setupVideoDecoder(
         return err;
     }
 
-    err = setHDRStaticInfoForVideoDecoder(msg, outputFormat);
+    err = setHDRStaticInfoForVideoCodec(kPortIndexOutput, msg, outputFormat);
     if (err == ERROR_UNSUPPORTED) { // support is optional
         err = OK;
     }
@@ -3392,6 +3392,25 @@ status_t ACodec::setColorAspectsForVideoEncoder(
     return OK;
 }
 
+status_t ACodec::setHDRStaticInfoForVideoCodec(
+        OMX_U32 portIndex, const sp<AMessage> &configFormat, sp<AMessage> &outputFormat) {
+    CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
+
+    DescribeHDRStaticInfoParams params;
+    InitOMXParams(&params);
+    params.nPortIndex = portIndex;
+
+    HDRStaticInfo *info = &params.sInfo;
+    if (getHDRStaticInfoFromFormat(configFormat, info)) {
+        setHDRStaticInfoIntoFormat(params.sInfo, outputFormat);
+    }
+
+    (void)initDescribeHDRStaticInfoIndex();
+
+    // communicate HDR static Info to codec
+    return setHDRStaticInfo(params);
+}
+
 // subsequent initial video encoder setup for surface mode
 status_t ACodec::setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(
         android_dataspace *dataSpace /* nonnull */) {
@@ -3444,10 +3463,11 @@ status_t ACodec::setInitialColorAspectsForVideoEncoderSurfaceAndGetDataSpace(
     return err;
 }
 
-status_t ACodec::getHDRStaticInfoForVideoDecoder(sp<AMessage> &format) {
+status_t ACodec::getHDRStaticInfoForVideoCodec(OMX_U32 portIndex, sp<AMessage> &format) {
+    CHECK(portIndex == kPortIndexInput || portIndex == kPortIndexOutput);
     DescribeHDRStaticInfoParams params;
     InitOMXParams(&params);
-    params.nPortIndex = kPortIndexOutput;
+    params.nPortIndex = portIndex;
 
     status_t err = getHDRStaticInfo(params);
     if (err == OK) {
@@ -3464,23 +3484,6 @@ status_t ACodec::initDescribeHDRStaticInfoIndex() {
         mDescribeHDRStaticInfoIndex = (OMX_INDEXTYPE)0;
     }
     return err;
-}
-
-status_t ACodec::setHDRStaticInfoForVideoDecoder(
-        const sp<AMessage> &configFormat, sp<AMessage> &outputFormat) {
-    DescribeHDRStaticInfoParams params;
-    InitOMXParams(&params);
-    params.nPortIndex = kPortIndexOutput;
-
-    HDRStaticInfo *info = &params.sInfo;
-    if (getHDRStaticInfoFromFormat(configFormat, info)) {
-        setHDRStaticInfoIntoFormat(params.sInfo, outputFormat);
-    }
-
-    (void)initDescribeHDRStaticInfoIndex();
-
-    // communicate HDR static Info to codec
-    return setHDRStaticInfo(params);
 }
 
 status_t ACodec::setHDRStaticInfo(const DescribeHDRStaticInfoParams &params) {
@@ -3694,6 +3697,16 @@ status_t ACodec::setupVideoEncoder(
     err = setColorAspectsForVideoEncoder(msg, outputFormat, inputFormat);
     if (err == ERROR_UNSUPPORTED) {
         ALOGI("[%s] cannot encode color aspects. Ignoring.", mComponentName.c_str());
+        err = OK;
+    }
+
+    if (err != OK) {
+        return err;
+    }
+
+    err = setHDRStaticInfoForVideoCodec(kPortIndexInput, msg, outputFormat);
+    if (err == ERROR_UNSUPPORTED) { // support is optional
+        ALOGI("[%s] cannot encode HDR static metadata. Ignoring.", mComponentName.c_str());
         err = OK;
     }
 
@@ -4729,9 +4742,12 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         if (mUsingNativeWindow) {
                             notify->setInt32("android._dataspace", dataSpace);
                         }
-                        (void)getHDRStaticInfoForVideoDecoder(notify);
+                        (void)getHDRStaticInfoForVideoCodec(kPortIndexOutput, notify);
                     } else {
                         (void)getInputColorAspectsForVideoEncoder(notify);
+                        if (mConfigFormat->contains("hdr-static-info")) {
+                            (void)getHDRStaticInfoForVideoCodec(kPortIndexInput, notify);
+                        }
                     }
 
                     break;

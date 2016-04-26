@@ -425,10 +425,10 @@ private:
     // gets index or sets it to 0 on error. Returns error from codec.
     status_t initDescribeHDRStaticInfoIndex();
 
-    // sets HDR static information for the decoder based on |configFormat|, and
-    // set resulting HDRStaticInfo config into |outputFormat|. Returns error from the codec.
-    status_t setHDRStaticInfoForVideoDecoder(
-            const sp<AMessage> &configFormat, sp<AMessage> &outputFormat);
+    // sets HDR static metadata for the video encoder/decoder based on |configFormat|, and
+    // sets resulting HDRStaticInfo config into |outputFormat|. Returns error from the codec.
+    status_t setHDRStaticInfoForVideoCodec(
+            OMX_U32 portIndex, const sp<AMessage> &configFormat, sp<AMessage> &outputFormat);
 
     // sets |params|. Returns the codec error.
     status_t setHDRStaticInfo(const DescribeHDRStaticInfoParams &params);
@@ -436,8 +436,8 @@ private:
     // gets |params|. Returns the codec error.
     status_t getHDRStaticInfo(DescribeHDRStaticInfoParams &params);
 
-    // gets HDR static information for the video decoder port and sets them into |format|.
-    status_t getHDRStaticInfoForVideoDecoder(sp<AMessage> &format);
+    // gets HDR static information for the video encoder/decoder port and sets them into |format|.
+    status_t getHDRStaticInfoForVideoCodec(OMX_U32 portIndex, sp<AMessage> &format);
 
     typedef struct drcParams {
         int32_t drcCut;
