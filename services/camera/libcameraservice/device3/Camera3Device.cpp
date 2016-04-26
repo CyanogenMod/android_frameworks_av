@@ -1970,7 +1970,7 @@ status_t Camera3Device::configureStreamsLocked() {
     if (mIsConstrainedHighSpeedConfiguration) {
         pid_t requestThreadTid = mRequestThread->getTid();
         res = requestPriority(getpid(), requestThreadTid,
-                kConstrainedHighSpeedThreadPriority, true);
+                kConstrainedHighSpeedThreadPriority, /*asynchronous*/ false);
         if (res != OK) {
             ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
                     strerror(-res), res);
