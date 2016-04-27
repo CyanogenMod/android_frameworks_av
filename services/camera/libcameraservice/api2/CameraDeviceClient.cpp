@@ -234,6 +234,7 @@ binder::Status CameraDeviceClient::submitRequestList(
             res = STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION,
                     msg.string());
         } else {
+            Mutex::Autolock idLock(mStreamingRequestIdLock);
             mStreamingRequestId = submitInfo->mRequestId;
         }
     } else {
@@ -271,6 +272,7 @@ binder::Status CameraDeviceClient::cancelRequest(
         return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
     }
 
+    Mutex::Autolock idLock(mStreamingRequestIdLock);
     if (mStreamingRequestId != requestId) {
         String8 msg = String8::format("Camera %d: Canceling request ID %d doesn't match "
                 "current request ID %d", mCameraId, requestId, mStreamingRequestId);
@@ -760,6 +762,7 @@ binder::Status CameraDeviceClient::waitUntilIdle()
     }
 
     // FIXME: Also need check repeating burst.
+    Mutex::Autolock idLock(mStreamingRequestIdLock);
     if (mStreamingRequestId != REQUEST_ID_NONE) {
         String8 msg = String8::format(
             "Camera %d: Try to waitUntilIdle when there are active streaming requests",
@@ -792,6 +795,7 @@ binder::Status CameraDeviceClient::flush(
         return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
     }
 
+    Mutex::Autolock idLock(mStreamingRequestIdLock);
     mStreamingRequestId = REQUEST_ID_NONE;
     status_t err = mDevice->flush(lastFrameNumber);
     if (err != OK) {
@@ -982,7 +986,7 @@ void CameraDeviceClient::notifyRepeatingRequestError(long lastFrameNumber) {
         remoteCb->onRepeatingRequestError(lastFrameNumber);
     }
 
-    Mutex::Autolock icl(mBinderSerializationLock);
+    Mutex::Autolock idLock(mStreamingRequestIdLock);
     mStreamingRequestId = REQUEST_ID_NONE;
 }
 

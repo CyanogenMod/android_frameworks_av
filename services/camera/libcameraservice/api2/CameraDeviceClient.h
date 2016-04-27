@@ -208,6 +208,7 @@ private:
 
     // Streaming request ID
     int32_t mStreamingRequestId;
+    Mutex mStreamingRequestIdLock;
     static const int32_t REQUEST_ID_NONE = -1;
 
     int32_t mRequestIdCounter;
