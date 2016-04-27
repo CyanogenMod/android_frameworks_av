@@ -1620,14 +1620,13 @@ void NuPlayer::GenericSource::BufferingMonitor::notifyBufferingUpdate_l(int32_t 
 }
 
 void NuPlayer::GenericSource::BufferingMonitor::startBufferingIfNecessary_l() {
-    ALOGD("startBufferingIfNecessary_l: mPrepareBuffering=%d, mBuffering=%d",
-            mPrepareBuffering, mBuffering);
-
     if (mPrepareBuffering) {
         return;
     }
 
     if (!mBuffering) {
+        ALOGD("startBufferingIfNecessary_l");
+
         mBuffering = true;
 
         ensureCacheIsFetching_l();
@@ -1640,10 +1639,9 @@ void NuPlayer::GenericSource::BufferingMonitor::startBufferingIfNecessary_l() {
 }
 
 void NuPlayer::GenericSource::BufferingMonitor::stopBufferingIfNecessary_l() {
-    ALOGD("stopBufferingIfNecessary_l: mPrepareBuffering=%d, mBuffering=%d",
-            mPrepareBuffering, mBuffering);
-
     if (mPrepareBuffering) {
+        ALOGD("stopBufferingIfNecessary_l, mBuffering=%d", mBuffering);
+
         mPrepareBuffering = false;
 
         sp<AMessage> notify = mNotify->dup();
@@ -1655,6 +1653,7 @@ void NuPlayer::GenericSource::BufferingMonitor::stopBufferingIfNecessary_l() {
     }
 
     if (mBuffering) {
+        ALOGD("stopBufferingIfNecessary_l");
         mBuffering = false;
 
         sendCacheStats_l();
