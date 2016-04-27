@@ -24,13 +24,15 @@ WaitableMutexWrapper::~WaitableMutexWrapper() {}
 
 // Locks manager-owned mutex
 AutoConditionLock::AutoConditionLock(const std::shared_ptr<WaitableMutexWrapper>& manager) :
-        mManager{manager}, mAutoLock{manager->mMutex} {}
+        mManager{manager}, mAutoLock{manager->mMutex}, mAcquired(false) {}
 
 // Unlocks manager-owned mutex
 AutoConditionLock::~AutoConditionLock() {
     // Unset the condition and wake everyone up before releasing lock
-    mManager->mState = false;
-    mManager->mCondition.broadcast();
+    if (mAcquired) {
+        mManager->mState = false;
+        mManager->mCondition.broadcast();
+    }
 }
 
 std::unique_ptr<AutoConditionLock> AutoConditionLock::waitAndAcquire(
@@ -59,6 +61,7 @@ std::unique_ptr<AutoConditionLock> AutoConditionLock::waitAndAcquire(
 
     // Set the condition and return
     manager->mState = true;
+    scopedLock->mAcquired = true;
     return scopedLock;
 }
 
@@ -84,6 +87,7 @@ std::unique_ptr<AutoConditionLock> AutoConditionLock::waitAndAcquire(
 
     // Set the condition and return
     manager->mState = true;
+    scopedLock->mAcquired = true;
     return scopedLock;
 }
 
