@@ -19,13 +19,13 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MediaDrmService"
-#include <utils/Log.h>
 
-#include <binder/IServiceManager.h>
 #include "MediaDrmService.h"
 
-#include "Crypto.h"
-#include "Drm.h"
+#include <binder/IServiceManager.h>
+#include <media/Crypto.h>
+#include <media/Drm.h>
+#include <utils/Log.h>
 
 namespace android {
 

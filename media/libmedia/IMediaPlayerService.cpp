@@ -20,8 +20,6 @@
 
 #include <binder/Parcel.h>
 #include <binder/IMemory.h>
-#include <media/ICrypto.h>
-#include <media/IDrm.h>
 #include <media/IHDCP.h>
 #include <media/IMediaCodecList.h>
 #include <media/IMediaHTTPService.h>
@@ -42,8 +40,6 @@ enum {
     CREATE_MEDIA_RECORDER,
     CREATE_METADATA_RETRIEVER,
     GET_OMX,
-    MAKE_CRYPTO,
-    MAKE_DRM,
     MAKE_HDCP,
     ADD_BATTERY_DATA,
     PULL_BATTERY_DATA,
@@ -92,20 +88,6 @@ public:
         data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
         remote()->transact(GET_OMX, data, &reply);
         return interface_cast<IOMX>(reply.readStrongBinder());
-    }
-
-    virtual sp<ICrypto> makeCrypto() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        remote()->transact(MAKE_CRYPTO, data, &reply);
-        return interface_cast<ICrypto>(reply.readStrongBinder());
-    }
-
-    virtual sp<IDrm> makeDrm() {
-        Parcel data, reply;
-        data.writeInterfaceToken(IMediaPlayerService::getInterfaceDescriptor());
-        remote()->transact(MAKE_DRM, data, &reply);
-        return interface_cast<IDrm>(reply.readStrongBinder());
     }
 
     virtual sp<IHDCP> makeHDCP(bool createEncryptionModule) {
@@ -183,18 +165,6 @@ status_t BnMediaPlayerService::onTransact(
             CHECK_INTERFACE(IMediaPlayerService, data, reply);
             sp<IOMX> omx = getOMX();
             reply->writeStrongBinder(IInterface::asBinder(omx));
-            return NO_ERROR;
-        } break;
-        case MAKE_CRYPTO: {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            sp<ICrypto> crypto = makeCrypto();
-            reply->writeStrongBinder(IInterface::asBinder(crypto));
-            return NO_ERROR;
-        } break;
-        case MAKE_DRM: {
-            CHECK_INTERFACE(IMediaPlayerService, data, reply);
-            sp<IDrm> drm = makeDrm();
-            reply->writeStrongBinder(IInterface::asBinder(drm));
             return NO_ERROR;
         } break;
         case MAKE_HDCP: {

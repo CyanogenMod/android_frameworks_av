@@ -219,8 +219,6 @@ public:
 
     virtual sp<IMediaCodecList> getCodecList() const;
     virtual sp<IOMX>            getOMX();
-    virtual sp<ICrypto>         makeCrypto();
-    virtual sp<IDrm>            makeDrm();
     virtual sp<IHDCP>           makeHDCP(bool createEncryptionModule);
 
     virtual sp<IRemoteDisplay> listenForRemoteDisplay(const String16 &opPackageName,
@@ -410,7 +408,6 @@ private:
                 SortedVector< wp<MediaRecorderClient> > mMediaRecorderClients;
                 int32_t                     mNextConnId;
                 sp<IOMX>                    mOMX;
-                sp<ICrypto>                 mCrypto;
 };
 
 // ----------------------------------------------------------------------------

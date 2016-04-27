@@ -16,12 +16,11 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "Drm"
-#include <utils/Log.h>
-#include <media/stagefright/foundation/ADebug.h>
 
 #include <dlfcn.h>
-
-#include "SharedLibrary.h"
+#include <media/stagefright/foundation/ADebug.h>
+#include <media/SharedLibrary.h>
+#include <utils/Log.h>
 
 namespace android {
 

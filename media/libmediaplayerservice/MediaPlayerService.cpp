@@ -78,8 +78,6 @@
 
 #include <OMX.h>
 
-#include "Crypto.h"
-#include "Drm.h"
 #include "HDCP.h"
 #include "HTTPBase.h"
 #include "RemoteDisplay.h"
@@ -357,14 +355,6 @@ sp<IOMX> MediaPlayerService::getOMX() {
     }
 
     return mOMX;
-}
-
-sp<ICrypto> MediaPlayerService::makeCrypto() {
-    return new Crypto;
-}
-
-sp<IDrm> MediaPlayerService::makeDrm() {
-    return new Drm;
 }
 
 sp<IHDCP> MediaPlayerService::makeHDCP(bool createEncryptionModule) {

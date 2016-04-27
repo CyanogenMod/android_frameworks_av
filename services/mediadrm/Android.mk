@@ -22,14 +22,15 @@ LOCAL_SRC_FILES:= \
     main_mediadrmserver.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
-    libui \
-    liblog \
-    libutils \
     libbinder \
     libcutils \
-    libstagefright \
-    libmediaplayerservice \
+    liblog \
     libmedia \
+    libmediadrm \
+    libmediaplayerservice \
+    libstagefright \
+    libui \
+    libutils \
 
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \

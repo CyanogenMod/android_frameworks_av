@@ -29,7 +29,6 @@
 #include <media/stagefright/MediaErrors.h>
 #include <binder/IServiceManager.h>
 #include <media/IMediaDrmService.h>
-#include <media/IMediaPlayerService.h>
 #include <ndk/NdkMediaCrypto.h>
 
 
@@ -150,34 +149,17 @@ static media_status_t translateStatus(status_t status) {
 
 static sp<IDrm> CreateDrm() {
     sp<IServiceManager> sm = defaultServiceManager();
-    sp<IDrm> drm;
+    sp<IBinder> binder = sm->getService(String16("media.drm"));
 
-    char value[PROPERTY_VALUE_MAX];
-    if (property_get("media.mediadrmservice.enable", value, NULL)
-        && (!strcmp("1", value) || !strcasecmp("true", value))) {
-        sp<IBinder> binder =
-            sm->getService(String16("media.drm"));
-        sp<IMediaDrmService> service =
-            interface_cast<IMediaDrmService>(binder);
-        if (service == NULL) {
-            return NULL;
-        }
-        drm = service->makeDrm();
-    } else {
-        sp<IBinder> binder =
-            sm->getService(String16("media.player"));
-        sp<IMediaPlayerService> service =
-            interface_cast<IMediaPlayerService>(binder);
-        if (service == NULL) {
-            return NULL;
-        }
-        drm = service->makeDrm();
-    }
-
-    if (drm == NULL || (drm->initCheck() != OK && drm->initCheck() != NO_INIT)) {
+    sp<IMediaDrmService> service = interface_cast<IMediaDrmService>(binder);
+    if (service == NULL) {
         return NULL;
     }
 
+    sp<IDrm> drm = service->makeDrm();
+    if (drm == NULL || (drm->initCheck() != OK && drm->initCheck() != NO_INIT)) {
+        return NULL;
+    }
     return drm;
 }
 
