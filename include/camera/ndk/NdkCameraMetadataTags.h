@@ -4140,7 +4140,7 @@ typedef enum acamera_metadata_tag {
      * color channel listed in the CFA.</p>
      * <p>This key will be available if ACAMERA_SENSOR_OPTICAL_BLACK_REGIONS is
      * available or the camera device advertises this key via
-     * {@link android.hardware.camera2.CameraCharacteristics#getAvailableCaptureRequestKeys}.</p>
+     * {@link android.hardware.camera2.CameraCharacteristics#getAvailableCaptureResultKeys}.</p>
      *
      * @see ACAMERA_SENSOR_BLACK_LEVEL_PATTERN
      * @see ACAMERA_SENSOR_INFO_COLOR_FILTER_ARRANGEMENT
@@ -4655,16 +4655,26 @@ typedef enum acamera_metadata_tag {
             ACAMERA_STATISTICS_START + 10,
     /**
      * <p>The shading map is a low-resolution floating-point map
-     * that lists the coefficients used to correct for vignetting, for each
-     * Bayer color channel of RAW image data.</p>
+     * that lists the coefficients used to correct for vignetting and color shading,
+     * for each Bayer color channel of RAW image data.</p>
      *
      * <p>This tag may appear in:</p>
      * <ul>
      *   <li>ACameraMetadata from ACameraCaptureSession_captureCallback_result callbacks</li>
      * </ul>
      *
-     * <p>The least shaded section of the image should have a gain factor
-     * of 1; all other sections should have gains above 1.</p>
+     * <p>The lens shading correction is defined as a full shading correction that
+     * corrects both color shading for the output non-RAW images. After the
+     * shading map is applied, the output non-RAW images will be flat-field images
+     * for flat scenes under uniform illumination.</p>
+     * <p>When there is no lens shading correction applied to RAW output images
+     * (ACAMERA_SENSOR_INFO_LENS_SHADING_APPLIED <code>==</code> false), this map is a full lens
+     * shading correction map; when there is some lens shading correction applied
+     * to the RAW output image (ACAMERA_SENSOR_INFO_LENS_SHADING_APPLIED <code>==</code> true),
+     * this map reports the remaining lens shading correction map that needs to be
+     * applied to get fully shading corrected images.</p>
+     * <p>For a full shading correction map, the least shaded section of the image
+     * should have a gain factor of 1; all other sections should have gains above 1.</p>
      * <p>When ACAMERA_COLOR_CORRECTION_MODE = TRANSFORM_MATRIX, the map
      * must take into account the colorCorrection settings.</p>
      * <p>The shading map is for the entire active pixel array, and is not
