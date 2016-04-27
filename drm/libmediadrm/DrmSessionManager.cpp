@@ -18,12 +18,11 @@
 #define LOG_TAG "DrmSessionManager"
 #include <utils/Log.h>
 
-#include "DrmSessionManager.h"
-
-#include "DrmSessionClientInterface.h"
 #include <binder/IPCThreadState.h>
 #include <binder/IProcessInfoService.h>
 #include <binder/IServiceManager.h>
+#include <media/DrmSessionManager.h>
+#include <media/DrmSessionClientInterface.h>
 #include <media/stagefright/ProcessInfo.h>
 #include <unistd.h>
 #include <utils/String8.h>
