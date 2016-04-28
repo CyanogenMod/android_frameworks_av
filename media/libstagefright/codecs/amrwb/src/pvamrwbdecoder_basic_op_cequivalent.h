@@ -206,16 +206,18 @@ extern "C"
     {
         int32 L_var_out;
 
-        L_var_out = L_var1 + L_var2;
-
-        if (((L_var1 ^ L_var2) & MIN_32) == 0)  /* same sign ? */
-        {
-            if ((L_var_out ^ L_var1) & MIN_32)  /* addition matches sign ? */
-            {
-                L_var_out = (L_var1 >> 31) ^ MAX_32;
+        //L_var_out = L_var1 + L_var2;
+        if (L_var2 < 0) {
+            if (L_var1 < MIN_32 - L_var2) {
+                return MIN_32;
+            }
+        } else {
+            if (L_var1 > MAX_32 - L_var2) {
+                return MAX_32;
             }
         }
-        return (L_var_out);
+
+        return L_var1 + L_var2;
     }
 
 
@@ -248,138 +250,20 @@ extern "C"
 
     __inline  int32 sub_int32(int32 L_var1, int32 L_var2)
     {
-        int32 L_var_out;
-
-        L_var_out = L_var1 - L_var2;
-
-        if (((L_var1 ^ L_var2) & MIN_32) != 0)  /* different sign ? */
-        {
-            if ((L_var_out ^ L_var1) & MIN_32)  /* difference matches sign ? */
-            {
-                L_var_out = (L_var1 >> 31) ^ MAX_32;
+        //L_var_out = L_var1 - L_var2;
+        if (L_var2 < 0) {
+            if (L_var1 > MAX_32 + L_var2) {
+                return  MAX_32;
             }
-        }
-        return (L_var_out);
-    }
-
-
-
-    /*----------------------------------------------------------------------------
-
-         Function Name : mac_16by16_to_int32
-
-         Multiply var1 by var2 and shift the result left by 1. Add the 32 bit
-         result to L_var3 with saturation, return a 32 bit result:
-              L_mac(L_var3,var1,var2) = L_add(L_var3,L_mult(var1,var2)).
-
-         Inputs :
-
-          L_var3   32 bit long signed integer (int32) whose value falls in the
-                   range : 0x8000 0000 <= L_var3 <= 0x7fff ffff.
-
-          var1
-                   16 bit short signed integer (int16) whose value falls in the
-                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
-
-          var2
-                   16 bit short signed integer (int16) whose value falls in the
-                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
-
-
-         Return Value :
-                   32 bit long signed integer (int32) whose value falls in the
-                   range : 0x8000 0000 <= L_var_out <= 0x7fff ffff.
-
-     ----------------------------------------------------------------------------*/
-
-
-    __inline  int32 mac_16by16_to_int32(int32 L_var3, int16 var1, int16 var2)
-    {
-        int32 L_var_out;
-        int32 L_mul;
-
-        L_mul  = ((int32) var1 * (int32) var2);
-
-        if (L_mul != 0x40000000)
-        {
-            L_mul <<= 1;
-        }
-        else
-        {
-            L_mul = MAX_32;     /* saturation */
-        }
-
-        L_var_out = L_var3 + L_mul;
-
-        if (((L_mul ^ L_var3) & MIN_32) == 0)  /* same sign ? */
-        {
-            if ((L_var_out ^ L_var3) & MIN_32)  /* addition matches sign ? */
-            {
-                L_var_out = (L_var3 >> 31) ^ MAX_32;
+        } else {
+            if (L_var1 < MIN_32 + L_var2) {
+                return MIN_32;
             }
         }
 
-        return (L_var_out);
+        return L_var1 - L_var2;
     }
 
-
-
-    /*----------------------------------------------------------------------------
-
-         Function Name : msu_16by16_from_int32
-
-         Multiply var1 by var2 and shift the result left by 1. Subtract the 32 bit
-         result to L_var3 with saturation, return a 32 bit result:
-              L_msu(L_var3,var1,var2) = L_sub(L_var3,L_mult(var1,var2)).
-
-         Inputs :
-
-          L_var3   32 bit long signed integer (int32) whose value falls in the
-                   range : 0x8000 0000 <= L_var3 <= 0x7fff ffff.
-
-          var1
-                   16 bit short signed integer (int16) whose value falls in the
-                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
-
-          var2
-                   16 bit short signed integer (int16) whose value falls in the
-                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
-
-
-         Return Value :
-                   32 bit long signed integer (int32) whose value falls in the
-                   range : 0x8000 0000 <= L_var_out <= 0x7fff ffff.
-
-     ----------------------------------------------------------------------------*/
-
-    __inline  int32 msu_16by16_from_int32(int32 L_var3, int16 var1, int16 var2)
-    {
-        int32 L_var_out;
-        int32 L_mul;
-
-        L_mul  = ((int32) var1 * (int32) var2);
-
-        if (L_mul != 0x40000000)
-        {
-            L_mul <<= 1;
-        }
-        else
-        {
-            L_mul = MAX_32;     /* saturation */
-        }
-
-        L_var_out = L_var3 - L_mul;
-
-        if (((L_mul ^ L_var3) & MIN_32) != 0)  /* different sign ? */
-        {
-            if ((L_var_out ^ L_var3) & MIN_32)  /* difference matches sign ? */
-            {
-                L_var_out = (L_var3 >> 31) ^ MAX_32;
-            }
-        }
-
-        return (L_var_out);
-    }
 
 
     /*----------------------------------------------------------------------------
@@ -428,6 +312,75 @@ extern "C"
 
     /*----------------------------------------------------------------------------
 
+         Function Name : mac_16by16_to_int32
+
+         Multiply var1 by var2 and shift the result left by 1. Add the 32 bit
+         result to L_var3 with saturation, return a 32 bit result:
+              L_mac(L_var3,var1,var2) = L_add(L_var3,L_mult(var1,var2)).
+
+         Inputs :
+
+          L_var3   32 bit long signed integer (int32) whose value falls in the
+                   range : 0x8000 0000 <= L_var3 <= 0x7fff ffff.
+
+          var1
+                   16 bit short signed integer (int16) whose value falls in the
+                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
+
+          var2
+                   16 bit short signed integer (int16) whose value falls in the
+                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
+
+
+         Return Value :
+                   32 bit long signed integer (int32) whose value falls in the
+                   range : 0x8000 0000 <= L_var_out <= 0x7fff ffff.
+
+     ----------------------------------------------------------------------------*/
+
+
+    __inline  int32 mac_16by16_to_int32(int32 L_var3, int16 var1, int16 var2)
+    {
+        return add_int32(L_var3, mul_16by16_to_int32(var1, var2));
+    }
+
+
+    /*----------------------------------------------------------------------------
+
+         Function Name : msu_16by16_from_int32
+
+         Multiply var1 by var2 and shift the result left by 1. Subtract the 32 bit
+         result to L_var3 with saturation, return a 32 bit result:
+              L_msu(L_var3,var1,var2) = L_sub(L_var3,L_mult(var1,var2)).
+
+         Inputs :
+
+          L_var3   32 bit long signed integer (int32) whose value falls in the
+                   range : 0x8000 0000 <= L_var3 <= 0x7fff ffff.
+
+          var1
+                   16 bit short signed integer (int16) whose value falls in the
+                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
+
+          var2
+                   16 bit short signed integer (int16) whose value falls in the
+                   range : 0xffff 8000 <= var1 <= 0x0000 7fff.
+
+
+         Return Value :
+                   32 bit long signed integer (int32) whose value falls in the
+                   range : 0x8000 0000 <= L_var_out <= 0x7fff ffff.
+
+     ----------------------------------------------------------------------------*/
+
+    __inline  int32 msu_16by16_from_int32(int32 L_var3, int16 var1, int16 var2)
+    {
+        return sub_int32(L_var3, mul_16by16_to_int32(var1, var2));
+    }
+
+
+    /*----------------------------------------------------------------------------
+
          Function Name : amr_wb_round
 
          Round the lower 16 bits of the 32 bit input number into the MS 16 bits
@@ -447,7 +400,7 @@ extern "C"
      ----------------------------------------------------------------------------*/
     __inline int16 amr_wb_round(int32 L_var1)
     {
-        if (L_var1 != MAX_32)
+        if (L_var1 <= (MAX_32 - 0x00008000L))
         {
             L_var1 +=  0x00008000L;
         }
