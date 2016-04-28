@@ -36,6 +36,11 @@ public:
     virtual void            dataCallback(int32_t msgType, const sp<IMemory>& data,
                                          camera_frame_metadata_t *metadata) = 0;
     virtual void            dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<IMemory>& data) = 0;
+
+    // Invoked to send a recording frame handle with a timestamp. Call
+    // ICamera::releaseRecordingFrameHandle to release the frame handle.
+    virtual void            recordingFrameHandleCallbackTimestamp(nsecs_t timestamp,
+                                         native_handle_t* handle) = 0;
 };
 
 // ----------------------------------------------------------------------------

@@ -308,6 +308,13 @@ void CameraSourceTimeLapse::dataCallbackTimestamp(int64_t timestampUs, int32_t m
     CameraSource::dataCallbackTimestamp(timestampUs, msgType, data);
 }
 
+void CameraSourceTimeLapse::recordingFrameHandleCallbackTimestamp(int64_t timestampUs,
+            native_handle_t* handle) {
+    ALOGV("recordingFrameHandleCallbackTimestamp");
+    mSkipCurrentFrame = skipFrameAndModifyTimeStamp(&timestampUs);
+    CameraSource::recordingFrameHandleCallbackTimestamp(timestampUs, handle);
+}
+
 void CameraSourceTimeLapse::processBufferQueueFrame(BufferItem& buffer) {
     ALOGV("processBufferQueueFrame");
     int64_t timestampUs = buffer.mTimestamp / 1000;

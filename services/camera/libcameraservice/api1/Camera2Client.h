@@ -71,6 +71,7 @@ public:
     virtual void            stopRecording();
     virtual bool            recordingEnabled();
     virtual void            releaseRecordingFrame(const sp<IMemory>& mem);
+    virtual void            releaseRecordingFrameHandle(native_handle_t *handle);
     virtual status_t        autoFocus();
     virtual status_t        cancelAutoFocus();
     virtual status_t        takePicture(int msgType);
