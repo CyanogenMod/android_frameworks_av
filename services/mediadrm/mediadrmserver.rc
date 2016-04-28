@@ -3,3 +3,4 @@ service mediadrm /system/bin/mediadrmserver
     user media
     group mediadrm drmrpc
     ioprio rt 4
+    writepid /dev/cpuset/foreground/tasks
