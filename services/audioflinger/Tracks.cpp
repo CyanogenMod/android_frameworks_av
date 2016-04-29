@@ -402,7 +402,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         //mAudioTrackServerProxy->framesReadyIsCalledByMultipleThreads();
         ALOG_ASSERT(thread->mFastTrackAvailMask != 0);
         int i = __builtin_ctz(thread->mFastTrackAvailMask);
-        ALOG_ASSERT(0 < i && i < (int)FastMixerState::kMaxFastTracks);
+        ALOG_ASSERT(0 < i && i < (int)FastMixerState::sMaxFastTracks);
         // FIXME This is too eager.  We allocate a fast track index before the
         //       fast track becomes active.  Since fast tracks are a scarce resource,
         //       this means we are potentially denying other more important fast tracks from

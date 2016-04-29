@@ -54,7 +54,13 @@ struct FastMixerState : FastThreadState {
                 FastMixerState();
     /*virtual*/ ~FastMixerState();
 
-    static const unsigned kMaxFastTracks = 8;   // must be between 2 and 32 inclusive
+    // These are the minimum, maximum, and default values for maximum number of fast tracks
+    static const unsigned kMinFastTracks = 2;
+    static const unsigned kMaxFastTracks = 32;
+    static const unsigned kDefaultFastTracks = 8;
+
+    static unsigned sMaxFastTracks;             // Configured maximum number of fast tracks
+    static pthread_once_t sMaxFastTracksOnce;   // Protects initializer for sMaxFastTracks
 
     // all pointer fields use raw pointers; objects are owned and ref-counted by the normal mixer
     FastTrack   mFastTracks[kMaxFastTracks];
@@ -76,6 +82,10 @@ struct FastMixerState : FastThreadState {
 
     // never returns NULL; asserts if command is invalid
     static const char *commandToString(Command command);
+
+    // initialize sMaxFastTracks
+    static void sMaxFastTracksInit();
+
 };  // struct FastMixerState
 
 }   // namespace android

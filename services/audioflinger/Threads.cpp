@@ -1602,7 +1602,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mSignalPending(false),
         mScreenState(AudioFlinger::mScreenState),
         // index 0 is reserved for normal mixer's submix
-        mFastTrackAvailMask(((1 << FastMixerState::kMaxFastTracks) - 1) & ~1),
+        mFastTrackAvailMask(((1 << FastMixerState::sMaxFastTracks) - 1) & ~1),
         mHwSupportsPause(false), mHwPaused(false), mFlushPending(false)
 {
     snprintf(mThreadName, kThreadNameLength, "AudioOut_%X", id);
@@ -2103,7 +2103,7 @@ void AudioFlinger::PlaybackThread::removeTrack_l(const sp<Track>& track)
     track->mName = -1;
     if (track->isFastTrack()) {
         int index = track->mFastIndex;
-        ALOG_ASSERT(0 < index && index < (int)FastMixerState::kMaxFastTracks);
+        ALOG_ASSERT(0 < index && index < (int)FastMixerState::sMaxFastTracks);
         ALOG_ASSERT(!(mFastTrackAvailMask & (1 << index)));
         mFastTrackAvailMask |= 1 << index;
         // redundant as track is about to be destroyed, for dumpsys only
@@ -3859,7 +3859,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
             // at the identical fast mixer slot within the same normal mix cycle,
             // is impossible because the slot isn't marked available until the end of each cycle.
             int j = track->mFastIndex;
-            ALOG_ASSERT(0 < j && j < (int)FastMixerState::kMaxFastTracks);
+            ALOG_ASSERT(0 < j && j < (int)FastMixerState::sMaxFastTracks);
             ALOG_ASSERT(!(mFastTrackAvailMask & (1 << j)));
             FastTrack *fastTrack = &state->mFastTracks[j];
 

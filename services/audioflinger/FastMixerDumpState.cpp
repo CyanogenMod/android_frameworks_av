@@ -166,10 +166,10 @@ void FastMixerDumpState::dump(int fd) const
     // Instead we always display all tracks, with an indication
     // of whether we think the track is active.
     uint32_t trackMask = mTrackMask;
-    dprintf(fd, "  Fast tracks: kMaxFastTracks=%u activeMask=%#x\n",
-            FastMixerState::kMaxFastTracks, trackMask);
+    dprintf(fd, "  Fast tracks: sMaxFastTracks=%u activeMask=%#x\n",
+            FastMixerState::sMaxFastTracks, trackMask);
     dprintf(fd, "  Index Active Full Partial Empty  Recent Ready\n");
-    for (uint32_t i = 0; i < FastMixerState::kMaxFastTracks; ++i, trackMask >>= 1) {
+    for (uint32_t i = 0; i < FastMixerState::sMaxFastTracks; ++i, trackMask >>= 1) {
         bool isActive = trackMask & 1;
         const FastTrackDump *ftDump = &mTracks[i];
         const FastTrackUnderruns& underruns = ftDump->mUnderruns;
