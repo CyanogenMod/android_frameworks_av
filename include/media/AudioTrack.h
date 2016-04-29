@@ -186,8 +186,21 @@ public:
      *                     and inform of marker, position updates, etc.
      * user:               Context for use by the callback receiver.
      * notificationFrames: The callback function is called each time notificationFrames PCM
-     *                     frames have been consumed from track input buffer.
-     *                     This is expressed in units of frames at the initial source sample rate.
+     *                     frames have been consumed from track input buffer by server.
+     *                     Zero means to use a default value, which is typically:
+     *                      - fast tracks: HAL buffer size, even if track frameCount is larger
+     *                      - normal tracks: 1/2 of track frameCount
+     *                     A positive value means that many frames at initial source sample rate.
+     *                     A negative value for this parameter specifies the negative of the
+     *                     requested number of notifications (sub-buffers) in the entire buffer.
+     *                     For fast tracks, the FastMixer will process one sub-buffer at a time.
+     *                     The size of each sub-buffer is determined by the HAL.
+     *                     To get "double buffering", for example, one should pass -2.
+     *                     The minimum number of sub-buffers is 1 (expressed as -1),
+     *                     and the maximum number of sub-buffers is 8 (expressed as -8).
+     *                     Negative is only permitted for fast tracks, and if frameCount is zero.
+     *                     TODO It is ugly to overload a parameter in this way depending on
+     *                     whether it is positive, negative, or zero.  Consider splitting apart.
      * sessionId:          Specific session ID, or zero to use default.
      * transferType:       How data is transferred to AudioTrack.
      * offloadInfo:        If not NULL, provides offload parameters for
@@ -216,7 +229,7 @@ public:
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf       = NULL,
                                     void* user           = NULL,
-                                    uint32_t notificationFrames = 0,
+                                    int32_t notificationFrames = 0,
                                     audio_session_t sessionId  = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
@@ -246,7 +259,7 @@ public:
                                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                     callback_t cbf      = NULL,
                                     void* user          = NULL,
-                                    uint32_t notificationFrames = 0,
+                                    int32_t notificationFrames = 0,
                                     audio_session_t sessionId   = AUDIO_SESSION_ALLOCATE,
                                     transfer_type transferType = TRANSFER_DEFAULT,
                                     const audio_offload_info_t *offloadInfo = NULL,
@@ -290,7 +303,7 @@ public:
                             audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                             callback_t cbf      = NULL,
                             void* user          = NULL,
-                            uint32_t notificationFrames = 0,
+                            int32_t notificationFrames = 0,
                             const sp<IMemory>& sharedBuffer = 0,
                             bool threadCanCallJava = false,
                             audio_session_t sessionId  = AUDIO_SESSION_ALLOCATE,
@@ -334,6 +347,8 @@ public:
 
             uint32_t    channelCount() const { return mChannelCount; }
             size_t      frameCount() const  { return mFrameCount; }
+
+    // TODO consider notificationFrames() if needed
 
     /* Return effective size of audio buffer that an application writes to
      * or a negative error if the track is uninitialized.
@@ -977,9 +992,16 @@ protected:
     void*                   mUserData;
 
     // for notification APIs
+
+    // next 2 fields are const after constructor or set()
     uint32_t                mNotificationFramesReq; // requested number of frames between each
                                                     // notification callback,
                                                     // at initial source sample rate
+    uint32_t                mNotificationsPerBufferReq;
+                                                    // requested number of notifications per buffer,
+                                                    // currently only used for fast tracks with
+                                                    // default track buffer size
+
     uint32_t                mNotificationFramesAct; // actual number of frames between each
                                                     // notification callback,
                                                     // at initial source sample rate
