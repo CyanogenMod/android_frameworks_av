@@ -857,23 +857,23 @@ void cor_h_vec_30(
         p2 = &vec[pos];
         for (j=pos;j < L_SUBFR; j++)
         {
-            L_sum1 += *p1 * *p2;
+            L_sum1 = L_add(L_sum1, *p1 * *p2);
             p2-=3;
-            L_sum2 += *p1++ * *p2;
+            L_sum2 = L_add(L_sum2, *p1++ * *p2);
             p2+=4;
         }
         p2-=3;
-        L_sum2 += *p1++ * *p2++;
-        L_sum2 += *p1++ * *p2++;
-        L_sum2 += *p1++ * *p2++;
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
 
-        L_sum1 = (L_sum1 << 2);
-        L_sum2 = (L_sum2 << 2);
+        L_sum1 = L_shl(L_sum1, 2);
+        L_sum2 = L_shl(L_sum2, 2);
 
-        corr = vo_round(L_sum1);
-        *cor_x++ = vo_mult(corr, sign[pos]) + (*p0++);
-        corr = vo_round(L_sum2);
-        *cor_y++ = vo_mult(corr, sign[pos-3]) + (*p3++);
+        corr = voround(L_sum1);
+        *cor_x++ = mult(corr, sign[pos]) + (*p0++);
+        corr = voround(L_sum2);
+        *cor_y++ = mult(corr, sign[pos-3]) + (*p3++);
         pos += STEP;
 
         L_sum1 = L_sum2 = 0L;
@@ -881,23 +881,23 @@ void cor_h_vec_30(
         p2 = &vec[pos];
         for (j=pos;j < L_SUBFR; j++)
         {
-            L_sum1 += *p1 * *p2;
+            L_sum1 = L_add(L_sum1, *p1 * *p2);
             p2-=3;
-            L_sum2 += *p1++ * *p2;
+            L_sum2 = L_add(L_sum2, *p1++ * *p2);
             p2+=4;
         }
         p2-=3;
-        L_sum2 += *p1++ * *p2++;
-        L_sum2 += *p1++ * *p2++;
-        L_sum2 += *p1++ * *p2++;
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
+        L_sum2 = L_add(L_sum2, *p1++ * *p2++);
 
-        L_sum1 = (L_sum1 << 2);
-        L_sum2 = (L_sum2 << 2);
+        L_sum1 = L_shl(L_sum1, 2);
+        L_sum2 = L_shl(L_sum2, 2);
 
-        corr = vo_round(L_sum1);
-        *cor_x++ = vo_mult(corr, sign[pos]) + (*p0++);
-        corr = vo_round(L_sum2);
-        *cor_y++ = vo_mult(corr, sign[pos-3]) + (*p3++);
+        corr = voround(L_sum1);
+        *cor_x++ = mult(corr, sign[pos]) + (*p0++);
+        corr = voround(L_sum2);
+        *cor_y++ = mult(corr, sign[pos-3]) + (*p3++);
         pos += STEP;
     }
     return;
@@ -929,16 +929,16 @@ void cor_h_vec_012(
         p2 = &vec[pos];
         for (j=62-pos ;j >= 0; j--)
         {
-            L_sum1 += *p1 * *p2++;
-            L_sum2 += *p1++ * *p2;
+            L_sum1 = L_add(L_sum1, *p1 * *p2++);
+            L_sum2 = L_add(L_sum2, *p1++ * *p2);
         }
-        L_sum1 += *p1 * *p2;
-        L_sum1 = (L_sum1 << 2);
-        L_sum2 = (L_sum2 << 2);
+        L_sum1 = L_add(L_sum1, *p1 * *p2);
+        L_sum1 = L_shl(L_sum1, 2);
+        L_sum2 = L_shl(L_sum2, 2);
 
-        corr = (L_sum1 + 0x8000) >> 16;
+        corr = voround(L_sum1);
         cor_x[i] = vo_mult(corr, sign[pos]) + (*p0++);
-        corr = (L_sum2 + 0x8000) >> 16;
+        corr = voround(L_sum2);
         cor_y[i] = vo_mult(corr, sign[pos + 1]) + (*p3++);
         pos += STEP;
 
@@ -947,16 +947,16 @@ void cor_h_vec_012(
         p2 = &vec[pos];
         for (j= 62-pos;j >= 0; j--)
         {
-            L_sum1 += *p1 * *p2++;
-            L_sum2 += *p1++ * *p2;
+            L_sum1 = L_add(L_sum1, *p1 * *p2++);
+            L_sum2 = L_add(L_sum2, *p1++ * *p2);
         }
-        L_sum1 += *p1 * *p2;
-        L_sum1 = (L_sum1 << 2);
-        L_sum2 = (L_sum2 << 2);
+        L_sum1 = L_add(L_sum1, *p1 * *p2);
+        L_sum1 = L_shl(L_sum1, 2);
+        L_sum2 = L_shl(L_sum2, 2);
 
-        corr = (L_sum1 + 0x8000) >> 16;
+        corr = voround(L_sum1);
         cor_x[i+1] = vo_mult(corr, sign[pos]) + (*p0++);
-        corr = (L_sum2 + 0x8000) >> 16;
+        corr = voround(L_sum2);
         cor_y[i+1] = vo_mult(corr, sign[pos + 1]) + (*p3++);
         pos += STEP;
     }
