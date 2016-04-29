@@ -331,13 +331,6 @@ void AudioPolicyService::binderDied(const wp<IBinder>& who) {
             IPCThreadState::self()->getCallingPid());
 }
 
-void AudioPolicyService::releaseOutputSessionEffectsDelayed(
-        audio_io_handle_t output, audio_stream_type_t stream,
-        audio_unique_id_t sessionId, int delayMs)
-{
-    mAudioCommandThread->releaseOutputSessionEffectsCommand(output, stream, sessionId, delayMs);
-}
-
 static bool tryLock(Mutex& mutex)
 {
     bool locked = false;
@@ -787,29 +780,6 @@ status_t AudioPolicyService::AudioCommandThread::startOutputCommand(audio_io_han
     ALOGV("AudioCommandThread() adding start output %d", output);
     return sendCommand(command);
 }
-
-status_t AudioPolicyService::AudioCommandThread::addOutputSessionEffectsCommand(audio_io_handle_t output,
-                                                                    audio_stream_type_t stream,
-                                                                    audio_session_t session,
-                                                                    audio_output_flags_t flags,
-                                                                    audio_channel_mask_t channelMask,
-                                                                    uid_t uid)
-{
-    sp<AudioCommand> command = new AudioCommand();
-    command->mCommand = ADD_OUTPUT_SESSION_EFFECTS;
-    sp<AddOutputSessionEffectsData> data = new AddOutputSessionEffectsData();
-    data->mOutput = output;
-    data->mStream = stream;
-    data->mSessionId = session;
-    data->mFlags = flags;
-    data->mChannelMask = channelMask;
-    data->mUid = uid;
-    command->mParam = data;
-    command->mWaitStatus = false;
-    ALOGV("AudioCommandThread() adding start output %d", output);
-    return sendCommand(command);
-}
-
 
 void AudioPolicyService::AudioCommandThread::stopOutputCommand(audio_io_handle_t output,
                                                                audio_stream_type_t stream,
