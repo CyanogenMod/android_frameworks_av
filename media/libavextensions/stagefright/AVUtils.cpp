@@ -812,7 +812,7 @@ status_t AVUtils::HEVCMuxer::parserProfileTierLevel(const uint8_t *data, size_t 
 }
 static const uint8_t *findNextStartCode(
        const uint8_t *data, size_t length) {
-    ALOGV("findNextStartCode: %p %d", data, length);
+    ALOGV("findNextStartCode: %p %zu", data, length);
 
     size_t bytesLeft = length;
 

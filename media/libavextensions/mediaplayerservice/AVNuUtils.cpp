@@ -277,7 +277,7 @@ status_t AVNuUtils::convertToSinkFormatIfNeeded(
         return BAD_VALUE;
     }
 
-    ALOGV("convert %zu bytes (frames %d) of format %x",
+    ALOGV("convert %zu bytes (frames %zu) of format %x",
           buffer->size(), frames, srcFormat);
 
     audio_format_t dstFormat;

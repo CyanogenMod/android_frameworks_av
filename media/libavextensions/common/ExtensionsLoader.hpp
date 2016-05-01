@@ -49,7 +49,7 @@ static const char * CUSTOMIZATION_LIB_NAME = "libavenhancements.so";
 
 template <typename T>
 T *ExtensionsLoader<T>::createInstance(const char *createFunctionName) {
-        ALOGV("createInstance(%dbit) : %s", sizeof(intptr_t)*8, createFunctionName);
+        (void)createFunctionName;
         // create extended object if extensions-lib is available and
         // AV_ENHANCEMENTS is enabled
 #if ENABLE_AV_ENHANCEMENTS
