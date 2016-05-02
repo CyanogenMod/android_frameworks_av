@@ -232,6 +232,14 @@ void Camera::releaseRecordingFrame(const sp<IMemory>& mem)
     c->releaseRecordingFrame(mem);
 }
 
+void Camera::releaseRecordingFrameHandle(native_handle_t* handle)
+{
+    ALOGV("releaseRecordingFrameHandle");
+    sp <::android::hardware::ICamera> c = mCamera;
+    if (c == 0) return;
+    c->releaseRecordingFrameHandle(handle);
+}
+
 // get preview state
 bool Camera::previewEnabled()
 {
@@ -381,6 +389,35 @@ void Camera::dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType, const sp<
     }
 }
 
+void Camera::recordingFrameHandleCallbackTimestamp(nsecs_t timestamp, native_handle_t* handle)
+{
+    // If recording proxy listener is registered, forward the frame and return.
+    // The other listener (mListener) is ignored because the receiver needs to
+    // call releaseRecordingFrameHandle.
+    sp<ICameraRecordingProxyListener> proxylistener;
+    {
+        Mutex::Autolock _l(mLock);
+        proxylistener = mRecordingProxyListener;
+    }
+    if (proxylistener != NULL) {
+        proxylistener->recordingFrameHandleCallbackTimestamp(timestamp, handle);
+        return;
+    }
+
+    sp<CameraListener> listener;
+    {
+        Mutex::Autolock _l(mLock);
+        listener = mListener;
+    }
+
+    if (listener != NULL) {
+        listener->postRecordingFrameHandleTimestamp(timestamp, handle);
+    } else {
+        ALOGW("No listener was set. Drop a recording frame.");
+        releaseRecordingFrameHandle(handle);
+    }
+}
+
 sp<ICameraRecordingProxy> Camera::getRecordingProxy() {
     ALOGV("getProxy");
     return new RecordingProxy(this);
@@ -404,6 +441,11 @@ void Camera::RecordingProxy::releaseRecordingFrame(const sp<IMemory>& mem)
 {
     ALOGV("RecordingProxy::releaseRecordingFrame");
     mCamera->releaseRecordingFrame(mem);
+}
+
+void Camera::RecordingProxy::releaseRecordingFrameHandle(native_handle_t* handle) {
+    ALOGV("RecordingProxy::releaseRecordingFrameHandle");
+    mCamera->releaseRecordingFrameHandle(handle);
 }
 
 Camera::RecordingProxy::RecordingProxy(const sp<Camera>& camera)

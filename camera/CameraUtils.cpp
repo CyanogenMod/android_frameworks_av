@@ -122,19 +122,4 @@ status_t CameraUtils::getRotationTransform(const CameraMetadata& staticInfo,
     return OK;
 }
 
-// Return whether the image data contains a native handle.
-bool CameraUtils::isNativeHandleMetadata(const sp<IMemory>& imageData) {
-    if (imageData == nullptr) {
-        return false;
-    }
-
-    if (imageData->size() == sizeof(VideoNativeHandleMetadata)) {
-        VideoNativeHandleMetadata *metadata =
-                (VideoNativeHandleMetadata*)(imageData->pointer());
-        return metadata->eType == kMetadataBufferTypeNativeHandleSource;
-    }
-
-    return false;
-}
-
 } /* namespace android */

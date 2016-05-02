@@ -49,6 +49,7 @@ public:
     virtual void            stopRecording();
     virtual bool            recordingEnabled();
     virtual void            releaseRecordingFrame(const sp<IMemory>& mem);
+    virtual void            releaseRecordingFrameHandle(native_handle_t *handle);
     virtual status_t        autoFocus();
     virtual status_t        cancelAutoFocus();
     virtual status_t        takePicture(int msgType);
@@ -147,6 +148,12 @@ private:
 
     // Debugging information
     CameraParameters                mLatestSetParameters;
+
+    // mAvailableCallbackBuffers stores sp<IMemory> that HAL uses to send VideoNativeHandleMetadata.
+    // It will be used to send VideoNativeHandleMetadata back to HAL when camera receives the
+    // native handle from releaseRecordingFrameHandle.
+    Mutex                           mAvailableCallbackBuffersLock;
+    std::vector<sp<IMemory>>        mAvailableCallbackBuffers;
 
     // We need to avoid the deadlock when the incoming command thread and
     // the CameraHardwareInterface callback thread both want to grab mLock.

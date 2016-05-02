@@ -18,6 +18,7 @@
 #define ANDROID_HARDWARE_ICAMERA_RECORDING_PROXY_H
 
 #include <binder/IInterface.h>
+#include <cutils/native_handle.h>
 #include <utils/RefBase.h>
 
 namespace android {
@@ -83,6 +84,7 @@ public:
     virtual status_t        startRecording(const sp<ICameraRecordingProxyListener>& listener) = 0;
     virtual void            stopRecording() = 0;
     virtual void            releaseRecordingFrame(const sp<IMemory>& mem) = 0;
+    virtual void            releaseRecordingFrameHandle(native_handle_t *handle) = 0;
 };
 
 // ----------------------------------------------------------------------------
