@@ -228,6 +228,7 @@ sp<IMemory> MetadataRetrieverClient::getFrameAtTime(int64_t timeUs, int option)
     ALOGV("rotation: %d", frameCopy->mRotationAngle);
     frameCopy->mData = (uint8_t *)frameCopy + sizeof(VideoFrame);
     memcpy(frameCopy->mData, frame->mData, frame->mSize);
+    frameCopy->mData = 0;
     delete frame;  // Fix memory leakage
     return mThumbnail;
 }
