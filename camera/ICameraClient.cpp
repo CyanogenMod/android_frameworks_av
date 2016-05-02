@@ -31,6 +31,7 @@ enum {
     NOTIFY_CALLBACK = IBinder::FIRST_CALL_TRANSACTION,
     DATA_CALLBACK,
     DATA_CALLBACK_TIMESTAMP,
+    RECORDING_FRAME_HANDLE_CALLBACK_TIMESTAMP,
 };
 
 class BpCameraClient: public BpInterface<ICameraClient>
@@ -78,14 +79,17 @@ public:
         data.writeInt64(timestamp);
         data.writeInt32(msgType);
         data.writeStrongBinder(IInterface::asBinder(imageData));
-        // If imageData is metadata and it contains a native handle, write the native handle to
-        // parcel.
-        if (CameraUtils::isNativeHandleMetadata(imageData)) {
-            VideoNativeHandleMetadata *metadata =
-                    (VideoNativeHandleMetadata*)(imageData->pointer());
-            data.writeNativeHandle(metadata->pHandle);
-        }
         remote()->transact(DATA_CALLBACK_TIMESTAMP, data, &reply, IBinder::FLAG_ONEWAY);
+    }
+
+    void recordingFrameHandleCallbackTimestamp(nsecs_t timestamp, native_handle_t* handle) {
+        ALOGV("recordingFrameHandleCallbackTimestamp");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraClient::getInterfaceDescriptor());
+        data.writeInt64(timestamp);
+        data.writeNativeHandle(handle);
+        remote()->transact(RECORDING_FRAME_HANDLE_CALLBACK_TIMESTAMP, data, &reply,
+                IBinder::FLAG_ONEWAY);
     }
 };
 
@@ -128,20 +132,26 @@ status_t BnCameraClient::onTransact(
             nsecs_t timestamp = data.readInt64();
             int32_t msgType = data.readInt32();
             sp<IMemory> imageData = interface_cast<IMemory>(data.readStrongBinder());
-
-            // If the image data contains a native handle, read the native handle from the parcel
-            // and replace the native handle in the image data. (The native handle in image data is
-            // not serielized/deserialized so it's not valid in the process.)
-            if (CameraUtils::isNativeHandleMetadata(imageData)) {
-                VideoNativeHandleMetadata *metadata =
-                        (VideoNativeHandleMetadata*)(imageData->pointer());
-                metadata->pHandle = data.readNativeHandle();
-
-                // The native handle will be freed in
-                // BpCameraRecordingProxyListener::releaseRecordingFrame.
+            dataCallbackTimestamp(timestamp, msgType, imageData);
+            return NO_ERROR;
+        } break;
+        case RECORDING_FRAME_HANDLE_CALLBACK_TIMESTAMP: {
+            ALOGV("RECORDING_FRAME_HANDLE_CALLBACK_TIMESTAMP");
+            CHECK_INTERFACE(ICameraClient, data, reply);
+            nsecs_t timestamp;
+            status_t res = data.readInt64(&timestamp);
+            if (res != OK) {
+                ALOGE("%s: Failed to read timestamp: %s (%d)", __FUNCTION__, strerror(-res), res);
+                return BAD_VALUE;
+            }
+            native_handle_t* handle = data.readNativeHandle();
+            if (handle == nullptr) {
+                ALOGE("%s: Received a null native handle", __FUNCTION__);
+                return BAD_VALUE;
             }
 
-            dataCallbackTimestamp(timestamp, msgType, imageData);
+            // The native handle will be freed in BpCamera::releaseRecordingFrameHandle.
+            recordingFrameHandleCallbackTimestamp(timestamp, handle);
             return NO_ERROR;
         } break;
         default:

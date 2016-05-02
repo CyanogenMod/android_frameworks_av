@@ -31,6 +31,7 @@ enum {
     START_RECORDING = IBinder::FIRST_CALL_TRANSACTION,
     STOP_RECORDING,
     RELEASE_RECORDING_FRAME,
+    RELEASE_RECORDING_FRAME_HANDLE,
 };
 
 
@@ -66,22 +67,20 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(ICameraRecordingProxy::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(mem));
-
-        native_handle_t *nh = nullptr;
-        if (CameraUtils::isNativeHandleMetadata(mem)) {
-            VideoNativeHandleMetadata *metadata =
-                        (VideoNativeHandleMetadata*)(mem->pointer());
-            nh = metadata->pHandle;
-            data.writeNativeHandle(nh);
-        }
-
         remote()->transact(RELEASE_RECORDING_FRAME, data, &reply);
+    }
 
-        if (nh) {
-            // Close the native handle because camera received a dup copy.
-            native_handle_close(nh);
-            native_handle_delete(nh);
-        }
+    void releaseRecordingFrameHandle(native_handle_t *handle) {
+        ALOGV("releaseRecordingFrameHandle");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICameraRecordingProxy::getInterfaceDescriptor());
+        data.writeNativeHandle(handle);
+
+        remote()->transact(RELEASE_RECORDING_FRAME_HANDLE, data, &reply);
+
+        // Close the native handle because camera received a dup copy.
+        native_handle_close(handle);
+        native_handle_delete(handle);
     }
 };
 
@@ -111,19 +110,17 @@ status_t BnCameraRecordingProxy::onTransact(
             ALOGV("RELEASE_RECORDING_FRAME");
             CHECK_INTERFACE(ICameraRecordingProxy, data, reply);
             sp<IMemory> mem = interface_cast<IMemory>(data.readStrongBinder());
-
-            if (CameraUtils::isNativeHandleMetadata(mem)) {
-                VideoNativeHandleMetadata *metadata =
-                        (VideoNativeHandleMetadata*)(mem->pointer());
-                metadata->pHandle = data.readNativeHandle();
-
-                // releaseRecordingFrame will be responsble to close the native handle.
-            }
             releaseRecordingFrame(mem);
-
             return NO_ERROR;
         } break;
+        case RELEASE_RECORDING_FRAME_HANDLE: {
+            ALOGV("RELEASE_RECORDING_FRAME_HANDLE");
+            CHECK_INTERFACE(ICameraRecordingProxy, data, reply);
 
+            // releaseRecordingFrameHandle will be responsble to close the native handle.
+            releaseRecordingFrameHandle(data.readNativeHandle());
+            return NO_ERROR;
+        } break;
         default:
             return BBinder::onTransact(code, data, reply, flags);
     }

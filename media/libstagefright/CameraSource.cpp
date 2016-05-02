@@ -56,6 +56,8 @@ struct CameraSourceListener : public CameraListener {
     virtual void postDataTimestamp(
             nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr);
 
+    virtual void postRecordingFrameHandleTimestamp(nsecs_t timestamp, native_handle_t* handle);
+
 protected:
     virtual ~CameraSourceListener();
 
@@ -97,6 +99,14 @@ void CameraSourceListener::postDataTimestamp(
     sp<CameraSource> source = mSource.promote();
     if (source.get() != NULL) {
         source->dataCallbackTimestamp(timestamp/1000, msgType, dataPtr);
+    }
+}
+
+void CameraSourceListener::postRecordingFrameHandleTimestamp(nsecs_t timestamp,
+        native_handle_t* handle) {
+    sp<CameraSource> source = mSource.promote();
+    if (source.get() != nullptr) {
+        source->recordingFrameHandleCallbackTimestamp(timestamp/1000, handle);
     }
 }
 
@@ -509,6 +519,14 @@ status_t CameraSource::init(
     return err;
 }
 
+void CameraSource::createVideoBufferMemoryHeap(size_t size, uint32_t bufferCount) {
+    mMemoryHeapBase = new MemoryHeapBase(size * bufferCount, 0,
+            "StageFright-CameraSource-BufferHeap");
+    for (uint32_t i = 0; i < bufferCount; i++) {
+        mMemoryBases.push_back(new MemoryBase(mMemoryHeapBase, i * size, size));
+    }
+}
+
 status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
         uint32_t format, android_dataspace dataSpace, uint32_t bufferCount) {
     ALOGV("initBufferQueue");
@@ -562,12 +580,7 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
     }
 
     // Create memory heap to store buffers as VideoNativeMetadata.
-    size_t bufferSize = sizeof(VideoNativeMetadata);
-    mMemoryHeapBase = new MemoryHeapBase(bufferSize * bufferCount, 0,
-            "StageFright-CameraSource-BufferHeap");
-    for (uint32_t i = 0; i < bufferCount; i++) {
-        mMemoryBases.push_back(new MemoryBase(mMemoryHeapBase, i * bufferSize, bufferSize));
-    }
+    createVideoBufferMemoryHeap(sizeof(VideoNativeMetadata), bufferCount);
 
     mBufferQueueListener = new BufferQueueListener(mVideoBufferConsumer, this);
     res = mBufferQueueListener->run("CameraSource-BufferQueueListener");
@@ -718,6 +731,9 @@ status_t CameraSource::startCameraRecording() {
             ALOGW("Failed to set video encoder format/dataspace to %d, %d due to %d",
                     mEncoderFormat, mEncoderDataSpace, err);
         }
+
+        // Create memory heap to store buffers as VideoNativeMetadata.
+        createVideoBufferMemoryHeap(sizeof(VideoNativeHandleMetadata), kDefaultVideoBufferCount);
     }
 
     err = OK;
@@ -920,12 +936,33 @@ void CameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
         mVideoBufferConsumer->releaseBuffer(buffer);
         mMemoryBases.push_back(frame);
         mMemoryBaseAvailableCond.signal();
-    } else if (mCameraRecordingProxy != NULL) {
-        mCameraRecordingProxy->releaseRecordingFrame(frame);
-    } else if (mCamera != NULL) {
-        int64_t token = IPCThreadState::self()->clearCallingIdentity();
-        mCamera->releaseRecordingFrame(frame);
-        IPCThreadState::self()->restoreCallingIdentity(token);
+    } else {
+        native_handle_t* handle = nullptr;
+
+        // Check if frame contains a VideoNativeHandleMetadata.
+        if (frame->size() == sizeof(VideoNativeHandleMetadata)) {
+            VideoNativeHandleMetadata *metadata =
+                (VideoNativeHandleMetadata*)(frame->pointer());
+            if (metadata->eType == kMetadataBufferTypeNativeHandleSource) {
+                handle = metadata->pHandle;
+            }
+        }
+
+        if (handle != nullptr) {
+            // Frame contains a VideoNativeHandleMetadata. Send the handle back to camera.
+            releaseRecordingFrameHandle(handle);
+            mMemoryBases.push_back(frame);
+            mMemoryBaseAvailableCond.signal();
+        } else if (mCameraRecordingProxy != nullptr) {
+            // mCamera is created by application. Return the frame back to camera via camera
+            // recording proxy.
+            mCameraRecordingProxy->releaseRecordingFrame(frame);
+        } else if (mCamera != nullptr) {
+            // mCamera is created by CameraSource. Return the frame directly back to camera.
+            int64_t token = IPCThreadState::self()->clearCallingIdentity();
+            mCamera->releaseRecordingFrame(frame);
+            IPCThreadState::self()->restoreCallingIdentity(token);
+        }
     }
 }
 
@@ -1073,6 +1110,53 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
     mFrameAvailableCondition.signal();
 }
 
+void CameraSource::releaseRecordingFrameHandle(native_handle_t* handle) {
+    if (mCameraRecordingProxy != nullptr) {
+        mCameraRecordingProxy->releaseRecordingFrameHandle(handle);
+    } else if (mCamera != nullptr) {
+        int64_t token = IPCThreadState::self()->clearCallingIdentity();
+        mCamera->releaseRecordingFrameHandle(handle);
+        IPCThreadState::self()->restoreCallingIdentity(token);
+    }
+}
+
+void CameraSource::recordingFrameHandleCallbackTimestamp(int64_t timestampUs,
+                native_handle_t* handle) {
+    ALOGV("%s: timestamp %lld us", __FUNCTION__, (long long)timestampUs);
+    Mutex::Autolock autoLock(mLock);
+    if (handle == nullptr) return;
+
+    if (shouldSkipFrameLocked(timestampUs)) {
+        releaseRecordingFrameHandle(handle);
+        return;
+    }
+
+    while (mMemoryBases.empty()) {
+        if (mMemoryBaseAvailableCond.waitRelative(mLock, kMemoryBaseAvailableTimeoutNs) ==
+                TIMED_OUT) {
+            ALOGW("Waiting on an available memory base timed out. Dropping a recording frame.");
+            releaseRecordingFrameHandle(handle);
+            return;
+        }
+    }
+
+    ++mNumFramesReceived;
+
+    sp<IMemory> data = *mMemoryBases.begin();
+    mMemoryBases.erase(mMemoryBases.begin());
+
+    // Wrap native handle in sp<IMemory> so it can be pushed to mFramesReceived.
+    VideoNativeHandleMetadata *metadata = (VideoNativeHandleMetadata*)(data->pointer());
+    metadata->eType = kMetadataBufferTypeNativeHandleSource;
+    metadata->pHandle = handle;
+
+    mFramesReceived.push_back(data);
+    int64_t timeUs = mStartTimeUs + (timestampUs - mFirstFrameTimeUs);
+    mFrameTimes.push_back(timeUs);
+    ALOGV("initial delay: %" PRId64 ", current time stamp: %" PRId64, mStartTimeUs, timeUs);
+    mFrameAvailableCondition.signal();
+}
+
 CameraSource::BufferQueueListener::BufferQueueListener(const sp<BufferItemConsumer>& consumer,
         const sp<CameraSource>& cameraSource) {
     mConsumer = consumer;
@@ -1176,6 +1260,11 @@ CameraSource::ProxyListener::ProxyListener(const sp<CameraSource>& source) {
 void CameraSource::ProxyListener::dataCallbackTimestamp(
         nsecs_t timestamp, int32_t msgType, const sp<IMemory>& dataPtr) {
     mSource->dataCallbackTimestamp(timestamp / 1000, msgType, dataPtr);
+}
+
+void CameraSource::ProxyListener::recordingFrameHandleCallbackTimestamp(nsecs_t timestamp,
+        native_handle_t* handle) {
+    mSource->recordingFrameHandleCallbackTimestamp(timestamp / 1000, handle);
 }
 
 void CameraSource::DeathNotifier::binderDied(const wp<IBinder>& who __unused) {

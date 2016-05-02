@@ -18,6 +18,7 @@
 #define ANDROID_HARDWARE_ICAMERA_RECORDING_PROXY_LISTENER_H
 
 #include <binder/IInterface.h>
+#include <cutils/native_handle.h>
 #include <stdint.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -34,6 +35,9 @@ public:
 
     virtual void dataCallbackTimestamp(nsecs_t timestamp, int32_t msgType,
                                        const sp<IMemory>& data) = 0;
+
+    virtual void recordingFrameHandleCallbackTimestamp(nsecs_t timestamp,
+                                                       native_handle_t* handle) = 0;
 };
 
 // ----------------------------------------------------------------------------

@@ -94,8 +94,12 @@ public:
     // get recording state
     virtual bool            recordingEnabled() = 0;
 
-    // release a recording frame
+    // Release a recording frame that was received via ICameraClient::dataCallbackTimestamp.
     virtual void            releaseRecordingFrame(const sp<IMemory>& mem) = 0;
+
+    // Release a recording frame handle that was received via
+    // ICameraClient::recordingFrameHandleCallbackTimestamp.
+    virtual void            releaseRecordingFrameHandle(native_handle_t *handle) = 0;
 
     // auto focus
     virtual status_t        autoFocus() = 0;

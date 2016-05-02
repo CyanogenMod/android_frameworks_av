@@ -19,6 +19,7 @@
 
 #include <cutils/properties.h>
 #include <gui/Surface.h>
+#include <media/hardware/HardwareAPI.h>
 
 #include "api1/CameraClient.h"
 #include "device1/CameraHardwareInterface.h"
@@ -488,6 +489,39 @@ void CameraClient::releaseRecordingFrame(const sp<IMemory>& mem) {
     mHardware->releaseRecordingFrame(mem);
 }
 
+void CameraClient::releaseRecordingFrameHandle(native_handle_t *handle) {
+    if (handle == nullptr) return;
+
+    sp<IMemory> dataPtr;
+    {
+        Mutex::Autolock l(mAvailableCallbackBuffersLock);
+        if (!mAvailableCallbackBuffers.empty()) {
+            dataPtr = mAvailableCallbackBuffers.back();
+            mAvailableCallbackBuffers.pop_back();
+        }
+    }
+
+    if (dataPtr == nullptr) {
+        ALOGE("%s: %d: No callback buffer available. Dropping a native handle.", __FUNCTION__,
+                __LINE__);
+        native_handle_close(handle);
+        native_handle_delete(handle);
+        return;
+    } else if (dataPtr->size() != sizeof(VideoNativeHandleMetadata)) {
+        ALOGE("%s: %d: Callback buffer size doesn't match VideoNativeHandleMetadata", __FUNCTION__,
+                __LINE__);
+        native_handle_close(handle);
+        native_handle_delete(handle);
+        return;
+    }
+
+    VideoNativeHandleMetadata *metadata = (VideoNativeHandleMetadata*)(dataPtr->pointer());
+    metadata->eType = kMetadataBufferTypeNativeHandleSource;
+    metadata->pHandle = handle;
+
+    mHardware->releaseRecordingFrame(dataPtr);
+}
+
 status_t CameraClient::setVideoBufferMode(int32_t videoBufferMode) {
     LOG1("setVideoBufferMode: %d", videoBufferMode);
     bool enableMetadataInBuffers = false;
@@ -929,8 +963,28 @@ void CameraClient::handleGenericDataTimestamp(nsecs_t timestamp,
     int32_t msgType, const sp<IMemory>& dataPtr) {
     sp<hardware::ICameraClient> c = mRemoteCallback;
     mLock.unlock();
-    if (c != 0) {
-        c->dataCallbackTimestamp(timestamp, msgType, dataPtr);
+    if (c != 0 && dataPtr != nullptr) {
+        native_handle_t* handle = nullptr;
+
+        // Check if dataPtr contains a VideoNativeHandleMetadata.
+        if (dataPtr->size() == sizeof(VideoNativeHandleMetadata)) {
+            VideoNativeHandleMetadata *metadata =
+                (VideoNativeHandleMetadata*)(dataPtr->pointer());
+            if (metadata->eType == kMetadataBufferTypeNativeHandleSource) {
+                handle = metadata->pHandle;
+            }
+        }
+
+        // If dataPtr contains a native handle, send it via recordingFrameHandleCallbackTimestamp.
+        if (handle != nullptr) {
+            {
+                Mutex::Autolock l(mAvailableCallbackBuffersLock);
+                mAvailableCallbackBuffers.push_back(dataPtr);
+            }
+            c->recordingFrameHandleCallbackTimestamp(timestamp, handle);
+        } else {
+            c->dataCallbackTimestamp(timestamp, msgType, dataPtr);
+        }
     }
 }
 

@@ -54,6 +54,7 @@ enum {
     RELEASE_RECORDING_FRAME,
     SET_VIDEO_BUFFER_MODE,
     SET_VIDEO_BUFFER_TARGET,
+    RELEASE_RECORDING_FRAME_HANDLE,
 };
 
 class BpCamera: public BpInterface<ICamera>
@@ -155,21 +156,20 @@ public:
         data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
         data.writeStrongBinder(IInterface::asBinder(mem));
 
-        native_handle_t *nh = nullptr;
-        if (CameraUtils::isNativeHandleMetadata(mem)) {
-            VideoNativeHandleMetadata *metadata =
-                        (VideoNativeHandleMetadata*)(mem->pointer());
-            nh = metadata->pHandle;
-            data.writeNativeHandle(nh);
-        }
-
         remote()->transact(RELEASE_RECORDING_FRAME, data, &reply);
+    }
 
-        if (nh) {
-            // Close the native handle because camera received a dup copy.
-            native_handle_close(nh);
-            native_handle_delete(nh);
-        }
+    void releaseRecordingFrameHandle(native_handle_t *handle) {
+        ALOGV("releaseRecordingFrameHandle");
+        Parcel data, reply;
+        data.writeInterfaceToken(ICamera::getInterfaceDescriptor());
+        data.writeNativeHandle(handle);
+
+        remote()->transact(RELEASE_RECORDING_FRAME_HANDLE, data, &reply);
+
+        // Close the native handle because camera received a dup copy.
+        native_handle_close(handle);
+        native_handle_delete(handle);
     }
 
     status_t setVideoBufferMode(int32_t videoBufferMode)
@@ -368,15 +368,14 @@ status_t BnCamera::onTransact(
             ALOGV("RELEASE_RECORDING_FRAME");
             CHECK_INTERFACE(ICamera, data, reply);
             sp<IMemory> mem = interface_cast<IMemory>(data.readStrongBinder());
-
-            if (CameraUtils::isNativeHandleMetadata(mem)) {
-                VideoNativeHandleMetadata *metadata =
-                        (VideoNativeHandleMetadata*)(mem->pointer());
-                metadata->pHandle = data.readNativeHandle();
-                // releaseRecordingFrame will be responsble to close the native handle.
-            }
-
             releaseRecordingFrame(mem);
+            return NO_ERROR;
+        } break;
+        case RELEASE_RECORDING_FRAME_HANDLE: {
+            ALOGV("RELEASE_RECORDING_FRAME_HANDLE");
+            CHECK_INTERFACE(ICamera, data, reply);
+            // releaseRecordingFrameHandle will be responsble to close the native handle.
+            releaseRecordingFrameHandle(data.readNativeHandle());
             return NO_ERROR;
         } break;
         case SET_VIDEO_BUFFER_MODE: {

@@ -145,6 +145,14 @@ private:
     virtual void dataCallbackTimestamp(int64_t timestampUs, int32_t msgType,
             const sp<IMemory> &data);
 
+    // In the video camera case calls skipFrameAndModifyTimeStamp() to modify
+    // timestamp and set mSkipCurrentFrame.
+    // Then it calls the base CameraSource::recordingFrameHandleCallbackTimestamp()
+    // This will be called in VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA mode when
+    // the metadata is VideoNativeHandleMetadata.
+    virtual void recordingFrameHandleCallbackTimestamp(int64_t timestampUs,
+            native_handle_t* handle);
+
     // Process a buffer item received in CameraSource::BufferQueueListener.
     // This will be called in VIDEO_BUFFER_MODE_BUFFER_QUEUE mode.
     virtual void processBufferQueueFrame(BufferItem& buffer);
