@@ -503,6 +503,7 @@ ACodec::ACodec()
       mFatalError(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
+      mIsLegacyVP9Decoder(false),
       mEncoderDelay(0),
       mEncoderPadding(0),
       mRotationDegrees(0),
@@ -3133,6 +3134,20 @@ status_t ACodec::setupVideoDecoder(
         return err;
     }
 
+    if (compressionFormat == OMX_VIDEO_CodingVP9) {
+        OMX_VIDEO_PARAM_PROFILELEVELTYPE params;
+        InitOMXParams(&params);
+        params.nPortIndex = kPortIndexInput;
+        // Check if VP9 decoder advertises supported profiles.
+        params.nProfileIndex = 0;
+        status_t err = mOMX->getParameter(
+                mNode,
+                OMX_IndexParamVideoProfileLevelQuerySupported,
+                &params,
+                sizeof(params));
+        mIsLegacyVP9Decoder = err != OK;
+    }
+
     err = setVideoPortFormatType(
             kPortIndexInput, compressionFormat, OMX_COLOR_FormatUnused);
 
@@ -5685,6 +5700,12 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
 
                 int32_t isCSD;
                 if (buffer->meta()->findInt32("csd", &isCSD) && isCSD != 0) {
+                    if (mCodec->mIsLegacyVP9Decoder) {
+                        ALOGV("[%s] is legacy VP9 decoder. Ignore %u codec specific data",
+                            mCodec->mComponentName.c_str(), bufferID);
+                        postFillThisBuffer(info);
+                        break;
+                    }
                     flags |= OMX_BUFFERFLAG_CODECCONFIG;
                 }
 

@@ -271,6 +271,7 @@ private:
     bool mFatalError;
     bool mShutdownInProgress;
     bool mExplicitShutdown;
+    bool mIsLegacyVP9Decoder;
 
     // If "mKeepComponentAllocated" we only transition back to Loaded state
     // and do not release the component instance.
