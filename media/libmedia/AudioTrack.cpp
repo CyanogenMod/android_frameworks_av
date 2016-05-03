@@ -535,6 +535,8 @@ status_t AudioTrack::set(
     mPreviousTimestampValid = false;
     mTimestampStartupGlitchReported = false;
     mRetrogradeMotionReported = false;
+    mPreviousLocation = ExtendedTimestamp::LOCATION_INVALID;
+    mComputedLatencyMs = 0.;
     mUnderrunCountOffset = 0;
     mFramesWritten = 0;
     mFramesWrittenServerOffset = 0;
@@ -567,6 +569,8 @@ status_t AudioTrack::start()
         mPreviousTimestampValid = false;
         mTimestampStartupGlitchReported = false;
         mRetrogradeMotionReported = false;
+        mPreviousLocation = ExtendedTimestamp::LOCATION_INVALID;
+        mComputedLatencyMs = 0.;
 
         // read last server side position change via timestamp.
         ExtendedTimestamp ets;
@@ -2362,7 +2366,40 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
         ExtendedTimestamp ets;
         status = mProxy->getTimestamp(&ets);
         if (status == OK) {
-            status = ets.getBestTimestamp(&timestamp);
+            ExtendedTimestamp::Location location;
+            status = ets.getBestTimestamp(&timestamp, &location);
+
+            if (status == OK) {
+                // It is possible that the best location has moved from the kernel to the server.
+                // In this case we adjust the position from the previous computed latency.
+                if (location == ExtendedTimestamp::LOCATION_SERVER) {
+                    ALOGW_IF(mPreviousLocation == ExtendedTimestamp::LOCATION_KERNEL,
+                            "getTimestamp() location moved from kernel to server");
+                    const double latencyMs = mComputedLatencyMs > 0.
+                            ? mComputedLatencyMs : mAfLatency;
+                    const int64_t frames =
+                            int64_t(latencyMs * mSampleRate * mPlaybackRate.mSpeed / 1000);
+                    ALOGV("mComputedLatencyMs:%lf  mAfLatency:%u  frame adjustment:%lld",
+                            mComputedLatencyMs, mAfLatency, (long long)frames);
+                    if (frames >= ets.mPosition[location]) {
+                        timestamp.mPosition = 0;
+                    } else {
+                        timestamp.mPosition = (uint32_t)(ets.mPosition[location] - frames);
+                    }
+                } else if (location == ExtendedTimestamp::LOCATION_KERNEL) {
+                    const double bufferDiffMs =
+                            (double)(ets.mPosition[ExtendedTimestamp::LOCATION_SERVER]
+                                   - ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL])
+                                   * 1000 / ((double)mSampleRate * mPlaybackRate.mSpeed);
+                    mComputedLatencyMs = bufferDiffMs > 0. ? bufferDiffMs : 0.;
+                    ALOGV("mComputedLatencyMs:%lf  mAfLatency:%d",
+                            mComputedLatencyMs, mAfLatency);
+                }
+                mPreviousLocation = location;
+            } else {
+                // right after AudioTrack is started, one may not find a timestamp
+                ALOGV("getBestTimestamp did not find timestamp");
+            }
         }
         if (status == INVALID_OPERATION) {
             status = WOULD_BLOCK;
