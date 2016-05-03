@@ -148,15 +148,20 @@ bool SoftVPX::outputBuffers(bool flushDecoder, bool display, bool eos, bool *por
         outHeader->nFlags = 0;
         outHeader->nFilledLen = (outputBufferWidth() * outputBufferHeight() * 3) / 2;
         outHeader->nTimeStamp = *(OMX_TICKS *)mImg->user_priv;
-
-        uint8_t *dst = outHeader->pBuffer;
-        const uint8_t *srcY = (const uint8_t *)mImg->planes[VPX_PLANE_Y];
-        const uint8_t *srcU = (const uint8_t *)mImg->planes[VPX_PLANE_U];
-        const uint8_t *srcV = (const uint8_t *)mImg->planes[VPX_PLANE_V];
-        size_t srcYStride = mImg->stride[VPX_PLANE_Y];
-        size_t srcUStride = mImg->stride[VPX_PLANE_U];
-        size_t srcVStride = mImg->stride[VPX_PLANE_V];
-        copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
+        if (outHeader->nAllocLen >= outHeader->nFilledLen) {
+            uint8_t *dst = outHeader->pBuffer;
+            const uint8_t *srcY = (const uint8_t *)mImg->planes[VPX_PLANE_Y];
+            const uint8_t *srcU = (const uint8_t *)mImg->planes[VPX_PLANE_U];
+            const uint8_t *srcV = (const uint8_t *)mImg->planes[VPX_PLANE_V];
+            size_t srcYStride = mImg->stride[VPX_PLANE_Y];
+            size_t srcUStride = mImg->stride[VPX_PLANE_U];
+            size_t srcVStride = mImg->stride[VPX_PLANE_V];
+            copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
+        } else {
+            ALOGE("b/27597103, buffer too small");
+            android_errorWriteLog(0x534e4554, "27597103");
+            outHeader->nFilledLen = 0;
+        }
 
         mImg = NULL;
         outInfo->mOwnedByUs = false;
