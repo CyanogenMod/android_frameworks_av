@@ -1468,8 +1468,9 @@ status_t AudioTrack::createTrack_l()
             // notify every HAL buffer, regardless of the size of the track buffer
             maxNotificationFrames = afFrameCountHAL;
         } else {
-            // For normal tracks, use double-buffering
-            const int nBuffering = 2;
+            // For normal tracks, use at least double-buffering if no sample rate conversion,
+            // or at least triple-buffering if there is sample rate conversion
+            const int nBuffering = mOriginalSampleRate == mAfSampleRate ? 2 : 3;
             maxNotificationFrames = frameCount / nBuffering;
         }
         if (mNotificationFramesAct == 0 || mNotificationFramesAct > maxNotificationFrames) {
