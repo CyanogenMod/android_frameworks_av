@@ -36,6 +36,7 @@ public:
 
 struct ExtendedTimestamp {
     enum Location {
+        LOCATION_INVALID = -1,
         LOCATION_CLIENT,   // timestamp of last read frame from client-server track buffer
         LOCATION_SERVER,   // timestamp of newest frame from client-server track buffer
         LOCATION_KERNEL,   // timestamp of newest frame in the kernel (alsa) buffer.
@@ -89,8 +90,10 @@ struct ExtendedTimestamp {
     }
 
     // Returns the best timestamp as judged from the closest-to-hw stage in the
-    // pipeline with a valid timestamp.
-    status_t getBestTimestamp(int64_t *position, int64_t *time, int timebase) const {
+    // pipeline with a valid timestamp.  If the optional location parameter is non-null,
+    // it will be filled with the location where the time was obtained.
+    status_t getBestTimestamp(
+            int64_t *position, int64_t *time, int timebase, Location *location = nullptr) const {
         if (position == nullptr || time == nullptr
                 || timebase < 0 || timebase >= TIMEBASE_MAX) {
             return BAD_VALUE;
@@ -102,18 +105,21 @@ struct ExtendedTimestamp {
             if (mTimeNs[i] > 0) {
                 *position = mPosition[i];
                 *time = mTimeNs[i] + mTimebaseOffset[timebase];
+                if (location != nullptr) {
+                    *location = (Location)i;
+                }
                 return OK;
             }
         }
         return INVALID_OPERATION;
     }
 
-    status_t getBestTimestamp(AudioTimestamp *timestamp) const {
+    status_t getBestTimestamp(AudioTimestamp *timestamp, Location *location = nullptr) const {
         if (timestamp == nullptr) {
             return BAD_VALUE;
         }
         int64_t position, time;
-        if (getBestTimestamp(&position, &time, TIMEBASE_MONOTONIC) == OK) {
+        if (getBestTimestamp(&position, &time, TIMEBASE_MONOTONIC, location) == OK) {
             timestamp->mPosition = position;
             timestamp->mTime.tv_sec = time / 1000000000;
             timestamp->mTime.tv_nsec = time - timestamp->mTime.tv_sec * 1000000000LL;

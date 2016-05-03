@@ -1046,6 +1046,8 @@ protected:
     bool                    mTimestampStartupGlitchReported; // reduce log spam
     bool                    mRetrogradeMotionReported; // reduce log spam
     AudioTimestamp          mPreviousTimestamp;     // used to detect retrograde motion
+    ExtendedTimestamp::Location mPreviousLocation;  // location used for previous timestamp
+    double                  mComputedLatencyMs;     // latency between server and kernel
 
     uint32_t                mUnderrunCountOffset;   // updated when restoring tracks
 
