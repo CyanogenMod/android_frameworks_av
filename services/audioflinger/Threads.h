@@ -606,7 +606,8 @@ public:
                 virtual bool     isValidSyncEvent(const sp<SyncEvent>& event) const;
 
                 // called with AudioFlinger lock held
-                        void     invalidateTracks(audio_stream_type_t streamType);
+                        void     invalidateTracks_l(audio_stream_type_t streamType);
+                virtual void     invalidateTracks(audio_stream_type_t streamType);
 
     virtual     size_t      frameCount() const { return mNormalFrameCount; }
 
@@ -998,6 +999,7 @@ protected:
 
     virtual     bool        waitingAsyncCallback();
     virtual     bool        waitingAsyncCallback_l();
+    virtual     void        invalidateTracks(audio_stream_type_t streamType);
 
     virtual     bool        keepWakeLock() const { return mKeepWakeLock; }
 
