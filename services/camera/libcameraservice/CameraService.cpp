@@ -773,6 +773,7 @@ Status CameraService::makeClient(const sp<CameraService>& cameraService,
           case CAMERA_DEVICE_API_VERSION_3_1:
           case CAMERA_DEVICE_API_VERSION_3_2:
           case CAMERA_DEVICE_API_VERSION_3_3:
+          case CAMERA_DEVICE_API_VERSION_3_4:
             if (effectiveApiLevel == API_1) { // Camera1 API route
                 sp<ICameraClient> tmp = static_cast<ICameraClient*>(cameraCb.get());
                 *client = new Camera2Client(cameraService, tmp, packageName, cameraId, facing,
@@ -1618,6 +1619,7 @@ Status CameraService::supportsCameraApi(int cameraId, int apiVersion, bool *isSu
             break;
         case CAMERA_DEVICE_API_VERSION_3_2:
         case CAMERA_DEVICE_API_VERSION_3_3:
+        case CAMERA_DEVICE_API_VERSION_3_4:
             ALOGV("%s: Camera id %d uses HAL3.2 or newer, supports api1/api2 directly",
                     __FUNCTION__, cameraId);
             *isSupported = true;
@@ -1715,6 +1717,7 @@ int CameraService::checkCameraCapabilities(int id, camera_info info, int *latest
             case CAMERA_DEVICE_API_VERSION_3_1:
             case CAMERA_DEVICE_API_VERSION_3_2:
             case CAMERA_DEVICE_API_VERSION_3_3:
+            case CAMERA_DEVICE_API_VERSION_3_4:
                 // in support
                 break;
             case CAMERA_DEVICE_API_VERSION_2_0:
