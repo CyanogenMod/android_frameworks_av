@@ -1560,12 +1560,29 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             // Calculate average frame rate.
             if (!strncasecmp("video/", mime, 6)) {
                 size_t nSamples = mLastTrack->sampleTable->countSamples();
-                int64_t durationUs;
-                if (mLastTrack->meta->findInt64(kKeyDuration, &durationUs)) {
-                    if (durationUs > 0) {
-                        int32_t frameRate = (nSamples * 1000000LL +
-                                    (durationUs >> 1)) / durationUs;
-                        mLastTrack->meta->setInt32(kKeyFrameRate, frameRate);
+                if (nSamples == 0) {
+                    int32_t trackId;
+                    if (mLastTrack->meta->findInt32(kKeyTrackID, &trackId)) {
+                        for (size_t i = 0; i < mTrex.size(); i++) {
+                            Trex *t = &mTrex.editItemAt(i);
+                            if (t->track_ID == (uint32_t) trackId) {
+                                if (t->default_sample_duration > 0) {
+                                    int32_t frameRate =
+                                            mLastTrack->timescale / t->default_sample_duration;
+                                    mLastTrack->meta->setInt32(kKeyFrameRate, frameRate);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    int64_t durationUs;
+                    if (mLastTrack->meta->findInt64(kKeyDuration, &durationUs)) {
+                        if (durationUs > 0) {
+                            int32_t frameRate = (nSamples * 1000000LL +
+                                        (durationUs >> 1)) / durationUs;
+                            mLastTrack->meta->setInt32(kKeyFrameRate, frameRate);
+                        }
                     }
                 }
             }
@@ -2929,7 +2946,7 @@ sp<IMediaSource> MPEG4Extractor::getTrack(size_t index) {
     int32_t trackId;
     if (track->meta->findInt32(kKeyTrackID, &trackId)) {
         for (size_t i = 0; i < mTrex.size(); i++) {
-            Trex *t = &mTrex.editItemAt(index);
+            Trex *t = &mTrex.editItemAt(i);
             if (t->track_ID == (uint32_t) trackId) {
                 trex = t;
                 break;
