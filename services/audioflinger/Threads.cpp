@@ -3147,7 +3147,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                             uint32_t diff = mThreadThrottleTimeMs - mThreadThrottleEndMs;
                             if (diff > 0) {
                                 // notify of throttle end on debug log
-                                ALOGD("mixer(%p) throttle end: throttle time(%u)", this, diff);
+                                // but prevent spamming for bluetooth
+                                ALOGD_IF(!audio_is_a2dp_out_device(outDevice()),
+                                        "mixer(%p) throttle end: throttle time(%u)", this, diff);
                                 mThreadThrottleEndMs = mThreadThrottleTimeMs;
                             }
                         }
