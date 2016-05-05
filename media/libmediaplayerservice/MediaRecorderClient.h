@@ -29,6 +29,22 @@ class IGraphicBufferProducer;
 
 class MediaRecorderClient : public BnMediaRecorder
 {
+    class ServiceDeathNotifier: public IBinder::DeathRecipient
+    {
+    public:
+        ServiceDeathNotifier(
+                const sp<IBinder>& service,
+                const sp<IMediaRecorderClient>& listener,
+                int which);
+        virtual ~ServiceDeathNotifier();
+        virtual void binderDied(const wp<IBinder>& who);
+
+    private:
+        int mWhich;
+        sp<IBinder> mService;
+        wp<IMediaRecorderClient> mListener;
+    };
+
 public:
     virtual     status_t   setCamera(const sp<hardware::ICamera>& camera,
                                     const sp<ICameraRecordingProxy>& proxy);
@@ -68,6 +84,10 @@ private:
                                                                pid_t pid,
                                                                const String16& opPackageName);
     virtual                ~MediaRecorderClient();
+
+    sp<IBinder::DeathRecipient> mCameraDeathListener;
+    sp<IBinder::DeathRecipient> mCodecDeathListener;
+    sp<IBinder::DeathRecipient> mAudioDeathListener;
 
     pid_t                  mPid;
     Mutex                  mLock;
