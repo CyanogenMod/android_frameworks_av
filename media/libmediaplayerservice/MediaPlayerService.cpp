@@ -2150,7 +2150,7 @@ void MediaPlayerService::AudioOutput::CallbackWrapper(
         //
         // The underrun event is sent once per track underrun; the condition is reset
         // when more data is sent to the AudioTrack.
-        ALOGI("callbackwrapper: EVENT_UNDERRUN (discarded)");
+        ALOGD("callbackwrapper: EVENT_UNDERRUN (discarded)");
         break;
 
     default:

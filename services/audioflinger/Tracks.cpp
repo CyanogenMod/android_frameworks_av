@@ -373,7 +373,7 @@ AudioFlinger::PlaybackThread::Track::Track(
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
 
-    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %d", sharedBuffer->pointer(),
+    ALOGV_IF(sharedBuffer != 0, "sharedBuffer: %p, size: %zu", sharedBuffer->pointer(),
             sharedBuffer->size());
 
     if (mCblk == NULL) {
@@ -728,6 +728,9 @@ void AudioFlinger::PlaybackThread::Track::stop()
                 // For an offloaded track this starts a drain and state will
                 // move to STOPPING_2 when drain completes and then STOPPED
                 mState = STOPPING_1;
+                if (isOffloaded()) {
+                    mRetryCount = PlaybackThread::kMaxTrackStopRetriesOffload;
+                }
             }
             playbackThread->broadcast_l();
             ALOGV("not stopping/stopped => stopping/stopped (%d) on thread %p", mName,
