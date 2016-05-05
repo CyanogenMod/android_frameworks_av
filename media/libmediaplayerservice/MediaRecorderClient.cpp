@@ -335,6 +335,28 @@ MediaRecorderClient::~MediaRecorderClient()
     release();
 }
 
+MediaRecorderClient::ServiceDeathNotifier::ServiceDeathNotifier(
+        const sp<IBinder>& service,
+        const sp<IMediaRecorderClient>& listener,
+        int which) {
+    mService = service;
+    mListener = listener;
+    mWhich = which;
+}
+
+MediaRecorderClient::ServiceDeathNotifier::~ServiceDeathNotifier() {
+    mService->unlinkToDeath(this);
+}
+
+void  MediaRecorderClient::ServiceDeathNotifier::binderDied(const wp<IBinder>& /*who*/) {
+    sp<IMediaRecorderClient> listener = mListener.promote();
+    if (listener != NULL) {
+        listener->notify(MEDIA_ERROR, MEDIA_ERROR_SERVER_DIED, mWhich);
+    } else {
+        ALOGW("listener for process %d death is gone", mWhich);
+    }
+}
+
 status_t MediaRecorderClient::setListener(const sp<IMediaRecorderClient>& listener)
 {
     ALOGV("setListener");
@@ -343,7 +365,25 @@ status_t MediaRecorderClient::setListener(const sp<IMediaRecorderClient>& listen
         ALOGE("recorder is not initialized");
         return NO_INIT;
     }
-    return mRecorder->setListener(listener);
+    mRecorder->setListener(listener);
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = sm->getService(String16("media.camera"));
+    mCameraDeathListener = new ServiceDeathNotifier(binder, listener,
+            MediaPlayerService::CAMERA_PROCESS_DEATH);
+    binder->linkToDeath(mCameraDeathListener);
+
+    binder = sm->getService(String16("media.codec"));
+    mCodecDeathListener = new ServiceDeathNotifier(binder, listener,
+            MediaPlayerService::MEDIACODEC_PROCESS_DEATH);
+    binder->linkToDeath(mCodecDeathListener);
+
+    binder = sm->getService(String16("media.audio_flinger"));
+    mAudioDeathListener = new ServiceDeathNotifier(binder, listener,
+            MediaPlayerService::AUDIO_PROCESS_DEATH);
+    binder->linkToDeath(mAudioDeathListener);
+
+    return OK;
 }
 
 status_t MediaRecorderClient::setClientName(const String16& clientName) {

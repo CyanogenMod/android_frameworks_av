@@ -640,6 +640,28 @@ sp<MediaPlayerBase> MediaPlayerService::Client::createPlayer(player_type playerT
     return p;
 }
 
+MediaPlayerService::Client::ServiceDeathNotifier::ServiceDeathNotifier(
+        const sp<IBinder>& service,
+        const sp<MediaPlayerBase>& listener,
+        int which) {
+    mService = service;
+    mListener = listener;
+    mWhich = which;
+}
+
+MediaPlayerService::Client::ServiceDeathNotifier::~ServiceDeathNotifier() {
+    mService->unlinkToDeath(this);
+}
+
+void MediaPlayerService::Client::ServiceDeathNotifier::binderDied(const wp<IBinder>& /*who*/) {
+    sp<MediaPlayerBase> listener = mListener.promote();
+    if (listener != NULL) {
+        listener->sendEvent(MEDIA_ERROR, MEDIA_ERROR_SERVER_DIED, mWhich);
+    } else {
+        ALOGW("listener for process %d death is gone", mWhich);
+    }
+}
+
 sp<MediaPlayerBase> MediaPlayerService::Client::setDataSource_pre(
         player_type playerType)
 {
@@ -650,6 +672,19 @@ sp<MediaPlayerBase> MediaPlayerService::Client::setDataSource_pre(
     if (p == NULL) {
         return p;
     }
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    sp<IBinder> binder = sm->getService(String16("media.extractor"));
+    mExtractorDeathListener = new ServiceDeathNotifier(binder, p, MEDIAEXTRACTOR_PROCESS_DEATH);
+    binder->linkToDeath(mExtractorDeathListener);
+
+    binder = sm->getService(String16("media.codec"));
+    mCodecDeathListener = new ServiceDeathNotifier(binder, p, MEDIACODEC_PROCESS_DEATH);
+    binder->linkToDeath(mCodecDeathListener);
+
+    binder = sm->getService(String16("media.audio_flinger"));
+    mAudioDeathListener = new ServiceDeathNotifier(binder, p, AUDIO_PROCESS_DEATH);
+    binder->linkToDeath(mAudioDeathListener);
 
     if (!p->hardwareOutput()) {
         Mutex::Autolock l(mLock);

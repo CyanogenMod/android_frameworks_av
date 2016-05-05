@@ -227,6 +227,14 @@ public:
 
             void                removeClient(wp<Client> client);
 
+    enum {
+        MEDIASERVER_PROCESS_DEATH = 0,
+        MEDIAEXTRACTOR_PROCESS_DEATH = 1,
+        MEDIACODEC_PROCESS_DEATH = 2,
+        AUDIO_PROCESS_DEATH = 3,
+        CAMERA_PROCESS_DEATH = 4
+    };
+
     // For battery usage tracking purpose
     struct BatteryUsageInfo {
         // how many streams are being played by one UID
@@ -334,6 +342,22 @@ private:
                 audio_session_t getAudioSessionId() { return mAudioSessionId; }
 
     private:
+        class ServiceDeathNotifier: public IBinder::DeathRecipient
+        {
+        public:
+            ServiceDeathNotifier(
+                    const sp<IBinder>& service,
+                    const sp<MediaPlayerBase>& listener,
+                    int which);
+            virtual ~ServiceDeathNotifier();
+            virtual void binderDied(const wp<IBinder>& who);
+
+        private:
+            int mWhich;
+            sp<IBinder> mService;
+            wp<MediaPlayerBase> mListener;
+        };
+
         friend class MediaPlayerService;
                                 Client( const sp<MediaPlayerService>& service,
                                         pid_t pid,
@@ -393,6 +417,9 @@ private:
         // getMetadata clears this set.
         media::Metadata::Filter mMetadataUpdated;  // protected by mLock
 
+        sp<IBinder::DeathRecipient> mExtractorDeathListener;
+        sp<IBinder::DeathRecipient> mCodecDeathListener;
+        sp<IBinder::DeathRecipient> mAudioDeathListener;
 #if CALLBACK_ANTAGONIZER
                     Antagonizer*                mAntagonizer;
 #endif
