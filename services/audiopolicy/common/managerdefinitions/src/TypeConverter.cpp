@@ -199,6 +199,7 @@ const InputChannelConverter::Table InputChannelConverter::mTable[] = {
     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_MONO),
     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_STEREO),
     MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_FRONT_BACK),
+    MAKE_STRING_FROM_ENUM(AUDIO_CHANNEL_IN_5POINT1),
 };
 template<>
 const size_t InputChannelConverter::mSize = sizeof(InputChannelConverter::mTable) /
