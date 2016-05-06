@@ -19,7 +19,7 @@
 #define IMEDIA_EXTRACTOR_BASE_H_
 
 #include <media/IMediaSource.h>
-#include <media/IDataSource.h>
+#include <media/stagefright/DataSource.h>
 
 namespace android {
 
@@ -72,7 +72,7 @@ public:
 
 void registerMediaExtractor(
         const sp<IMediaExtractor> &extractor,
-        const sp<IDataSource> &source,
+        const sp<DataSource> &source,
         const char *mime);
 
 void registerMediaSource(

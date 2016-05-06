@@ -239,7 +239,7 @@ void registerMediaSource(
 
 void registerMediaExtractor(
         const sp<IMediaExtractor> &extractor,
-        const sp<IDataSource> &source,
+        const sp<DataSource> &source,
         const char *mime) {
     ExtractorInstance ex;
     ex.mime = mime == NULL ? "NULL" : mime;
