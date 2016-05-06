@@ -39,7 +39,7 @@ sp<IMediaExtractor> MediaExtractorService::makeExtractor(
             ret == NULL ? "" : ret->name());
 
     if (ret != NULL) {
-        registerMediaExtractor(ret, remoteSource, mime);
+        registerMediaExtractor(ret, localSource, mime);
     }
 
     return ret;
