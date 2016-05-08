@@ -37,9 +37,16 @@ public:
 struct ExtendedTimestamp {
     enum Location {
         LOCATION_INVALID = -1,
-        LOCATION_CLIENT,   // timestamp of last read frame from client-server track buffer
-        LOCATION_SERVER,   // timestamp of newest frame from client-server track buffer
+        // Locations in the audio playback / record pipeline.
+        LOCATION_CLIENT,   // timestamp of last read frame from client-server track buffer.
+        LOCATION_SERVER,   // timestamp of newest frame from client-server track buffer.
         LOCATION_KERNEL,   // timestamp of newest frame in the kernel (alsa) buffer.
+
+        // Historical data: info when the kernel timestamp was OK (prior to the newest frame).
+        // This may be useful when the newest frame kernel timestamp is unavailable.
+        // Available for playback timestamps.
+        LOCATION_SERVER_LASTKERNELOK, // timestamp of server the prior time kernel timestamp OK.
+        LOCATION_KERNEL_LASTKERNELOK, // timestamp of kernel the prior time kernel timestamp OK.
         LOCATION_MAX       // for sizing arrays only
     };
 
@@ -101,7 +108,7 @@ struct ExtendedTimestamp {
         // look for the closest-to-hw stage in the pipeline with a valid timestamp.
         // We omit LOCATION_CLIENT as we prefer at least LOCATION_SERVER based accuracy
         // when getting the best timestamp.
-        for (int i = LOCATION_MAX - 1; i >= LOCATION_SERVER; --i) {
+        for (int i = LOCATION_KERNEL; i >= LOCATION_SERVER; --i) {
             if (mTimeNs[i] > 0) {
                 *position = mPosition[i];
                 *time = mTimeNs[i] + mTimebaseOffset[timebase];
