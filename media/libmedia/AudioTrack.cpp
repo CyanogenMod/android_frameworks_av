@@ -536,7 +536,6 @@ status_t AudioTrack::set(
     mTimestampStartupGlitchReported = false;
     mRetrogradeMotionReported = false;
     mPreviousLocation = ExtendedTimestamp::LOCATION_INVALID;
-    mComputedLatencyMs = 0.;
     mUnderrunCountOffset = 0;
     mFramesWritten = 0;
     mFramesWrittenServerOffset = 0;
@@ -570,7 +569,6 @@ status_t AudioTrack::start()
         mTimestampStartupGlitchReported = false;
         mRetrogradeMotionReported = false;
         mPreviousLocation = ExtendedTimestamp::LOCATION_INVALID;
-        mComputedLatencyMs = 0.;
 
         // read last server side position change via timestamp.
         ExtendedTimestamp ets;
@@ -2375,25 +2373,22 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                 if (location == ExtendedTimestamp::LOCATION_SERVER) {
                     ALOGW_IF(mPreviousLocation == ExtendedTimestamp::LOCATION_KERNEL,
                             "getTimestamp() location moved from kernel to server");
-                    const double latencyMs = mComputedLatencyMs > 0.
-                            ? mComputedLatencyMs : mAfLatency;
                     const int64_t frames =
-                            int64_t(latencyMs * mSampleRate * mPlaybackRate.mSpeed / 1000);
-                    ALOGV("mComputedLatencyMs:%lf  mAfLatency:%u  frame adjustment:%lld",
-                            mComputedLatencyMs, mAfLatency, (long long)frames);
+                            (ets.mTimeNs[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] < 0 ||
+                            ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] < 0)
+                            ?
+                            int64_t((double)mAfLatency * mSampleRate * mPlaybackRate.mSpeed
+                                    / 1000)
+                            :
+                            (ets.mPosition[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK]
+                            - ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK]);
+                    ALOGV("frame adjustment:%lld  timestamp:%s",
+                            (long long)frames, ets.toString().c_str());
                     if (frames >= ets.mPosition[location]) {
                         timestamp.mPosition = 0;
                     } else {
                         timestamp.mPosition = (uint32_t)(ets.mPosition[location] - frames);
                     }
-                } else if (location == ExtendedTimestamp::LOCATION_KERNEL) {
-                    const double bufferDiffMs =
-                            (double)(ets.mPosition[ExtendedTimestamp::LOCATION_SERVER]
-                                   - ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL])
-                                   * 1000 / ((double)mSampleRate * mPlaybackRate.mSpeed);
-                    mComputedLatencyMs = bufferDiffMs > 0. ? bufferDiffMs : 0.;
-                    ALOGV("mComputedLatencyMs:%lf  mAfLatency:%d",
-                            mComputedLatencyMs, mAfLatency);
                 }
                 mPreviousLocation = location;
             } else {

@@ -2899,6 +2899,24 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 // sink will block whie writing.
                 ExtendedTimestamp timestamp; // use private copy to fetch
                 (void) mNormalSink->getTimestamp(timestamp);
+
+                // We keep track of the last valid kernel position in case we are in underrun
+                // and the normal mixer period is the same as the fast mixer period, or there
+                // is some error from the HAL.
+                if (mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] >= 0) {
+                    mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] =
+                            mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+                    mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] =
+                            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
+
+                    mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] =
+                            mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER];
+                    mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] =
+                            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER];
+                } else {
+                    ALOGV("getTimestamp error - no valid kernel position");
+                }
+
                 // copy over kernel info
                 mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
                         timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
