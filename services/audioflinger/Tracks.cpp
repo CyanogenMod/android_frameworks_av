@@ -1103,7 +1103,7 @@ void AudioFlinger::PlaybackThread::Track::updateTrackFrameInfo(
         if (local.mTimeNs[i] > 0) {
             local.mPosition[i] = mFrameMap.findX(local.mPosition[i]);
             // check drain state from the latest stage in the pipeline.
-            if (!checked) {
+            if (!checked && i <= ExtendedTimestamp::LOCATION_KERNEL) {
                 mAudioTrackServerProxy->setDrained(
                         local.mPosition[i] >= mAudioTrackServerProxy->framesReleased());
                 checked = true;
