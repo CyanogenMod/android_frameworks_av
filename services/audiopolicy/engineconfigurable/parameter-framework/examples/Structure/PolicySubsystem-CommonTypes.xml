@@ -66,7 +66,6 @@
             <BitParameter Name="loopback" Size="1" Pos="18"/>
             <BitParameter Name="ip" Size="1" Pos="19"/>
             <BitParameter Name="bus" Size="1" Pos="20"/>
-            <BitParameter Name="in" Size="1" Pos="31"/>
         </BitParameterBlock>
     </ComponentType>
 

@@ -8473,7 +8473,6 @@
       </Configuration>
     </Configurations>
     <ConfigurableElements>
-      <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/hdmi"/>
@@ -8490,7 +8489,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/hdmi"/>
@@ -8507,7 +8505,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/builtin_mic"/>
@@ -8528,7 +8525,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/builtin_mic"/>
@@ -8549,7 +8545,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/builtin_mic"/>
@@ -8570,7 +8565,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bluetooth_sco_headset"/>
@@ -8590,7 +8584,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/hdmi"/>
@@ -8608,7 +8601,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/hdmi"/>
@@ -8625,7 +8617,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/builtin_mic"/>
@@ -8646,7 +8637,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/hdmi"/>
@@ -8664,7 +8654,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/hdmi"/>
@@ -8682,7 +8671,6 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/loopback"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ip"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bus"/>
-      <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/ambient"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/bluetooth_sco_headset"/>
@@ -8706,9 +8694,6 @@
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
-        <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -8757,9 +8742,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -8807,9 +8789,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
@@ -8871,9 +8850,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -8933,9 +8909,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
@@ -8997,9 +8970,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -9057,9 +9027,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -9111,9 +9078,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -9161,9 +9125,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
@@ -9225,9 +9186,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -9279,9 +9237,6 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
-        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
         </ConfigurableElement>
@@ -9332,9 +9287,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bus">
           <BitParameter Name="bus">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in">
-          <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/communication">
           <BitParameter Name="communication">0</BitParameter>
