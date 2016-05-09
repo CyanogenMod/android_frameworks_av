@@ -28,6 +28,7 @@
 #include <utils/List.h>
 #include <utils/RefBase.h>
 #include <utils/String16.h>
+#include <MetadataBufferType.h>
 
 namespace android {
 
@@ -118,11 +119,11 @@ public:
      * Tell whether this camera source stores meta data or real YUV
      * frame data in video buffers.
      *
-     * @return true if meta data is stored in the video
-     *      buffers; false if real YUV data is stored in
+     * @return a valid type if meta data is stored in the video
+     *      buffers; kMetadataBufferTypeInvalid if real YUV data is stored in
      *      the video buffers.
      */
-    bool isMetaDataStoredInVideoBuffers() const;
+    MetadataBufferType metaDataStoredInVideoBuffers() const;
 
     virtual void signalBufferReturned(MediaBuffer* buffer);
 

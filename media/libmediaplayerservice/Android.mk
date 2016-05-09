@@ -51,6 +51,7 @@ LOCAL_C_INCLUDES :=                                                 \
     $(TOP)/frameworks/av/include/media                              \
     $(TOP)/frameworks/av/include/camera                             \
     $(TOP)/frameworks/native/include/media/openmax                  \
+    $(TOP)/frameworks/native/include/media/hardware                 \
     $(TOP)/external/tremolo/Tremolo                                 \
     libcore/include                                                 \
 
