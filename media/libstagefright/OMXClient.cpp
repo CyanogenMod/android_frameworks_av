@@ -111,6 +111,10 @@ struct MuxOMX : public IOMX {
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer);
 
+    virtual status_t updateNativeHandleInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<NativeHandle> &nativeHandle, buffer_id buffer);
+
     virtual status_t createInputSurface(
             node_id node, OMX_U32 port_index, android_dataspace dataSpace,
             sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type);
@@ -385,6 +389,13 @@ status_t MuxOMX::updateGraphicBufferInMeta(
         const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) {
     return getOMX(node)->updateGraphicBufferInMeta(
             node, port_index, graphicBuffer, buffer);
+}
+
+status_t MuxOMX::updateNativeHandleInMeta(
+        node_id node, OMX_U32 port_index,
+        const sp<NativeHandle> &nativeHandle, buffer_id buffer) {
+    return getOMX(node)->updateNativeHandleInMeta(
+            node, port_index, nativeHandle, buffer);
 }
 
 status_t MuxOMX::createInputSurface(

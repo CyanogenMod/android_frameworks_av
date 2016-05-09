@@ -488,6 +488,19 @@ status_t OMX::updateGraphicBufferInMeta(
             port_index, graphicBuffer, buffer);
 }
 
+status_t OMX::updateNativeHandleInMeta(
+        node_id node, OMX_U32 port_index,
+        const sp<NativeHandle> &nativeHandle, buffer_id buffer) {
+    OMXNodeInstance *instance = findInstance(node);
+
+    if (instance == NULL) {
+        return NAME_NOT_FOUND;
+    }
+
+    return instance->updateNativeHandleInMeta(
+            port_index, nativeHandle, buffer);
+}
+
 status_t OMX::createInputSurface(
         node_id node, OMX_U32 port_index, android_dataspace dataSpace,
         sp<IGraphicBufferProducer> *bufferProducer, MetadataBufferType *type) {
