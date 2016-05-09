@@ -595,7 +595,7 @@ AString AMessage::debugString(int32_t indent) const {
 }
 
 // static
-sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
+sp<AMessage> AMessage::FromParcel(const Parcel &parcel, size_t maxNestingLevel) {
     int32_t what = parcel.readInt32();
     sp<AMessage> msg = new AMessage();
     msg->setWhat(what);
@@ -667,7 +667,19 @@ sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
 
             case kTypeMessage:
             {
-                sp<AMessage> subMsg = AMessage::FromParcel(parcel);
+                if (maxNestingLevel == 0) {
+                    ALOGE("Too many levels of AMessage nesting.");
+                    return NULL;
+                }
+                sp<AMessage> subMsg = AMessage::FromParcel(
+                        parcel,
+                        maxNestingLevel - 1);
+                if (subMsg == NULL) {
+                    // This condition will be triggered when there exists an
+                    // object that cannot cross process boundaries or when the
+                    // level of nested AMessage is too deep.
+                    return NULL;
+                }
                 subMsg->incStrong(msg.get());
 
                 item->u.refValue = subMsg.get();
@@ -677,7 +689,7 @@ sp<AMessage> AMessage::FromParcel(const Parcel &parcel) {
             default:
             {
                 ALOGE("This type of object cannot cross process boundaries.");
-                TRESPASS();
+                return NULL;
             }
         }
 

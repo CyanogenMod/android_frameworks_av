@@ -75,6 +75,8 @@ sp<MediaCodecInfo::Capabilities> MediaCodecInfo::Capabilities::FromParcel(
     }
     uint32_t flags = static_cast<uint32_t>(parcel.readInt32());
     sp<AMessage> details = AMessage::FromParcel(parcel);
+    if (details == NULL)
+        return NULL;
     if (caps != NULL) {
         caps->mFlags = flags;
         caps->mDetails = details;
@@ -163,6 +165,8 @@ sp<MediaCodecInfo> MediaCodecInfo::FromParcel(const Parcel &parcel) {
     for (size_t i = 0; i < size; i++) {
         AString mime = AString::FromParcel(parcel);
         sp<Capabilities> caps = Capabilities::FromParcel(parcel);
+        if (caps == NULL)
+            return NULL;
         if (info != NULL) {
             info->mCaps.add(mime, caps);
         }

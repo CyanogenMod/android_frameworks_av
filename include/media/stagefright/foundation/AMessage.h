@@ -62,7 +62,29 @@ struct AMessage : public RefBase {
     AMessage();
     AMessage(uint32_t what, const sp<const AHandler> &handler);
 
-    static sp<AMessage> FromParcel(const Parcel &parcel);
+    // Construct an AMessage from a parcel.
+    // nestingAllowed determines how many levels AMessage can be nested inside
+    // AMessage. The default value here is arbitrarily set to 255.
+    // FromParcel() returns NULL on error, which occurs when the input parcel
+    // contains
+    // - an AMessage nested deeper than maxNestingLevel; or
+    // - an item whose type is not recognized by this function.
+    // Types currently recognized by this function are:
+    //   Item types      set/find function suffixes
+    //   ==========================================
+    //     int32_t                Int32
+    //     int64_t                Int64
+    //     size_t                 Size
+    //     float                  Float
+    //     double                 Double
+    //     AString                String
+    //     AMessage               Message
+    static sp<AMessage> FromParcel(const Parcel &parcel,
+                                   size_t maxNestingLevel = 255);
+
+    // Write this AMessage to a parcel.
+    // All items in the AMessage must have types that are recognized by
+    // FromParcel(); otherwise, TRESPASS error will occur.
     void writeToParcel(Parcel *parcel) const;
 
     void setWhat(uint32_t what);
