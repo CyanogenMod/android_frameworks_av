@@ -241,9 +241,14 @@ private:
             OMX_BUFFERHEADERTYPE *header,
             OMX_U32 flags, OMX_TICKS timestamp, intptr_t debugAddr, int fenceFd);
 
+    // Updates the graphic buffer handle in the metadata buffer for |buffer| and |header| to
+    // |graphicBuffer|'s handle. If |updateCodecBuffer| is true, the update will happen in
+    // the actual codec buffer (use this if not using emptyBuffer (with no _l) later to
+    // pass the buffer to the codec, as only emptyBuffer copies the backup buffer to the codec
+    // buffer.)
     status_t updateGraphicBufferInMeta_l(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
-            OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header);
+            OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header, bool updateCodecBuffer);
 
     status_t createGraphicBufferSource(
             OMX_U32 portIndex, sp<IGraphicBufferConsumer> consumer /* nullable */,

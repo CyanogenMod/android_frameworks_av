@@ -842,7 +842,7 @@ status_t OMXNodeInstance::useGraphicBuffer(
 
 status_t OMXNodeInstance::updateGraphicBufferInMeta_l(
         OMX_U32 portIndex, const sp<GraphicBuffer>& graphicBuffer,
-        OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header) {
+        OMX::buffer_id buffer, OMX_BUFFERHEADERTYPE *header, bool updateCodecBuffer) {
     // No need to check |graphicBuffer| since NULL is valid for it as below.
     if (header == NULL) {
         ALOGE("b/25884056");
@@ -854,20 +854,27 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta_l(
     }
 
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
+    sp<ABuffer> data = bufferMeta->getBuffer(
+            header, !updateCodecBuffer /* backup */, false /* limit */);
     bufferMeta->setGraphicBuffer(graphicBuffer);
-    if (mMetadataType[portIndex] == kMetadataBufferTypeGrallocSource
-            && header->nAllocLen >= sizeof(VideoGrallocMetadata)) {
-        VideoGrallocMetadata &metadata = *(VideoGrallocMetadata *)(header->pBuffer);
+    MetadataBufferType metaType = mMetadataType[portIndex];
+    // we use gralloc source only in the codec buffers
+    if (metaType == kMetadataBufferTypeGrallocSource && !updateCodecBuffer) {
+        metaType = kMetadataBufferTypeANWBuffer;
+    }
+    if (metaType == kMetadataBufferTypeGrallocSource
+            && data->capacity() >= sizeof(VideoGrallocMetadata)) {
+        VideoGrallocMetadata &metadata = *(VideoGrallocMetadata *)(data->data());
         metadata.eType = kMetadataBufferTypeGrallocSource;
         metadata.pHandle = graphicBuffer == NULL ? NULL : graphicBuffer->handle;
-    } else if (mMetadataType[portIndex] == kMetadataBufferTypeANWBuffer
-            && header->nAllocLen >= sizeof(VideoNativeMetadata)) {
-        VideoNativeMetadata &metadata = *(VideoNativeMetadata *)(header->pBuffer);
+    } else if (metaType == kMetadataBufferTypeANWBuffer
+            && data->capacity() >= sizeof(VideoNativeMetadata)) {
+        VideoNativeMetadata &metadata = *(VideoNativeMetadata *)(data->data());
         metadata.eType = kMetadataBufferTypeANWBuffer;
         metadata.pBuffer = graphicBuffer == NULL ? NULL : graphicBuffer->getNativeBuffer();
         metadata.nFenceFd = -1;
     } else {
-        CLOG_BUFFER(updateGraphicBufferInMeta, "%s:%u, %#x bad type (%d) or size (%u)",
+        CLOG_ERROR(updateGraphicBufferInMeta, BAD_VALUE, "%s:%u, %#x bad type (%d) or size (%u)",
             portString(portIndex), portIndex, buffer, mMetadataType[portIndex], header->nAllocLen);
         return BAD_VALUE;
     }
@@ -883,7 +890,10 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
         OMX::buffer_id buffer) {
     Mutex::Autolock autoLock(mLock);
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
-    return updateGraphicBufferInMeta_l(portIndex, graphicBuffer, buffer, header);
+    // update backup buffer for input, codec buffer for output
+    return updateGraphicBufferInMeta_l(
+            portIndex, graphicBuffer, buffer, header,
+            portIndex == kPortIndexOutput /* updateCodecBuffer */);
 }
 
 status_t OMXNodeInstance::updateNativeHandleInMeta(
@@ -1388,7 +1398,9 @@ status_t OMXNodeInstance::emptyGraphicBuffer(
 
     Mutex::Autolock autoLock(mLock);
     OMX::buffer_id buffer = findBufferID(header);
-    status_t err = updateGraphicBufferInMeta_l(kPortIndexInput, graphicBuffer, buffer, header);
+    status_t err = updateGraphicBufferInMeta_l(
+            kPortIndexInput, graphicBuffer, buffer, header,
+            true /* updateCodecBuffer */);
     if (err != OK) {
         CLOG_ERROR(emptyGraphicBuffer, err, FULL_BUFFER(
                 (intptr_t)header->pBuffer, header, fenceFd));
@@ -1396,7 +1408,13 @@ status_t OMXNodeInstance::emptyGraphicBuffer(
     }
 
     header->nOffset = 0;
-    header->nFilledLen = graphicBuffer == NULL ? 0 : header->nAllocLen;
+    if (graphicBuffer == NULL) {
+        header->nFilledLen = 0;
+    } else if (mMetadataType[kPortIndexInput] == kMetadataBufferTypeGrallocSource) {
+        header->nFilledLen = sizeof(VideoGrallocMetadata);
+    } else {
+        header->nFilledLen = sizeof(VideoNativeMetadata);
+    }
     return emptyBuffer_l(header, flags, timestamp, (intptr_t)header->pBuffer, fenceFd);
 }
 
