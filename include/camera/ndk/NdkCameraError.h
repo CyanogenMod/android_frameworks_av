@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Camera
+ * @{
+ */
+
+/**
+ * @file NdkCameraError.h
+ */
 
 /*
  * This file defines an NDK API.
@@ -52,6 +60,10 @@ typedef enum {
     ACAMERA_ERROR_INVALID_OPERATION     = ACAMERA_ERROR_BASE - 13,
     ACAMERA_ERROR_TIMEOUT               = ACAMERA_ERROR_BASE - 14,
     ACAMERA_ERROR_STREAM_CONFIGURE_FAIL = ACAMERA_ERROR_BASE - 15,
+    ACAMERA_ERROR_CAMERA_IN_USE         = ACAMERA_ERROR_BASE - 16,
+    ACAMERA_ERROR_MAX_CAMERA_IN_USE     = ACAMERA_ERROR_BASE - 17,
+    ACAMERA_ERROR_CAMERA_DISABLED       = ACAMERA_ERROR_BASE - 18,
+    ACAMERA_ERROR_PERMISSION_DENIED     = ACAMERA_ERROR_BASE - 19,
 } camera_status_t;
 
 
@@ -60,3 +72,5 @@ typedef enum {
 #endif
 
 #endif // _NDK_CAMERA_ERROR_H
+
+/** @} */

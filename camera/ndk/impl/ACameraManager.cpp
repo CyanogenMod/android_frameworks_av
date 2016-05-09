@@ -471,8 +471,38 @@ ACameraManager::openCamera(
 
     if (!serviceRet.isOk()) {
         ALOGE("%s: connect camera device failed: %s", __FUNCTION__, serviceRet.toString8().string());
+        // Convert serviceRet to camera_status_t
+        switch(serviceRet.serviceSpecificErrorCode()) {
+            case hardware::ICameraService::ERROR_DISCONNECTED:
+                ret = ACAMERA_ERROR_CAMERA_DISCONNECTED;
+                break;
+            case hardware::ICameraService::ERROR_CAMERA_IN_USE:
+                ret = ACAMERA_ERROR_CAMERA_IN_USE;
+                break;
+            case hardware::ICameraService::ERROR_MAX_CAMERAS_IN_USE:
+                ret = ACAMERA_ERROR_MAX_CAMERA_IN_USE;
+                break;
+            case hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT:
+                ret = ACAMERA_ERROR_INVALID_PARAMETER;
+                break;
+            case hardware::ICameraService::ERROR_DEPRECATED_HAL:
+                // Should not reach here since we filtered legacy HALs earlier
+                ret = ACAMERA_ERROR_INVALID_PARAMETER;
+                break;
+            case hardware::ICameraService::ERROR_DISABLED:
+                ret = ACAMERA_ERROR_CAMERA_DISABLED;
+                break;
+            case hardware::ICameraService::ERROR_PERMISSION_DENIED:
+                ret = ACAMERA_ERROR_PERMISSION_DENIED;
+                break;
+            case hardware::ICameraService::ERROR_INVALID_OPERATION:
+            default:
+                ret = ACAMERA_ERROR_UNKNOWN;
+                break;
+        }
+
         delete device;
-        return ACAMERA_ERROR_CAMERA_DISCONNECTED;
+        return ret;
     }
     if (deviceRemote == nullptr) {
         ALOGE("%s: connect camera device failed! remote device is null", __FUNCTION__);

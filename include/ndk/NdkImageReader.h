@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Media Camera
+ * @{
+ */
+
+/**
+ * @file NdkImageReader.h
+ */
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -75,3 +84,5 @@ media_status_t AImageReader_setImageListener(
 #endif
 
 #endif //_NDK_IMAGE_READER_H
+
+/** @} */
