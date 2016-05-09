@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Media Camera
+ * @{
+ */
+
+/**
+ * @file NdkImage.h
+ */
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -44,7 +53,8 @@ enum {
     AIMAGE_FORMAT_RAW10             = 0x25,
     AIMAGE_FORMAT_RAW12             = 0x26,
     AIMAGE_FORMAT_DEPTH16           = 0x44363159,
-    AIMAGE_FORMAT_DEPTH_POINT_CLOUD = 0x101
+    AIMAGE_FORMAT_DEPTH_POINT_CLOUD = 0x101,
+    AIMAGE_FORMAT_PRIVATE           = 0x22 ///> Not supported by AImageReader yet
 };
 
 typedef struct AImageCropRect {
@@ -97,3 +107,5 @@ media_status_t AImage_getPlaneData(
 #endif
 
 #endif //_NDK_IMAGE_H
+
+/** @} */
