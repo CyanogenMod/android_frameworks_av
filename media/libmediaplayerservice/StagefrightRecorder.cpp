@@ -44,6 +44,7 @@
 #include <media/stagefright/MediaCodecSource.h>
 #include <media/stagefright/OMXClient.h>
 #include <media/stagefright/OMXCodec.h>
+#include <media/stagefright/FLACWriter.h>
 #include <media/stagefright/WAVEWriter.h>
 #include <media/MediaProfiles.h>
 #include <camera/ICamera.h>
@@ -828,6 +829,10 @@ status_t StagefrightRecorder::prepareInternal() {
             status = setupWAVERecording();
             break;
 
+        case OUTPUT_FORMAT_FLAC:
+            status = setupFLACRecording();
+            break;
+
         default:
             if (handleCustomRecording() != OK) {
                 ALOGE("Unsupported output file format: %d", mOutputFormat);
@@ -906,6 +911,7 @@ status_t StagefrightRecorder::start() {
         case OUTPUT_FORMAT_RTP_AVP:
         case OUTPUT_FORMAT_MPEG2TS:
         case OUTPUT_FORMAT_WAVE:
+        case OUTPUT_FORMAT_FLAC:
         {
             status = mWriter->start();
             break;
@@ -1025,6 +1031,9 @@ sp<MediaSource> StagefrightRecorder::createAudioSource() {
         case AUDIO_ENCODER_LPCM:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_RAW);
             break;
+        case AUDIO_ENCODER_FLAC:
+            format->setString("mime", MEDIA_MIMETYPE_AUDIO_FLAC);
+            break;
 
         default:
             if (handleCustomAudioSource(format) != OK) {
@@ -1076,6 +1085,14 @@ status_t StagefrightRecorder::setupAACRecording() {
     CHECK(mAudioSource != AUDIO_SOURCE_CNT);
 
     mWriter = new AACWriter(mOutputFd);
+    return setupRawAudioRecording();
+}
+
+status_t StagefrightRecorder::setupFLACRecording() {
+    CHECK_EQ(mOutputFormat, OUTPUT_FORMAT_FLAC);
+    CHECK(mAudioEncoder == AUDIO_ENCODER_FLAC);
+
+    mWriter = new FLACWriter(mOutputFd);
     return setupRawAudioRecording();
 }
 
@@ -1715,6 +1732,7 @@ status_t StagefrightRecorder::setupAudioEncoder(const sp<MediaWriter>& writer) {
         case AUDIO_ENCODER_HE_AAC:
         case AUDIO_ENCODER_AAC_ELD:
         case AUDIO_ENCODER_LPCM:
+        case AUDIO_ENCODER_FLAC:
             break;
 
         default:

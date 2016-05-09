@@ -22,6 +22,7 @@ LOCAL_SRC_FILES:=                         \
         ESDS.cpp                          \
         FileSource.cpp                    \
         FLACExtractor.cpp                 \
+        FLACWriter.cpp                    \
         FrameRenderTracker.cpp            \
         HTTPBase.cpp                      \
         JPEGSource.cpp                    \

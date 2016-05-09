@@ -49,7 +49,8 @@ const MediaProfiles::NameToTagMap MediaProfiles::sAudioEncoderNameMap[] = {
     {"aac",    AUDIO_ENCODER_AAC},
     {"heaac",  AUDIO_ENCODER_HE_AAC},
     {"aaceld", AUDIO_ENCODER_AAC_ELD},
-    {"lpcm",  AUDIO_ENCODER_LPCM},
+    {"lpcm",   AUDIO_ENCODER_LPCM},
+    {"flac",   AUDIO_ENCODER_FLAC},
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sFileFormatMap[] = {
@@ -814,6 +815,7 @@ MediaProfiles::createDefaultAudioEncoders(MediaProfiles *profiles)
     profiles->mAudioEncoders.add(createDefaultAmrNBEncoderCap());
     profiles->mAudioEncoders.add(createDefaultAacEncoderCap());
     profiles->mAudioEncoders.add(createDefaultLpcmEncoderCap());
+    profiles->mAudioEncoders.add(createDefaultFlacEncoderCap());
 }
 
 /*static*/ void
@@ -860,6 +862,13 @@ MediaProfiles::createDefaultLpcmEncoderCap()
 {
     return new MediaProfiles::AudioEncoderCap(
         AUDIO_ENCODER_LPCM, 768000, 4608000, 8000, 48000, 1, 6);
+}
+
+/*static*/ MediaProfiles::AudioEncoderCap*
+MediaProfiles::createDefaultFlacEncoderCap()
+{
+    return new MediaProfiles::AudioEncoderCap(
+        AUDIO_ENCODER_FLAC, 768000, 4608000, 8000, 192000, 1, 2);
 }
 
 /*static*/ void
