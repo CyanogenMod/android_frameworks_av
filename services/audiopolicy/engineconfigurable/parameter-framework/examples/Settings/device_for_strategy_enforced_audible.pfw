@@ -13,6 +13,7 @@ supDomain: DeviceForStrategy
 					ip = 0
 					bus = 0
 					fm = 0
+					stub = 0
 
 		domain: Speaker
 			conf: Selected

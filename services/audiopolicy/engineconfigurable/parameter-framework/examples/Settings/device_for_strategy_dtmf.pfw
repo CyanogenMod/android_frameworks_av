@@ -10,6 +10,7 @@ supDomain: DeviceForStrategy
 					bluetooth_sco_carkit = 0
 					ip = 0
 					bus = 0
+					stub = 0
 
 		domain: Device2
 			conf: RemoteSubmix
