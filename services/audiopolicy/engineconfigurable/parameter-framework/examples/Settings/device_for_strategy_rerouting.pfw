@@ -17,6 +17,8 @@ domainGroup: DeviceForStrategy
 					bluetooth_sco_headset = 0
 					bluetooth_sco_carkit = 0
 					telephony_tx = 0
+					ip = 0
+					bus = 0
 
 		domain: Device2
 			conf: RemoteSubmix

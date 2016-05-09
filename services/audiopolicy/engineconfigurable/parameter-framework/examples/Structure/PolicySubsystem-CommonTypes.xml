@@ -35,6 +35,8 @@
             <BitParameter Name="fm" Size="1" Pos="20"/>
             <BitParameter Name="aux_line" Size="1" Pos="21"/>
             <BitParameter Name="speaker_safe" Size="1" Pos="22"/>
+            <BitParameter Name="ip" Size="1" Pos="23"/>
+            <BitParameter Name="bus" Size="1" Pos="24"/>
         </BitParameterBlock>
     </ComponentType>
 
@@ -62,6 +64,8 @@
             <BitParameter Name="spdif" Size="1" Pos="16"/>
             <BitParameter Name="bluetooth_a2dp" Size="1" Pos="17"/>
             <BitParameter Name="loopback" Size="1" Pos="18"/>
+            <BitParameter Name="ip" Size="1" Pos="19"/>
+            <BitParameter Name="bus" Size="1" Pos="20"/>
             <BitParameter Name="in" Size="1" Pos="31"/>
         </BitParameterBlock>
     </ComponentType>
@@ -83,6 +87,10 @@
             <BitParameter Name="compress_offload" Size="1" Pos="4"/>
             <BitParameter Name="non_blocking" Size="1" Pos="5"/>
             <BitParameter Name="hw_av_sync" Size="1" Pos="6"/>
+            <BitParameter Name="tts" Size="1" Pos="7"/>
+            <BitParameter Name="raw" Size="1" Pos="8"/>
+            <BitParameter Name="sync" Size="1" Pos="9"/>
+            <BitParameter Name="iec958_nonaudio" Size="1" Pos="10"/>
         </BitParameterBlock>
     </ComponentType>
 
@@ -94,6 +102,8 @@
         <BitParameterBlock Name="mask" Size="32">
             <BitParameter Name="fast" Size="1" Pos="0"/>
             <BitParameter Name="hw_hotword" Size="1" Pos="2"/>
+            <BitParameter Name="raw" Size="1" Pos="3"/>
+            <BitParameter Name="sync" Size="1" Pos="4"/>
         </BitParameterBlock>
     </ComponentType>
 

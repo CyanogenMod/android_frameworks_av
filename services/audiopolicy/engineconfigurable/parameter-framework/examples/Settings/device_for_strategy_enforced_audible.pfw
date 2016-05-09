@@ -10,6 +10,9 @@ supDomain: DeviceForStrategy
 					spdif = 0
 					aux_line = 0
 					speaker_safe = 0
+					ip = 0
+					bus = 0
+					fm = 0
 
 		domain: Speaker
 			conf: Selected
@@ -76,7 +79,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: BluetoothA2dp
 				AvailableOutputDevices Includes BluetoothA2dp
@@ -100,7 +102,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: BluetoothA2dpHeadphones
 				AvailableOutputDevices Includes BluetoothA2dpHeadphones
@@ -124,7 +125,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: BluetoothA2dpSpeaker
 				AvailableOutputDevices Includes BluetoothA2dpSpeaker
@@ -148,7 +148,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: WiredHeadphone
 				ForceUseForMedia IsNot ForceSpeaker
@@ -172,7 +171,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: Line
 				ForceUseForMedia IsNot ForceSpeaker
@@ -196,7 +194,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 1
-					fm = 0
 
 			conf: WiredHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -220,7 +217,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: UsbAccessory
 				ForceUseForMedia IsNot ForceSpeaker
@@ -244,7 +240,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: UsbDevice
 				ForceUseForMedia IsNot ForceSpeaker
@@ -268,7 +263,6 @@ supDomain: DeviceForStrategy
 					usb_device = 1
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: DgtlDockHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -292,7 +286,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: Hdmi
 				ForceUseForMedia IsNot ForceSpeaker
@@ -316,7 +309,6 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
 
 			conf: AnlgDockHeadset
 				ForceUseForMedia IsNot ForceSpeaker
@@ -341,5 +333,25 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
-					fm = 0
+
+			conf: NoDevice
+				component: /Policy/policy/strategies/enforced_audible/selected_output_devices/mask
+					remote_submix = 0
+					earpiece = 0
+					wired_headset = 0
+					wired_headphone = 0
+					bluetooth_sco = 0
+					bluetooth_sco_headset = 0
+					bluetooth_sco_carkit = 0
+					bluetooth_a2dp = 0
+					bluetooth_a2dp_headphones = 0
+					bluetooth_a2dp_speaker = 0
+					hdmi = 0
+					angl_dock_headset = 0
+					dgtl_dock_headset = 0
+					usb_accessory = 0
+					usb_device = 0
+					telephony_tx = 0
+					line = 0
+
 
