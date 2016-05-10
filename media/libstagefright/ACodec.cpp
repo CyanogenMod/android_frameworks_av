@@ -4932,7 +4932,8 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                     } else if (params.eNumData == OMX_NumericalDataFloat
                             && params.nBitPerSample == 32u) {
                         encoding = kAudioEncodingPcmFloat;
-                    } else if (params.nBitPerSample != 16u
+                    } else if ((params.nBitPerSample != 16u
+                            && params.nBitPerSample != 24u )// we support 16/24 bit s/w decoding
                             || params.eNumData != OMX_NumericalDataSigned) {
                         ALOGE("unsupported PCM port: %s(%d), %s(%d) mode ",
                                 asString(params.eNumData), params.eNumData,
@@ -6397,7 +6398,11 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
         if (list != NULL && list->findCodecByName(componentName.c_str()) >= 0) {
             matchingCodecs.add(componentName);
         }
-        if (matchingCodecs.size() == 0 && componentName.find("qcom", 0) > 0) {
+        //make sure if the component name contains qcom/qti, we add it to matchingCodecs
+        //as these components are not present in media_codecs.xml and MediaCodecList won't find
+        //these component by findCodecByName
+        if (matchingCodecs.size() == 0 && (componentName.find("qcom", 0) > 0 ||
+            componentName.find("qti", 0) > 0)) {
             matchingCodecs.add(componentName);
         }
 
