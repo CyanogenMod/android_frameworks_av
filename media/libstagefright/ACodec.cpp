@@ -867,7 +867,7 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                     mem.clear();
 
                     void *ptr = NULL;
-                    native_handle_t *native_handle = NULL;
+                    sp<NativeHandle> native_handle;
                     err = mOMX->allocateSecureBuffer(
                             mNode, portIndex, bufSize, &info.mBufferID,
                             &ptr, &native_handle);
@@ -880,8 +880,11 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
                     // TRICKY2: use native handle as the base of the ABuffer if received one,
                     // because Widevine source only receives these base addresses.
-                    info.mData = new ABuffer(ptr != NULL ? ptr : (void *)native_handle, bufSize);
-                    info.mNativeHandle = NativeHandle::create(native_handle, true /* ownsHandle */);
+                    const native_handle_t *native_handle_ptr =
+                        native_handle == NULL ? NULL : native_handle->handle();
+                    info.mData = new ABuffer(
+                            ptr != NULL ? ptr : (void *)native_handle_ptr, bufSize);
+                    info.mNativeHandle = native_handle;
                     info.mCodecData = info.mData;
                 } else if (mQuirks & requiresAllocateBufferBit) {
                     err = mOMX->allocateBufferWithBackup(
