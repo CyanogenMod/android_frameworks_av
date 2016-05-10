@@ -334,6 +334,7 @@ status_t StreamingProcessor::recordingStreamNeedsUpdate(
             currentFormat != (uint32_t)params.videoFormat ||
             currentDataSpace != params.videoDataSpace) {
         *needsUpdate = true;
+        return res;
     }
     *needsUpdate = false;
     return res;
