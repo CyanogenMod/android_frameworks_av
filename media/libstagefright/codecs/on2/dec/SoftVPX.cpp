@@ -228,6 +228,17 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
 
         BufferInfo *inInfo = *inQueue.begin();
         OMX_BUFFERHEADERTYPE *inHeader = inInfo->mHeader;
+
+        // Software VP9 Decoder does not need the Codec Specific Data (CSD)
+        // (specified in http://www.webmproject.org/vp9/profiles/). Ignore it if
+        // it was passed.
+        if (inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
+            inQueue.erase(inQueue.begin());
+            inInfo->mOwnedByUs = false;
+            notifyEmptyBufferDone(inHeader);
+            continue;
+        }
+
         mTimeStamps[mTimeStampIdx] = inHeader->nTimeStamp;
 
         if (inHeader->nFlags & OMX_BUFFERFLAG_EOS) {

@@ -1113,6 +1113,13 @@ void MatroskaExtractor::addTracks() {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP8);
                 } else if (!strcmp("V_VP9", codecID)) {
                     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_VIDEO_VP9);
+                    if (codecPrivateSize > 0) {
+                      // 'csd-0' for VP9 is the Blob of Codec Private data as
+                      // specified in http://www.webmproject.org/vp9/profiles/.
+                      meta->setData(
+                              kKeyVp9CodecPrivate, 0, codecPrivate,
+                              codecPrivateSize);
+                    }
                 } else {
                     ALOGW("%s is not supported.", codecID);
                     continue;
