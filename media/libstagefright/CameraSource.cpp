@@ -368,7 +368,7 @@ status_t CameraSource::configureCamera(
     }
 
     if (frameRate != -1) {
-        CHECK(frameRate > 0 && frameRate <= 120);
+        CHECK(frameRate > 0 && frameRate <= 240);
         const char* supportedFrameRates =
                 params->get(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES);
         CHECK(supportedFrameRates != NULL);
