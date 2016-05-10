@@ -118,6 +118,10 @@ public:
             node_id node, OMX_U32 port_index,
             const sp<GraphicBuffer> &graphicBuffer, buffer_id buffer) = 0;
 
+    virtual status_t updateNativeHandleInMeta(
+            node_id node, OMX_U32 port_index,
+            const sp<NativeHandle> &nativeHandle, buffer_id buffer) = 0;
+
     // This will set *type to resulting metadata buffer type on OMX error (not on binder error) as
     // well as on success.
     virtual status_t createInputSurface(
@@ -272,17 +276,18 @@ struct CodecProfileLevel {
     OMX_U32 mLevel;
 };
 
-}  // namespace android
-
-inline static const char *asString(android::MetadataBufferType i, const char *def = "??") {
+inline static const char *asString(MetadataBufferType i, const char *def = "??") {
     using namespace android;
     switch (i) {
         case kMetadataBufferTypeCameraSource:   return "CameraSource";
         case kMetadataBufferTypeGrallocSource:  return "GrallocSource";
         case kMetadataBufferTypeANWBuffer:      return "ANWBuffer";
+        case kMetadataBufferTypeNativeHandleSource: return "NativeHandleSource";
         case kMetadataBufferTypeInvalid:        return "Invalid";
         default:                                return def;
     }
 }
+
+}  // namespace android
 
 #endif  // ANDROID_IOMX_H_

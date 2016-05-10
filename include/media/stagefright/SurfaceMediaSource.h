@@ -25,6 +25,8 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
 
+#include <MetadataBufferType.h>
+
 #include "foundation/ABase.h"
 
 namespace android {
@@ -109,9 +111,9 @@ public:
     void dump(String8& result, const char* prefix, char* buffer,
                                                     size_t SIZE) const;
 
-    // isMetaDataStoredInVideoBuffers tells the encoder whether we will
-    // pass metadata through the buffers. Currently, it is force set to true
-    bool isMetaDataStoredInVideoBuffers() const;
+    // metaDataStoredInVideoBuffers tells the encoder what kind of metadata
+    // is passed through the buffers. Currently, it is set to ANWBuffer
+    MetadataBufferType metaDataStoredInVideoBuffers() const;
 
     sp<IGraphicBufferProducer> getProducer() const { return mProducer; }
 
@@ -233,6 +235,9 @@ private:
     Condition mFrameAvailableCondition;
 
     Condition mMediaBuffersAvailableCondition;
+
+    // Allocate and return a new MediaBuffer and pass the ANW buffer as metadata into it.
+    void passMetadataBuffer_l(MediaBuffer **buffer, ANativeWindowBuffer *bufferHandle) const;
 
     // Avoid copying and equating and default constructor
     DISALLOW_EVIL_CONSTRUCTORS(SurfaceMediaSource);

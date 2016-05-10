@@ -79,6 +79,10 @@ struct OMXNodeInstance {
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
             OMX::buffer_id buffer);
 
+    status_t updateNativeHandleInMeta(
+            OMX_U32 portIndex, const sp<NativeHandle> &nativeHandle,
+            OMX::buffer_id buffer);
+
     status_t createInputSurface(
             OMX_U32 portIndex, android_dataspace dataSpace,
             sp<IGraphicBufferProducer> *bufferProducer,
