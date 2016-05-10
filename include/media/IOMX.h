@@ -37,6 +37,7 @@ namespace android {
 class IMemory;
 class IOMXObserver;
 class IOMXRenderer;
+class NativeHandle;
 class Surface;
 
 class IOMX : public IInterface {
@@ -149,7 +150,7 @@ public:
     // pointer is just that, a pointer into local address space.
     virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) = 0;
+            buffer_id *buffer, void **buffer_data, sp<NativeHandle> *native_handle) = 0;
 
     // Allocate an OMX buffer of size |allotedSize|. Use |params| as the backup buffer, which
     // may be larger.
