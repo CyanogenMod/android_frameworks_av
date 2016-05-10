@@ -102,7 +102,7 @@ struct OMXNodeInstance {
 
     status_t allocateSecureBuffer(
             OMX_U32 portIndex, size_t size, OMX::buffer_id *buffer,
-            void **buffer_data, native_handle_t **native_handle);
+            void **buffer_data, sp<NativeHandle> *native_handle);
 
     status_t allocateBufferWithBackup(
             OMX_U32 portIndex, const sp<IMemory> &params,

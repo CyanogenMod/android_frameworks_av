@@ -131,7 +131,7 @@ struct MuxOMX : public IOMX {
 
     virtual status_t allocateSecureBuffer(
             node_id node, OMX_U32 port_index, size_t size,
-            buffer_id *buffer, void **buffer_data, native_handle_t **native_handle);
+            buffer_id *buffer, void **buffer_data, sp<NativeHandle> *native_handle);
 
     virtual status_t allocateBufferWithBackup(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
@@ -426,7 +426,7 @@ status_t MuxOMX::signalEndOfInputStream(node_id node) {
 
 status_t MuxOMX::allocateSecureBuffer(
         node_id node, OMX_U32 port_index, size_t size,
-        buffer_id *buffer, void **buffer_data, native_handle_t **native_handle) {
+        buffer_id *buffer, void **buffer_data, sp<NativeHandle> *native_handle) {
     return getOMX(node)->allocateSecureBuffer(
             node, port_index, size, buffer, buffer_data, native_handle);
 }
