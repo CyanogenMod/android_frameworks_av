@@ -106,6 +106,7 @@ private:
     bool mChangingResolution;
     bool mFlushNeeded;
     bool mWaitForI;
+    size_t mStride;
 
     status_t initDecoder();
     status_t deInitDecoder();
