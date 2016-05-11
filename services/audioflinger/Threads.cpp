@@ -2835,6 +2835,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
     // MIXER
     nsecs_t lastWarning = 0;
+    nsecs_t mixStartNs = 0;
 
     // DUPLICATING
     // FIXME could this be made local to while loop?
@@ -3017,6 +3018,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         if (mBytesRemaining == 0) {
             mCurrentWriteLength = 0;
             if (mMixerStatus == MIXER_TRACKS_READY) {
+                mixStartNs = systemTime();
                 // threadLoop_mix() sets mCurrentWriteLength
                 threadLoop_mix();
             } else if ((mMixerStatus != MIXER_DRAIN_TRACK)
@@ -3144,8 +3146,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         // (1) mixer threads without a fast mixer (which has its own warm-up)
                         // (2) minimum buffer sized tracks (even if the track is full,
                         //     the app won't fill fast enough to handle the sudden draw).
+                        //
+                        // Total time spent in last processing cycle equals time spent in
+                        // 1. threadLoop_write, as well as time spent in
+                        // 2. threadLoop_mix (significant for heavy mixing, especially
+                        //                    on low tier processors)
 
-                        const int32_t deltaMs = delta / 1000000;
+                        const int32_t deltaMs = (now - mixStartNs)/ 1000000;
                         const int32_t throttleMs = mHalfBufferMs - deltaMs;
                         if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
                             usleep(throttleMs * 1000);
