@@ -63,6 +63,10 @@ extern const char *MEDIA_MIMETYPE_CONTAINER_QCFLV;
 extern const char *MEDIA_MIMETYPE_VIDEO_VPX;
 extern const char *MEDIA_MIMETYPE_CONTAINER_QTIFLAC;
 extern const char *MEDIA_MIMETYPE_VIDEO_MPEG4_DP;
+extern const char *MEDIA_MIMETYPE_AUDIO_DSD;
+extern const char *MEDIA_MIMETYPE_CONTAINER_DSF;
+extern const char *MEDIA_MIMETYPE_CONTAINER_DFF;
+
 
 }  // namespace android
 
