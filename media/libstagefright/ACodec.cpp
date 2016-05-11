@@ -5704,7 +5704,8 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
 
                 OMX_U32 flags = OMX_BUFFERFLAG_ENDOFFRAME;
 
-                int32_t isCSD;
+                MetadataBufferType metaType = mCodec->mInputMetadataType;
+                int32_t isCSD = 0;
                 if (buffer->meta()->findInt32("csd", &isCSD) && isCSD != 0) {
                     if (mCodec->mIsLegacyVP9Decoder) {
                         ALOGV("[%s] is legacy VP9 decoder. Ignore %u codec specific data",
@@ -5713,6 +5714,7 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                         break;
                     }
                     flags |= OMX_BUFFERFLAG_CODECCONFIG;
+                    metaType = kMetadataBufferTypeInvalid;
                 }
 
                 if (eos) {
@@ -5726,7 +5728,7 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                          buffer.get(), info->mCodecData.get());
 
                     sp<DataConverter> converter = mCodec->mConverter[kPortIndexInput];
-                    if (converter == NULL) {
+                    if (converter == NULL || isCSD) {
                         converter = getCopyConverter();
                     }
                     status_t err = converter->convert(buffer, info->mCodecData);
@@ -5772,14 +5774,50 @@ void ACodec::BaseState::onInputBufferFilled(const sp<AMessage> &msg) {
                     }
                 }
                 info->checkReadFence("onInputBufferFilled");
-                status_t err2 = mCodec->mOMX->emptyBuffer(
-                    mCodec->mNode,
-                    bufferID,
-                    0,
-                    info->mCodecData->size(),
-                    flags,
-                    timeUs,
-                    info->mFenceFd);
+
+                status_t err2 = OK;
+                switch (metaType) {
+                case kMetadataBufferTypeInvalid:
+                    break;
+#ifndef OMX_ANDROID_COMPILE_AS_32BIT_ON_64BIT_PLATFORMS
+                case kMetadataBufferTypeNativeHandleSource:
+                    if (info->mCodecData->size() >= sizeof(VideoNativeHandleMetadata)) {
+                        VideoNativeHandleMetadata *vnhmd =
+                            (VideoNativeHandleMetadata*)info->mCodecData->base();
+                        err2 = mCodec->mOMX->updateNativeHandleInMeta(
+                                mCodec->mNode, kPortIndexInput,
+                                NativeHandle::create(vnhmd->pHandle, false /* ownsHandle */),
+                                bufferID);
+                    }
+                    break;
+                case kMetadataBufferTypeANWBuffer:
+                    if (info->mCodecData->size() >= sizeof(VideoNativeMetadata)) {
+                        VideoNativeMetadata *vnmd = (VideoNativeMetadata*)info->mCodecData->base();
+                        err2 = mCodec->mOMX->updateGraphicBufferInMeta(
+                                mCodec->mNode, kPortIndexInput,
+                                new GraphicBuffer(vnmd->pBuffer, false /* keepOwnership */),
+                                bufferID);
+                    }
+                    break;
+#endif
+                default:
+                    ALOGW("Can't marshall %s data in %zu sized buffers in %zu-bit mode",
+                            asString(metaType), info->mCodecData->size(),
+                            sizeof(buffer_handle_t) * 8);
+                    err2 = ERROR_UNSUPPORTED;
+                    break;
+                }
+
+                if (err2 == OK) {
+                    err2 = mCodec->mOMX->emptyBuffer(
+                        mCodec->mNode,
+                        bufferID,
+                        0,
+                        info->mCodecData->size(),
+                        flags,
+                        timeUs,
+                        info->mFenceFd);
+                }
                 info->mFenceFd = -1;
                 if (err2 != OK) {
                     mCodec->signalError(OMX_ErrorUndefined, makeNoSideEffectStatus(err2));
