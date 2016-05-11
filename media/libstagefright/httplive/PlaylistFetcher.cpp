@@ -1092,6 +1092,13 @@ bool PlaylistFetcher::initDownloadState(
             // fall through
         } else {
             if (mPlaylist != NULL) {
+                if (mSeqNumber >= firstSeqNumberInPlaylist + (int32_t)mPlaylist->size()
+                        && !mPlaylist->isComplete()) {
+                    // Live playlists
+                    ALOGW("sequence number %d not yet available", mSeqNumber);
+                    postMonitorQueue(delayUsToRefreshPlaylist());
+                    return false;
+                }
                 ALOGE("Cannot find sequence number %d in playlist "
                      "(contains %d - %d)",
                      mSeqNumber, firstSeqNumberInPlaylist,
