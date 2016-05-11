@@ -32,6 +32,11 @@ class IMediaSource : public IInterface {
 public:
     DECLARE_META_INTERFACE(MediaSource);
 
+    enum {
+        // Maximum number of buffers would be read in readMultiple.
+        kMaxNumReadMultiple = 128,
+    };
+
     // To be called before any other methods on this object, except
     // getFormat().
     virtual status_t start(MetaData *params = NULL) = 0;
@@ -87,7 +92,7 @@ public:
     };
 
     // Returns a new buffer of data. Call blocks until a
-    // buffer is available, an error is encountered of the end of the stream
+    // buffer is available, an error is encountered or the end of the stream
     // is reached.
     // End of stream is signalled by a result of ERROR_END_OF_STREAM.
     // A result of INFO_FORMAT_CHANGED indicates that the format of this
@@ -95,6 +100,19 @@ public:
     // but should be prepared for buffers of the new configuration.
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
+
+    // Returns a vector of new buffers of data. The vector size could be
+    // <= |maxNumBuffers|. Used for buffers with small size
+    // since all buffer data are passed back by binder, not shared memory.
+    // Call blocks until an error is encountered, or the end of the stream is
+    // reached, or format change is hit, or |kMaxNumReadMultiple| buffers have
+    // been read.
+    // End of stream is signalled by a result of ERROR_END_OF_STREAM.
+    // A result of INFO_FORMAT_CHANGED indicates that the format of this
+    // MediaSource has changed mid-stream, the client can continue reading
+    // but should be prepared for buffers of the new configuration.
+    virtual status_t readMultiple(
+            Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers = 1) = 0;
 
     // Causes this source to suspend pulling data from its upstream source
     // until a subsequent read-with-seek. Currently only supported by
@@ -126,6 +144,10 @@ public:
         return ERROR_UNSUPPORTED;
     }
 
+    virtual status_t readMultiple(
+            Vector<MediaBuffer *> * /* buffers */, uint32_t /* maxNumBuffers = 1 */) {
+        return ERROR_UNSUPPORTED;
+    }
 protected:
     virtual ~BnMediaSource();
 
