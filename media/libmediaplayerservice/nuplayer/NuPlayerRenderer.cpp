@@ -850,18 +850,6 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
     // immediately after start. Investigate error message
     // "vorbis_dsp_synthesis returned -135", along with RTSP.
     uint32_t numFramesPlayed;
-    if(!mAudioSink->ready() && !mAudioQueue.empty()) {
-        while (!mAudioQueue.empty()) {
-            QueueEntry *entry = &*mAudioQueue.begin();
-            if (entry->mBuffer == NULL) {
-                notifyEOS(true /* audio */, entry->mFinalResult);
-            }
-            mAudioQueue.erase(mAudioQueue.begin());
-            entry = NULL;
-        }
-        return false;
-    }
-
     if (mAudioSink->getPosition(&numFramesPlayed) != OK) {
         // When getPosition fails, renderer will not reschedule the draining
         // unless new samples are queued.
