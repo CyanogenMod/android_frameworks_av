@@ -207,9 +207,13 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 // static
 MuxOMX::node_location MuxOMX::getPreferredCodecLocation(const char *name) {
     if (sCodecProcessEnabled) {
-        // all non-secure decoders plus OMX.google.* encoders can go in the codec process
-        if ((strcasestr(name, "decoder") && !strcasestr(name, "secure")) ||
-                !strncasecmp(name, "OMX.google.", 11)) {
+        // all non-secure decoders, OMX.google.* codecs and encoders can go in the codec process
+        // (non-OMX.google.* encoders can be excluded using system property.)
+        if ((strcasestr(name, "decoder")
+                        && strcasestr(name, ".secure") != name + strlen(name) - 7)
+                || (strcasestr(name, "encoder")
+                        && !property_get_bool("media.stagefright.legacyencoder", false))
+                || !strncasecmp(name, "OMX.google.", 11)) {
             return CODECPROCESS;
         }
         // everything else runs in the media server
@@ -409,8 +413,16 @@ status_t MuxOMX::createInputSurface(
 status_t MuxOMX::createPersistentInputSurface(
         sp<IGraphicBufferProducer> *bufferProducer,
         sp<IGraphicBufferConsumer> *bufferConsumer) {
-    // TODO: local or remote? Always use remote for now
-    return mMediaServerOMX->createPersistentInputSurface(
+    sp<IOMX> omx;
+    {
+        Mutex::Autolock autoLock(mLock);
+        if (property_get_bool("media.stagefright.legacyencoder", false)) {
+            omx = mMediaServerOMX;
+        } else {
+            omx = mMediaCodecOMX;
+        }
+    }
+    return omx->createPersistentInputSurface(
             bufferProducer, bufferConsumer);
 }
 
