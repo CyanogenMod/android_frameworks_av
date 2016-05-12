@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Camera
+ * @{
+ */
+
+/**
+ * @file NdkCameraMetadataTags.h
+ */
+
 /*
  * This file defines an NDK API.
  * Do not remove methods.
@@ -7637,3 +7646,5 @@ typedef enum acamera_metadata_enum_acamera_depth_depth_is_exclusive {
 
 
 #endif //_NDK_CAMERA_METADATA_TAGS_H
+
+/** @} */
