@@ -44,26 +44,90 @@ typedef enum {
     ACAMERA_OK = 0,
 
     ACAMERA_ERROR_BASE                  = -10000,
+
+    /**
+     * Camera operation has failed due to an unspecified cause.
+     */
     ACAMERA_ERROR_UNKNOWN               = ACAMERA_ERROR_BASE,
-    ACAMERA_ERROR_UNSUPPORTED           = ACAMERA_ERROR_BASE - 1,
-    ACAMERA_ERROR_INVALID_PARAMETER     = ACAMERA_ERROR_BASE - 2,
-    ACAMERA_ERROR_CAMERA_DISCONNECTED   = ACAMERA_ERROR_BASE - 3,
-    ACAMERA_ERROR_NOT_ENOUGH_MEMORY     = ACAMERA_ERROR_BASE - 4,
-    ACAMERA_ERROR_METADATA_NOT_FOUND    = ACAMERA_ERROR_BASE - 5,
-    ACAMERA_ERROR_CAMERA_DEVICE         = ACAMERA_ERROR_BASE - 6,
-    ACAMERA_ERROR_CAMERA_SERVICE        = ACAMERA_ERROR_BASE - 7,
-    ACAMERA_ERROR_CAMERA_REQUEST        = ACAMERA_ERROR_BASE - 8,
-    ACAMERA_ERROR_CAMERA_RESULT         = ACAMERA_ERROR_BASE - 9,
-    ACAMERA_ERROR_CAMERA_BUFFER         = ACAMERA_ERROR_BASE - 10,
-    ACAMERA_ERROR_SESSION_CLOSED        = ACAMERA_ERROR_BASE - 11,
-    ACAMERA_ERROR_SESSION_NOT_DRAINED   = ACAMERA_ERROR_BASE - 12,
-    ACAMERA_ERROR_INVALID_OPERATION     = ACAMERA_ERROR_BASE - 13,
-    ACAMERA_ERROR_TIMEOUT               = ACAMERA_ERROR_BASE - 14,
-    ACAMERA_ERROR_STREAM_CONFIGURE_FAIL = ACAMERA_ERROR_BASE - 15,
-    ACAMERA_ERROR_CAMERA_IN_USE         = ACAMERA_ERROR_BASE - 16,
-    ACAMERA_ERROR_MAX_CAMERA_IN_USE     = ACAMERA_ERROR_BASE - 17,
-    ACAMERA_ERROR_CAMERA_DISABLED       = ACAMERA_ERROR_BASE - 18,
-    ACAMERA_ERROR_PERMISSION_DENIED     = ACAMERA_ERROR_BASE - 19,
+
+    /**
+     * Camera operation has failed due to an invalid parameter being passed to the method.
+     */
+    ACAMERA_ERROR_INVALID_PARAMETER     = ACAMERA_ERROR_BASE - 1,
+
+    /**
+     * Camera operation has failed because the camera device has been closed, possibly because a
+     * higher-priority client has taken ownership of the camera device.
+     */
+    ACAMERA_ERROR_CAMERA_DISCONNECTED   = ACAMERA_ERROR_BASE - 2,
+
+    /**
+     * Camera operation has failed due to insufficient memory.
+     */
+    ACAMERA_ERROR_NOT_ENOUGH_MEMORY     = ACAMERA_ERROR_BASE - 3,
+
+    /**
+     * Camera operation has failed due to the requested metadata tag cannot be found in input
+     * {@link ACameraMetadata} or {@link ACaptureRequest}.
+     */
+    ACAMERA_ERROR_METADATA_NOT_FOUND    = ACAMERA_ERROR_BASE - 4,
+
+    /**
+     * Camera operation has failed and the camera device has encountered a fatal error and needs to
+     * be re-opened before it can be used again.
+     */
+    ACAMERA_ERROR_CAMERA_DEVICE         = ACAMERA_ERROR_BASE - 5,
+
+    /**
+     * Camera operation has failed and the camera service has encountered a fatal error.
+     *
+     * <p>The Android device may need to be shut down and restarted to restore
+     * camera function, or there may be a persistent hardware problem.</p>
+     *
+     * <p>An attempt at recovery may be possible by closing the
+     * ACameraDevice and the ACameraManager, and trying to acquire all resources
+     * again from scratch.</p>
+     */
+    ACAMERA_ERROR_CAMERA_SERVICE        = ACAMERA_ERROR_BASE - 6,
+
+    /**
+     * The {@link ACameraCaptureSession} has been closed and cannnot perform any operation other
+     * than {@link ACameraCaptureSession_close}.
+     */
+    ACAMERA_ERROR_SESSION_CLOSED        = ACAMERA_ERROR_BASE - 7,
+
+    /**
+     * Camera operation has failed due to an invalid internal operation. Usually this is due to a
+     * low-level problem that may resolve itself on retry
+     */
+    ACAMERA_ERROR_INVALID_OPERATION     = ACAMERA_ERROR_BASE - 8,
+
+    /**
+     * Camera device does not support the stream configuration provided by application in
+     * {@link ACameraDevice_createCaptureSession}.
+     */
+    ACAMERA_ERROR_STREAM_CONFIGURE_FAIL = ACAMERA_ERROR_BASE - 9,
+
+    /**
+     * Camera device is being used by another higher priority camera API client.
+     */
+    ACAMERA_ERROR_CAMERA_IN_USE         = ACAMERA_ERROR_BASE - 10,
+
+    /**
+     * The system-wide limit for number of open cameras or camera resources has been reached, and
+     * more camera devices cannot be opened until previous instances are closed.
+     */
+    ACAMERA_ERROR_MAX_CAMERA_IN_USE     = ACAMERA_ERROR_BASE - 11,
+
+    /**
+     * The camera is disabled due to a device policy, and cannot be opened.
+     */
+    ACAMERA_ERROR_CAMERA_DISABLED       = ACAMERA_ERROR_BASE - 12,
+
+    /**
+     * The application does not have permission to open camera.
+     */
+    ACAMERA_ERROR_PERMISSION_DENIED     = ACAMERA_ERROR_BASE - 13,
 } camera_status_t;
 
 

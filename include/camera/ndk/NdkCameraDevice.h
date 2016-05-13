@@ -267,8 +267,9 @@ typedef enum {
  * @return <ul>
  *         <li>{@link ACAMERA_OK} if the method call succeeds. The created capture request will be
  *                                filled in request argument.</li>
- *         <li>{@link ACAMERA_ERROR_INVALID_PARAMETER} if device or request is NULL, or templateId
- *                                is undefined.</li>
+ *         <li>{@link ACAMERA_ERROR_INVALID_PARAMETER} if device or request is NULL, templateId
+ *                                is undefined or camera device does not support requested template.
+ *                                </li>
  *         <li>{@link ACAMERA_ERROR_CAMERA_DISCONNECTED} if the camera device is closed.</li>
  *         <li>{@link ACAMERA_ERROR_CAMERA_DEVICE} if the camera device encounters fatal error.</li>
  *         <li>{@link ACAMERA_ERROR_CAMERA_SERVICE} if the camera service encounters fatal error.</li>
