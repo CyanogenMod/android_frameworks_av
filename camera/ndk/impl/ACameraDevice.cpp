@@ -129,7 +129,7 @@ CameraDevice::createCaptureRequest(
             hardware::ICameraService::ERROR_ILLEGAL_ARGUMENT) {
         ALOGW("Create capture request failed! template %d is not supported on this device",
             templateId);
-        return ACAMERA_ERROR_UNSUPPORTED;
+        return ACAMERA_ERROR_INVALID_PARAMETER;
     } else if (!remoteRet.isOk()) {
         ALOGE("Create capture request failed: %s", remoteRet.toString8().string());
         return ACAMERA_ERROR_UNKNOWN;
