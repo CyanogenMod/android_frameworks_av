@@ -37,6 +37,7 @@ enum {
     PAUSE,
     GETFORMAT,
     READ,
+    READMULTIPLE,
     RELEASE_BUFFER
 };
 
@@ -189,6 +190,37 @@ public:
         return ret;
     }
 
+    virtual status_t readMultiple(Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers) {
+        ALOGV("readMultiple");
+        if (buffers == NULL || !buffers->isEmpty()) {
+            return BAD_VALUE;
+        }
+        Parcel data, reply;
+        data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
+        data.writeUint32(maxNumBuffers);
+        status_t ret = remote()->transact(READMULTIPLE, data, &reply);
+        if (ret != NO_ERROR) {
+            return ret;
+        }
+        // wrap the returned data in a vector of MediaBuffers
+        int32_t bufCount = 0;
+        while (1) {
+            if (reply.readInt32() == 0) {
+                break;
+            }
+            int32_t len = reply.readInt32();
+            ALOGV("got len %d", len);
+            MediaBuffer *buf = new MediaBuffer(len);
+            reply.read(buf->data(), len);
+            buf->meta_data()->updateFromParcel(reply);
+            buffers->push_back(buf);
+            ++bufCount;
+        }
+        ret = reply.readInt32();
+        ALOGV("got status %d, bufCount %d", ret, bufCount);
+        return ret;
+    }
+
     virtual status_t pause() {
         ALOGV("pause");
         Parcel data, reply;
@@ -338,6 +370,37 @@ status_t BnMediaSource::onTransact(
                 ALOGV("ret %d, buf %p", ret, buf);
                 reply->writeInt32(NULL_BUFFER);
             }
+            return NO_ERROR;
+        }
+        case READMULTIPLE: {
+            ALOGV("readmultiple");
+            CHECK_INTERFACE(IMediaSource, data, reply);
+            uint32_t maxNumBuffers;
+            data.readUint32(&maxNumBuffers);
+            status_t ret = NO_ERROR;
+            uint32_t bufferCount = 0;
+            if (maxNumBuffers > kMaxNumReadMultiple) {
+                maxNumBuffers = kMaxNumReadMultiple;
+            }
+            while (bufferCount < maxNumBuffers) {
+                if (reply->dataSize() >= MediaBuffer::kSharedMemThreshold) {
+                    break;
+                }
+
+                MediaBuffer *buf = NULL;
+                ret = read(&buf, NULL);
+                if (ret != NO_ERROR || buf == NULL) {
+                    break;
+                }
+                ++bufferCount;
+                reply->writeInt32(1);  // indicate one more MediaBuffer.
+                reply->writeByteArray(
+                        buf->range_length(), (uint8_t*)buf->data() + buf->range_offset());
+                buf->meta_data()->writeToParcel(*reply);
+                buf->release();
+            }
+            reply->writeInt32(0);  // indicate no more MediaBuffer.
+            reply->writeInt32(ret);
             return NO_ERROR;
         }
         default:
