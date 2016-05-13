@@ -231,7 +231,7 @@ public:
         MEDIASERVER_PROCESS_DEATH = 0,
         MEDIAEXTRACTOR_PROCESS_DEATH = 1,
         MEDIACODEC_PROCESS_DEATH = 2,
-        AUDIO_PROCESS_DEATH = 3,
+        AUDIO_PROCESS_DEATH = 3,   // currently no need to track this
         CAMERA_PROCESS_DEATH = 4
     };
 
@@ -419,7 +419,6 @@ private:
 
         sp<IBinder::DeathRecipient> mExtractorDeathListener;
         sp<IBinder::DeathRecipient> mCodecDeathListener;
-        sp<IBinder::DeathRecipient> mAudioDeathListener;
 #if CALLBACK_ANTAGONIZER
                     Antagonizer*                mAntagonizer;
 #endif
