@@ -200,7 +200,17 @@ status_t DRMSource::read(MediaBuffer **buffer, const ReadOptions *options) {
                 continue;
             }
 
-            CHECK(dstOffset + 4 <= (*buffer)->size());
+            if (dstOffset > SIZE_MAX - 4 ||
+                dstOffset + 4 > SIZE_MAX - nalLength ||
+                dstOffset + 4 + nalLength > (*buffer)->size()) {
+                (*buffer)->release();
+                (*buffer) = NULL;
+                if (decryptedDrmBuffer.data) {
+                    delete [] decryptedDrmBuffer.data;
+                    decryptedDrmBuffer.data = NULL;
+                }
+                return ERROR_MALFORMED;
+            }
 
             dstData[dstOffset++] = 0;
             dstData[dstOffset++] = 0;
