@@ -33,12 +33,18 @@
 #include "CameraService.h"
 #include "MediaLogService.h"
 #include "MediaPlayerService.h"
+#include "MediaUtils.h"
 #include "AudioPolicyService.h"
 
 using namespace android;
 
-int main(int argc, char** argv)
+int main(int argc __unused, char** argv)
 {
+    limitProcessMemory(
+        "ro.media.maxmem", /* property that defines limit */
+        SIZE_MAX, /* upper limit in bytes */
+        65 /* upper limit as percentage of physical RAM */);
+
     signal(SIGPIPE, SIG_IGN);
     char value[PROPERTY_VALUE_MAX];
     bool doLog = (property_get("ro.test_harness", value, "0") > 0) && (atoi(value) == 1);
