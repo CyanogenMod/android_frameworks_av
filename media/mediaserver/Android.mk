@@ -35,6 +35,7 @@ endif
 
 LOCAL_C_INCLUDES := \
     frameworks/av/media/libmediaplayerservice \
+    frameworks/av/media/libmedia \
     frameworks/av/services/medialog \
     frameworks/av/services/audioflinger \
     frameworks/av/services/camera/libcameraservice
