@@ -1420,14 +1420,28 @@ void NuPlayer::GenericSource::readBuffer(
         options.setNonBlocking();
     }
 
+    bool couldReadMultiple = (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO);
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
-        MediaBuffer *mbuf;
-        status_t err = track->mSource->read(&mbuf, &options);
+        Vector<MediaBuffer *> mediaBuffers;
+        status_t err = NO_ERROR;
+
+        if (!seeking && couldReadMultiple) {
+            err = track->mSource->readMultiple(&mediaBuffers, (maxBuffers - numBuffers));
+        } else {
+            MediaBuffer *mbuf = NULL;
+            err = track->mSource->read(&mbuf, &options);
+            if (err == OK && mbuf != NULL) {
+                mediaBuffers.push_back(mbuf);
+            }
+        }
 
         options.clearSeekTo();
 
-        if (err == OK) {
+        size_t id = 0;
+        size_t count = mediaBuffers.size();
+        for (; id < count; ++id) {
             int64_t timeUs;
+            MediaBuffer *mbuf = mediaBuffers[id];
             if (!mbuf->meta_data()->findInt64(kKeyTime, &timeUs)) {
                 mbuf->meta_data()->dumpToLog();
                 track->mPackets->signalEOS(ERROR_MALFORMED);
@@ -1450,7 +1464,16 @@ void NuPlayer::GenericSource::readBuffer(
             formatChange = false;
             seeking = false;
             ++numBuffers;
-        } else if (err == WOULD_BLOCK) {
+        }
+        if (id < count) {
+            // Error, some mediaBuffer doesn't have kKeyTime.
+            for (; id < count; ++id) {
+                mediaBuffers[id]->release();
+            }
+            break;
+        }
+
+        if (err == WOULD_BLOCK) {
             break;
         } else if (err == INFO_FORMAT_CHANGED) {
 #if 0
@@ -1459,7 +1482,7 @@ void NuPlayer::GenericSource::readBuffer(
                     NULL,
                     false /* discard */);
 #endif
-        } else {
+        } else if (err != OK) {
             queueDiscontinuityIfNeeded(seeking, formatChange, trackType, track);
             track->mPackets->signalEOS(err);
             break;
