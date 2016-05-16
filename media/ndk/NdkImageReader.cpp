@@ -95,10 +95,11 @@ media_status_t
 AImageReader::FrameListener::setImageListener(AImageReader_ImageListener* listener) {
     Mutex::Autolock _l(mLock);
     if (listener == nullptr) {
-        ALOGE("AImageReader: listener is null!");
-        return AMEDIA_ERROR_INVALID_PARAMETER;
+        mListener.context = nullptr;
+        mListener.onImageAvailable = nullptr;
+    } else {
+        mListener = *listener;
     }
-    mListener = *listener;
     return AMEDIA_OK;
 }
 
@@ -575,8 +576,8 @@ EXPORT
 media_status_t AImageReader_setImageListener(
         AImageReader* reader, AImageReader_ImageListener* listener) {
     ALOGV("%s", __FUNCTION__);
-    if (reader == nullptr || listener == nullptr) {
-        ALOGE("%s: invalid argument! read %p listener %p", __FUNCTION__, reader, listener);
+    if (reader == nullptr) {
+        ALOGE("%s: invalid argument! reader %p", __FUNCTION__, reader);
         return AMEDIA_ERROR_INVALID_PARAMETER;
     }
 
