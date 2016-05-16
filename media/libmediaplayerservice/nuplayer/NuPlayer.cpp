@@ -1480,7 +1480,8 @@ void NuPlayer::postScanSources() {
     mScanSourcesPending = true;
 }
 
-void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo) {
+void NuPlayer::tryOpenAudioSinkForOffload(
+        const sp<AMessage> &format, const sp<MetaData> &audioMeta, bool hasVideo) {
     // Note: This is called early in NuPlayer to determine whether offloading
     // is possible; otherwise the decoders call the renderer openAudioSink directly.
 
@@ -1490,8 +1491,6 @@ void NuPlayer::tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVi
         // Any failure we turn off mOffloadAudio.
         mOffloadAudio = false;
     } else if (mOffloadAudio) {
-        sp<MetaData> audioMeta =
-                mSource->getFormatMeta(true /* audio */);
         sendMetaDataToHal(mAudioSink, audioMeta);
     }
 }
@@ -1538,7 +1537,7 @@ void NuPlayer::restartAudio(
     }
 }
 
-void NuPlayer::determineAudioModeChange() {
+void NuPlayer::determineAudioModeChange(const sp<AMessage> &audioFormat) {
     if (mSource == NULL || mAudioSink == NULL) {
         return;
     }
@@ -1561,8 +1560,7 @@ void NuPlayer::determineAudioModeChange() {
             mRenderer->signalEnableOffloadAudio();
         }
         // open audio sink early under offload mode.
-        sp<AMessage> format = mSource->getFormat(true /*audio*/);
-        tryOpenAudioSinkForOffload(format, hasVideo);
+        tryOpenAudioSinkForOffload(audioFormat, audioMeta, hasVideo);
     } else {
         if (mOffloadAudio) {
             mRenderer->signalDisableOffloadAudio();
@@ -1621,7 +1619,7 @@ status_t NuPlayer::instantiateDecoder(
         notify->setInt32("generation", mAudioDecoderGeneration);
 
         if (checkAudioModeChange) {
-            determineAudioModeChange();
+            determineAudioModeChange(format);
         }
         if (mOffloadAudio) {
             mSource->setOffloadAudio(true /* offload */);
