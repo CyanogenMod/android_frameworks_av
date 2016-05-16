@@ -682,10 +682,6 @@ sp<MediaPlayerBase> MediaPlayerService::Client::setDataSource_pre(
     mCodecDeathListener = new ServiceDeathNotifier(binder, p, MEDIACODEC_PROCESS_DEATH);
     binder->linkToDeath(mCodecDeathListener);
 
-    binder = sm->getService(String16("media.audio_flinger"));
-    mAudioDeathListener = new ServiceDeathNotifier(binder, p, AUDIO_PROCESS_DEATH);
-    binder->linkToDeath(mAudioDeathListener);
-
     if (!p->hardwareOutput()) {
         Mutex::Autolock l(mLock);
         mAudioOutput = new AudioOutput(mAudioSessionId, IPCThreadState::self()->getCallingUid(),
