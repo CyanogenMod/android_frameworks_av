@@ -232,11 +232,12 @@ private:
         mFlushComplete[1][1] = false;
     }
 
-    void tryOpenAudioSinkForOffload(const sp<AMessage> &format, bool hasVideo);
+    void tryOpenAudioSinkForOffload(
+            const sp<AMessage> &format, const sp<MetaData> &audioMeta, bool hasVideo);
     void closeAudioSink();
     void restartAudio(
             int64_t currentPositionUs, bool forceNonOffload, bool needsToCreateAudioDecoder);
-    void determineAudioModeChange();
+    void determineAudioModeChange(const sp<AMessage> &audioFormat);
 
     status_t instantiateDecoder(
             bool audio, sp<DecoderBase> *decoder, bool checkAudioModeChange = true);
