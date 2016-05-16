@@ -87,7 +87,6 @@ private:
 
     sp<IBinder::DeathRecipient> mCameraDeathListener;
     sp<IBinder::DeathRecipient> mCodecDeathListener;
-    sp<IBinder::DeathRecipient> mAudioDeathListener;
 
     pid_t                  mPid;
     Mutex                  mLock;

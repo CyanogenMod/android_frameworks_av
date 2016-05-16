@@ -378,11 +378,6 @@ status_t MediaRecorderClient::setListener(const sp<IMediaRecorderClient>& listen
             MediaPlayerService::MEDIACODEC_PROCESS_DEATH);
     binder->linkToDeath(mCodecDeathListener);
 
-    binder = sm->getService(String16("media.audio_flinger"));
-    mAudioDeathListener = new ServiceDeathNotifier(binder, listener,
-            MediaPlayerService::AUDIO_PROCESS_DEATH);
-    binder->linkToDeath(mAudioDeathListener);
-
     return OK;
 }
 
