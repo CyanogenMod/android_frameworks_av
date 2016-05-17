@@ -47,48 +47,53 @@ void Convolve (
         s = vo_mult32((*tmpX++), (*tmpH--));i--;
         while(i>0)
         {
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
             i -= 4;
         }
-        y[n] = ((s<<1) + 0x8000)>>16;
+        y[n] = voround(L_shl(s, 1));
         n++;
 
         tmpH = h+n;
         tmpX = x;
         i=n+1;
-        s =  vo_mult32((*tmpX++), (*tmpH--));i--;
-        s += vo_mult32((*tmpX++), (*tmpH--));i--;
+        s =  vo_mult32((*tmpX++), (*tmpH--));
+        i--;
+        s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+        i--;
 
         while(i>0)
         {
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
             i -= 4;
         }
-        y[n] = ((s<<1) + 0x8000)>>16;
+        y[n] = voround(L_shl(s, 1));
         n++;
 
         tmpH = h+n;
         tmpX = x;
         i=n+1;
-        s =  vo_mult32((*tmpX++), (*tmpH--));i--;
-        s += vo_mult32((*tmpX++), (*tmpH--));i--;
-        s += vo_mult32((*tmpX++), (*tmpH--));i--;
+        s =  vo_mult32((*tmpX++), (*tmpH--));
+        i--;
+        s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+        i--;
+        s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+        i--;
 
         while(i>0)
         {
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
             i -= 4;
         }
-        y[n] = ((s<<1) + 0x8000)>>16;
+        y[n] = voround(L_shl(s, 1));
         n++;
 
         s = 0;
@@ -97,13 +102,13 @@ void Convolve (
         i=n+1;
         while(i>0)
         {
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
-            s += vo_mult32((*tmpX++), (*tmpH--));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
+            s = L_add(s, vo_mult32((*tmpX++), (*tmpH--)));
             i -= 4;
         }
-        y[n] = ((s<<1) + 0x8000)>>16;
+        y[n] = voround(L_shl(s, 1));
         n++;
     }
     return;

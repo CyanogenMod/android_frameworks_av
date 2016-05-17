@@ -810,10 +810,10 @@ void coder(
             vo_p2 = vo_p0-1;
             for (j = 1; j <= M/4; j++)
             {
-                L_tmp -= *vo_p1++ * *vo_p2--;
-                L_tmp -= *vo_p1++ * *vo_p2--;
-                L_tmp -= *vo_p1++ * *vo_p2--;
-                L_tmp -= *vo_p1++ * *vo_p2--;
+                L_tmp = L_sub(L_tmp, *vo_p1++ * *vo_p2--);
+                L_tmp = L_sub(L_tmp, *vo_p1++ * *vo_p2--);
+                L_tmp = L_sub(L_tmp, *vo_p1++ * *vo_p2--);
+                L_tmp = L_sub(L_tmp, *vo_p1++ * *vo_p2--);
             }
             *vo_p3++ = *vo_p0++ = vo_round((L_tmp <<4));
         }
@@ -1205,7 +1205,7 @@ void coder(
          *------------------------------------------------------*/
 
         /* y2 in Q9, gain_pit in Q14 */
-        L_tmp = (gain_code * y2[L_SUBFR - 1])<<1;
+        L_tmp = L_mult(gain_code, y2[L_SUBFR - 1]);
         L_tmp = L_shl(L_tmp, (5 + shift));
         L_tmp = L_negate(L_tmp);
         L_tmp += (xn[L_SUBFR - 1] * 16384)<<1;
@@ -1220,8 +1220,8 @@ void coder(
         {
             Word32 tmp;
             /* code in Q9, gain_pit in Q14 */
-            L_tmp = (gain_code * code[i])<<1;
-            L_tmp = (L_tmp << 5);
+            L_tmp = L_mult(gain_code, code[i]);
+            L_tmp = L_shl(L_tmp, 5);
             tmp = L_mult(exc[i + i_subfr], gain_pit); // (exc[i + i_subfr] * gain_pit)<<1
             L_tmp = L_add(L_tmp, tmp);
             L_tmp = L_shl2(L_tmp, 1);
