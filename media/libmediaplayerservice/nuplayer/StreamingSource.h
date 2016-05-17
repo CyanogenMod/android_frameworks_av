@@ -46,7 +46,7 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-    virtual sp<MetaData> getFormatMeta(bool audio);
+    virtual sp<AMessage> getFormat(bool audio);
 
 private:
     enum {
