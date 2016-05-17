@@ -29,6 +29,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MetaData.h>
+#include <media/stagefright/Utils.h>
 
 namespace android {
 
@@ -217,14 +218,21 @@ sp<AnotherPacketSource> NuPlayer::StreamingSource::getSource(bool audio) {
     return static_cast<AnotherPacketSource *>(source.get());
 }
 
-sp<MetaData> NuPlayer::StreamingSource::getFormatMeta(bool audio) {
+sp<AMessage> NuPlayer::StreamingSource::getFormat(bool audio) {
     sp<AnotherPacketSource> source = getSource(audio);
 
+    sp<AMessage> format = new AMessage;
     if (source == NULL) {
-        return NULL;
+        format->setInt32("err", -EWOULDBLOCK);
+        return format;
     }
 
-    return source->getFormat();
+    sp<MetaData> meta = source->getFormat();
+    status_t err = convertMetaDataToMessage(meta, &format);
+    if (err != OK) {
+        format->setInt32("err", err);
+    }
+    return format;
 }
 
 status_t NuPlayer::StreamingSource::dequeueAccessUnit(
