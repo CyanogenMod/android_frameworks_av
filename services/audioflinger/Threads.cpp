@@ -2649,18 +2649,20 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
     }
 }
 
-void AudioFlinger::PlaybackThread::invalidateTracks_l(audio_stream_type_t streamType)
+bool AudioFlinger::PlaybackThread::invalidateTracks_l(audio_stream_type_t streamType)
 {
     ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %zu",
             this,  streamType, mTracks.size());
-
+    bool trackMatch = false;
     size_t size = mTracks.size();
     for (size_t i = 0; i < size; i++) {
         sp<Track> t = mTracks[i];
         if (t->streamType() == streamType && t->isExternalTrack()) {
             t->invalidate();
+            trackMatch = true;
         }
     }
+    return trackMatch;
 }
 
 void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
@@ -5426,8 +5428,9 @@ void AudioFlinger::OffloadThread::flushHw_l()
 void AudioFlinger::OffloadThread::invalidateTracks(audio_stream_type_t streamType)
 {
     Mutex::Autolock _l(mLock);
-    mFlushPending = true;
-    PlaybackThread::invalidateTracks_l(streamType);
+    if (PlaybackThread::invalidateTracks_l(streamType)) {
+        mFlushPending = true;
+    }
 }
 
 // ----------------------------------------------------------------------------
