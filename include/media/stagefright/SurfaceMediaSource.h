@@ -25,7 +25,7 @@
 #include <media/stagefright/MediaSource.h>
 #include <media/stagefright/MediaBuffer.h>
 
-#include <MetadataBufferType.h>
+#include <media/hardware/MetadataBufferType.h>
 
 #include "foundation/ABase.h"
 
