@@ -48,6 +48,11 @@ status_t convertMetaDataToMessage(
 void convertMessageToMetaData(
         const sp<AMessage> &format, sp<MetaData> &meta);
 
+// Returns a pointer to the next NAL start code in buffer of size |length| starting at |data|, or
+// a pointer to the end of the buffer if the start code is not found.
+// TODO: combine this with avc_utils::getNextNALUnit
+const uint8_t *findNextNalStartCode(const uint8_t *data, size_t length);
+
 AString MakeUserAgent();
 
 // Convert a MIME type to a AudioSystem::audio_format

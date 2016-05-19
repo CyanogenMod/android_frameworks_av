@@ -1929,22 +1929,6 @@ static void getNalUnitType(uint8_t byte, uint8_t* type) {
     *type = (byte & 0x1F);
 }
 
-static const uint8_t *findNextStartCode(
-        const uint8_t *data, size_t length) {
-
-    ALOGV("findNextStartCode: %p %zu", data, length);
-
-    size_t bytesLeft = length;
-    while (bytesLeft > 4  &&
-            memcmp("\x00\x00\x00\x01", &data[length - bytesLeft], 4)) {
-        --bytesLeft;
-    }
-    if (bytesLeft <= 4) {
-        bytesLeft = 0; // Last parameter set
-    }
-    return &data[length - bytesLeft];
-}
-
 const uint8_t *MPEG4Writer::Track::parseParamSet(
         const uint8_t *data, size_t length, int type, size_t *paramSetLen) {
 
@@ -1952,7 +1936,7 @@ const uint8_t *MPEG4Writer::Track::parseParamSet(
     CHECK(type == kNalUnitTypeSeqParamSet ||
           type == kNalUnitTypePicParamSet);
 
-    const uint8_t *nextStartCode = findNextStartCode(data, length);
+    const uint8_t *nextStartCode = findNextNalStartCode(data, length);
     *paramSetLen = nextStartCode - data;
     if (*paramSetLen == 0) {
         ALOGE("Param set is malformed, since its length is 0");
@@ -2198,10 +2182,7 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
     const uint8_t *nextStartCode = data;
     size_t bytesLeft = size;
     while (bytesLeft > 4 && !memcmp("\x00\x00\x00\x01", tmp, 4)) {
-        nextStartCode = findNextStartCode(tmp + 4, bytesLeft - 4);
-        if (nextStartCode == NULL) {
-            return ERROR_MALFORMED;
-        }
+        nextStartCode = findNextNalStartCode(tmp + 4, bytesLeft - 4);
         status_t err = paramSets.addNalUnit(tmp + 4, (nextStartCode - tmp) - 4);
         if (err != OK) {
             return ERROR_MALFORMED;

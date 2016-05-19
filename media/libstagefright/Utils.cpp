@@ -568,6 +568,15 @@ status_t convertMetaDataToMessage(
     return OK;
 }
 
+const uint8_t *findNextNalStartCode(const uint8_t *data, size_t length) {
+    uint8_t *res = NULL;
+    if (length > 4) {
+        // minus 1 as to not match NAL start code at end
+        res = (uint8_t *)memmem(data, length - 1, "\x00\x00\x00\x01", 4);
+    }
+    return res != NULL && res < data + length - 4 ? res : &data[length];
+}
+
 static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, char *avcc) {
     avcc[0] = 1;        // version
     avcc[1] = 0x64;     // profile (default to high)
@@ -580,26 +589,28 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
     int lastparamoffset = 0;
     int avccidx = 6;
     do {
-        if (i >= csd0->size() - 4 ||
-                memcmp(csd0->data() + i, "\x00\x00\x00\x01", 4) == 0) {
-            if (i >= csd0->size() - 4) {
-                // there can't be another param here, so use all the rest
-                i = csd0->size();
+        i = findNextNalStartCode(csd0->data() + i, csd0->size() - i) - csd0->data();
+        ALOGV("block at %zu, last was %d", i, lastparamoffset);
+        if (lastparamoffset > 0) {
+            const uint8_t *lastparam = csd0->data() + lastparamoffset;
+            int size = i - lastparamoffset;
+            if (size > 3) {
+                if (numparams && memcmp(avcc + 1, lastparam + 1, 3)) {
+                    ALOGW("Inconsisted profile/level found in SPS: %x,%x,%x vs %x,%x,%x",
+                            avcc[1], avcc[2], avcc[3], lastparam[1], lastparam[2], lastparam[3]);
+                } else if (!numparams) {
+                    // fill in profile, constraints and level
+                    memcpy(avcc + 1, lastparam + 1, 3);
+                }
             }
-            ALOGV("block at %zu, last was %d", i, lastparamoffset);
-            if (lastparamoffset > 0) {
-                int size = i - lastparamoffset;
-                avcc[avccidx++] = size >> 8;
-                avcc[avccidx++] = size & 0xff;
-                memcpy(avcc+avccidx, csd0->data() + lastparamoffset, size);
-                avccidx += size;
-                numparams++;
-            }
-            i += 4;
-            lastparamoffset = i;
-        } else {
-            i++;
+            avcc[avccidx++] = size >> 8;
+            avcc[avccidx++] = size & 0xff;
+            memcpy(avcc+avccidx, lastparam, size);
+            avccidx += size;
+            numparams++;
         }
+        i += 4;
+        lastparamoffset = i;
     } while(i < csd0->size());
     ALOGV("csd0 contains %d params", numparams);
 
@@ -611,26 +622,18 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
     int numpicparamsoffset = avccidx;
     avccidx++;
     do {
-        if (i >= csd1->size() - 4 ||
-                memcmp(csd1->data() + i, "\x00\x00\x00\x01", 4) == 0) {
-            if (i >= csd1->size() - 4) {
-                // there can't be another param here, so use all the rest
-                i = csd1->size();
-            }
-            ALOGV("block at %zu, last was %d", i, lastparamoffset);
-            if (lastparamoffset > 0) {
-                int size = i - lastparamoffset;
-                avcc[avccidx++] = size >> 8;
-                avcc[avccidx++] = size & 0xff;
-                memcpy(avcc+avccidx, csd1->data() + lastparamoffset, size);
-                avccidx += size;
-                numparams++;
-            }
-            i += 4;
-            lastparamoffset = i;
-        } else {
-            i++;
+        i = findNextNalStartCode(csd0->data() + i, csd0->size() - i) - csd0->data();
+        ALOGV("block at %zu, last was %d", i, lastparamoffset);
+        if (lastparamoffset > 0) {
+            int size = i - lastparamoffset;
+            avcc[avccidx++] = size >> 8;
+            avcc[avccidx++] = size & 0xff;
+            memcpy(avcc+avccidx, csd1->data() + lastparamoffset, size);
+            avccidx += size;
+            numparams++;
         }
+        i += 4;
+        lastparamoffset = i;
     } while(i < csd1->size());
     avcc[numpicparamsoffset] = numparams;
     return avccidx;
