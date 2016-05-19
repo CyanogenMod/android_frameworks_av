@@ -157,9 +157,14 @@ status_t convertMetaDataToMessage(
         msg->setInt64("durationUs", durationUs);
     }
 
-    int avgBitRate;
+    int32_t avgBitRate;
     if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
-        msg->setInt32("bit-rate", avgBitRate);
+        msg->setInt32("bitrate", avgBitRate);
+    }
+
+    int32_t maxBitRate;
+    if (meta->findInt32(kKeyMaxBitRate, &maxBitRate)) {
+        msg->setInt32("max-bitrate", maxBitRate);
     }
 
     int32_t isSync;
@@ -465,6 +470,18 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-0", buffer);
+
+        uint32_t maxBitrate, avgBitrate;
+        if (esds.getBitRate(&maxBitrate, &avgBitrate) == OK) {
+            if (!meta->hasData(kKeyMaxBitRate)
+                    && maxBitrate > 0 && maxBitrate <= INT32_MAX) {
+                msg->setInt32("max-bitrate", (int32_t)maxBitrate);
+            }
+            if (!meta->hasData(kKeyBitRate)
+                    && avgBitrate > 0 && avgBitrate <= INT32_MAX) {
+                msg->setInt32("bitrate", (int32_t)avgBitrate);
+            }
+        }
     } else if (meta->findData(kKeyVorbisInfo, &type, &data, &size)) {
         sp<ABuffer> buffer = new (std::nothrow) ABuffer(size);
         if (buffer.get() == NULL || buffer->base() == NULL) {
@@ -552,11 +569,10 @@ status_t convertMetaDataToMessage(
 }
 
 static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, char *avcc) {
-
     avcc[0] = 1;        // version
-    avcc[1] = 0x64;     // profile
-    avcc[2] = 0;        // unused (?)
-    avcc[3] = 0xd;      // level
+    avcc[1] = 0x64;     // profile (default to high)
+    avcc[2] = 0;        // constraints (default to none)
+    avcc[3] = 0xd;      // level (default to 1.3)
     avcc[4] = 0xff;     // reserved+size
 
     size_t i = 0;
@@ -638,15 +654,16 @@ static void reassembleESDS(const sp<ABuffer> &csd0, char *esds) {
     esds[11] = 0x80 | ((configdescriptorsize >> 7) & 0x7f);
     esds[12] = (configdescriptorsize & 0x7f);
     esds[13] = 0x40; // objectTypeIndication
-    esds[14] = 0x15; // not sure what 14-25 mean, they are ignored by ESDS.cpp,
-    esds[15] = 0x00; // but the actual values here were taken from a real file.
+    // bytes 14-25 are examples from a real file. they are unused/overwritten by muxers.
+    esds[14] = 0x15; // streamType(5), upStream(0),
+    esds[15] = 0x00; // 15-17: bufferSizeDB (6KB)
     esds[16] = 0x18;
     esds[17] = 0x00;
-    esds[18] = 0x00;
+    esds[18] = 0x00; // 18-21: maxBitrate (64kbps)
     esds[19] = 0x00;
     esds[20] = 0xfa;
     esds[21] = 0x00;
-    esds[22] = 0x00;
+    esds[22] = 0x00; // 22-25: avgBitrate (64kbps)
     esds[23] = 0x00;
     esds[24] = 0xfa;
     esds[25] = 0x00;
@@ -657,7 +674,6 @@ static void reassembleESDS(const sp<ABuffer> &csd0, char *esds) {
     esds[30] = (csd0size & 0x7f);
     memcpy((void*)&esds[31], csd0->data(), csd0size);
     // data following this is ignored, so don't bother appending it
-
 }
 
 static size_t reassembleHVCC(const sp<ABuffer> &csd0, uint8_t *hvcc, size_t hvccSize, size_t nalSizeLength) {
@@ -1059,7 +1075,7 @@ bool canOffloadStream(const sp<MetaData>& meta, bool hasVideo,
     int32_t brate = -1;
     if (!meta->findInt32(kKeyBitRate, &brate)) {
         ALOGV("track of type '%s' does not publish bitrate", mime);
-     }
+    }
     info.bit_rate = brate;
 
 
