@@ -1566,8 +1566,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
                 const char *mime;
                 CHECK(mLastTrack->meta->findCString(kKeyMIMEType, &mime));
-                if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
-                    // AVC requires compression ratio of at least 2, and uses
+                if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                        || !strcmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)) {
+                    // AVC & HEVC requires compression ratio of at least 2, and uses
                     // macroblocks
                     max_size = ((width + 15) / 16) * ((height + 15) / 16) * 192;
                 } else {

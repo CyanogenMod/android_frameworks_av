@@ -1957,6 +1957,7 @@ const uint8_t *MPEG4Writer::Track::parseParamSet(
             if (mProfileIdc != data[1] ||
                 mProfileCompatible != data[2] ||
                 mLevelIdc != data[3]) {
+                // COULD DO: set profile/level to the lowest required to support all SPSs
                 ALOGE("Inconsistent profile/level found in seq parameter sets");
                 return NULL;
             }
