@@ -1964,7 +1964,7 @@ status_t Camera3Device::configureStreamsLocked() {
 
     // Request thread needs to know to avoid using repeat-last-settings protocol
     // across configure_streams() calls
-    mRequestThread->configurationComplete();
+    mRequestThread->configurationComplete(mIsConstrainedHighSpeedConfiguration);
 
     // Boost priority of request thread for high speed recording to SCHED_FIFO
     if (mIsConstrainedHighSpeedConfiguration) {
@@ -2683,7 +2683,8 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mCurrentPreCaptureTriggerId(0),
         mRepeatingLastFrameNumber(
             hardware::camera2::ICameraDeviceUser::NO_IN_FLIGHT_REPEATING_FRAMES),
-        mAeLockAvailable(aeLockAvailable) {
+        mAeLockAvailable(aeLockAvailable),
+        mPrepareVideoStream(false) {
     mStatusId = statusTracker->addComponent();
 }
 
@@ -2693,9 +2694,11 @@ void Camera3Device::RequestThread::setNotificationListener(
     mListener = listener;
 }
 
-void Camera3Device::RequestThread::configurationComplete() {
+void Camera3Device::RequestThread::configurationComplete(bool isConstrainedHighSpeed) {
     Mutex::Autolock l(mRequestLock);
     mReconfigured = true;
+    // Prepare video stream for high speed recording.
+    mPrepareVideoStream = isConstrainedHighSpeed;
 }
 
 status_t Camera3Device::RequestThread::queueRequestList(
@@ -3197,8 +3200,25 @@ status_t Camera3Device::RequestThread::prepareHalRequests() {
                 captureRequest->mOutputStreams.size());
         halRequest->output_buffers = outputBuffers->array();
         for (size_t i = 0; i < captureRequest->mOutputStreams.size(); i++) {
-            res = captureRequest->mOutputStreams.editItemAt(i)->
-                    getBuffer(&outputBuffers->editItemAt(i));
+            sp<Camera3OutputStreamInterface> outputStream = captureRequest->mOutputStreams.editItemAt(i);
+
+            // Prepare video buffers for high speed recording on the first video request.
+            if (mPrepareVideoStream && outputStream->isVideoStream()) {
+                // Only try to prepare video stream on the first video request.
+                mPrepareVideoStream = false;
+
+                res = outputStream->startPrepare(Camera3StreamInterface::ALLOCATE_PIPELINE_MAX);
+                while (res == NOT_ENOUGH_DATA) {
+                    res = outputStream->prepareNextBuffer();
+                }
+                if (res != OK) {
+                    ALOGW("%s: Preparing video buffers for high speed failed: %s (%d)",
+                        __FUNCTION__, strerror(-res), res);
+                    outputStream->cancelPrepare();
+                }
+            }
+
+            res = outputStream->getBuffer(&outputBuffers->editItemAt(i));
             if (res != OK) {
                 // Can't get output buffer from gralloc queue - this could be due to
                 // abandoned queue or other consumer misbehavior, so not a fatal
