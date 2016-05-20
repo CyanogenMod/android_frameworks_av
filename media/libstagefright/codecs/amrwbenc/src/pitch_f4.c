@@ -84,8 +84,8 @@ Word16 Pitch_fr4(                          /* (o)     : pitch period.           
 
     /* Find interval to compute normalized correlation */
 
-    t_min = t0_min - L_INTERPOL1;
-    t_max = t0_max + L_INTERPOL1;
+    t_min = L_sub(t0_min, L_INTERPOL1);
+    t_max = L_add(t0_max, L_INTERPOL1);
     corr = &corr_v[-t_min];
     /* Compute normalized correlation between target and filtered excitation */
 #ifdef ASM_OPT               /* asm optimization branch */
@@ -188,15 +188,15 @@ static void Norm_Corr(
     L_tmp = 0;
     for (i = 0; i < 64; i+=4)
     {
-        L_tmp += (xn[i] * xn[i]);
-        L_tmp += (xn[i+1] * xn[i+1]);
-        L_tmp += (xn[i+2] * xn[i+2]);
-        L_tmp += (xn[i+3] * xn[i+3]);
+        L_tmp = L_add(L_tmp, (xn[i] * xn[i]));
+        L_tmp = L_add(L_tmp, (xn[i+1] * xn[i+1]));
+        L_tmp = L_add(L_tmp, (xn[i+2] * xn[i+2]));
+        L_tmp = L_add(L_tmp, (xn[i+3] * xn[i+3]));
     }
 
-    L_tmp = (L_tmp << 1) + 1;
+    L_tmp = L_add(L_shl(L_tmp, 1), 1);
     exp = norm_l(L_tmp);
-    exp = (32 - exp);
+    exp = L_sub(32, exp);
     //exp = exp + 2;                     /* energy of xn[] x 2 + rounded up     */
     scale = -(exp >> 1);           /* (1<<scale) < 1/sqrt(energy rounded) */
 
@@ -209,36 +209,36 @@ static void Norm_Corr(
         L_tmp1 = 0;
         for (i = 0; i < 64; i+=4)
         {
-            L_tmp  += (xn[i] * excf[i]);
-            L_tmp1 += (excf[i] * excf[i]);
-            L_tmp  += (xn[i+1] * excf[i+1]);
-            L_tmp1 += (excf[i+1] * excf[i+1]);
-            L_tmp  += (xn[i+2] * excf[i+2]);
-            L_tmp1 += (excf[i+2] * excf[i+2]);
-            L_tmp  += (xn[i+3] * excf[i+3]);
-            L_tmp1 += (excf[i+3] * excf[i+3]);
+            L_tmp = L_add(L_tmp, (xn[i] * excf[i]));
+            L_tmp1 = L_add(L_tmp1, (excf[i] * excf[i]));
+            L_tmp = L_add(L_tmp, (xn[i+1] * excf[i+1]));
+            L_tmp1 = L_add(L_tmp1, (excf[i+1] * excf[i+1]));
+            L_tmp = L_add(L_tmp, (xn[i+2] * excf[i+2]));
+            L_tmp1 = L_add(L_tmp1, (excf[i+2] * excf[i+2]));
+            L_tmp = L_add(L_tmp, (xn[i+3] * excf[i+3]));
+            L_tmp1 = L_add(L_tmp1, (excf[i+3] * excf[i+3]));
         }
 
-        L_tmp = (L_tmp << 1) + 1;
-        L_tmp1 = (L_tmp1 << 1) + 1;
+        L_tmp = L_add(L_shl(L_tmp, 1), 1);
+        L_tmp1 = L_add(L_shl(L_tmp1, 1), 1);
 
         exp = norm_l(L_tmp);
-        L_tmp = (L_tmp << exp);
-        exp_corr = (30 - exp);
+        L_tmp = L_shl(L_tmp, exp);
+        exp_corr = L_sub(30, exp);
         corr = extract_h(L_tmp);
 
         exp = norm_l(L_tmp1);
-        L_tmp = (L_tmp1 << exp);
-        exp_norm = (30 - exp);
+        L_tmp = L_shl(L_tmp1, exp);
+        exp_norm = L_sub(30, exp);
 
         Isqrt_n(&L_tmp, &exp_norm);
         norm = extract_h(L_tmp);
 
         /* Normalize correlation = correlation * (1/sqrt(energy)) */
 
-        L_tmp = vo_L_mult(corr, norm);
+        L_tmp = L_mult(corr, norm);
 
-        L_tmp2 = exp_corr + exp_norm + scale;
+        L_tmp2 = L_add(exp_corr, exp_norm + scale);
         if(L_tmp2 < 0)
         {
             L_tmp2 = -L_tmp2;
@@ -246,10 +246,10 @@ static void Norm_Corr(
         }
         else
         {
-            L_tmp = L_tmp << L_tmp2;
+            L_tmp = L_shl(L_tmp, L_tmp2);
         }
 
-        corr_norm[t] = vo_round(L_tmp);
+        corr_norm[t] = voround(L_tmp);
         /* modify the filtered excitation excf[] for the next iteration */
 
         if(t != t_max)
@@ -310,13 +310,13 @@ static Word16 Interpol_4(                  /* (o)  : interpolated value  */
     ptr = &(inter4_1[k][0]);
 
     L_sum  = vo_mult32(x[0], (*ptr++));
-    L_sum += vo_mult32(x[1], (*ptr++));
-    L_sum += vo_mult32(x[2], (*ptr++));
-    L_sum += vo_mult32(x[3], (*ptr++));
-    L_sum += vo_mult32(x[4], (*ptr++));
-    L_sum += vo_mult32(x[5], (*ptr++));
-    L_sum += vo_mult32(x[6], (*ptr++));
-    L_sum += vo_mult32(x[7], (*ptr++));
+    L_sum = L_add(L_sum, vo_mult32(x[1], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[2], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[3], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[4], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[5], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[6], (*ptr++)));
+    L_sum = L_add(L_sum, vo_mult32(x[7], (*ptr++)));
 
     sum = extract_h(L_add(L_shl2(L_sum, 2), 0x8000));
     return (sum);
