@@ -183,12 +183,6 @@ private:
         FLUSH_CMD_SHUTDOWN,
     };
 
-    enum PendingBufferingFlag {
-        PENDING_BUFFERING_FLAG_NONE = MEDIA_INFO_UNKNOWN,
-        PENDING_BUFFERING_FLAG_START = MEDIA_INFO_BUFFERING_START,
-        PENDING_BUFFERING_FLAG_END = MEDIA_INFO_BUFFERING_END,
-    };
-
     // Status of flush responses from the decoder and renderer.
     bool mFlushComplete[2][2];
 
@@ -214,9 +208,6 @@ private:
     // true, mPaused is always true; if mPausedByClient is false, mPaused could
     // still become true, when we pause internally due to buffering.
     bool mPausedByClient;
-
-    // Pending buffering flag which is not sent to client due to being paused.
-    PendingBufferingFlag mPendingBufferingFlag;
 
     // Pause state as requested by source (internally) due to buffering
     bool mPausedForBuffering;
