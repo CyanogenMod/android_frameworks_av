@@ -232,7 +232,7 @@ size_t NuMediaExtractor::countTracks() const {
 }
 
 status_t NuMediaExtractor::getTrackFormat(
-        size_t index, sp<AMessage> *format) const {
+        size_t index, sp<AMessage> *format, uint32_t flags) const {
     Mutex::Autolock autoLock(mLock);
 
     *format = NULL;
@@ -245,7 +245,7 @@ status_t NuMediaExtractor::getTrackFormat(
         return -ERANGE;
     }
 
-    sp<MetaData> meta = mImpl->getTrackMetaData(index);
+    sp<MetaData> meta = mImpl->getTrackMetaData(index, flags);
     // Extractors either support trackID-s or not, so either all tracks have trackIDs or none.
     // Generate trackID if missing.
     int32_t trackID;
