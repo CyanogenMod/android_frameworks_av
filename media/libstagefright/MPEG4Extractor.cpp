@@ -51,6 +51,11 @@
 
 namespace android {
 
+enum {
+    // max track header chunk to return
+    kMaxTrackHeaderSize = 32,
+};
+
 class MPEG4Source : public MediaSource {
 public:
     // Caller retains ownership of both "dataSource" and "sampleTable".
@@ -474,6 +479,22 @@ sp<MetaData> MPEG4Extractor::getTrackMetaData(
                     track->meta->setInt64(
                             kKeyThumbnailTime,
                             ((int64_t)sampleTime * 1000000) / track->timescale);
+                }
+            }
+
+            // MPEG2 tracks do not provide CSD, so read the stream header
+            if (!strcmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG2)) {
+                off64_t offset;
+                size_t size;
+                if (track->sampleTable->getMetaDataForSample(
+                            0 /* sampleIndex */, &offset, &size, NULL /* sampleTime */) == OK) {
+                    if (size > kMaxTrackHeaderSize) {
+                        size = kMaxTrackHeaderSize;
+                    }
+                    uint8_t header[kMaxTrackHeaderSize];
+                    if (mDataSource->readAt(offset, &header, size) == (ssize_t)size) {
+                        track->meta->setData(kKeyStreamHeader, 'mdat', header, size);
+                    }
                 }
             }
         }
