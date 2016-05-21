@@ -3057,11 +3057,14 @@ void MPEG4Writer::Track::writeMp4aEsdsBox() {
     mOwner->writeInt8(0x15);   // streamType AudioStream
 
     mOwner->writeInt16(0x03);  // XXX
-    mOwner->writeInt8(0x00);   // buffer size 24-bit
-    int32_t bitRate;
-    bool success = mMeta->findInt32(kKeyBitRate, &bitRate);
-    mOwner->writeInt32(success ? bitRate : 96000); // max bit rate
-    mOwner->writeInt32(success ? bitRate : 96000); // avg bit rate
+    mOwner->writeInt8(0x00);   // buffer size 24-bit (0x300)
+
+    int32_t avgBitrate = 256000;
+    (void)mMeta->findInt32(kKeyBitRate, &avgBitrate);
+    int32_t maxBitrate = avgBitrate;
+    (void)mMeta->findInt32(kKeyMaxBitRate, &maxBitrate);
+    mOwner->writeInt32(maxBitrate);
+    mOwner->writeInt32(avgBitrate);
 
     mOwner->writeInt8(0x05);   // DecoderSpecificInfoTag
     mOwner->writeInt8(mCodecSpecificDataSize);
@@ -3095,11 +3098,16 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
     mOwner->writeInt8(0x11);  // streamType VisualStream
 
     static const uint8_t kData[] = {
-        0x01, 0x77, 0x00,
-        0x00, 0x03, 0xe8, 0x00,
-        0x00, 0x03, 0xe8, 0x00
+        0x01, 0x77, 0x00, // buffer size 96000 bytes
     };
     mOwner->write(kData, sizeof(kData));
+
+    int32_t avgBitrate = 256000;
+    (void)mMeta->findInt32(kKeyBitRate, &avgBitrate);
+    int32_t maxBitrate = avgBitrate;
+    (void)mMeta->findInt32(kKeyMaxBitRate, &maxBitrate);
+    mOwner->writeInt32(maxBitrate);
+    mOwner->writeInt32(avgBitrate);
 
     mOwner->writeInt8(0x05);  // DecoderSpecificInfoTag
 

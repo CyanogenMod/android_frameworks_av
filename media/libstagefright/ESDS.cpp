@@ -18,6 +18,8 @@
 #define LOG_TAG "ESDS"
 #include <utils/Log.h>
 
+#include <media/stagefright/Utils.h>
+
 #include "include/ESDS.h"
 
 #include <string.h>
@@ -194,12 +196,25 @@ status_t ESDS::parseESDescriptor(size_t offset, size_t size) {
     return err;
 }
 
+status_t ESDS::getBitRate(uint32_t *brateMax, uint32_t *brateAvg) const {
+    if (mInitCheck != OK) {
+        return mInitCheck;
+    }
+
+    *brateMax = mBitRateMax;
+    *brateAvg = mBitRateAvg;
+
+    return OK;
+};
+
 status_t ESDS::parseDecoderConfigDescriptor(size_t offset, size_t size) {
     if (size < 13) {
         return ERROR_MALFORMED;
     }
 
     mObjectTypeIndication = mData[offset];
+    mBitRateMax = U32_AT(mData + offset + 5);
+    mBitRateAvg = U32_AT(mData + offset + 9);
 
     offset += 13;
     size -= 13;
