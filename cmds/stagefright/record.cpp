@@ -215,7 +215,7 @@ int main(int argc, char **argv) {
     enc_meta->setInt32("width", width);
     enc_meta->setInt32("height", height);
     enc_meta->setInt32("sample-rate", kFramerate);
-    enc_meta->setInt32("bit-rate", kVideoBitRate);
+    enc_meta->setInt32("bitrate", kVideoBitRate);
     // enc_meta->setInt32("stride", width);
     // enc_meta->setInt32("slice-height", height);
     enc_meta->setInt32("i-frame-interval", kIFramesIntervalSec);

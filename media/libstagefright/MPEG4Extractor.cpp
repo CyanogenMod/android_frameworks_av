@@ -1738,6 +1738,31 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             break;
         }
 
+        case FOURCC('b', 't', 'r', 't'):
+        {
+            *offset += chunk_size;
+
+            uint8_t buffer[12];
+            if (chunk_data_size != sizeof(buffer)) {
+                return ERROR_MALFORMED;
+            }
+
+            if (mDataSource->readAt(
+                    data_offset, buffer, chunk_data_size) < chunk_data_size) {
+                return ERROR_IO;
+            }
+
+            uint32_t maxBitrate = U32_AT(&buffer[4]);
+            uint32_t avgBitrate = U32_AT(&buffer[8]);
+            if (maxBitrate > 0 && maxBitrate < INT32_MAX) {
+                mLastTrack->meta->setInt32(kKeyMaxBitRate, (int32_t)maxBitrate);
+            }
+            if (avgBitrate > 0 && avgBitrate < INT32_MAX) {
+                mLastTrack->meta->setInt32(kKeyBitRate, (int32_t)avgBitrate);
+            }
+            break;
+        }
+
         case FOURCC('a', 'v', 'c', 'C'):
         {
             *offset += chunk_size;
