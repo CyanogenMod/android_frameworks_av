@@ -337,7 +337,7 @@ ssize_t DrmManagerService::pread(int uniqueId, DecryptHandle* decryptHandle,
     return mDrmManager->pread(uniqueId, decryptHandle, buffer, numBytes, offset);
 }
 
-status_t DrmManagerService::dump(int fd, const Vector<String16>& /* args */)
+status_t DrmManagerService::dump(int fd, const Vector<String16>& args)
 {
     const size_t SIZE = 256;
     char buffer[SIZE];
@@ -357,8 +357,12 @@ status_t DrmManagerService::dump(int fd, const Vector<String16>& /* args */)
             }
         }
         if (dumpMem) {
-            dumpMemoryAddresses(fd);
+            result.append("\nDumping memory:\n");
+            std::string s = dumpMemoryAddresses(100 /* limit */);
+            result.append(s.c_str(), s.size());
         }
+#else
+        (void)args;
 #endif
     }
     write(fd, result.string(), result.size());

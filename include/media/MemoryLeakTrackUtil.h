@@ -16,11 +16,16 @@
 #ifndef MEMORY_LEAK_TRACK_UTIL_H
 #define MEMORY_LEAK_TRACK_UTIL_H
 
+#include <iostream>
+
 namespace android {
 /*
- * Dump the memory address of the calling process to the given fd.
+ * Dump the heap memory of the calling process, sorted by total size
+ * (allocation size * number of allocations).
+ *
+ *    limit is the number of unique allocations to return.
  */
-extern void dumpMemoryAddresses(int fd);
+extern std::string dumpMemoryAddresses(size_t limit);
 
 };
 

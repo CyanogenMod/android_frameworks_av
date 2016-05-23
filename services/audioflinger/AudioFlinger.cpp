@@ -58,7 +58,7 @@
 #include <powermanager/PowerManager.h>
 
 #include <media/IMediaLogService.h>
-
+#include <media/MemoryLeakTrackUtil.h>
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
 #include <media/AudioParameter.h>
@@ -471,17 +471,25 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         }
 
         // check for optional arguments
+        bool dumpMem = false;
         bool unreachableMemory = false;
         for (const auto &arg : args) {
-            if (arg == String16("--unreachable")) {
+            if (arg == String16("-m")) {
+                dumpMem = true;
+            } else if (arg == String16("--unreachable")) {
                 unreachableMemory = true;
             }
         }
 
+        if (dumpMem) {
+            dprintf(fd, "\nDumping memory:\n");
+            std::string s = dumpMemoryAddresses(100 /* limit */);
+            write(fd, s.c_str(), s.size());
+        }
         if (unreachableMemory) {
             dprintf(fd, "\nDumping unreachable memory:\n");
             // TODO - should limit be an argument parameter?
-            std::string s = GetUnreachableMemoryString(true /* contents */, 10000 /* limit */);
+            std::string s = GetUnreachableMemoryString(true /* contents */, 100 /* limit */);
             write(fd, s.c_str(), s.size());
         }
     }
