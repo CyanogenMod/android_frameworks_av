@@ -44,6 +44,11 @@ struct NuMediaExtractor : public RefBase {
         SAMPLE_FLAG_ENCRYPTED   = 2,
     };
 
+    // identical to IMediaExtractor::GetTrackMetaDataFlags
+    enum GetTrackFormatFlags {
+        kIncludeExtensiveMetaData = 1, // reads sample table and possibly stream headers
+    };
+
     NuMediaExtractor();
 
     status_t setDataSource(
@@ -56,7 +61,7 @@ struct NuMediaExtractor : public RefBase {
     status_t setDataSource(const sp<DataSource> &datasource);
 
     size_t countTracks() const;
-    status_t getTrackFormat(size_t index, sp<AMessage> *format) const;
+    status_t getTrackFormat(size_t index, sp<AMessage> *format, uint32_t flags = 0) const;
 
     status_t getFileFormat(sp<AMessage> *format) const;
 
