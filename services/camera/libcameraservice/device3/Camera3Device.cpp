@@ -2967,18 +2967,27 @@ void Camera3Device::overrideResultForPrecaptureCancel(
 }
 
 void Camera3Device::RequestThread::checkAndStopRepeatingRequest() {
-    Mutex::Autolock l(mRequestLock);
-    // Check all streams needed by repeating requests are still valid. Otherwise, stop
-    // repeating requests.
-    for (const auto& request : mRepeatingRequests) {
-        for (const auto& s : request->mOutputStreams) {
-            if (s->isAbandoned()) {
-                int64_t lastFrameNumber = 0;
-                clearRepeatingRequestsLocked(&lastFrameNumber);
-                mListener->notifyRepeatingRequestError(lastFrameNumber);
-                return;
+    bool surfaceAbandoned = false;
+    int64_t lastFrameNumber = 0;
+    {
+        Mutex::Autolock l(mRequestLock);
+        // Check all streams needed by repeating requests are still valid. Otherwise, stop
+        // repeating requests.
+        for (const auto& request : mRepeatingRequests) {
+            for (const auto& s : request->mOutputStreams) {
+                if (s->isAbandoned()) {
+                    surfaceAbandoned = true;
+                    clearRepeatingRequestsLocked(&lastFrameNumber);
+                    break;
+                }
+            }
+            if (surfaceAbandoned) {
+                break;
             }
         }
+    }
+    if (surfaceAbandoned) {
+        mListener->notifyRepeatingRequestError(lastFrameNumber);
     }
 }
 
