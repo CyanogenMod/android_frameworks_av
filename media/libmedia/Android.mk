@@ -34,6 +34,7 @@ LOCAL_SRC_FILES:= \
     IRemoteDisplay.cpp \
     IRemoteDisplayClient.cpp \
     IStreamSource.cpp \
+    MediaUtils.cpp \
     Metadata.cpp \
     mediarecorder.cpp \
     IMediaMetadataRetriever.cpp \
