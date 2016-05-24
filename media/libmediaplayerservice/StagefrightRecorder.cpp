@@ -934,7 +934,9 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
                 mOpPackageName,
                 sourceSampleRate,
                 mAudioChannels,
-                mSampleRate);
+                mSampleRate,
+                mClientUid,
+                mClientPid);
 
     status_t err = audioSource->initCheck();
 
