@@ -44,6 +44,7 @@ LOCAL_SRC_FILES:= \
     IResourceManagerService.cpp \
     IStreamSource.cpp \
     MediaCodecInfo.cpp \
+    MediaUtils.cpp \
     Metadata.cpp \
     mediarecorder.cpp \
     IMediaMetadataRetriever.cpp \
