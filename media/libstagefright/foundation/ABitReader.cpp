@@ -24,14 +24,18 @@ ABitReader::ABitReader(const uint8_t *data, size_t size)
     : mData(data),
       mSize(size),
       mReservoir(0),
-      mNumBitsLeft(0) {
+      mNumBitsLeft(0),
+      mOverRead(false) {
 }
 
 ABitReader::~ABitReader() {
 }
 
-void ABitReader::fillReservoir() {
-    CHECK_GT(mSize, 0u);
+bool ABitReader::fillReservoir() {
+    if (mSize == 0) {
+        mOverRead = true;
+        return false;
+    }
 
     mReservoir = 0;
     size_t i;
@@ -44,15 +48,32 @@ void ABitReader::fillReservoir() {
 
     mNumBitsLeft = 8 * i;
     mReservoir <<= 32 - mNumBitsLeft;
+    return true;
 }
 
 uint32_t ABitReader::getBits(size_t n) {
-    CHECK_LE(n, 32u);
+    uint32_t ret;
+    CHECK(getBitsGraceful(n, &ret));
+    return ret;
+}
+
+uint32_t ABitReader::getBitsWithFallback(size_t n, uint32_t fallback) {
+    uint32_t ret = fallback;
+    (void)getBitsGraceful(n, &ret);
+    return ret;
+}
+
+bool ABitReader::getBitsGraceful(size_t n, uint32_t *out) {
+    if (n > 32) {
+        return false;
+    }
 
     uint32_t result = 0;
     while (n > 0) {
         if (mNumBitsLeft == 0) {
-            fillReservoir();
+            if (!fillReservoir()) {
+                return false;
+            }
         }
 
         size_t m = n;
@@ -67,21 +88,30 @@ uint32_t ABitReader::getBits(size_t n) {
         n -= m;
     }
 
-    return result;
+    *out = result;
+    return true;
 }
 
-void ABitReader::skipBits(size_t n) {
+bool ABitReader::skipBits(size_t n) {
+    uint32_t dummy;
     while (n > 32) {
-        getBits(32);
+        if (!getBitsGraceful(32, &dummy)) {
+            return false;
+        }
         n -= 32;
     }
 
     if (n > 0) {
-        getBits(n);
+        return getBitsGraceful(n, &dummy);
     }
+    return true;
 }
 
 void ABitReader::putBits(uint32_t x, size_t n) {
+    if (mOverRead) {
+        return;
+    }
+
     CHECK_LE(n, 32u);
 
     while (mNumBitsLeft + n > 32) {
@@ -139,8 +169,11 @@ bool NALBitReader::atLeastNumBitsLeft(size_t n) const {
     return (numBitsRemaining <= 0);
 }
 
-void NALBitReader::fillReservoir() {
-    CHECK_GT(mSize, 0u);
+bool NALBitReader::fillReservoir() {
+    if (mSize == 0) {
+        mOverRead = true;
+        return false;
+    }
 
     mReservoir = 0;
     size_t i = 0;
@@ -165,6 +198,7 @@ void NALBitReader::fillReservoir() {
 
     mNumBitsLeft = 8 * i;
     mReservoir <<= 32 - mNumBitsLeft;
+    return true;
 }
 
 }  // namespace android
