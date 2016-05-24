@@ -104,6 +104,7 @@ public:
                                 track_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
+                                pid_t pid,
                                 pid_t tid,
                                 audio_session_t *sessionId,
                                 int clientUid,
@@ -128,6 +129,7 @@ public:
             data.writeInt32(false);
         }
         data.writeInt32((int32_t) output);
+        data.writeInt32((int32_t) pid);
         data.writeInt32((int32_t) tid);
         audio_session_t lSessionId = AUDIO_SESSION_ALLOCATE;
         if (sessionId != NULL) {
@@ -179,6 +181,7 @@ public:
                                 const String16& opPackageName,
                                 size_t *pFrameCount,
                                 track_flags_t *flags,
+                                pid_t pid,
                                 pid_t tid,
                                 int clientUid,
                                 audio_session_t *sessionId,
@@ -199,6 +202,7 @@ public:
         data.writeInt64(frameCount);
         track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
         data.writeInt32(lFlags);
+        data.writeInt32((int32_t) pid);
         data.writeInt32((int32_t) tid);
         data.writeInt32((int32_t) clientUid);
         audio_session_t lSessionId = AUDIO_SESSION_ALLOCATE;
@@ -950,6 +954,7 @@ status_t BnAudioFlinger::onTransact(
                 buffer = interface_cast<IMemory>(data.readStrongBinder());
             }
             audio_io_handle_t output = (audio_io_handle_t) data.readInt32();
+            pid_t pid = (pid_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             audio_session_t sessionId = (audio_session_t) data.readInt32();
             int clientUid = data.readInt32();
@@ -962,7 +967,7 @@ status_t BnAudioFlinger::onTransact(
             } else {
                 track = createTrack(
                         (audio_stream_type_t) streamType, sampleRate, format,
-                        channelMask, &frameCount, &flags, buffer, output, tid,
+                        channelMask, &frameCount, &flags, buffer, output, pid, tid,
                         &sessionId, clientUid, &status);
                 LOG_ALWAYS_FATAL_IF((track != 0) != (status == NO_ERROR));
             }
@@ -982,6 +987,7 @@ status_t BnAudioFlinger::onTransact(
             const String16& opPackageName = data.readString16();
             size_t frameCount = data.readInt64();
             track_flags_t flags = (track_flags_t) data.readInt32();
+            pid_t pid = (pid_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int clientUid = data.readInt32();
             audio_session_t sessionId = (audio_session_t) data.readInt32();
@@ -990,8 +996,9 @@ status_t BnAudioFlinger::onTransact(
             sp<IMemory> buffers;
             status_t status = NO_ERROR;
             sp<IAudioRecord> record = openRecord(input,
-                    sampleRate, format, channelMask, opPackageName, &frameCount, &flags, tid,
-                    clientUid, &sessionId, &notificationFrames, cblk, buffers, &status);
+                    sampleRate, format, channelMask, opPackageName, &frameCount, &flags,
+                    pid, tid, clientUid, &sessionId, &notificationFrames, cblk, buffers,
+                    &status);
             LOG_ALWAYS_FATAL_IF((record != 0) != (status == NO_ERROR));
             reply->writeInt64(frameCount);
             reply->writeInt32(flags);

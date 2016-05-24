@@ -73,6 +73,7 @@ public:
                                 // reference and will release it when the track is destroyed.
                                 // However on failure, the client is responsible for release.
                                 audio_io_handle_t output,
+                                pid_t pid,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 audio_session_t *sessionId,
                                 int clientUid,
@@ -89,6 +90,7 @@ public:
                                 const String16& callingPackage,
                                 size_t *pFrameCount,
                                 track_flags_t *flags,
+                                pid_t pid,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int clientUid,
                                 audio_session_t *sessionId,
