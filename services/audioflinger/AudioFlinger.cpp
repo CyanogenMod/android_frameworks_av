@@ -571,6 +571,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         IAudioFlinger::track_flags_t *flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
+        pid_t pid,
         pid_t tid,
         audio_session_t *sessionId,
         int clientUid,
@@ -581,6 +582,15 @@ sp<IAudioTrack> AudioFlinger::createTrack(
     sp<Client> client;
     status_t lStatus;
     audio_session_t lSessionId;
+
+    const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    if (pid == -1 || !isTrustedCallingUid(callingUid)) {
+        const pid_t callingPid = IPCThreadState::self()->getCallingPid();
+        ALOGW_IF(pid != -1 && pid != callingPid,
+                 "%s uid %d pid %d tried to pass itself off as pid %d",
+                 __func__, callingUid, callingPid, pid);
+        pid = callingPid;
+    }
 
     // client AudioTrack::set already implements AUDIO_STREAM_DEFAULT => AUDIO_STREAM_MUSIC,
     // but if someone uses binder directly they could bypass that and cause us to crash
@@ -626,7 +636,6 @@ sp<IAudioTrack> AudioFlinger::createTrack(
             goto Exit;
         }
 
-        pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid(pid);
 
         PlaybackThread *effectThread = NULL;
@@ -1447,6 +1456,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         const String16& opPackageName,
         size_t *frameCount,
         IAudioFlinger::track_flags_t *flags,
+        pid_t pid,
         pid_t tid,
         int clientUid,
         audio_session_t *sessionId,
@@ -1464,11 +1474,21 @@ sp<IAudioRecord> AudioFlinger::openRecord(
     cblk.clear();
     buffers.clear();
 
+    bool updatePid = (pid == -1);
     const uid_t callingUid = IPCThreadState::self()->getCallingUid();
     if (!isTrustedCallingUid(callingUid)) {
         ALOGW_IF((uid_t)clientUid != callingUid,
                 "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, clientUid);
         clientUid = callingUid;
+        updatePid = true;
+    }
+
+    if (updatePid) {
+        const pid_t callingPid = IPCThreadState::self()->getCallingPid();
+        ALOGW_IF(pid != -1 && pid != callingPid,
+                 "%s uid %d pid %d tried to pass itself off as pid %d",
+                 __func__, callingUid, callingPid, pid);
+        pid = callingPid;
     }
 
     // check calling permissions
@@ -1508,7 +1528,6 @@ sp<IAudioRecord> AudioFlinger::openRecord(
             goto Exit;
         }
 
-        pid_t pid = IPCThreadState::self()->getCallingPid();
         client = registerPid(pid);
 
         if (sessionId != NULL && *sessionId != AUDIO_SESSION_ALLOCATE) {

@@ -615,6 +615,7 @@ status_t AudioRecord::openRecord_l(const Modulo<uint32_t> &epoch, const String16
                                                        opPackageName,
                                                        &temp,
                                                        &trackFlags,
+                                                       mClientPid,
                                                        tid,
                                                        mClientUid,
                                                        &mSessionId,

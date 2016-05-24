@@ -1401,6 +1401,7 @@ status_t AudioTrack::createTrack_l()
                                                       &trackFlags,
                                                       mSharedBuffer,
                                                       output,
+                                                      mClientPid,
                                                       tid,
                                                       &mSessionId,
                                                       mClientUid,
