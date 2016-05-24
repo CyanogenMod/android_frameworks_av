@@ -51,7 +51,8 @@ static void AudioRecordCallbackFunction(int event, void *user, void *info) {
 
 AudioSource::AudioSource(
         audio_source_t inputSource, const String16 &opPackageName,
-        uint32_t sampleRate, uint32_t channelCount, uint32_t outSampleRate)
+        uint32_t sampleRate, uint32_t channelCount, uint32_t outSampleRate,
+        uid_t uid, pid_t pid)
     : mStarted(false),
       mSampleRate(sampleRate),
       mOutSampleRate(outSampleRate > 0 ? outSampleRate : sampleRate),
@@ -91,7 +92,12 @@ AudioSource::AudioSource(
                     (size_t) (bufCount * frameCount),
                     AudioRecordCallbackFunction,
                     this,
-                    frameCount /*notificationFrames*/);
+                    frameCount /*notificationFrames*/,
+                    AUDIO_SESSION_ALLOCATE,
+                    AudioRecord::TRANSFER_DEFAULT,
+                    AUDIO_INPUT_FLAG_NONE,
+                    uid,
+                    pid);
         mInitCheck = mRecord->initCheck();
         if (mInitCheck != OK) {
             mRecord.clear();

@@ -260,6 +260,7 @@ void AudioPolicyService::doReleaseOutput(audio_io_handle_t output,
 status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
                                              audio_io_handle_t *input,
                                              audio_session_t session,
+                                             pid_t pid,
                                              uid_t uid,
                                              uint32_t samplingRate,
                                              audio_format_t format,
@@ -282,11 +283,22 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
     sp<AudioPolicyEffects>audioPolicyEffects;
     status_t status;
     AudioPolicyInterface::input_type_t inputType;
+
+    bool updatePid = (pid == -1);
     const uid_t callingUid = IPCThreadState::self()->getCallingUid();
-    if (!isTrustedCallingUid(callingUid) || uid == (uid_t)-1) {
-        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
+    if (!isTrustedCallingUid(callingUid)) {
+        ALOGW_IF(uid != -1 && uid != (int)callingUid,
                 "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
         uid = callingUid;
+        updatePid = true;
+    }
+
+    if (updatePid) {
+        const pid_t callingPid = IPCThreadState::self()->getCallingPid();
+        ALOGW_IF(pid != -1 && pid != callingPid,
+                 "%s uid %d pid %d tried to pass itself off as pid %d",
+                 __func__, callingUid, callingPid, pid);
+        pid = callingPid;
     }
 
     {
@@ -306,7 +318,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
             case AudioPolicyInterface::API_INPUT_TELEPHONY_RX:
                 // FIXME: use the same permission as for remote submix for now.
             case AudioPolicyInterface::API_INPUT_MIX_CAPTURE:
-                if (!captureAudioOutputAllowed()) {
+                if (!captureAudioOutputAllowed(pid, uid)) {
                     ALOGE("getInputForAttr() permission denied: capture not allowed");
                     status = PERMISSION_DENIED;
                 }

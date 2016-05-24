@@ -38,7 +38,9 @@ struct AudioSource : public MediaSource, public MediaBufferObserver {
             const String16 &opPackageName,
             uint32_t sampleRate,
             uint32_t channels,
-            uint32_t outSampleRate = 0);
+            uint32_t outSampleRate = 0,
+            uid_t uid = -1,
+            pid_t pid = -1);
 
     status_t initCheck() const;
 

@@ -99,6 +99,7 @@ public:
     virtual status_t getInputForAttr(const audio_attributes_t *attr,
                                      audio_io_handle_t *input,
                                      audio_session_t session,
+                                     pid_t pid,
                                      uid_t uid,
                                      uint32_t samplingRate,
                                      audio_format_t format,
