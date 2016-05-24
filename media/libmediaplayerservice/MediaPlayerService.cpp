@@ -536,7 +536,9 @@ status_t MediaPlayerService::dump(int fd, const Vector<String16>& args)
             }
         }
         if (dumpMem) {
-            dumpMemoryAddresses(fd);
+            result.append("\nDumping memory:\n");
+            std::string s = dumpMemoryAddresses(100 /* limit */);
+            result.append(s.c_str(), s.size());
         }
         if (unreachableMemory) {
             result.append("\nDumping unreachable memory:\n");
