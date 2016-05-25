@@ -141,6 +141,28 @@ static void convertMetaDataToMessageColorAspects(const sp<MetaData> &meta, sp<AM
     }
 }
 
+static bool isHdr(const sp<AMessage> &format) {
+    // if CSD specifies HDR transfer(s), we assume HDR. Otherwise, if it specifies non-HDR
+    // transfers, we must assume non-HDR. This is because CSD trumps any color-transfer key
+    // in the format.
+    int32_t isHdr;
+    if (format->findInt32("android._is-hdr", &isHdr)) {
+        return isHdr;
+    }
+
+    // if user/container supplied HDR static info without transfer set, assume true
+    if (format->contains("hdr-static-info") && !format->contains("color-transfer")) {
+        return true;
+    }
+    // otherwise, verify that an HDR transfer function is set
+    int32_t transfer;
+    if (format->findInt32("color-transfer", &transfer)) {
+        return transfer == ColorUtils::kColorTransferST2084
+                || transfer == ColorUtils::kColorTransferHLG;
+    }
+    return false;
+}
+
 static void parseAacProfileFromCsd(const sp<ABuffer> &csd, sp<AMessage> &format) {
     if (csd->size() < 2) {
         return;
@@ -322,6 +344,12 @@ static void parseHevcProfileLevelFromHvcc(const uint8_t *ptr, size_t size, sp<AM
             return;
         }
     }
+
+    // bump to HDR profile
+    if (isHdr(format) && codecProfile == OMX_VIDEO_HEVCProfileMain10) {
+        codecProfile = OMX_VIDEO_HEVCProfileMain10HDR10;
+    }
+
     format->setInt32("profile", codecProfile);
     if (levels.map(std::make_pair(tier, level), &codecLevel)) {
         format->setInt32("level", codecLevel);
@@ -514,8 +542,18 @@ static void parseVp9ProfileLevelFromCsd(const sp<ABuffer> &csd, sp<AMessage> &fo
                         { 3, OMX_VIDEO_VP9Profile3 },
                     };
 
+                    const static ALookup<OMX_VIDEO_VP9PROFILETYPE, OMX_VIDEO_VP9PROFILETYPE> toHdr {
+                        { OMX_VIDEO_VP9Profile2, OMX_VIDEO_VP9Profile2HDR },
+                        { OMX_VIDEO_VP9Profile3, OMX_VIDEO_VP9Profile3HDR },
+                    };
+
                     OMX_VIDEO_VP9PROFILETYPE profile;
                     if (profiles.map(data[0], &profile)) {
+                        // convert to HDR profile
+                        if (isHdr(format)) {
+                            toHdr.lookup(profile, &profile);
+                        }
+
                         format->setInt32("profile", profile);
                     }
                 }
@@ -818,7 +856,7 @@ status_t convertMetaDataToMessage(
             return BAD_VALUE;
         }
 
-        parseHevcProfileLevelFromHvcc(ptr, size, msg);
+        const size_t dataSize = size; // save for later
         ptr += 22;
         size -= 22;
 
@@ -832,6 +870,8 @@ status_t convertMetaDataToMessage(
             return NO_MEMORY;
         }
         buffer->setRange(0, 0);
+
+        HevcParameterSets hvcc;
 
         for (i = 0; i < numofArrays; i++) {
             if (size < 3) {
@@ -864,6 +904,7 @@ status_t convertMetaDataToMessage(
                 if (err != OK) {
                     return err;
                 }
+                (void)hvcc.addNalUnit(ptr, length);
 
                 ptr += length;
                 size -= length;
@@ -873,6 +914,14 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-0", buffer);
 
+        // if we saw VUI color information we know whether this is HDR because VUI trumps other
+        // format parameters for HEVC.
+        HevcParameterSets::Info info = hvcc.getInfo();
+        if (info & hvcc.kInfoHasColorDescription) {
+            msg->setInt32("android._is-hdr", (info & hvcc.kInfoIsHdr) != 0);
+        }
+
+        parseHevcProfileLevelFromHvcc((const uint8_t *)data, dataSize, msg);
     } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
         ESDS esds((const char *)data, size);
         if (esds.InitCheck() != (status_t)OK) {
