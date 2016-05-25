@@ -24,6 +24,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/ABuffer.h>
+#include <media/stagefright/foundation/ColorUtils.h>
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -1058,6 +1059,109 @@ status_t MatroskaExtractor::synthesizeAVCC(TrackInfo *trackInfo, size_t index) {
     return OK;
 }
 
+static inline bool isValidInt32ColourValue(long long value) {
+    return value != mkvparser::Colour::kValueNotPresent
+            && value >= INT32_MIN
+            && value <= INT32_MAX;
+}
+
+static inline bool isValidUint16ColourValue(long long value) {
+    return value != mkvparser::Colour::kValueNotPresent
+            && value >= 0
+            && value <= UINT16_MAX;
+}
+
+static inline bool isValidPrimary(const mkvparser::PrimaryChromaticity *primary) {
+    return primary != NULL && primary->x >= 0 && primary->x <= 1
+             && primary->y >= 0 && primary->y <= 1;
+}
+
+void MatroskaExtractor::getColorInformation(
+        const mkvparser::VideoTrack *vtrack, sp<MetaData> &meta) {
+    const mkvparser::Colour *color = vtrack->GetColour();
+    if (color == NULL) {
+        return;
+    }
+
+    // Color Aspects
+    {
+        int32_t primaries = 2; // ISO unspecified
+        int32_t transfer = 2; // ISO unspecified
+        int32_t coeffs = 2; // ISO unspecified
+        bool fullRange = false; // default
+        bool rangeSpecified = false;
+
+        if (isValidInt32ColourValue(color->primaries)) {
+            primaries = color->primaries;
+        }
+        if (isValidInt32ColourValue(color->transfer_characteristics)) {
+            transfer = color->transfer_characteristics;
+        }
+        if (isValidInt32ColourValue(color->matrix_coefficients)) {
+            coeffs = color->matrix_coefficients;
+        }
+        if (color->range != mkvparser::Colour::kValueNotPresent
+                && color->range != 0 /* MKV unspecified */) {
+            // We only support MKV broadcast range (== limited) and full range.
+            // We treat all other value as the default limited range.
+            fullRange = color->range == 2 /* MKV fullRange */;
+            rangeSpecified = true;
+        }
+
+        ColorAspects aspects;
+        ColorUtils::convertIsoColorAspectsToCodecAspects(
+                primaries, transfer, coeffs, fullRange, aspects);
+        meta->setInt32(kKeyColorPrimaries, aspects.mPrimaries);
+        meta->setInt32(kKeyTransferFunction, aspects.mTransfer);
+        meta->setInt32(kKeyColorMatrix, aspects.mMatrixCoeffs);
+        meta->setInt32(
+                kKeyColorRange, rangeSpecified ? aspects.mRange : ColorAspects::RangeUnspecified);
+    }
+
+    // HDR Static Info
+    {
+        HDRStaticInfo info, nullInfo; // nullInfo is a fully unspecified static info
+        memset(&info, 0, sizeof(info));
+        memset(&nullInfo, 0, sizeof(nullInfo));
+        if (isValidUint16ColourValue(color->max_cll)) {
+            info.sType1.mMaxContentLightLevel = color->max_cll;
+        }
+        if (isValidUint16ColourValue(color->max_fall)) {
+            info.sType1.mMaxFrameAverageLightLevel = color->max_fall;
+        }
+        const mkvparser::MasteringMetadata *mastering = color->mastering_metadata;
+        if (mastering != NULL) {
+            // Convert matroska values to HDRStaticInfo equivalent values for each fully specified
+            // group. See CTA-681.3 section 3.2.1 for more info.
+            if (mastering->luminance_max >= 0.5 && mastering->luminance_max < 65535.5) {
+                info.sType1.mMaxDisplayLuminance = (uint16_t)(mastering->luminance_max + 0.5);
+            }
+            if (mastering->luminance_min >= 0.00005 && mastering->luminance_min < 6.55355) {
+                info.sType1.mMinDisplayLuminance =
+                    (uint16_t)(10000 * mastering->luminance_min + 0.5);
+            }
+            if (isValidPrimary(mastering->white_point)) {
+                info.sType1.mW.x = (uint16_t)(50000 * mastering->white_point->x + 0.5);
+                info.sType1.mW.y = (uint16_t)(50000 * mastering->white_point->y + 0.5);
+            }
+            if (isValidPrimary(mastering->r) && isValidPrimary(mastering->g)
+                    && isValidPrimary(mastering->b)) {
+                info.sType1.mR.x = (uint16_t)(50000 * mastering->r->x + 0.5);
+                info.sType1.mR.y = (uint16_t)(50000 * mastering->r->y + 0.5);
+                info.sType1.mG.x = (uint16_t)(50000 * mastering->g->x + 0.5);
+                info.sType1.mG.y = (uint16_t)(50000 * mastering->g->y + 0.5);
+                info.sType1.mB.x = (uint16_t)(50000 * mastering->b->x + 0.5);
+                info.sType1.mB.y = (uint16_t)(50000 * mastering->b->y + 0.5);
+            }
+        }
+        // Only advertise static info if at least one of the groups have been specified.
+        if (memcmp(&info, &nullInfo, sizeof(info)) != 0) {
+            info.mID = HDRStaticInfo::kType1;
+            meta->setData(kKeyHdrStaticInfo, 'hdrS', &info, sizeof(info));
+        }
+    }
+}
+
 void MatroskaExtractor::addTracks() {
     const mkvparser::Tracks *tracks = mSegment->GetTracks();
 
@@ -1127,6 +1231,9 @@ void MatroskaExtractor::addTracks() {
 
                 meta->setInt32(kKeyWidth, vtrack->GetWidth());
                 meta->setInt32(kKeyHeight, vtrack->GetHeight());
+
+                getColorInformation(vtrack, meta);
+
                 break;
             }
 

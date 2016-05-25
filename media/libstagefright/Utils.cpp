@@ -96,6 +96,7 @@ static status_t copyNALUToABuffer(sp<ABuffer> *buffer, const uint8_t *ptr, size_
     return OK;
 }
 
+#if 0
 static void convertMetaDataToMessageInt32(
         const sp<MetaData> &meta, sp<AMessage> &msg, uint32_t key, const char *name) {
     int32_t value;
@@ -103,6 +104,7 @@ static void convertMetaDataToMessageInt32(
         msg->setInt32(name, value);
     }
 }
+#endif
 
 static void convertMetaDataToMessageColorAspects(const sp<MetaData> &meta, sp<AMessage> &msg) {
     // 0 values are unspecified
@@ -631,8 +633,14 @@ status_t convertMetaDataToMessage(
             msg->setInt32("rotation-degrees", rotationDegrees);
         }
 
-        convertMetaDataToMessageInt32(meta, msg, kKeyMinLuminance, "min-luminance");
-        convertMetaDataToMessageInt32(meta, msg, kKeyMaxLuminance, "max-luminance");
+        uint32_t type;
+        const void *data;
+        size_t size;
+        if (meta->findData(kKeyHdrStaticInfo, &type, &data, &size)
+                && type == 'hdrS' && size == sizeof(HDRStaticInfo)) {
+            ColorUtils::setHDRStaticInfoIntoFormat(*(HDRStaticInfo*)data, msg);
+        }
+
         convertMetaDataToMessageColorAspects(meta, msg);
     } else if (!strncasecmp("audio/", mime, 6)) {
         int32_t numChannels, sampleRate;
@@ -1146,6 +1154,7 @@ static size_t reassembleHVCC(const sp<ABuffer> &csd0, uint8_t *hvcc, size_t hvcc
     return size;
 }
 
+#if 0
 static void convertMessageToMetaDataInt32(
         const sp<AMessage> &msg, sp<MetaData> &meta, uint32_t key, const char *name) {
     int32_t value;
@@ -1153,6 +1162,7 @@ static void convertMessageToMetaDataInt32(
         meta->setInt32(key, value);
     }
 }
+#endif
 
 static void convertMessageToMetaDataColorAspects(const sp<AMessage> &msg, sp<MetaData> &meta) {
     // 0 values are unspecified
@@ -1237,8 +1247,13 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             meta->setInt32(kKeyRotation, rotationDegrees);
         }
 
-        convertMessageToMetaDataInt32(msg, meta, kKeyMinLuminance, "min-luminance");
-        convertMessageToMetaDataInt32(msg, meta, kKeyMaxLuminance, "max-luminance");
+        if (msg->contains("hdr-static-info")) {
+            HDRStaticInfo info;
+            if (ColorUtils::getHDRStaticInfoFromFormat(msg, &info)) {
+                meta->setData(kKeyHdrStaticInfo, 'hdrS', &info, sizeof(info));
+            }
+        }
+
         convertMessageToMetaDataColorAspects(msg, meta);
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
