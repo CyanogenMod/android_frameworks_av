@@ -47,7 +47,33 @@ void FindAVCDimensions(
         int32_t *width, int32_t *height,
         int32_t *sarWidth = NULL, int32_t *sarHeight = NULL);
 
+// Gets and returns an unsigned exp-golomb (ue) value from a bit reader |br|. Aborts if the value
+// is more than 64 bits long (>=0xFFFF (!)) or the bit reader overflows.
 unsigned parseUE(ABitReader *br);
+
+// Gets and returns a signed exp-golomb (se) value from a bit reader |br|. Aborts if the value is
+// more than 64 bits long (>0x7FFF || <-0x7FFF (!)) or the bit reader overflows.
+signed parseSE(ABitReader *br);
+
+// Gets an unsigned exp-golomb (ue) value from a bit reader |br|, and returns it if it was
+// successful. Returns |fallback| if it was unsuccessful. Note: if the value was longer that 64
+// bits, it reads past the value and still returns |fallback|.
+unsigned parseUEWithFallback(ABitReader *br, unsigned fallback);
+
+// Gets a signed exp-golomb (se) value from a bit reader |br|, and returns it if it was successful.
+// Returns |fallback| if it was unsuccessful. Note: if the value was longer that 64 bits, it reads
+// past the value and still returns |fallback|.
+signed parseSEWithFallback(ABitReader *br, signed fallback);
+
+// Skips an unsigned exp-golomb (ue) value from bit reader |br|.
+inline void skipUE(ABitReader *br) {
+    (void)parseUEWithFallback(br, 0U);
+}
+
+// Skips a signed exp-golomb (se) value from bit reader |br|.
+inline void skipSE(ABitReader *br) {
+    (void)parseSEWithFallback(br, 0);
+}
 
 status_t getNextNALUnit(
         const uint8_t **_data, size_t *_size,
