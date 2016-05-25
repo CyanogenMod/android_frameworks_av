@@ -2390,6 +2390,9 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                     } else {
                         timestamp.mPosition = (uint32_t)(ets.mPosition[location] - frames);
                     }
+                } else if (location == ExtendedTimestamp::LOCATION_KERNEL) {
+                    ALOGV_IF(mPreviousLocation == ExtendedTimestamp::LOCATION_SERVER,
+                            "getTimestamp() location moved from server to kernel");
                 }
                 mPreviousLocation = location;
             } else {
