@@ -1223,6 +1223,9 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
     } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
             findBufferHeader(msg.u.buffer_data.buffer, kPortIndexInput);
+        if (buffer == NULL) {
+            return;
+        }
 
         {
             Mutex::Autolock _l(mDebugLock);
