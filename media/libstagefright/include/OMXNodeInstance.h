@@ -187,7 +187,7 @@ private:
 
     // For buffer id management
     OMX::buffer_id makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader);
-    OMX_BUFFERHEADERTYPE *findBufferHeader(OMX::buffer_id buffer);
+    OMX_BUFFERHEADERTYPE *findBufferHeader(OMX::buffer_id buffer, OMX_U32 portIndex);
     OMX::buffer_id findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader);
     void invalidateBufferID(OMX::buffer_id buffer);
 
