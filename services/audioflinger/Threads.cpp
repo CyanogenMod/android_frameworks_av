@@ -1576,7 +1576,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
-        mLastWriteTime(0), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
+        mLastWriteTime(-1), mNumWrites(0), mNumDelayedWrites(0), mInWrite(false),
         mMixerStatus(MIXER_IDLE),
         mMixerStatusIgnoringFastTracks(MIXER_IDLE),
         mStandbyDelayNs(AudioFlinger::mStandbyTimeInNsecs),
@@ -2527,8 +2527,6 @@ void AudioFlinger::PlaybackThread::checkSilentMode_l()
 // shared by MIXER and DIRECT, overridden by DUPLICATING
 ssize_t AudioFlinger::PlaybackThread::threadLoop_write()
 {
-    // FIXME rewrite to reduce number of system calls
-    mLastWriteTime = systemTime();
     mInWrite = true;
     ssize_t bytesWritten;
     const size_t offset = mCurrentWriteLength - mBytesRemaining;
@@ -2824,10 +2822,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
     Vector< sp<Track> > tracksToRemove;
 
     mStandbyTimeNs = systemTime();
+    nsecs_t lastWriteFinished = -1; // time last server write completed
+    int64_t lastFramesWritten = -1; // track changes in timestamp server frames written
 
     // MIXER
     nsecs_t lastWarning = 0;
-    nsecs_t mixStartNs = 0;
 
     // DUPLICATING
     // FIXME could this be made local to while loop?
@@ -2875,10 +2874,11 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // Gather the framesReleased counters for all active tracks,
             // and associate with the sink frames written out.  We need
             // this to convert the sink timestamp to the track timestamp.
+            bool kernelLocationUpdate = false;
             if (mNormalSink != 0) {
                 // Note: The DuplicatingThread may not have a mNormalSink.
                 // We always fetch the timestamp here because often the downstream
-                // sink will block whie writing.
+                // sink will block while writing.
                 ExtendedTimestamp timestamp; // use private copy to fetch
                 (void) mNormalSink->getTimestamp(timestamp);
 
@@ -2895,6 +2895,10 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                             mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER];
                     mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] =
                             mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER];
+                }
+
+                if (timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] >= 0) {
+                    kernelLocationUpdate = true;
                 } else {
                     ALOGV("getTimestamp error - no valid kernel position");
                 }
@@ -2908,16 +2912,33 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // mFramesWritten for non-offloaded tracks are contiguous
             // even after standby() is called. This is useful for the track frame
             // to sink frame mapping.
-            mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = mFramesWritten;
-            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
-            const size_t size = mActiveTracks.size();
-            for (size_t i = 0; i < size; ++i) {
-                sp<Track> t = mActiveTracks[i].promote();
-                if (t != 0 && !t->isFastTrack()) {
-                    t->updateTrackFrameInfo(
-                            t->mAudioTrackServerProxy->framesReleased(),
-                            mFramesWritten,
-                            mTimestamp);
+            bool serverLocationUpdate = false;
+            if (mFramesWritten != lastFramesWritten) {
+                serverLocationUpdate = true;
+                lastFramesWritten = mFramesWritten;
+            }
+            // Only update timestamps if there is a meaningful change.
+            // Either the kernel timestamp must be valid or we have written something.
+            if (kernelLocationUpdate || serverLocationUpdate) {
+                if (serverLocationUpdate) {
+                    // use the time before we called the HAL write - it is a bit more accurate
+                    // to when the server last read data than the current time here.
+                    //
+                    // If we haven't written anything, mLastWriteTime will be -1
+                    // and we use systemTime().
+                    mTimestamp.mPosition[ExtendedTimestamp::LOCATION_SERVER] = mFramesWritten;
+                    mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = mLastWriteTime == -1
+                            ? systemTime() : mLastWriteTime;
+                }
+                const size_t size = mActiveTracks.size();
+                for (size_t i = 0; i < size; ++i) {
+                    sp<Track> t = mActiveTracks[i].promote();
+                    if (t != 0 && !t->isFastTrack()) {
+                        t->updateTrackFrameInfo(
+                                t->mAudioTrackServerProxy->framesReleased(),
+                                mFramesWritten,
+                                mTimestamp);
+                    }
                 }
             }
 
@@ -3010,7 +3031,6 @@ bool AudioFlinger::PlaybackThread::threadLoop()
         if (mBytesRemaining == 0) {
             mCurrentWriteLength = 0;
             if (mMixerStatus == MIXER_TRACKS_READY) {
-                mixStartNs = systemTime();
                 // threadLoop_mix() sets mCurrentWriteLength
                 threadLoop_mix();
             } else if ((mMixerStatus != MIXER_DRAIN_TRACK)
@@ -3096,8 +3116,17 @@ bool AudioFlinger::PlaybackThread::threadLoop()
             // mSleepTimeUs == 0 means we must write to audio hardware
             if (mSleepTimeUs == 0) {
                 ssize_t ret = 0;
+                // We save lastWriteFinished here, as previousLastWriteFinished,
+                // for throttling. On thread start, previousLastWriteFinished will be
+                // set to -1, which properly results in no throttling after the first write.
+                nsecs_t previousLastWriteFinished = lastWriteFinished;
+                nsecs_t delta = 0;
                 if (mBytesRemaining) {
+                    // FIXME rewrite to reduce number of system calls
+                    mLastWriteTime = systemTime();  // also used for dumpsys
                     ret = threadLoop_write();
+                    lastWriteFinished = systemTime();
+                    delta = lastWriteFinished - mLastWriteTime;
                     if (ret < 0) {
                         mBytesRemaining = 0;
                     } else {
@@ -3111,15 +3140,13 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 }
                 if (mType == MIXER && !mStandby) {
                     // write blocked detection
-                    nsecs_t now = systemTime();
-                    nsecs_t delta = now - mLastWriteTime;
                     if (delta > maxPeriod) {
                         mNumDelayedWrites++;
-                        if ((now - lastWarning) > kWarningThrottleNs) {
+                        if ((lastWriteFinished - lastWarning) > kWarningThrottleNs) {
                             ATRACE_NAME("underrun");
                             ALOGW("write blocked for %llu msecs, %d delayed writes, thread %p",
                                     (unsigned long long) ns2ms(delta), mNumDelayedWrites, this);
-                            lastWarning = now;
+                            lastWarning = lastWriteFinished;
                         }
                     }
 
@@ -3144,7 +3171,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                         // 2. threadLoop_mix (significant for heavy mixing, especially
                         //                    on low tier processors)
 
-                        const int32_t deltaMs = (now - mixStartNs)/ 1000000;
+                        // it's OK if deltaMs is an overestimate.
+                        const int32_t deltaMs =
+                                (lastWriteFinished - previousLastWriteFinished) / 1000000;
                         const int32_t throttleMs = mHalfBufferMs - deltaMs;
                         if ((signed)mHalfBufferMs >= throttleMs && throttleMs > 0) {
                             usleep(throttleMs * 1000);
