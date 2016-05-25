@@ -933,6 +933,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
 
             if (isTrack) {
+                int32_t trackId;
+                // There must be exact one track header per track.
+                if (!mLastTrack->meta->findInt32(kKeyTrackID, &trackId)) {
+                    mLastTrack->skipTrack = true;
+                }
                 if (mLastTrack->skipTrack) {
                     Track *cur = mFirstTrack;
 
@@ -2869,6 +2874,9 @@ sp<MediaSource> MPEG4Extractor::getTrack(size_t index) {
                 break;
             }
         }
+    } else {
+        ALOGE("b/21657957");
+        return NULL;
     }
 
     ALOGV("getTrack called, pssh: %zu", mPssh.size());
