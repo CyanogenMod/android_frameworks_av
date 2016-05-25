@@ -886,6 +886,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
 
             if (isTrack) {
+                int32_t trackId;
+                // There must be exact one track header per track.
+                if (!mLastTrack->meta->findInt32(kKeyTrackID, &trackId)) {
+                    mLastTrack->skipTrack = true;
+                }
                 if (mLastTrack->skipTrack) {
                     Track *cur = mFirstTrack;
 
