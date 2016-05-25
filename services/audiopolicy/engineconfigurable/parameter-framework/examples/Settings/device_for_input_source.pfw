@@ -1,12 +1,7 @@
 supDomain: DeviceForInputSource
 	domain: Calibration
 		conf: Calibration
-			#
-			# Note that ALL input devices must have the sign bit set to 1.
-			# As the devices is a mask, use the "in" bit as a direction indicator.
-			#
 			component: /Policy/policy/input_sources/default/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -24,7 +19,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/mic/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -42,7 +36,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/voice_downlink/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				builtin_mic = 0
@@ -64,7 +57,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/voice_call/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				builtin_mic = 0
@@ -86,7 +78,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/voice_uplink/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				builtin_mic = 0
@@ -108,7 +99,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/camcorder/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				bluetooth_sco_headset = 0
@@ -129,7 +119,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/voice_recognition/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -148,7 +137,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/voice_communication/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -166,7 +154,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/remote_submix/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				builtin_mic = 0
@@ -188,7 +175,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/hotword/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -207,7 +193,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/unprocessed/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				hdmi = 0
@@ -226,7 +211,6 @@ supDomain: DeviceForInputSource
 				ip = 0
 				bus = 0
 			component: /Policy/policy/input_sources/fm_tuner/applicable_input_device/mask
-				in = 1
 				communication = 0
 				ambient = 0
 				bluetooth_sco_headset = 0

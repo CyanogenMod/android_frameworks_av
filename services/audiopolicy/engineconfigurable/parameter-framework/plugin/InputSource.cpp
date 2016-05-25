@@ -42,5 +42,6 @@ bool InputSource::sendToHW(string & /*error*/)
 {
     uint32_t applicableInputDevice;
     blackboardRead(&applicableInputDevice, sizeof(applicableInputDevice));
-    return mPolicyPluginInterface->setDeviceForInputSource(mId, applicableInputDevice);
+    return mPolicyPluginInterface->setDeviceForInputSource(
+                mId, AUDIO_DEVICE_BIT_IN | applicableInputDevice);
 }
