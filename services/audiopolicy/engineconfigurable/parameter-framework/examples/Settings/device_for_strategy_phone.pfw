@@ -12,6 +12,8 @@ supDomain: DeviceForStrategy
 					spdif = 0
 					fm = 0
 					speaker_safe = 0
+					ip = 0
+					bus = 0
 
 		domain: Device
 			conf: ScoCarkit

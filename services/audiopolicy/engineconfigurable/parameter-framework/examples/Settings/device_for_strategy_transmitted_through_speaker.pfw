@@ -26,6 +26,8 @@ supDomain: DeviceForStrategy
 					usb_device = 0
 					telephony_tx = 0
 					line = 0
+					ip = 0
+					bus = 0
 
 		domain: Speaker
 			conf: Selected

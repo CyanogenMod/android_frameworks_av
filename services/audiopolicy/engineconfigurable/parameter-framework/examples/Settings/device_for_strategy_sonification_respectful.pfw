@@ -22,6 +22,8 @@ domainGroup: DeviceForStrategy
 					spdif = 0
 					fm = 0
 					telephony_tx = 0
+					ip = 0
+					bus = 0
 
 		domain: Speakers
 
