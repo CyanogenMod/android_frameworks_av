@@ -574,13 +574,14 @@ status_t convertMetaDataToMessage(
         msg->setInt64("durationUs", durationUs);
     }
 
-    int32_t avgBitRate;
-    if (meta->findInt32(kKeyBitRate, &avgBitRate)) {
+    int32_t avgBitRate = 0;
+    if (meta->findInt32(kKeyBitRate, &avgBitRate) && avgBitRate > 0) {
         msg->setInt32("bitrate", avgBitRate);
     }
 
     int32_t maxBitRate;
-    if (meta->findInt32(kKeyMaxBitRate, &maxBitRate)) {
+    if (meta->findInt32(kKeyMaxBitRate, &maxBitRate)
+            && maxBitRate > 0 && maxBitRate >= avgBitRate) {
         msg->setInt32("max-bitrate", maxBitRate);
     }
 
@@ -900,13 +901,15 @@ status_t convertMetaDataToMessage(
 
         uint32_t maxBitrate, avgBitrate;
         if (esds.getBitRate(&maxBitrate, &avgBitrate) == OK) {
-            if (!meta->hasData(kKeyMaxBitRate)
-                    && maxBitrate > 0 && maxBitrate <= INT32_MAX) {
-                msg->setInt32("max-bitrate", (int32_t)maxBitrate);
-            }
             if (!meta->hasData(kKeyBitRate)
                     && avgBitrate > 0 && avgBitrate <= INT32_MAX) {
                 msg->setInt32("bitrate", (int32_t)avgBitrate);
+            } else {
+                (void)msg->findInt32("bitrate", (int32_t*)&avgBitrate);
+            }
+            if (!meta->hasData(kKeyMaxBitRate)
+                    && maxBitrate > 0 && maxBitrate <= INT32_MAX && maxBitrate >= avgBitrate) {
+                msg->setInt32("max-bitrate", (int32_t)maxBitrate);
             }
         }
     } else if (meta->findData(kTypeD263, &type, &data, &size)) {
@@ -1199,6 +1202,15 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int32_t isSync;
     if (msg->findInt32("is-sync-frame", &isSync) && isSync != 0) {
         meta->setInt32(kKeyIsSyncFrame, 1);
+    }
+
+    int32_t avgBitrate = 0;
+    int32_t maxBitrate;
+    if (msg->findInt32("bitrate", &avgBitrate) && avgBitrate > 0) {
+        meta->setInt32(kKeyBitRate, avgBitrate);
+    }
+    if (msg->findInt32("max-bitrate", &maxBitrate) && maxBitrate > 0 && maxBitrate >= avgBitrate) {
+        meta->setInt32(kKeyMaxBitRate, maxBitrate);
     }
 
     if (mime.startsWith("video/")) {
