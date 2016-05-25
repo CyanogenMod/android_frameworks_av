@@ -287,7 +287,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
     bool updatePid = (pid == -1);
     const uid_t callingUid = IPCThreadState::self()->getCallingUid();
     if (!isTrustedCallingUid(callingUid)) {
-        ALOGW_IF(uid != -1 && uid != (int)callingUid,
+        ALOGW_IF(uid != (uid_t)-1 && uid != callingUid,
                 "%s uid %d tried to pass itself off as %d", __FUNCTION__, callingUid, uid);
         uid = callingUid;
         updatePid = true;
@@ -295,7 +295,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
 
     if (updatePid) {
         const pid_t callingPid = IPCThreadState::self()->getCallingPid();
-        ALOGW_IF(pid != -1 && pid != callingPid,
+        ALOGW_IF(pid != (pid_t)-1 && pid != callingPid,
                  "%s uid %d pid %d tried to pass itself off as pid %d",
                  __func__, callingUid, callingPid, pid);
         pid = callingPid;
