@@ -21,6 +21,8 @@ supDomain: DeviceForInputSource
 				line = 0
 				spdif = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/mic/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -37,6 +39,8 @@ supDomain: DeviceForInputSource
 				line = 0
 				spdif = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/voice_downlink/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -57,6 +61,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/voice_call/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -77,6 +83,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/voice_uplink/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -97,6 +105,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/camcorder/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -116,6 +126,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/voice_recognition/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -133,6 +145,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/voice_communication/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -149,6 +163,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/remote_submix/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -169,6 +185,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/hotword/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -186,6 +204,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/unprocessed/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -203,6 +223,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 			component: /Policy/policy/input_sources/fm_tuner/applicable_input_device/mask
 				in = 1
 				communication = 0
@@ -223,6 +245,8 @@ supDomain: DeviceForInputSource
 				spdif = 0
 				bluetooth_a2dp = 0
 				loopback = 0
+				ip = 0
+				bus = 0
 
 	domain: DefaultAndMic
 		conf: A2dp

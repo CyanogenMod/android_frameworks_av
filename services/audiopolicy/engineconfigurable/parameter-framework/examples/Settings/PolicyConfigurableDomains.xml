@@ -15,6 +15,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/bluetooth_sco_headset"/>
       <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/bluetooth_sco_carkit"/>
       <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/telephony_tx"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -38,6 +40,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/telephony_tx">
           <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/media/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -856,6 +864,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/fm"/>
       <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/speaker_safe"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -876,6 +886,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/speaker_safe">
           <BitParameter Name="speaker_safe">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/phone/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -1941,6 +1957,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/speaker_safe"/>
       <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/aux_line"/>
       <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/hdmi"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -1964,6 +1982,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/hdmi">
           <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/sonification/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -2920,6 +2944,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/fm"/>
       <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/telephony_tx"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -2940,6 +2966,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/telephony_tx">
           <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/sonification_respectful/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -3922,6 +3954,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/fm"/>
       <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/speaker_safe"/>
       <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_sco_carkit"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -3933,6 +3967,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bluetooth_sco_carkit">
           <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/dtmf/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -5210,6 +5250,9 @@
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/aux_line"/>
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/speaker_safe"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bus"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -5224,6 +5267,15 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/speaker_safe">
           <BitParameter Name="speaker_safe">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
+          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -5356,6 +5408,9 @@
           <SelectionCriterionRule SelectionCriterion="AvailableOutputDevices" MatchesWhen="Includes" Value="AnlgDockHeadset"/>
         </CompoundRule>
       </Configuration>
+      <Configuration Name="NoDevice">
+        <CompoundRule Type="All"/>
+      </Configuration>
     </Configurations>
     <ConfigurableElements>
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix"/>
@@ -5375,7 +5430,6 @@
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/usb_device"/>
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/telephony_tx"/>
       <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line"/>
-      <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="RemoteSubmix">
@@ -5430,9 +5484,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="BluetoothA2dp">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -5485,9 +5536,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
       <Configuration Name="BluetoothA2dpHeadphones">
@@ -5542,9 +5590,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="BluetoothA2dpSpeaker">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -5597,9 +5642,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
       <Configuration Name="WiredHeadphone">
@@ -5654,9 +5696,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="Line">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -5709,9 +5748,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">1</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
       <Configuration Name="WiredHeadset">
@@ -5766,9 +5802,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="UsbAccessory">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -5821,9 +5854,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
       <Configuration Name="UsbDevice">
@@ -5878,9 +5908,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="DgtlDockHeadset">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -5933,9 +5960,6 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
-        </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
       <Configuration Name="Hdmi">
@@ -5990,9 +6014,6 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
-        </ConfigurableElement>
       </Configuration>
       <Configuration Name="AnlgDockHeadset">
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
@@ -6046,8 +6067,58 @@
         <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
-        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/fm">
-          <BitParameter Name="fm">0</BitParameter>
+      </Configuration>
+      <Configuration Name="NoDevice">
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/remote_submix">
+          <BitParameter Name="remote_submix">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/earpiece">
+          <BitParameter Name="earpiece">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/wired_headset">
+          <BitParameter Name="wired_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/wired_headphone">
+          <BitParameter Name="wired_headphone">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_sco">
+          <BitParameter Name="bluetooth_sco">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_sco_headset">
+          <BitParameter Name="bluetooth_sco_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_sco_carkit">
+          <BitParameter Name="bluetooth_sco_carkit">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_a2dp">
+          <BitParameter Name="bluetooth_a2dp">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_a2dp_headphones">
+          <BitParameter Name="bluetooth_a2dp_headphones">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/bluetooth_a2dp_speaker">
+          <BitParameter Name="bluetooth_a2dp_speaker">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/hdmi">
+          <BitParameter Name="hdmi">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/angl_dock_headset">
+          <BitParameter Name="angl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/dgtl_dock_headset">
+          <BitParameter Name="dgtl_dock_headset">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/usb_accessory">
+          <BitParameter Name="usb_accessory">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/usb_device">
+          <BitParameter Name="usb_device">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/telephony_tx">
+          <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/enforced_audible/selected_output_devices/mask/line">
+          <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -6081,6 +6152,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/usb_device"/>
       <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/telephony_tx"/>
       <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/line"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -6150,6 +6223,12 @@
         <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/line">
           <BitParameter Name="line">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/transmitted_through_speaker/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
       </Configuration>
     </Settings>
   </ConfigurableDomain>
@@ -6193,6 +6272,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/fm"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/speaker_safe"/>
       <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/telephony_tx"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -6213,6 +6294,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/telephony_tx">
           <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/accessibility/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -7453,6 +7540,8 @@
       <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/bluetooth_sco_headset"/>
       <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/bluetooth_sco_carkit"/>
       <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/telephony_tx"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -7485,6 +7574,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/telephony_tx">
           <BitParameter Name="telephony_tx">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/strategies/rerouting/selected_output_devices/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>
@@ -8393,6 +8488,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/line"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/ambient"/>
@@ -8408,6 +8505,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/line"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/ambient"/>
@@ -8427,6 +8526,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/ambient"/>
@@ -8446,6 +8547,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/ambient"/>
@@ -8465,6 +8568,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/ambient"/>
@@ -8483,6 +8588,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/ambient"/>
@@ -8499,6 +8606,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/ambient"/>
@@ -8514,6 +8623,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/ambient"/>
@@ -8533,6 +8644,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/ambient"/>
@@ -8549,6 +8662,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ambient"/>
@@ -8565,6 +8680,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bus"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/communication"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/ambient"/>
@@ -8584,6 +8701,8 @@
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/spdif"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/bluetooth_a2dp"/>
       <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/loopback"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/ip"/>
+      <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/bus"/>
     </ConfigurableElements>
     <Settings>
       <Configuration Name="Calibration">
@@ -8632,6 +8751,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/default/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8676,6 +8801,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/mic/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
@@ -8734,6 +8865,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_downlink/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8790,6 +8927,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_call/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
@@ -8848,6 +8991,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_uplink/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8902,6 +9051,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/camcorder/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8950,6 +9105,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_recognition/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -8994,6 +9155,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/voice_communication/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
@@ -9052,6 +9219,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/remote_submix/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -9100,6 +9273,12 @@
         <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
         </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/hotword/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
+        </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
         </ConfigurableElement>
@@ -9147,6 +9326,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/unprocessed/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/in">
           <BitParameter Name="in">1</BitParameter>
@@ -9204,6 +9389,12 @@
         </ConfigurableElement>
         <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/loopback">
           <BitParameter Name="loopback">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/ip">
+          <BitParameter Name="ip">0</BitParameter>
+        </ConfigurableElement>
+        <ConfigurableElement Path="/Policy/policy/input_sources/fm_tuner/applicable_input_device/mask/bus">
+          <BitParameter Name="bus">0</BitParameter>
         </ConfigurableElement>
       </Configuration>
     </Settings>

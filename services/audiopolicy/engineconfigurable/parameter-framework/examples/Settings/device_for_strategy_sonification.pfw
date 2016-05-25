@@ -16,6 +16,8 @@ supDomain: DeviceForStrategy
 					# Sonification follows phone strategy if in call but HDMI is not reachable
 					#
 					hdmi = 0
+					ip = 0
+					bus = 0
 
 		domain: Speaker
 
