@@ -36,8 +36,7 @@ status_t Element<audio_source_t>::setIdentifier(audio_source_t identifier)
 
 /**
 * Set the device associated to this source.
-* It checks if the input device is valid but allows to set a NONE device
-* (i.e. only the IN BIT is set).
+* It checks if the input device is valid.
 *
 * @param[in] devices selected for the given input source.
 * @tparam audio_devices_t: Applicable input device for this input source.
@@ -47,7 +46,10 @@ status_t Element<audio_source_t>::setIdentifier(audio_source_t identifier)
 template <>
 status_t Element<audio_source_t>::set(audio_devices_t devices)
 {
-    if (!audio_is_input_device(devices) && devices != AUDIO_DEVICE_BIT_IN) {
+    if (devices != AUDIO_DEVICE_NONE) {
+        devices |= AUDIO_DEVICE_BIT_IN;
+    }
+    if (!audio_is_input_device(devices)) {
         ALOGE("%s: trying to set an invalid device 0x%X for input source %s",
               __FUNCTION__, devices, getName().c_str());
         return BAD_VALUE;

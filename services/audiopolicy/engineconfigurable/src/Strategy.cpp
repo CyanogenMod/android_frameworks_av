@@ -37,7 +37,7 @@ status_t Element<routing_strategy>::setIdentifier(routing_strategy identifier)
 
 /**
  * Set the device associated to this strategy.
- * It checks if the output device is valid but allows to set a NONE device
+ * It checks if the output device is valid.
  *
  * @param[in] devices selected for the given strategy.
  *
@@ -46,7 +46,7 @@ status_t Element<routing_strategy>::setIdentifier(routing_strategy identifier)
 template <>
 status_t Element<routing_strategy>::set<audio_devices_t>(audio_devices_t devices)
 {
-    if (!audio_is_output_devices(devices) && devices != AUDIO_DEVICE_NONE) {
+    if (!audio_is_output_devices(devices) || devices == AUDIO_DEVICE_NONE) {
         ALOGE("%s: trying to set an invalid device 0x%X for strategy %s",
               __FUNCTION__, devices, getName().c_str());
         return BAD_VALUE;
