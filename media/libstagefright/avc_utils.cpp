@@ -41,9 +41,36 @@ unsigned parseUE(ABitReader *br) {
     return x + (1u << numZeroes) - 1;
 }
 
+unsigned parseUEWithFallback(ABitReader *br, unsigned fallback) {
+    unsigned numZeroes = 0;
+    while (br->getBitsWithFallback(1, 1) == 0) {
+        ++numZeroes;
+    }
+    uint32_t x;
+    if (numZeroes < 32) {
+        if (br->getBitsGraceful(numZeroes, &x)) {
+            return x + (1u << numZeroes) - 1;
+        } else {
+            return fallback;
+        }
+    } else {
+        br->skipBits(numZeroes);
+        return fallback;
+    }
+}
+
 signed parseSE(ABitReader *br) {
     unsigned codeNum = parseUE(br);
 
+    return (codeNum & 1) ? (codeNum + 1) / 2 : -(codeNum / 2);
+}
+
+signed parseSEWithFallback(ABitReader *br, signed fallback) {
+    // NOTE: parseUE cannot normally return ~0 as the max supported value is 0xFFFE
+    unsigned codeNum = parseUEWithFallback(br, ~0U);
+    if (codeNum == ~0U) {
+        return fallback;
+    }
     return (codeNum & 1) ? (codeNum + 1) / 2 : -(codeNum / 2);
 }
 
