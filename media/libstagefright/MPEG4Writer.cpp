@@ -113,6 +113,7 @@ public:
 
 private:
     enum {
+        kMinCttsOffsetTimeUs = 500,
         kMaxCttsOffsetTimeUs = 1000000LL,  // 1 second
         kSampleArraySize = 1000,
     };
@@ -277,6 +278,7 @@ private:
 
     int64_t mMinCttsOffsetTimeUs;
     int64_t mMaxCttsOffsetTimeUs;
+    int64_t mCttsOffsetTimeUs;
 
     // Sequence parameter set or picture parameter set
     struct AVCParamSet {
@@ -1487,6 +1489,7 @@ MPEG4Writer::Track::Track(
       mStssTableEntries(new ListTableEntries<uint32_t>(1000, 1)),
       mSttsTableEntries(new ListTableEntries<uint32_t>(1000, 2)),
       mCttsTableEntries(new ListTableEntries<uint32_t>(1000, 2)),
+      mCttsOffsetTimeUs(0),
       mCodecSpecificData(NULL),
       mCodecSpecificDataSize(0),
       mGotAllCodecSpecificData(false),
@@ -2359,6 +2362,10 @@ status_t MPEG4Writer::Track::threadEntry() {
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
                             buffer->range_length());
+                    int32_t fps;
+                    mMeta->findInt32(kKeyFrameRate, &fps);
+                    int64_t cttsOffsetTimeUs = 1000000LL/fps;
+                    mCttsOffsetTimeUs = cttsOffsetTimeUs + kMinCttsOffsetTimeUs; //delta factor
                     CHECK_EQ((status_t)OK, err);
                 } else if (mIsHevc) {
                     status_t err = makeHEVCCodecSpecificData(
@@ -2473,7 +2480,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
-                    timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
+                    timestampUs + mCttsOffsetTimeUs - decodingTimeUs;
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
                 return ERROR_MALFORMED;
@@ -2492,12 +2499,10 @@ status_t MPEG4Writer::Track::threadEntry() {
             }
 
             if (mStszTableEntries->count() == 0) {
-                // Force the first ctts table entry to have one single entry
-                // so that we can do adjustment for the initial track start
-                // time offset easily in writeCttsBox().
                 lastCttsOffsetTimeTicks = currCttsOffsetTimeTicks;
-                addOneCttsTableEntry(1, currCttsOffsetTimeTicks);
-                cttsSampleCount = 0;      // No sample in ctts box is pending
+                //addOneCttsTableEntry(1, currCttsOffsetTimeTicks);
+                //cttsSampleCount = 0;      // No sample in ctts box is pending
+                cttsSampleCount = 1;
             } else {
                 if (currCttsOffsetTimeTicks != lastCttsOffsetTimeTicks) {
                     addOneCttsTableEntry(cttsSampleCount, lastCttsOffsetTimeTicks);
@@ -3331,6 +3336,9 @@ void MPEG4Writer::Track::writeCttsBox() {
     uint32_t duration;
     CHECK(mCttsTableEntries->get(duration, 1));
     duration = htonl(duration);  // Back host byte order
+
+    // Adjust the initial track start time offset
+    // for the first ctts table entry.
     mCttsTableEntries->set(htonl(duration + getStartTimeOffsetScaledTime() - mMinCttsOffsetTimeUs), 1);
     mCttsTableEntries->write(mOwner);
     mOwner->endBox();  // ctts
