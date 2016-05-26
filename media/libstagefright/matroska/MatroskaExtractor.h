@@ -29,6 +29,7 @@ namespace android {
 struct AMessage;
 class String8;
 
+class MetaData;
 struct DataSourceReader;
 struct MatroskaSource;
 
@@ -80,7 +81,7 @@ private:
     status_t synthesizeAVCC(TrackInfo *trackInfo, size_t index);
     void addTracks();
     void findThumbnails();
-
+    void getColorInformation(const mkvparser::VideoTrack *vtrack, sp<MetaData> &meta);
     bool isLiveStreaming() const;
 
     MatroskaExtractor(const MatroskaExtractor &);

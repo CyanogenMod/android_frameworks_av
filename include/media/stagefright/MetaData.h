@@ -194,8 +194,7 @@ enum {
     kKeyNalLengthSize     = 'nals', // int32_t
 
     // HDR related
-    kKeyMinLuminance     = 'minL', // int32_t, min luminance of the content in cd/m2.
-    kKeyMaxLuminance     = 'maxL', // int32_t, max luminance of the content in cd/m2.
+    kKeyHdrStaticInfo    = 'hdrS', // HDRStaticInfo
 
     // color aspects
     kKeyColorRange       = 'cRng', // int32_t, color range, value defined by ColorAspects.Range
