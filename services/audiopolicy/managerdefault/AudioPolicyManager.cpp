@@ -4898,7 +4898,7 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                         int index,
                                         audio_devices_t device)
 {
-    float volumeDb = mVolumeCurves->volIndexToDb(stream, Volume::getDeviceCategory(device), index);
+    float volumeDB = mVolumeCurves->volIndexToDb(stream, Volume::getDeviceCategory(device), index);
     // if a headset is connected, apply the following rules to ring tones and notifications
     // to avoid sound level bursts in user's ears:
     // - always attenuate notifications volume by 6dB
@@ -4922,7 +4922,7 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
         // just stopped
         if (isStreamActive(AUDIO_STREAM_MUSIC, SONIFICATION_HEADSET_MUSIC_DELAY) ||
                 mLimitRingtoneVolume) {
-            volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
+            volumeDB += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
             audio_devices_t musicDevice = getDeviceForStrategy(STRATEGY_MEDIA, true /*fromCache*/);
             float musicVolDB = computeVolume(AUDIO_STREAM_MUSIC,
                                              mVolumeCurves->getVolumeIndex(AUDIO_STREAM_MUSIC,
@@ -4930,17 +4930,29 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                              musicDevice);
             float minVolDB = (musicVolDB > SONIFICATION_HEADSET_VOLUME_MIN_DB) ?
                     musicVolDB : SONIFICATION_HEADSET_VOLUME_MIN_DB;
-            if (volumeDb > minVolDB) {
-                volumeDb = minVolDB;
+            if (volumeDB > minVolDB) {
+                volumeDB = minVolDB;
                 ALOGV("computeVolume limiting volume to %f musicVol %f", minVolDB, musicVolDB);
+            }
+            if (device & (AUDIO_DEVICE_OUT_BLUETOOTH_A2DP |
+                    AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES)) {
+                // on A2DP, also ensure notification volume is not too low compared to media when
+                // intended to be played
+                if ((volumeDB > -96.0f) &&
+                        (musicVolDB - SONIFICATION_A2DP_MAX_MEDIA_DIFF_DB > volumeDB)) {
+                    ALOGV("computeVolume increasing volume for stream=%d device=0x%X from %f to %f",
+                            stream, device,
+                            volumeDB, musicVolDB - SONIFICATION_A2DP_MAX_MEDIA_DIFF_DB);
+                    volumeDB = musicVolDB - SONIFICATION_A2DP_MAX_MEDIA_DIFF_DB;
+                }
             }
         } else if ((Volume::getDeviceForVolume(device) != AUDIO_DEVICE_OUT_SPEAKER) ||
                 stream_strategy != STRATEGY_SONIFICATION) {
-            volumeDb += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
+            volumeDB += SONIFICATION_HEADSET_VOLUME_FACTOR_DB;
         }
     }
 
-    return volumeDb;
+    return volumeDB;
 }
 
 status_t AudioPolicyManager::checkAndSetVolume(audio_stream_type_t stream,
