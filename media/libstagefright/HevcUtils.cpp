@@ -149,17 +149,21 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
     // Skip reserved
     reader.skipBits(16);
 
-    mParams.add(kGeneralProfileSpace, reader.getBits(2));
-    mParams.add(kGeneralTierFlag, reader.getBits(1));
-    mParams.add(kGeneralProfileIdc, reader.getBits(5));
-    mParams.add(kGeneralProfileCompatibilityFlags, reader.getBits(32));
-    mParams.add(
-            kGeneralConstraintIndicatorFlags,
-            ((uint64_t)reader.getBits(16) << 32) | reader.getBits(32));
-    mParams.add(kGeneralLevelIdc, reader.getBits(8));
-    // 96 bits total for general profile.
+    if (reader.atLeastNumBitsLeft(96)) {
+        mParams.add(kGeneralProfileSpace, reader.getBits(2));
+        mParams.add(kGeneralTierFlag, reader.getBits(1));
+        mParams.add(kGeneralProfileIdc, reader.getBits(5));
+        mParams.add(kGeneralProfileCompatibilityFlags, reader.getBits(32));
+        mParams.add(
+                kGeneralConstraintIndicatorFlags,
+                ((uint64_t)reader.getBits(16) << 32) | reader.getBits(32));
+        mParams.add(kGeneralLevelIdc, reader.getBits(8));
+        // 96 bits total for general profile.
+    } else {
+        reader.skipBits(96);
+    }
 
-    return OK;
+    return reader.overRead() ? ERROR_MALFORMED : OK;
 }
 
 status_t HevcParameterSets::parseSps(const uint8_t* data, size_t size) {
@@ -167,7 +171,7 @@ status_t HevcParameterSets::parseSps(const uint8_t* data, size_t size) {
     NALBitReader reader(data, size);
     // Skip sps_video_parameter_set_id
     reader.skipBits(4);
-    uint8_t maxSubLayersMinus1 = reader.getBits(3);
+    uint8_t maxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
     // Skip sps_temporal_id_nesting_flag;
     reader.skipBits(1);
     // Skip general profile
@@ -176,8 +180,8 @@ status_t HevcParameterSets::parseSps(const uint8_t* data, size_t size) {
         bool subLayerProfilePresentFlag[8];
         bool subLayerLevelPresentFlag[8];
         for (int i = 0; i < maxSubLayersMinus1; ++i) {
-            subLayerProfilePresentFlag[i] = reader.getBits(1);
-            subLayerLevelPresentFlag[i] = reader.getBits(1);
+            subLayerProfilePresentFlag[i] = reader.getBitsWithFallback(1, 0);
+            subLayerLevelPresentFlag[i] = reader.getBitsWithFallback(1, 0);
         }
         // Skip reserved
         reader.skipBits(2 * (8 - maxSubLayersMinus1));
@@ -193,31 +197,31 @@ status_t HevcParameterSets::parseSps(const uint8_t* data, size_t size) {
         }
     }
     // Skip sps_seq_parameter_set_id
-    parseUE(&reader);
-    uint8_t chromaFormatIdc = parseUE(&reader);
+    skipUE(&reader);
+    uint8_t chromaFormatIdc = parseUEWithFallback(&reader, 0);
     mParams.add(kChromaFormatIdc, chromaFormatIdc);
     if (chromaFormatIdc == 3) {
         // Skip separate_colour_plane_flag
         reader.skipBits(1);
     }
     // Skip pic_width_in_luma_samples
-    parseUE(&reader);
+    skipUE(&reader);
     // Skip pic_height_in_luma_samples
-    parseUE(&reader);
-    if (reader.getBits(1) /* i.e. conformance_window_flag */) {
+    skipUE(&reader);
+    if (reader.getBitsWithFallback(1, 0) /* i.e. conformance_window_flag */) {
         // Skip conf_win_left_offset
-        parseUE(&reader);
+        skipUE(&reader);
         // Skip conf_win_right_offset
-        parseUE(&reader);
+        skipUE(&reader);
         // Skip conf_win_top_offset
-        parseUE(&reader);
+        skipUE(&reader);
         // Skip conf_win_bottom_offset
-        parseUE(&reader);
+        skipUE(&reader);
     }
-    mParams.add(kBitDepthLumaMinus8, parseUE(&reader));
-    mParams.add(kBitDepthChromaMinus8, parseUE(&reader));
+    mParams.add(kBitDepthLumaMinus8, parseUEWithFallback(&reader, 0));
+    mParams.add(kBitDepthChromaMinus8, parseUEWithFallback(&reader, 0));
 
-    return OK;
+    return reader.overRead() ? ERROR_MALFORMED : OK;
 }
 
 status_t HevcParameterSets::parsePps(
