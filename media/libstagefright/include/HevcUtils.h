@@ -56,10 +56,24 @@ enum {
     kBitDepthLumaMinus8,
     // uint8_t
     kBitDepthChromaMinus8,
+    // uint8_t
+    kVideoFullRangeFlag,
+    // uint8_t
+    kColourPrimaries,
+    // uint8_t
+    kTransferCharacteristics,
+    // uint8_t
+    kMatrixCoeffs,
 };
 
 class HevcParameterSets {
 public:
+    enum Info : uint32_t {
+        kInfoNone                = 0,
+        kInfoIsHdr               = 1 << 0,
+        kInfoHasColorDescription = 1 << 1,
+    };
+
     HevcParameterSets();
 
     status_t addNalUnit(const uint8_t* data, size_t size);
@@ -77,6 +91,8 @@ public:
     bool write(size_t index, uint8_t* dest, size_t size);
     status_t makeHvcc(uint8_t *hvcc, size_t *hvccSize, size_t nalSizeLength);
 
+    Info getInfo() const { return mInfo; }
+
 private:
     status_t parseVps(const uint8_t* data, size_t size);
     status_t parseSps(const uint8_t* data, size_t size);
@@ -84,6 +100,7 @@ private:
 
     KeyedVector<uint32_t, uint64_t> mParams;
     Vector<sp<ABuffer>> mNalUnits;
+    Info mInfo;
 
     DISALLOW_EVIL_CONSTRUCTORS(HevcParameterSets);
 };
