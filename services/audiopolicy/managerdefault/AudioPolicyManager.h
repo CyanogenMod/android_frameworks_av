@@ -52,6 +52,8 @@ namespace android {
 #define SONIFICATION_HEADSET_VOLUME_FACTOR_DB (-6)
 // Min volume for STRATEGY_SONIFICATION streams when limited by music volume: -36dB
 #define SONIFICATION_HEADSET_VOLUME_MIN_DB  (-36)
+// Max volume difference on A2DP between playing media and STRATEGY_SONIFICATION streams: 12dB
+#define SONIFICATION_A2DP_MAX_MEDIA_DIFF_DB (12)
 
 // Time in milliseconds during which we consider that music is still active after a music
 // track was stopped - see computeVolume()
