@@ -207,12 +207,14 @@ bool MuxOMX::isLocalNode_l(node_id node) const {
 // static
 MuxOMX::node_location MuxOMX::getPreferredCodecLocation(const char *name) {
     if (sCodecProcessEnabled) {
+        // all codecs go to codec process unless excluded using system property, in which case
         // all non-secure decoders, OMX.google.* codecs and encoders can go in the codec process
         // (non-OMX.google.* encoders can be excluded using system property.)
         if ((strcasestr(name, "decoder")
                         && strcasestr(name, ".secure") != name + strlen(name) - 7)
                 || (strcasestr(name, "encoder")
                         && !property_get_bool("media.stagefright.legacyencoder", false))
+                || !property_get_bool("media.stagefright.less-secure", false)
                 || !strncasecmp(name, "OMX.google.", 11)) {
             return CODECPROCESS;
         }
