@@ -498,6 +498,7 @@ ACodec::ACodec()
       mNode(0),
       mUsingNativeWindow(false),
       mNativeWindowUsageBits(0),
+      mLastNativeWindowDataSpace(HAL_DATASPACE_UNKNOWN),
       mIsVideo(false),
       mIsEncoder(false),
       mFatalError(false),
@@ -539,6 +540,8 @@ ACodec::ACodec()
 
     mPortEOS[kPortIndexInput] = mPortEOS[kPortIndexOutput] = false;
     mInputEOSResult = OK;
+
+    memset(&mLastNativeWindowCrop, 0, sizeof(mLastNativeWindowCrop));
 
     changeState(mUninitializedState);
 }
@@ -972,6 +975,9 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
 
     usage |= kVideoGrallocUsage;
     *finalUsage = usage;
+
+    memset(&mLastNativeWindowCrop, 0, sizeof(mLastNativeWindowCrop));
+    mLastNativeWindowDataSpace = HAL_DATASPACE_UNKNOWN;
 
     ALOGV("gralloc usage: %#x(OMX) => %#x(ACodec)", omxUsage, usage);
     return setNativeWindowSizeFormatAndUsage(
@@ -5999,6 +6005,10 @@ bool ACodec::BaseState::onOMXFillBufferDone(
                 }
                 mCodec->addKeyFormatChangesToRenderBufferNotification(reply);
                 mCodec->sendFormatChange();
+            } else if (rangeLength > 0 && mCodec->mNativeWindow != NULL) {
+                // If potentially rendering onto a surface, always save key format data (crop &
+                // data space) so that we can set it if and once the buffer is rendered.
+                mCodec->addKeyFormatChangesToRenderBufferNotification(reply);
             }
 
             if (mCodec->usingMetadataOnEncoderOutput()) {
@@ -6099,15 +6109,19 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     }
 
     android_native_rect_t crop;
-    if (msg->findRect("crop", &crop.left, &crop.top, &crop.right, &crop.bottom)) {
+    if (msg->findRect("crop", &crop.left, &crop.top, &crop.right, &crop.bottom)
+            && memcmp(&crop, &mCodec->mLastNativeWindowCrop, sizeof(crop)) != 0) {
+        mCodec->mLastNativeWindowCrop = crop;
         status_t err = native_window_set_crop(mCodec->mNativeWindow.get(), &crop);
         ALOGW_IF(err != NO_ERROR, "failed to set crop: %d", err);
     }
 
     int32_t dataSpace;
-    if (msg->findInt32("dataspace", &dataSpace)) {
+    if (msg->findInt32("dataspace", &dataSpace)
+            && dataSpace != mCodec->mLastNativeWindowDataSpace) {
         status_t err = native_window_set_buffers_data_space(
                 mCodec->mNativeWindow.get(), (android_dataspace)dataSpace);
+        mCodec->mLastNativeWindowDataSpace = dataSpace;
         ALOGW_IF(err != NO_ERROR, "failed to set dataspace: %d", err);
     }
 

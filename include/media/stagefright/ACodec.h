@@ -250,6 +250,8 @@ private:
     bool mUsingNativeWindow;
     sp<ANativeWindow> mNativeWindow;
     int mNativeWindowUsageBits;
+    android_native_rect_t mLastNativeWindowCrop;
+    int32_t mLastNativeWindowDataSpace;
     sp<AMessage> mConfigFormat;
     sp<AMessage> mInputFormat;
     sp<AMessage> mOutputFormat;
