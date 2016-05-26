@@ -24,6 +24,8 @@
 
 namespace android {
 
+class MetaData;
+
 struct WebmElement : public LightRefBase<WebmElement> {
     const uint64_t mId, mSize;
 
@@ -60,6 +62,7 @@ struct WebmElement : public LightRefBase<WebmElement> {
             const char *codec,
             uint64_t width,
             uint64_t height,
+            const sp<MetaData> &md,
             uint64_t uid = 0,
             bool lacing = false,
             const char *lang = "und");

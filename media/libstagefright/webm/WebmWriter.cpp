@@ -101,7 +101,7 @@ sp<WebmElement> WebmWriter::videoTrack(const sp<MetaData>& md) {
     } else {
         CHECK(!"Unsupported codec");
     }
-    return WebmElement::VideoTrackEntry(codec, width, height);
+    return WebmElement::VideoTrackEntry(codec, width, height, md);
 }
 
 // static
