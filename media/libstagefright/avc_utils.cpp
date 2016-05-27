@@ -62,7 +62,7 @@ unsigned parseUEWithFallback(ABitReader *br, unsigned fallback) {
 signed parseSE(ABitReader *br) {
     unsigned codeNum = parseUE(br);
 
-    return (codeNum & 1) ? (codeNum + 1) / 2 : -(codeNum / 2);
+    return (codeNum & 1) ? (codeNum + 1) / 2 : -signed(codeNum / 2);
 }
 
 signed parseSEWithFallback(ABitReader *br, signed fallback) {
@@ -71,7 +71,7 @@ signed parseSEWithFallback(ABitReader *br, signed fallback) {
     if (codeNum == ~0U) {
         return fallback;
     }
-    return (codeNum & 1) ? (codeNum + 1) / 2 : -(codeNum / 2);
+    return (codeNum & 1) ? (codeNum + 1) / 2 : -signed(codeNum / 2);
 }
 
 static void skipScalingList(ABitReader *br, size_t sizeOfScalingList) {
