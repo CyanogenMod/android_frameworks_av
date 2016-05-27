@@ -61,8 +61,7 @@ protected:
     virtual ~AudioSource();
 
     enum {
-        //calculated for max duration 80 msec with 48K sampling rate.
-        kMaxBufferSize = 30720,
+        kMaxBufferSize = 2048,
 
         // After the initial mute, we raise the volume linearly
         // over kAutoRampDurationUs.
@@ -91,7 +90,7 @@ protected:
     int64_t mInitialReadTimeUs;
     int64_t mNumFramesReceived;
     int64_t mNumClientOwnedBuffers;
-
+    size_t mMaxBufferSize;
     List<MediaBuffer * > mBuffersReceived;
 
     void trackMaxAmplitude(int16_t *data, int nSamples);
