@@ -1114,7 +1114,7 @@ static size_t reassembleAVCC(const sp<ABuffer> &csd0, const sp<ABuffer> csd1, ch
     int numpicparamsoffset = avccidx;
     avccidx++;
     do {
-        i = findNextNalStartCode(csd0->data() + i, csd0->size() - i) - csd0->data();
+        i = findNextNalStartCode(csd1->data() + i, csd1->size() - i) - csd1->data();
         ALOGV("block at %zu, last was %d", i, lastparamoffset);
         if (lastparamoffset > 0) {
             int size = i - lastparamoffset;
