@@ -962,7 +962,15 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
         }
 
         entry->mOffset += written;
-        if (entry->mOffset == entry->mBuffer->size()) {
+        size_t remainder = entry->mBuffer->size() - entry->mOffset;
+        if ((ssize_t)remainder < mAudioSink->frameSize()) {
+            if (remainder > 0) {
+                ALOGW("Corrupted audio buffer has fractional frames, discarding %zu bytes.",
+                        remainder);
+                entry->mOffset += remainder;
+                copy -= remainder;
+            }
+
             entry->mNotifyConsumed->post();
             mAudioQueue.erase(mAudioQueue.begin());
 
@@ -990,7 +998,8 @@ bool NuPlayer::Renderer::onDrainAudioQueue() {
             // AudioSink write is called in non-blocking mode.
             // It may return with a short count when:
             //
-            // 1) Size to be copied is not a multiple of the frame size. We consider this fatal.
+            // 1) Size to be copied is not a multiple of the frame size. Fractional frames are
+            //    discarded.
             // 2) The data to be copied exceeds the available buffer in AudioSink.
             // 3) An error occurs and data has been partially copied to the buffer in AudioSink.
             // 4) AudioSink is an AudioCache for data retrieval, and the AudioCache is exceeded.
