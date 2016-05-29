@@ -39,6 +39,16 @@ class Camera3OutputStreamInterface : public virtual Camera3StreamInterface {
      * Return if this output stream is for video encoding.
      */
     virtual bool isVideoStream() const = 0;
+
+    /**
+     * Return if the consumer configuration of this stream is deferred.
+     */
+    virtual bool isConsumerConfigurationDeferred() const = 0;
+
+    /**
+     * Set the consumer surface to the output stream.
+     */
+    virtual status_t setConsumer(sp<Surface> consumer) = 0;
 };
 
 } // namespace camera3

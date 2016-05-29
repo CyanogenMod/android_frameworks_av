@@ -997,12 +997,13 @@ status_t Camera3Device::createZslStream(
 
 status_t Camera3Device::createStream(sp<Surface> consumer,
         uint32_t width, uint32_t height, int format, android_dataspace dataSpace,
-        camera3_stream_rotation_t rotation, int *id, int streamSetId) {
+        camera3_stream_rotation_t rotation, int *id, int streamSetId, uint32_t consumerUsage) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
     Mutex::Autolock l(mLock);
-    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d, dataspace %d rotation %d",
-            mId, mNextStreamId, width, height, format, dataSpace, rotation);
+    ALOGV("Camera %d: Creating new stream %d: %d x %d, format %d, dataspace %d rotation %d"
+            " consumer usage 0x%x", mId, mNextStreamId, width, height, format, dataSpace, rotation,
+            consumerUsage);
 
     status_t res;
     bool wasActive = false;
@@ -1039,6 +1040,19 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
     if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_2) {
         streamSetId = CAMERA3_STREAM_SET_ID_INVALID;
     }
+
+    // HAL3.1 doesn't support deferred consumer stream creation as it requires buffer registration
+    // which requires a consumer surface to be available.
+    if (consumer == nullptr && mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        ALOGE("HAL3.1 doesn't support deferred consumer stream creation");
+        return BAD_VALUE;
+    }
+
+    if (consumer == nullptr && format != HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+        ALOGE("Deferred consumer stream creation only support IMPLEMENTATION_DEFINED format");
+        return BAD_VALUE;
+    }
+
     // Use legacy dataspace values for older HALs
     if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_3) {
         dataSpace = mapToLegacyDataspace(dataSpace);
@@ -1069,6 +1083,10 @@ status_t Camera3Device::createStream(sp<Surface> consumer,
         }
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
                 width, height, rawOpaqueBufferSize, format, dataSpace, rotation,
+                mTimestampOffset, streamSetId);
+    } else if (consumer == nullptr) {
+        newStream = new Camera3OutputStream(mNextStreamId,
+                width, height, format, consumerUsage, dataSpace, rotation,
                 mTimestampOffset, streamSetId);
     } else {
         newStream = new Camera3OutputStream(mNextStreamId, consumer,
@@ -1729,6 +1747,44 @@ void Camera3Device::notifyStatus(bool idle) {
     }
 }
 
+status_t Camera3Device::setConsumerSurface(int streamId, sp<Surface> consumer) {
+    ATRACE_CALL();
+    ALOGV("%s: Camera %d: set consumer surface for stream %d", __FUNCTION__, mId, streamId);
+    Mutex::Autolock il(mInterfaceLock);
+    Mutex::Autolock l(mLock);
+
+    if (consumer == nullptr) {
+        CLOGE("Null consumer is passed!");
+        return BAD_VALUE;
+    }
+
+    ssize_t idx = mOutputStreams.indexOfKey(streamId);
+    if (idx == NAME_NOT_FOUND) {
+        CLOGE("Stream %d is unknown", streamId);
+        return idx;
+    }
+    sp<Camera3OutputStreamInterface> stream = mOutputStreams[idx];
+    status_t res = stream->setConsumer(consumer);
+    if (res != OK) {
+        CLOGE("Stream %d set consumer failed (error %d %s) ", streamId, res, strerror(-res));
+        return res;
+    }
+
+    if (!stream->isConfiguring()) {
+        CLOGE("Stream %d was already fully configured.", streamId);
+        return INVALID_OPERATION;
+    }
+
+    res = stream->finishConfiguration(mHal3Device);
+    if (res != OK) {
+        SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",
+                stream->getId(), strerror(-res), res);
+        return res;
+    }
+
+    return OK;
+}
+
 /**
  * Camera3Device private methods
  */
@@ -1787,6 +1843,13 @@ sp<Camera3Device::CaptureRequest> Camera3Device::createCaptureRequest(
         }
         sp<Camera3OutputStreamInterface> stream =
                 mOutputStreams.editValueAt(idx);
+
+        // It is illegal to include a deferred consumer output stream into a request
+        if (stream->isConsumerConfigurationDeferred()) {
+            CLOGE("Stream %d hasn't finished configuration yet due to deferred consumer",
+                    stream->getId());
+            return NULL;
+        }
 
         // Lazy completion of stream configuration (allocation/registration)
         // on first use
@@ -1952,7 +2015,7 @@ status_t Camera3Device::configureStreamsLocked() {
     for (size_t i = 0; i < mOutputStreams.size(); i++) {
         sp<Camera3OutputStreamInterface> outputStream =
             mOutputStreams.editValueAt(i);
-        if (outputStream->isConfiguring()) {
+        if (outputStream->isConfiguring() && !outputStream->isConsumerConfigurationDeferred()) {
             res = outputStream->finishConfiguration(mHal3Device);
             if (res != OK) {
                 SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",

@@ -338,13 +338,15 @@ binder::Status CameraDeviceClient::endConfigure(bool isConstrainedHighSpeed) {
 
     status_t err = mDevice->configureStreams(isConstrainedHighSpeed);
     if (err == BAD_VALUE) {
-        res = STATUS_ERROR_FMT(CameraService::ERROR_ILLEGAL_ARGUMENT,
-                "Camera %d: Unsupported set of inputs/outputs provided",
+        String8 msg = String8::format("Camera %d: Unsupported set of inputs/outputs provided",
                 mCameraId);
+        ALOGE("%s: %s", __FUNCTION__, msg.string());
+        res = STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.string());
     } else if (err != OK) {
-        res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
-                "Camera %d: Error configuring streams: %s (%d)",
+        String8 msg = String8::format("Camera %d: Error configuring streams: %s (%d)",
                 mCameraId, strerror(-err), err);
+        ALOGE("%s: %s", __FUNCTION__, msg.string());
+        res = STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION, msg.string());
     }
 
     return res;
@@ -365,6 +367,7 @@ binder::Status CameraDeviceClient::deleteStream(int streamId) {
 
     bool isInput = false;
     ssize_t index = NAME_NOT_FOUND;
+    ssize_t dIndex = NAME_NOT_FOUND;
 
     if (mInputStream.configured && mInputStream.id == streamId) {
         isInput = true;
@@ -378,10 +381,19 @@ binder::Status CameraDeviceClient::deleteStream(int streamId) {
         }
 
         if (index == NAME_NOT_FOUND) {
-            String8 msg = String8::format("Camera %d: Invalid stream ID (%d) specified, no such "
-                    "stream created yet", mCameraId, streamId);
-            ALOGW("%s: %s", __FUNCTION__, msg.string());
-            return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.string());
+            // See if this stream is one of the deferred streams.
+            for (size_t i = 0; i < mDeferredStreams.size(); ++i) {
+                if (streamId == mDeferredStreams[i]) {
+                    dIndex = i;
+                    break;
+                }
+            }
+            if (dIndex == NAME_NOT_FOUND) {
+                String8 msg = String8::format("Camera %d: Invalid stream ID (%d) specified, no such"
+                        " stream created yet", mCameraId, streamId);
+                ALOGW("%s: %s", __FUNCTION__, msg.string());
+                return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.string());
+            }
         }
     }
 
@@ -396,8 +408,10 @@ binder::Status CameraDeviceClient::deleteStream(int streamId) {
     } else {
         if (isInput) {
             mInputStream.configured = false;
-        } else {
+        } else if (index != NAME_NOT_FOUND) {
             mStreamMap.removeItemsAt(index);
+        } else {
+            mDeferredStreams.removeItemsAt(dIndex);
         }
     }
 
@@ -416,12 +430,28 @@ binder::Status CameraDeviceClient::createStream(
     Mutex::Autolock icl(mBinderSerializationLock);
 
     sp<IGraphicBufferProducer> bufferProducer = outputConfiguration.getGraphicBufferProducer();
-    if (bufferProducer == NULL) {
-        ALOGE("%s: bufferProducer must not be null", __FUNCTION__);
+    bool deferredConsumer = bufferProducer == NULL;
+    int surfaceType = outputConfiguration.getSurfaceType();
+    bool validSurfaceType = ((surfaceType == OutputConfiguration::SURFACE_TYPE_SURFACE_VIEW) ||
+            (surfaceType == OutputConfiguration::SURFACE_TYPE_SURFACE_TEXTURE));
+    if (deferredConsumer && !validSurfaceType) {
+        ALOGE("%s: Target surface is invalid: bufferProducer = %p, surfaceType = %d.",
+                __FUNCTION__, bufferProducer.get(), surfaceType);
         return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, "Target Surface is invalid");
     }
+
     if (!mDevice.get()) {
         return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
+    }
+
+    int width, height, format;
+    int32_t consumerUsage;
+    android_dataspace dataSpace;
+    status_t err;
+
+    // Create stream for deferred surface case.
+    if (deferredConsumer) {
+        return createDeferredSurfaceStreamLocked(outputConfiguration, newStreamId);
     }
 
     // Don't create multiple streams for the same target surface
@@ -435,13 +465,10 @@ binder::Status CameraDeviceClient::createStream(
         }
     }
 
-    status_t err;
-
     // HACK b/10949105
     // Query consumer usage bits to set async operation mode for
     // GLConsumer using controlledByApp parameter.
     bool useAsync = false;
-    int32_t consumerUsage;
     if ((err = bufferProducer->query(NATIVE_WINDOW_CONSUMER_USAGE_BITS,
             &consumerUsage)) != OK) {
         String8 msg = String8::format("Camera %d: Failed to query Surface consumer usage: %s (%d)",
@@ -450,8 +477,8 @@ binder::Status CameraDeviceClient::createStream(
         return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION, msg.string());
     }
     if (consumerUsage & GraphicBuffer::USAGE_HW_TEXTURE) {
-        ALOGW("%s: Camera %d: Forcing asynchronous mode for stream",
-                __FUNCTION__, mCameraId);
+        ALOGW("%s: Camera %d with consumer usage flag: 0x%x: Forcing asynchronous mode for stream",
+                __FUNCTION__, mCameraId, consumerUsage);
         useAsync = true;
     }
 
@@ -466,9 +493,6 @@ binder::Status CameraDeviceClient::createStream(
     sp<IBinder> binder = IInterface::asBinder(bufferProducer);
     sp<Surface> surface = new Surface(bufferProducer, useAsync);
     ANativeWindow *anw = surface.get();
-
-    int width, height, format;
-    android_dataspace dataSpace;
 
     if ((err = anw->query(anw, NATIVE_WINDOW_WIDTH, &width)) != OK) {
         String8 msg = String8::format("Camera %d: Failed to query Surface width: %s (%d)",
@@ -526,29 +550,12 @@ binder::Status CameraDeviceClient::createStream(
     } else {
         mStreamMap.add(binder, streamId);
 
-        ALOGV("%s: Camera %d: Successfully created a new stream ID %d",
-              __FUNCTION__, mCameraId, streamId);
+        ALOGV("%s: Camera %d: Successfully created a new stream ID %d for output surface"
+                " (%d x %d) with format 0x%x.",
+              __FUNCTION__, mCameraId, streamId, width, height, format);
 
-        /**
-         * Set the stream transform flags to automatically
-         * rotate the camera stream for preview use cases.
-         */
-        int32_t transform = 0;
-        err = getRotationTransformLocked(&transform);
-
-        if (err != OK) {
-            // Error logged by getRotationTransformLocked.
-            return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION,
-                    "Unable to calculate rotation transform for new stream");
-        }
-
-        err = mDevice->setStreamTransform(streamId, transform);
-        if (err != OK) {
-            String8 msg = String8::format("Failed to set stream transform (stream id %d)",
-                    streamId);
-            ALOGE("%s: %s", __FUNCTION__, msg.string());
-            return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION, msg.string());
-        }
+        // Set transform flags to ensure preview to be rotated correctly.
+        res = setStreamTransformLocked(streamId);
 
         *newStreamId = streamId;
     }
@@ -556,6 +563,84 @@ binder::Status CameraDeviceClient::createStream(
     return res;
 }
 
+binder::Status CameraDeviceClient::createDeferredSurfaceStreamLocked(
+        const hardware::camera2::params::OutputConfiguration &outputConfiguration,
+        /*out*/
+        int* newStreamId) {
+    int width, height, format, surfaceType;
+    int32_t consumerUsage;
+    android_dataspace dataSpace;
+    status_t err;
+    binder::Status res;
+
+    if (!mDevice.get()) {
+        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
+    }
+
+    // Infer the surface info for deferred surface stream creation.
+    width = outputConfiguration.getWidth();
+    height = outputConfiguration.getHeight();
+    surfaceType = outputConfiguration.getSurfaceType();
+    format = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    dataSpace = android_dataspace_t::HAL_DATASPACE_UNKNOWN;
+    // Hardcode consumer usage flags: SurfaceView--0x900, SurfaceTexture--0x100.
+    consumerUsage = GraphicBuffer::USAGE_HW_TEXTURE;
+    if (surfaceType == OutputConfiguration::SURFACE_TYPE_SURFACE_VIEW) {
+        consumerUsage |= GraphicBuffer::USAGE_HW_COMPOSER;
+    }
+    int streamId = camera3::CAMERA3_STREAM_ID_INVALID;
+    err = mDevice->createStream(/*surface*/nullptr, width, height, format, dataSpace,
+            static_cast<camera3_stream_rotation_t>(outputConfiguration.getRotation()),
+            &streamId, outputConfiguration.getSurfaceSetID(), consumerUsage);
+
+    if (err != OK) {
+        res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
+                "Camera %d: Error creating output stream (%d x %d, fmt %x, dataSpace %x): %s (%d)",
+                mCameraId, width, height, format, dataSpace, strerror(-err), err);
+    } else {
+        // Can not add streamId to mStreamMap here, as the surface is deferred. Add it to
+        // a separate list to track. Once the deferred surface is set, this id will be
+        // relocated to mStreamMap.
+        mDeferredStreams.push_back(streamId);
+
+        ALOGV("%s: Camera %d: Successfully created a new stream ID %d for a deferred surface"
+                " (%d x %d) stream with format 0x%x.",
+              __FUNCTION__, mCameraId, streamId, width, height, format);
+
+        // Set transform flags to ensure preview to be rotated correctly.
+        res = setStreamTransformLocked(streamId);
+
+        *newStreamId = streamId;
+    }
+    return res;
+}
+
+binder::Status CameraDeviceClient::setStreamTransformLocked(int streamId) {
+    int32_t transform = 0;
+    status_t err;
+    binder::Status res;
+
+    if (!mDevice.get()) {
+        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
+    }
+
+    err = getRotationTransformLocked(&transform);
+    if (err != OK) {
+        // Error logged by getRotationTransformLocked.
+        return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION,
+                "Unable to calculate rotation transform for new stream");
+    }
+
+    err = mDevice->setStreamTransform(streamId, transform);
+    if (err != OK) {
+        String8 msg = String8::format("Failed to set stream transform (stream id %d)",
+                streamId);
+        ALOGE("%s: %s", __FUNCTION__, msg.string());
+        return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION, msg.string());
+    }
+
+    return res;
+}
 
 binder::Status CameraDeviceClient::createInputStream(
         int width, int height, int format,
@@ -934,6 +1019,76 @@ binder::Status CameraDeviceClient::tearDown(int streamId) {
     return res;
 }
 
+binder::Status CameraDeviceClient::setDeferredConfiguration(int32_t streamId,
+        const hardware::camera2::params::OutputConfiguration &outputConfiguration) {
+    ATRACE_CALL();
+
+    binder::Status res;
+    if (!(res = checkPidStatus(__FUNCTION__)).isOk()) return res;
+
+    Mutex::Autolock icl(mBinderSerializationLock);
+
+    sp<IGraphicBufferProducer> bufferProducer = outputConfiguration.getGraphicBufferProducer();
+
+    // Client code should guarantee that the surface is from SurfaceView or SurfaceTexture.
+    if (bufferProducer == NULL) {
+        ALOGE("%s: bufferProducer must not be null", __FUNCTION__);
+        return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, "Target Surface is invalid");
+    }
+    // Check if this stram id is one of the deferred streams
+    ssize_t index = NAME_NOT_FOUND;
+    for (size_t i = 0; i < mDeferredStreams.size(); i++) {
+        if (streamId == mDeferredStreams[i]) {
+            index = i;
+            break;
+        }
+    }
+    if (index == NAME_NOT_FOUND) {
+        String8 msg = String8::format("Camera %d: deferred surface is set to a unknown stream"
+                "(ID %d)", mCameraId, streamId);
+        ALOGW("%s: %s", __FUNCTION__, msg.string());
+        return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.string());
+    }
+
+    if (!mDevice.get()) {
+        return STATUS_ERROR(CameraService::ERROR_DISCONNECTED, "Camera device no longer alive");
+    }
+
+    // Don't create multiple streams for the same target surface
+    {
+        ssize_t index = mStreamMap.indexOfKey(IInterface::asBinder(bufferProducer));
+        if (index != NAME_NOT_FOUND) {
+            String8 msg = String8::format("Camera %d: Surface already has a stream created "
+                    " for it (ID %zd)", mCameraId, index);
+            ALOGW("%s: %s", __FUNCTION__, msg.string());
+            return STATUS_ERROR(CameraService::ERROR_ALREADY_EXISTS, msg.string());
+        }
+    }
+
+    status_t err;
+
+    // Always set to async, as we know the deferred surface is for preview streaming.
+    sp<Surface> consumerSurface = new Surface(bufferProducer, /*useAsync*/true);
+
+    // Finish the deferred stream configuration with the surface.
+    err = mDevice->setConsumerSurface(streamId, consumerSurface);
+    if (err == OK) {
+        sp<IBinder> binder = IInterface::asBinder(bufferProducer);
+        mStreamMap.add(binder, streamId);
+        mDeferredStreams.removeItemsAt(index);
+    } else if (err == NO_INIT) {
+        res = STATUS_ERROR_FMT(CameraService::ERROR_ILLEGAL_ARGUMENT,
+                "Camera %d: Deferred surface is invalid: %s (%d)",
+                mCameraId, strerror(-err), err);
+    } else {
+        res = STATUS_ERROR_FMT(CameraService::ERROR_INVALID_OPERATION,
+                "Camera %d: Error setting output stream deferred surface: %s (%d)",
+                mCameraId, strerror(-err), err);
+    }
+
+    return res;
+}
+
 status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     return BasicClient::dump(fd, args);
 }
@@ -958,6 +1113,11 @@ status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
         result.append("    Current output stream IDs:\n");
         for (size_t i = 0; i < mStreamMap.size(); i++) {
             result.appendFormat("      Stream %d\n", mStreamMap.valueAt(i));
+        }
+    } else if (!mDeferredStreams.isEmpty()) {
+        result.append("    Current deferred surface output stream IDs:\n");
+        for (auto& streamId : mDeferredStreams) {
+            result.appendFormat("      Stream %d\n", streamId);
         }
     } else {
         result.append("    No output streams configured.\n");
