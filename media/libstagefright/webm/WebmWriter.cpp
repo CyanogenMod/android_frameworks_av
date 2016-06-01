@@ -84,9 +84,13 @@ WebmWriter::WebmWriter(int fd)
 sp<WebmElement> WebmWriter::videoTrack(const sp<MetaData>& md) {
     int32_t width, height;
     const char *mimeType;
-    CHECK(md->findInt32(kKeyWidth, &width));
-    CHECK(md->findInt32(kKeyHeight, &height));
-    CHECK(md->findCString(kKeyMIMEType, &mimeType));
+    if (!md->findInt32(kKeyWidth, &width)
+            || !md->findInt32(kKeyHeight, &height)
+            || !md->findCString(kKeyMIMEType, &mimeType)) {
+        ALOGE("Missing format keys for video track");
+        md->dumpToLog();
+        return NULL;
+    }
     const char *codec;
     if (!strncasecmp(
             mimeType,
@@ -99,7 +103,8 @@ sp<WebmElement> WebmWriter::videoTrack(const sp<MetaData>& md) {
             strlen(MEDIA_MIMETYPE_VIDEO_VP9))) {
         codec = "V_VP9";
     } else {
-        CHECK(!"Unsupported codec");
+        ALOGE("Unsupported codec: %s", mimeType);
+        return NULL;
     }
     return WebmElement::VideoTrackEntry(codec, width, height, md);
 }
@@ -114,10 +119,14 @@ sp<WebmElement> WebmWriter::audioTrack(const sp<MetaData>& md) {
     const void *headerData3;
     size_t headerSize1, headerSize2 = sizeof(headerData2), headerSize3;
 
-    CHECK(md->findInt32(kKeyChannelCount, &nChannels));
-    CHECK(md->findInt32(kKeySampleRate, &samplerate));
-    CHECK(md->findData(kKeyVorbisInfo, &type, &headerData1, &headerSize1));
-    CHECK(md->findData(kKeyVorbisBooks, &type, &headerData3, &headerSize3));
+    if (!md->findInt32(kKeyChannelCount, &nChannels)
+            || !md->findInt32(kKeySampleRate, &samplerate)
+            || !md->findData(kKeyVorbisInfo, &type, &headerData1, &headerSize1)
+            || !md->findData(kKeyVorbisBooks, &type, &headerData3, &headerSize3)) {
+        ALOGE("Missing format keys for audio track");
+        md->dumpToLog();
+        return NULL;
+    }
 
     size_t codecPrivateSize = 1;
     codecPrivateSize += XiphLaceCodeLen(headerSize1);
@@ -389,6 +398,9 @@ status_t WebmWriter::addSource(const sp<IMediaSource> &source) {
     // Go ahead to add the track.
     mStreams[streamIndex].mSource = source;
     mStreams[streamIndex].mTrackEntry = mStreams[streamIndex].mMakeTrack(source->getFormat());
+    if (mStreams[streamIndex].mTrackEntry == NULL) {
+        return BAD_VALUE;
+    }
 
     return OK;
 }
@@ -429,7 +441,10 @@ status_t WebmWriter::start(MetaData *params) {
             mTimeCodeScale = tcsl;
         }
     }
-    CHECK_GT(mTimeCodeScale, 0);
+    if (mTimeCodeScale == 0) {
+        ALOGE("movie time scale is 0");
+        return BAD_VALUE;
+    }
     ALOGV("movie time scale: %" PRIu64, mTimeCodeScale);
 
     /*
