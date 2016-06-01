@@ -1137,9 +1137,11 @@ void MatroskaExtractor::getColorInformation(
                 info.sType1.mMaxDisplayLuminance = (uint16_t)(mastering->luminance_max + 0.5);
             }
             if (mastering->luminance_min >= 0.00005 && mastering->luminance_min < 6.55355) {
+                // HDRStaticInfo Type1 stores min luminance scaled 10000:1
                 info.sType1.mMinDisplayLuminance =
                     (uint16_t)(10000 * mastering->luminance_min + 0.5);
             }
+            // HDRStaticInfo Type1 stores primaries scaled 50000:1
             if (isValidPrimary(mastering->white_point)) {
                 info.sType1.mW.x = (uint16_t)(50000 * mastering->white_point->x + 0.5);
                 info.sType1.mW.y = (uint16_t)(50000 * mastering->white_point->y + 0.5);
