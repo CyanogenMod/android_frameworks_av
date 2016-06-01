@@ -1791,6 +1791,7 @@ status_t NuPlayer::Renderer::onOpenAudioSink(
             ALOGV("Mime \"%s\" mapped to audio_format 0x%x",
                     mime.c_str(), audioFormat);
 
+            audioFormat = AVUtils::get()->updateAudioFormat(audioFormat, format);
             bitWidth = AVUtils::get()->getAudioSampleBits(format);
             int avgBitRate = -1;
             format->findInt32("bitrate", &avgBitRate);

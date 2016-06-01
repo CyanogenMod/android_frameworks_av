@@ -115,6 +115,10 @@ struct AVUtils {
 
     virtual int getAudioSampleBits(const sp<MetaData> &);
     virtual int getAudioSampleBits(const sp<AMessage> &);
+    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
+            const sp<MetaData> &);
+    virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,
+            const sp<AMessage> &);
     virtual void setPcmSampleBits(const sp<MetaData> &, int32_t /*bitWidth*/);
     virtual void setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/);
 

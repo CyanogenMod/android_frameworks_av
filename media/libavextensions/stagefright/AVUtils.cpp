@@ -68,6 +68,16 @@ int AVUtils::getAudioSampleBits(const sp<AMessage> &) {
     return 16;
 }
 
+audio_format_t AVUtils::updateAudioFormat(audio_format_t audioFormat,
+        const sp<MetaData> &){
+    return audioFormat;
+}
+
+audio_format_t AVUtils::updateAudioFormat(audio_format_t audioFormat,
+        const sp<AMessage> &){
+    return audioFormat;
+}
+
 void AVUtils::setPcmSampleBits(const sp<AMessage> &, int32_t /*bitWidth*/) {
 }
 
