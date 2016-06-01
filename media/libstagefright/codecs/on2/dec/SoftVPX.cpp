@@ -233,10 +233,17 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
         // (specified in http://www.webmproject.org/vp9/profiles/). Ignore it if
         // it was passed.
         if (inHeader->nFlags & OMX_BUFFERFLAG_CODECCONFIG) {
-            inQueue.erase(inQueue.begin());
-            inInfo->mOwnedByUs = false;
-            notifyEmptyBufferDone(inHeader);
-            continue;
+            // Only ignore CSD buffer for VP9.
+            if (mMode == MODE_VP9) {
+                inQueue.erase(inQueue.begin());
+                inInfo->mOwnedByUs = false;
+                notifyEmptyBufferDone(inHeader);
+                continue;
+            } else {
+                // Tolerate the CSD buffer for VP8. This is a workaround
+                // for b/28689536.
+                ALOGW("WARNING: Got CSD buffer for VP8.");
+            }
         }
 
         mTimeStamps[mTimeStampIdx] = inHeader->nTimeStamp;
@@ -257,7 +264,7 @@ void SoftVPX::onQueueFilled(OMX_U32 /* portIndex */) {
                 notifyEmptyBufferDone(inHeader);
                 inHeader = NULL;
             } else {
-                ALOGE("on2 decoder failed to decode frame.");
+                ALOGE("on2 decoder failed to decode frame. err: %d", err);
                 notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
                 return;
             }
