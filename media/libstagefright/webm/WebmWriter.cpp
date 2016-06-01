@@ -252,6 +252,11 @@ void WebmWriter::release() {
     mFd = -1;
     mInitCheck = NO_INIT;
     mStarted = false;
+    for (size_t ix = 0; ix < kMaxStreams; ++ix) {
+        mStreams[ix].mTrackEntry.clear();
+        mStreams[ix].mSource.clear();
+    }
+    mStreamsInOrder.clear();
 }
 
 status_t WebmWriter::reset() {
@@ -284,6 +289,8 @@ status_t WebmWriter::reset() {
         if (durationUs < minDurationUs) {
             minDurationUs = durationUs;
         }
+
+        mStreams[i].mThread.clear();
     }
 
     if (numTracks() > 1) {
@@ -399,8 +406,10 @@ status_t WebmWriter::addSource(const sp<IMediaSource> &source) {
     mStreams[streamIndex].mSource = source;
     mStreams[streamIndex].mTrackEntry = mStreams[streamIndex].mMakeTrack(source->getFormat());
     if (mStreams[streamIndex].mTrackEntry == NULL) {
+        mStreams[streamIndex].mSource.clear();
         return BAD_VALUE;
     }
+    mStreamsInOrder.push_back(mStreams[streamIndex].mTrackEntry);
 
     return OK;
 }
@@ -466,10 +475,8 @@ status_t WebmWriter::start(MetaData *params) {
     info = WebmElement::SegmentInfo(mTimeCodeScale, 0);
 
     List<sp<WebmElement> > children;
-    for (size_t i = 0; i < kMaxStreams; ++i) {
-        if (mStreams[i].mTrackEntry != NULL) {
-            children.push_back(mStreams[i].mTrackEntry);
-        }
+    for (size_t i = 0; i < mStreamsInOrder.size(); ++i) {
+        children.push_back(mStreamsInOrder[i]);
     }
     tracks = new WebmMaster(kMkvTracks, children);
 
