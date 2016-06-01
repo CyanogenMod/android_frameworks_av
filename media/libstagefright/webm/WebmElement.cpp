@@ -361,6 +361,15 @@ sp<WebmElement> WebmElement::VideoTrackEntry(
             kVideoType,
             trackEntryFields);
 
+    // CSD
+    uint32_t type;
+    const void *data;
+    size_t size;
+    if (meta->findData(kKeyVp9CodecPrivate, &type, &data, &size)) {
+        sp<ABuffer> buf = new ABuffer((void *)data, size); // note: buf does not own data
+        trackEntryFields.push_back(new WebmBinary(kMkvCodecPrivate, buf));
+    }
+
     List<sp<WebmElement> > videoInfo;
     videoInfo.push_back(new WebmUnsigned(kMkvPixelWidth, width));
     videoInfo.push_back(new WebmUnsigned(kMkvPixelHeight, height));

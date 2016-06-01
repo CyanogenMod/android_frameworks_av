@@ -1375,7 +1375,7 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     }
 
     // reassemble the csd data into its original form
-    sp<ABuffer> csd0;
+    sp<ABuffer> csd0, csd1, csd2;
     if (msg->findBuffer("csd-0", &csd0)) {
         if (mime == MEDIA_MIMETYPE_VIDEO_AVC) {
             sp<ABuffer> csd1;
@@ -1395,6 +1395,21 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             uint8_t hvcc[1024]; // that oughta be enough, right?
             size_t outsize = reassembleHVCC(csd0, hvcc, 1024, 4);
             meta->setData(kKeyHVCC, kKeyHVCC, hvcc, outsize);
+        } else if (mime == MEDIA_MIMETYPE_VIDEO_VP9) {
+            meta->setData(kKeyVp9CodecPrivate, 0, csd0->data(), csd0->size());
+        } else if (mime == MEDIA_MIMETYPE_AUDIO_OPUS) {
+            meta->setData(kKeyOpusHeader, 0, csd0->data(), csd0->size());
+            if (msg->findBuffer("csd-1", &csd1)) {
+                meta->setData(kKeyOpusCodecDelay, 0, csd1->data(), csd1->size());
+            }
+            if (msg->findBuffer("csd-2", &csd2)) {
+                meta->setData(kKeyOpusSeekPreRoll, 0, csd2->data(), csd2->size());
+            }
+        } else if (mime == MEDIA_MIMETYPE_AUDIO_VORBIS) {
+            meta->setData(kKeyVorbisInfo, 0, csd0->data(), csd0->size());
+            if (msg->findBuffer("csd-1", &csd1)) {
+                meta->setData(kKeyVorbisBooks, 0, csd1->data(), csd1->size());
+            }
         }
     }
 
