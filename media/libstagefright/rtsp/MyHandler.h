@@ -1048,14 +1048,27 @@ struct MyHandler : public AHandler {
                     break;
                 }
 
+                if (track->mNewSegment) {
+                    // The sequence number from RTP packet has only 16 bits and is adjusted
+                    // by the client. Only the low 16 bits of seq in RTP-Info of reply of
+                    // RTSP "PLAY" command should be used to detect the first RTP patcket
+                    // after seeking.
+                    if ((((seqNum ^ track->mFirstSeqNumInSegment) & 0xffff) != 0)) {
+                        // Not the first rtp packet of the stream after seeking, discarding.
+                        ALOGV("discarding stale access unit (0x%x : 0x%x)",
+                             seqNum, track->mFirstSeqNumInSegment);
+                        break;
+                    }
+
+                    // Now found the first rtp packet of the stream after seeking.
+                    track->mFirstSeqNumInSegment = seqNum;
+                    track->mNewSegment = false;
+                }
+
                 if (seqNum < track->mFirstSeqNumInSegment) {
                     ALOGV("dropping stale access-unit (%d < %d)",
                          seqNum, track->mFirstSeqNumInSegment);
                     break;
-                }
-
-                if (track->mNewSegment) {
-                    track->mNewSegment = false;
                 }
 
                 onAccessUnitComplete(trackIndex, accessUnit);
@@ -1335,6 +1348,12 @@ struct MyHandler : public AHandler {
 
                 mPausing = false;
                 mSeekPending = false;
+
+                // Discard all stale access units.
+                for (size_t i = 0; i < mTracks.size(); ++i) {
+                    TrackInfo *track = &mTracks.editItemAt(i);
+                    track->mPackets.clear();
+                }
 
                 sp<AMessage> msg = mNotify->dup();
                 msg->setInt32("what", kWhatSeekDone);
