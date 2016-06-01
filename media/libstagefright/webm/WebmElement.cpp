@@ -393,16 +393,16 @@ sp<WebmElement> WebmElement::VideoTrackEntry(
         ColorUtils::convertCodecColorAspectsToIsoAspects(
                 aspects, &primaries, &transfer, &coeffs, &fullRange);
         if (havePrimaries) {
-            colorInfo.push_back(new WebmUnsigned(kMkvColourPrimaries, primaries));
+            colorInfo.push_back(new WebmUnsigned(kMkvPrimaries, primaries));
         }
         if (haveTransfer) {
-            colorInfo.push_back(new WebmUnsigned(kMkvColourTransferCharacteristics, transfer));
+            colorInfo.push_back(new WebmUnsigned(kMkvTransferCharacteristics, transfer));
         }
         if (haveCoeffs) {
-            colorInfo.push_back(new WebmUnsigned(kMkvColourMatrixCoefficients, coeffs));
+            colorInfo.push_back(new WebmUnsigned(kMkvMatrixCoefficients, coeffs));
         }
         if (haveRange) {
-            colorInfo.push_back(new WebmUnsigned(kMkvColourRange, fullRange ? 2 : 1));
+            colorInfo.push_back(new WebmUnsigned(kMkvRange, fullRange ? 2 : 1));
         }
 
         // Also add HDR static info, some of which goes to MasteringMetadata element
@@ -420,40 +420,42 @@ sp<WebmElement> WebmElement::VideoTrackEntry(
                 // convert HDRStaticInfo values to matroska equivalent values for each non-0 group
                 if (info->sType1.mMaxFrameAverageLightLevel) {
                     colorInfo.push_back(new WebmUnsigned(
-                            kMkvColourMaxFall, info->sType1.mMaxFrameAverageLightLevel));
+                            kMkvMaxFALL, info->sType1.mMaxFrameAverageLightLevel));
                 }
                 if (info->sType1.mMaxContentLightLevel) {
                     colorInfo.push_back(new WebmUnsigned(
-                            kMkvColourMaxCll, info->sType1.mMaxContentLightLevel));
+                            kMkvMaxCLL, info->sType1.mMaxContentLightLevel));
                 }
                 if (info->sType1.mMinDisplayLuminance) {
+                    // HDRStaticInfo Type1 stores min luminance scaled 10000:1
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringLuminanceMin, info->sType1.mMinDisplayLuminance * 0.0001));
+                            kMkvLuminanceMin, info->sType1.mMinDisplayLuminance * 0.0001));
                 }
                 if (info->sType1.mMaxDisplayLuminance) {
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringLuminanceMax, (float)info->sType1.mMaxDisplayLuminance));
+                            kMkvLuminanceMax, (float)info->sType1.mMaxDisplayLuminance));
                 }
+                // HDRStaticInfo Type1 stores primaries scaled 50000:1
                 if (info->sType1.mW.x || info->sType1.mW.y) {
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringWhitePointChromaticityX, info->sType1.mW.x * 0.00002));
+                            kMkvWhitePointChromaticityX, info->sType1.mW.x * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringWhitePointChromaticityY, info->sType1.mW.y * 0.00002));
+                            kMkvWhitePointChromaticityY, info->sType1.mW.y * 0.00002));
                 }
-                if (info->sType1.mR.x || info->sType1.mR.x || info->sType1.mG.x
+                if (info->sType1.mR.x || info->sType1.mR.y || info->sType1.mG.x
                         || info->sType1.mG.y || info->sType1.mB.x || info->sType1.mB.y) {
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryRChromaticityX, info->sType1.mR.x * 0.00002));
+                            kMkvPrimaryRChromaticityX, info->sType1.mR.x * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryRChromaticityY, info->sType1.mR.y * 0.00002));
+                            kMkvPrimaryRChromaticityY, info->sType1.mR.y * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryGChromaticityX, info->sType1.mG.x * 0.00002));
+                            kMkvPrimaryGChromaticityX, info->sType1.mG.x * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryGChromaticityY, info->sType1.mG.y * 0.00002));
+                            kMkvPrimaryGChromaticityY, info->sType1.mG.y * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryBChromaticityX, info->sType1.mB.x * 0.00002));
+                            kMkvPrimaryBChromaticityX, info->sType1.mB.x * 0.00002));
                     masteringInfo.push_back(new WebmFloat(
-                            kMkvMasteringPrimaryBChromaticityY, info->sType1.mB.y * 0.00002));
+                            kMkvPrimaryBChromaticityY, info->sType1.mB.y * 0.00002));
                 }
                 if (masteringInfo.size()) {
                     colorInfo.push_back(new WebmMaster(kMkvMasteringMetadata, masteringInfo));
