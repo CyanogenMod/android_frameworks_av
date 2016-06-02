@@ -110,6 +110,7 @@ private:
         }
     };
     WebmStream mStreams[kMaxStreams];
+    Vector<sp<WebmElement>> mStreamsInOrder;
 
     sp<WebmFrameSinkThread> mSinkThread;
 
