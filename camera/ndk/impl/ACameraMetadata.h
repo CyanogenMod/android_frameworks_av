@@ -79,9 +79,15 @@ struct ACameraMetadata : public RefBase {
 
         Mutex::Autolock _l(mLock);
 
-        // Here we have to use reinterpret_cast because the NDK data type is
-        // exact copy of internal data type but they do not inherit from each other
-        status_t ret = mData.update(tag, reinterpret_cast<const INTERNAL_T*>(data), count);
+        status_t ret = OK;
+        if (count == 0 && data == nullptr) {
+            ret = mData.erase(tag);
+        } else {
+            // Here we have to use reinterpret_cast because the NDK data type is
+            // exact copy of internal data type but they do not inherit from each other
+            ret = mData.update(tag, reinterpret_cast<const INTERNAL_T*>(data), count);
+        }
+
         if (ret == OK) {
             mTags.clear();
             return ACAMERA_OK;
