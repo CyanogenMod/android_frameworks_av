@@ -138,7 +138,7 @@ void MtpServer::removeStorage(MtpStorage* storage) {
 
 MtpStorage* MtpServer::getStorage(MtpStorageID id) {
     if (id == 0)
-        return mStorages[0];
+        return mStorages.empty() ? NULL : mStorages[0];
     for (size_t i = 0; i < mStorages.size(); i++) {
         MtpStorage* storage = mStorages[i];
         if (storage->getStorageID() == id)
