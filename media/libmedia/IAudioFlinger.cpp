@@ -101,7 +101,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t *pFrameCount,
-                                track_flags_t *flags,
+                                audio_output_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
                                 pid_t pid,
@@ -119,7 +119,7 @@ public:
         data.writeInt32(channelMask);
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt64(frameCount);
-        track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
+        audio_output_flags_t lFlags = flags != NULL ? *flags : AUDIO_OUTPUT_FLAG_NONE;
         data.writeInt32(lFlags);
         // haveSharedBuffer
         if (sharedBuffer != 0) {
@@ -145,7 +145,7 @@ public:
             if (pFrameCount != NULL) {
                 *pFrameCount = frameCount;
             }
-            lFlags = reply.readInt32();
+            lFlags = (audio_output_flags_t)reply.readInt32();
             if (flags != NULL) {
                 *flags = lFlags;
             }
@@ -180,7 +180,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 const String16& opPackageName,
                                 size_t *pFrameCount,
-                                track_flags_t *flags,
+                                audio_input_flags_t *flags,
                                 pid_t pid,
                                 pid_t tid,
                                 int clientUid,
@@ -200,7 +200,7 @@ public:
         data.writeString16(opPackageName);
         size_t frameCount = pFrameCount != NULL ? *pFrameCount : 0;
         data.writeInt64(frameCount);
-        track_flags_t lFlags = flags != NULL ? *flags : (track_flags_t) TRACK_DEFAULT;
+        audio_input_flags_t lFlags = flags != NULL ? *flags : AUDIO_INPUT_FLAG_NONE;
         data.writeInt32(lFlags);
         data.writeInt32((int32_t) pid);
         data.writeInt32((int32_t) tid);
@@ -221,7 +221,7 @@ public:
             if (pFrameCount != NULL) {
                 *pFrameCount = frameCount;
             }
-            lFlags = reply.readInt32();
+            lFlags = (audio_input_flags_t)reply.readInt32();
             if (flags != NULL) {
                 *flags = lFlags;
             }
@@ -947,7 +947,7 @@ status_t BnAudioFlinger::onTransact(
             audio_format_t format = (audio_format_t) data.readInt32();
             audio_channel_mask_t channelMask = data.readInt32();
             size_t frameCount = data.readInt64();
-            track_flags_t flags = (track_flags_t) data.readInt32();
+            audio_output_flags_t flags = (audio_output_flags_t) data.readInt32();
             bool haveSharedBuffer = data.readInt32() != 0;
             sp<IMemory> buffer;
             if (haveSharedBuffer) {
@@ -986,7 +986,7 @@ status_t BnAudioFlinger::onTransact(
             audio_channel_mask_t channelMask = data.readInt32();
             const String16& opPackageName = data.readString16();
             size_t frameCount = data.readInt64();
-            track_flags_t flags = (track_flags_t) data.readInt32();
+            audio_input_flags_t flags = (audio_input_flags_t) data.readInt32();
             pid_t pid = (pid_t) data.readInt32();
             pid_t tid = (pid_t) data.readInt32();
             int clientUid = data.readInt32();

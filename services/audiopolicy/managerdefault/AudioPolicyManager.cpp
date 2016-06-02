@@ -1488,6 +1488,8 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(audio_devices_t device,
                                   profileFlags);
         if (profile != 0) {
             break; // success
+        } else if (profileFlags & AUDIO_INPUT_FLAG_RAW) {
+            profileFlags = (audio_input_flags_t) (profileFlags & ~AUDIO_INPUT_FLAG_RAW); // retry
         } else if (profileFlags != AUDIO_INPUT_FLAG_NONE) {
             profileFlags = AUDIO_INPUT_FLAG_NONE; // retry
         } else { // fail

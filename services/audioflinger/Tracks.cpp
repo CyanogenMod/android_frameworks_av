@@ -73,7 +73,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
             void *buffer,
             audio_session_t sessionId,
             int clientUid,
-            IAudioFlinger::track_flags_t flags,
             bool isOut,
             alloc_type alloc,
             track_type type)
@@ -93,7 +92,6 @@ AudioFlinger::ThreadBase::TrackBase::TrackBase(
                 mChannelCount * audio_bytes_per_sample(format) : sizeof(int8_t)),
         mFrameCount(frameCount),
         mSessionId(sessionId),
-        mFlags(flags),
         mIsOut(isOut),
         mServerProxy(NULL),
         mId(android_atomic_inc(&nextTrackId)),
@@ -345,11 +343,11 @@ AudioFlinger::PlaybackThread::Track::Track(
             const sp<IMemory>& sharedBuffer,
             audio_session_t sessionId,
             int uid,
-            IAudioFlinger::track_flags_t flags,
+            audio_output_flags_t flags,
             track_type type)
     :   TrackBase(thread, client, sampleRate, format, channelMask, frameCount,
                   (sharedBuffer != 0) ? sharedBuffer->pointer() : buffer,
-                  sessionId, uid, flags, true /*isOut*/,
+                  sessionId, uid, true /*isOut*/,
                   (type == TYPE_PATCH) ? ( buffer == NULL ? ALLOC_LOCAL : ALLOC_NONE) : ALLOC_CBLK,
                   type),
     mFillingUpStatus(FS_INVALID),
@@ -368,7 +366,8 @@ AudioFlinger::PlaybackThread::Track::Track(
     mIsInvalid(false),
     mAudioTrackServerProxy(NULL),
     mResumeToStopping(false),
-    mFlushHwPending(false)
+    mFlushHwPending(false),
+    mFlags(flags)
 {
     // client == 0 implies sharedBuffer == 0
     ALOG_ASSERT(!(client == 0 && sharedBuffer != 0));
@@ -395,7 +394,7 @@ AudioFlinger::PlaybackThread::Track::Track(
         return;
     }
     // only allocate a fast track index if we were able to allocate a normal track name
-    if (flags & IAudioFlinger::TRACK_FAST) {
+    if (flags & AUDIO_OUTPUT_FLAG_FAST) {
         // FIXME: Not calling framesReadyIsCalledByMultipleThreads() exposes a potential
         // race with setSyncEvent(). However, if we call it, we cannot properly start
         // static fast tracks (SoundPool) immediately after stopping.
@@ -1133,7 +1132,7 @@ AudioFlinger::PlaybackThread::OutputTrack::OutputTrack(
             int uid)
     :   Track(playbackThread, NULL, AUDIO_STREAM_PATCH,
               sampleRate, format, channelMask, frameCount,
-              NULL, 0, AUDIO_SESSION_NONE, uid, IAudioFlinger::TRACK_DEFAULT,
+              NULL, 0, AUDIO_SESSION_NONE, uid, AUDIO_OUTPUT_FLAG_NONE,
               TYPE_OUTPUT),
     mActive(false), mSourceThread(sourceThread), mClientProxy(NULL)
 {
@@ -1329,7 +1328,7 @@ AudioFlinger::PlaybackThread::PatchTrack::PatchTrack(PlaybackThread *playbackThr
                                                      audio_format_t format,
                                                      size_t frameCount,
                                                      void *buffer,
-                                                     IAudioFlinger::track_flags_t flags)
+                                                     audio_output_flags_t flags)
     :   Track(playbackThread, NULL, streamType,
               sampleRate, format, channelMask, frameCount,
               buffer, 0, AUDIO_SESSION_NONE, getuid(), flags, TYPE_PATCH),
@@ -1468,19 +1467,19 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
             void *buffer,
             audio_session_t sessionId,
             int uid,
-            IAudioFlinger::track_flags_t flags,
+            audio_input_flags_t flags,
             track_type type)
     :   TrackBase(thread, client, sampleRate, format,
-                  channelMask, frameCount, buffer, sessionId, uid,
-                  flags, false /*isOut*/,
+                  channelMask, frameCount, buffer, sessionId, uid, false /*isOut*/,
                   (type == TYPE_DEFAULT) ?
-                          ((flags & IAudioFlinger::TRACK_FAST) ? ALLOC_PIPE : ALLOC_CBLK) :
+                          ((flags & AUDIO_INPUT_FLAG_FAST) ? ALLOC_PIPE : ALLOC_CBLK) :
                           ((buffer == NULL) ? ALLOC_LOCAL : ALLOC_NONE),
                   type),
         mOverflow(false),
         mFramesToDrop(0),
         mResamplerBufferProvider(NULL), // initialize in case of early constructor exit
-        mRecordBufferConverter(NULL)
+        mRecordBufferConverter(NULL),
+        mFlags(flags)
 {
     if (mCblk == NULL) {
         return;
@@ -1505,7 +1504,7 @@ AudioFlinger::RecordThread::RecordTrack::RecordTrack(
 
     mResamplerBufferProvider = new ResamplerBufferProvider(this);
 
-    if (flags & IAudioFlinger::TRACK_FAST) {
+    if (flags & AUDIO_INPUT_FLAG_FAST) {
         ALOG_ASSERT(thread->mFastTrackAvail);
         thread->mFastTrackAvail = false;
     }
@@ -1664,7 +1663,7 @@ AudioFlinger::RecordThread::PatchRecord::PatchRecord(RecordThread *recordThread,
                                                      audio_format_t format,
                                                      size_t frameCount,
                                                      void *buffer,
-                                                     IAudioFlinger::track_flags_t flags)
+                                                     audio_input_flags_t flags)
     :   RecordTrack(recordThread, NULL, sampleRate, format, channelMask, frameCount,
                 buffer, AUDIO_SESSION_NONE, getuid(), flags, TYPE_PATCH),
                 mProxy(new ClientProxy(mCblk, mBuffer, frameCount, mFrameSize, false, true))
