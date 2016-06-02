@@ -242,6 +242,7 @@ supDomain: DeviceForInputSource
 				loopback = 0
 				ip = 0
 				bus = 0
+				stub = 0
 
 	domain: DefaultAndMic
 		conf: A2dp
@@ -380,13 +381,18 @@ supDomain: DeviceForInputSource
 				back_mic = 0
 				builtin_mic = 0
 
-	domain: VoiceRecognitionAndHotword
+	domain: VoiceRecognitionAndUnprocessedAndHotword
 		conf: ScoHeadset
 			ForceUseForRecord Is ForceBtSco
 			AvailableInputDevices Includes BluetoothScoHeadset
 
 			component: /Policy/policy/input_sources
 				component: voice_recognition/applicable_input_device/mask
+					bluetooth_sco_headset = 1
+					wired_headset = 0
+					usb_device = 0
+					builtin_mic = 0
+				component: unprocessed/applicable_input_device/mask
 					bluetooth_sco_headset = 1
 					wired_headset = 0
 					usb_device = 0
@@ -406,6 +412,11 @@ supDomain: DeviceForInputSource
 					wired_headset = 1
 					usb_device = 0
 					builtin_mic = 0
+				component: unprocessed/applicable_input_device/mask
+					bluetooth_sco_headset = 0
+					wired_headset = 1
+					usb_device = 0
+					builtin_mic = 0
 				component: hotword/applicable_input_device/mask
 					bluetooth_sco_headset = 0
 					wired_headset = 1
@@ -417,6 +428,11 @@ supDomain: DeviceForInputSource
 
 			component: /Policy/policy/input_sources
 				component: voice_recognition/applicable_input_device/mask
+					bluetooth_sco_headset = 0
+					wired_headset = 0
+					usb_device = 1
+					builtin_mic = 0
+				component: unprocessed/applicable_input_device/mask
 					bluetooth_sco_headset = 0
 					wired_headset = 0
 					usb_device = 1
@@ -436,6 +452,11 @@ supDomain: DeviceForInputSource
 					wired_headset = 0
 					usb_device = 0
 					builtin_mic = 1
+				component: unprocessed/applicable_input_device/mask
+					bluetooth_sco_headset = 0
+					wired_headset = 0
+					usb_device = 0
+					builtin_mic = 1
 				component: hotword/applicable_input_device/mask
 					bluetooth_sco_headset = 0
 					wired_headset = 0
@@ -445,6 +466,11 @@ supDomain: DeviceForInputSource
 		conf: Default
 			component: /Policy/policy/input_sources
 				component: voice_recognition/applicable_input_device/mask
+					bluetooth_sco_headset = 0
+					wired_headset = 0
+					usb_device = 0
+					builtin_mic = 0
+				component: unprocessed/applicable_input_device/mask
 					bluetooth_sco_headset = 0
 					wired_headset = 0
 					usb_device = 0
