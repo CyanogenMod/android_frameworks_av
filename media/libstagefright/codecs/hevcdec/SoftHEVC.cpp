@@ -456,16 +456,6 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
     List<BufferInfo *> &inQueue = getPortQueue(kInputPortIndex);
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
 
-    /* If input EOS is seen and decoder is not in flush mode,
-     * set the decoder in flush mode.
-     * There can be a case where EOS is sent along with last picture data
-     * In that case, only after decoding that input data, decoder has to be
-     * put in flush. This case is handled here  */
-
-    if (mReceivedEOS && !mIsInFlush) {
-        setFlushMode();
-    }
-
     while (!outQueue.empty()) {
         BufferInfo *inInfo;
         OMX_BUFFERHEADERTYPE *inHeader;
@@ -600,7 +590,7 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
                 outInfo = NULL;
                 notifyFillBufferDone(outHeader);
                 outHeader = NULL;
-            } else {
+            } else if (mIsInFlush) {
                 /* If in flush mode and no output is returned by the codec,
                  * then come out of flush mode */
                 mIsInFlush = false;
@@ -619,6 +609,16 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
                     resetPlugin();
                 }
             }
+        }
+
+        /* If input EOS is seen and decoder is not in flush mode,
+         * set the decoder in flush mode.
+         * There can be a case where EOS is sent along with last picture data
+         * In that case, only after decoding that input data, decoder has to be
+         * put in flush. This case is handled here  */
+
+        if (mReceivedEOS && !mIsInFlush) {
+            setFlushMode();
         }
 
         // TODO: Handle more than one picture data
