@@ -95,11 +95,14 @@ class Camera3Device :
 
     // Actual stream creation/deletion is delayed until first request is submitted
     // If adding streams while actively capturing, will pause device before adding
-    // stream, reconfiguring device, and unpausing.
+    // stream, reconfiguring device, and unpausing. If the client create a stream
+    // with nullptr consumer surface, the client must then call setConsumer()
+    // and finish the stream configuration before starting output streaming.
     virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id,
-            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID);
+            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
+            uint32_t consumerUsage = 0);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
@@ -159,6 +162,12 @@ class Camera3Device :
 
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
+
+    /**
+     * Set the deferred consumer surface to the output stream and finish the deferred
+     * consumer configuration.
+     */
+    virtual status_t setConsumerSurface(int streamId, sp<Surface> consumer);
 
   private:
     static const size_t        kDumpLockAttempts  = 10;

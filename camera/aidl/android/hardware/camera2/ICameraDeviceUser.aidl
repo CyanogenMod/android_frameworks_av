@@ -121,4 +121,6 @@ interface ICameraDeviceUser
     void tearDown(int streamId);
 
     void prepare2(int maxCount, int streamId);
+
+    void setDeferredConfiguration(int streamId, in OutputConfiguration outputConfiguration);
 }
