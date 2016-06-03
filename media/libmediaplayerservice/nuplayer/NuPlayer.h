@@ -198,6 +198,7 @@ private:
     AVSyncSettings mSyncSettings;
     float mVideoFpsHint;
     bool mStarted;
+    bool mPrepared;
     bool mResetting;
     bool mSourceStarted;
 
