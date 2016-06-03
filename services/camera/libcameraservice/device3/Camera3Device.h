@@ -459,7 +459,7 @@ class Camera3Device :
         /**
          * Call after stream (re)-configuration is completed.
          */
-        void     configurationComplete();
+        void     configurationComplete(bool isConstrainedHighSpeed);
 
         /**
          * Set or clear the list of repeating requests. Does not block
@@ -647,6 +647,9 @@ class Camera3Device :
 
         // Whether the device supports AE lock
         bool               mAeLockAvailable;
+
+        // Flag indicating if we should prepare video stream for video requests.
+        bool               mPrepareVideoStream;
     };
     sp<RequestThread> mRequestThread;
 
