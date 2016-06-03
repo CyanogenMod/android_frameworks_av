@@ -80,7 +80,8 @@ else
         src/asm/ARMV7/Syn_filt_32_neon.s \
         src/asm/ARMV7/syn_filt_neon.s
 
-    LOCAL_CFLAGS_arm := -DARM -DARMV7 -DASM_OPT
+    # don't actually generate neon instructions, see bug 26932980
+    LOCAL_CFLAGS_arm := -DARM -DARMV7 -DASM_OPT -mfpu=vfpv3
     LOCAL_C_INCLUDES_arm := $(LOCAL_PATH)/src/asm/ARMV5E
     LOCAL_C_INCLUDES_arm += $(LOCAL_PATH)/src/asm/ARMV7
 endif
@@ -102,7 +103,7 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_CFLAGS += -Werror
 LOCAL_CLANG := true
-LOCAL_SANITIZE := signed-integer-overflow
+#LOCAL_SANITIZE := signed-integer-overflow
 
 include $(BUILD_STATIC_LIBRARY)
 
