@@ -19,6 +19,7 @@ LOCAL_STATIC_LIBRARIES := libicuandroid_utils
 LOCAL_MODULE:= mediaextractor
 LOCAL_32_BIT_ONLY := true
 LOCAL_INIT_RC := mediaextractor.rc
+LOCAL_C_INCLUDES := frameworks/av/media/libmedia
 include $(BUILD_EXECUTABLE)
 
 include $(call all-makefiles-under, $(LOCAL_PATH))
