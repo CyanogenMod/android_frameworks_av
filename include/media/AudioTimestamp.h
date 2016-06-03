@@ -34,7 +34,7 @@ public:
     struct timespec mTime;     // corresponding CLOCK_MONOTONIC when frame is expected to present
 };
 
-struct ExtendedTimestamp {
+struct alignas(8) /* bug 29096183, bug 29108507 */ ExtendedTimestamp {
     enum Location {
         LOCATION_INVALID = -1,
         // Locations in the audio playback / record pipeline.
