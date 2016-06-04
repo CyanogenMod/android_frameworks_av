@@ -1372,22 +1372,13 @@ status_t AudioTrack::createTrack_l()
         }
     }
 
-    IAudioFlinger::track_flags_t trackFlags = IAudioFlinger::TRACK_DEFAULT;
+    audio_output_flags_t flags = mFlags;
 
     pid_t tid = -1;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
-        trackFlags |= IAudioFlinger::TRACK_FAST;
         if (mAudioTrackThread != 0 && !mThreadCanCallJava) {
             tid = mAudioTrackThread->getTid();
         }
-    }
-
-    if (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) {
-        trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
-    }
-
-    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
-        trackFlags |= IAudioFlinger::TRACK_DIRECT;
     }
 
     size_t temp = frameCount;   // temp may be replaced by a revised value of frameCount,
@@ -1398,7 +1389,7 @@ status_t AudioTrack::createTrack_l()
                                                       mFormat,
                                                       mChannelMask,
                                                       &temp,
-                                                      &trackFlags,
+                                                      &flags,
                                                       mSharedBuffer,
                                                       output,
                                                       mClientPid,
@@ -1451,23 +1442,23 @@ status_t AudioTrack::createTrack_l()
 
     mAwaitBoost = false;
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
-        if (trackFlags & IAudioFlinger::TRACK_FAST) {
+        if (flags & AUDIO_OUTPUT_FLAG_FAST) {
             ALOGV("AUDIO_OUTPUT_FLAG_FAST successful; frameCount %zu", frameCount);
             if (!mThreadCanCallJava) {
                 mAwaitBoost = true;
             }
         } else {
             ALOGW("AUDIO_OUTPUT_FLAG_FAST denied by server; frameCount %zu", frameCount);
-            mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
         }
     }
+    mFlags = flags;
 
     // Make sure that application is notified with sufficient margin before underrun.
     // The client can divide the AudioTrack buffer into sub-buffers,
     // and expresses its desire to server as the notification frame count.
     if (mSharedBuffer == 0 && audio_is_linear_pcm(mFormat)) {
         size_t maxNotificationFrames;
-        if (trackFlags & IAudioFlinger::TRACK_FAST) {
+        if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
             // notify every HAL buffer, regardless of the size of the track buffer
             maxNotificationFrames = afFrameCountHAL;
         } else {

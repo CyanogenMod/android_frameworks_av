@@ -576,7 +576,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         audio_format_t format,
         audio_channel_mask_t channelMask,
         size_t *frameCount,
-        IAudioFlinger::track_flags_t *flags,
+        audio_output_flags_t *flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
         pid_t pid,
@@ -1463,7 +1463,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         audio_channel_mask_t channelMask,
         const String16& opPackageName,
         size_t *frameCount,
-        IAudioFlinger::track_flags_t *flags,
+        audio_input_flags_t *flags,
         pid_t pid,
         pid_t tid,
         int clientUid,
@@ -2195,7 +2195,7 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
         }
 #endif
 
-        AudioStreamIn *inputStream = new AudioStreamIn(inHwDev, inStream);
+        AudioStreamIn *inputStream = new AudioStreamIn(inHwDev, inStream, flags);
 
         // Start record thread
         // RecordThread requires both input and output device indication to forward to audio

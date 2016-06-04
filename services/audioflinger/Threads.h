@@ -566,7 +566,7 @@ public:
                                 size_t *pFrameCount,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_session_t sessionId,
-                                IAudioFlinger::track_flags_t *flags,
+                                audio_output_flags_t *flags,
                                 pid_t tid,
                                 int uid,
                                 status_t *status /*non-NULL*/);
@@ -1258,7 +1258,7 @@ public:
                     audio_session_t sessionId,
                     size_t *notificationFrames,
                     int uid,
-                    IAudioFlinger::track_flags_t *flags,
+                    audio_input_flags_t *flags,
                     pid_t tid,
                     status_t *status /*non-NULL*/);
 

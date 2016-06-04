@@ -1753,7 +1753,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         size_t *pFrameCount,
         const sp<IMemory>& sharedBuffer,
         audio_session_t sessionId,
-        IAudioFlinger::track_flags_t *flags,
+        audio_output_flags_t *flags,
         pid_t tid,
         int uid,
         status_t *status)
@@ -1761,9 +1761,22 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     size_t frameCount = *pFrameCount;
     sp<Track> track;
     status_t lStatus;
+    audio_output_flags_t outputFlags = mOutput->flags;
+
+    // special case for FAST flag considered OK if fast mixer is present
+    if (hasFastMixer()) {
+        outputFlags = (audio_output_flags_t)(outputFlags | AUDIO_OUTPUT_FLAG_FAST);
+    }
+
+    // Check if requested flags are compatible with output stream flags
+    if ((*flags & outputFlags) != *flags) {
+        ALOGW("createTrack_l(): mismatch between requested flags (%08x) and output flags (%08x)",
+              *flags, outputFlags);
+        *flags = (audio_output_flags_t)(*flags & outputFlags);
+    }
 
     // client expresses a preference for FAST, but we get the final say
-    if (*flags & IAudioFlinger::TRACK_FAST) {
+    if (*flags & AUDIO_OUTPUT_FLAG_FAST) {
       if (
             // PCM data
             audio_is_linear_pcm(format) &&
@@ -1801,7 +1814,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
-        *flags &= ~IAudioFlinger::TRACK_FAST;
+        *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_FAST);
       }
     }
     // For normal PCM streaming tracks, update minimum frame count.
@@ -1809,7 +1822,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
     // to be at least 2 x the normal mixer frame count and cover audio hardware latency.
     // This is probably too conservative, but legacy application code may depend on it.
     // If you change this calculation, also review the start threshold which is related.
-    if (!(*flags & IAudioFlinger::TRACK_FAST)
+    if (!(*flags & AUDIO_OUTPUT_FLAG_FAST)
             && audio_has_proportional_frames(format) && sharedBuffer == 0) {
         // this must match AudioTrack.cpp calculateMinFrameCount().
         // TODO: Move to a common library
@@ -1917,7 +1930,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             chain->incTrackCnt();
         }
 
-        if ((*flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+        if ((*flags & AUDIO_OUTPUT_FLAG_FAST) && (tid != -1)) {
             pid_t callingPid = IPCThreadState::self()->getCallingPid();
             // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
             // so ask activity manager to do this on our behalf
@@ -6277,16 +6290,30 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         audio_session_t sessionId,
         size_t *notificationFrames,
         int uid,
-        IAudioFlinger::track_flags_t *flags,
+        audio_input_flags_t *flags,
         pid_t tid,
         status_t *status)
 {
     size_t frameCount = *pFrameCount;
     sp<RecordTrack> track;
     status_t lStatus;
+    audio_input_flags_t inputFlags = mInput->flags;
+
+    // special case for FAST flag considered OK if fast capture is present
+    if (hasFastCapture()) {
+        inputFlags = (audio_input_flags_t)(inputFlags | AUDIO_INPUT_FLAG_FAST);
+    }
+
+    // Check if requested flags are compatible with output stream flags
+    if ((*flags & inputFlags) != *flags) {
+        ALOGW("createRecordTrack_l(): mismatch between requested flags (%08x) and"
+                " input flags (%08x)",
+              *flags, inputFlags);
+        *flags = (audio_input_flags_t)(*flags & inputFlags);
+    }
 
     // client expresses a preference for FAST, but we get the final say
-    if (*flags & IAudioFlinger::TRACK_FAST) {
+    if (*flags & AUDIO_INPUT_FLAG_FAST) {
       if (
             // we formerly checked for a callback handler (non-0 tid),
             // but that is no longer required for TRANSFER_OBTAIN mode
@@ -6315,12 +6342,12 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
                 frameCount, mFrameCount, mPipeFramesP2,
                 format, audio_is_linear_pcm(format), channelMask, sampleRate, mSampleRate,
                 hasFastCapture(), tid, mFastTrackAvail);
-        *flags &= ~IAudioFlinger::TRACK_FAST;
+        *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
       }
     }
 
     // compute track buffer size in frames, and suggest the notification frame count
-    if (*flags & IAudioFlinger::TRACK_FAST) {
+    if (*flags & AUDIO_INPUT_FLAG_FAST) {
         // fast track: frame count is exactly the pipe depth
         frameCount = mPipeFramesP2;
         // ignore requested notificationFrames, and always notify exactly once every HAL buffer
@@ -6376,7 +6403,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
         setEffectSuspended_l(FX_IID_AEC, suspend, sessionId);
         setEffectSuspended_l(FX_IID_NS, suspend, sessionId);
 
-        if ((*flags & IAudioFlinger::TRACK_FAST) && (tid != -1)) {
+        if ((*flags & AUDIO_INPUT_FLAG_FAST) && (tid != -1)) {
             pid_t callingPid = IPCThreadState::self()->getCallingPid();
             // we don't have CAP_SYS_NICE, nor do we want to have it as it's too powerful,
             // so ask activity manager to do this on our behalf
