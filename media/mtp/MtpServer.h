@@ -66,7 +66,8 @@ private:
     MtpString           mSendObjectFilePath;
     size_t              mSendObjectFileSize;
 
-    Mutex               mMutex;
+    Mutex               mStorageMutex;
+    Mutex               mRequestMutex;
 
     // represents an MTP object that is being edited using the android extensions
     // for direct editing (BeginEditObject, SendPartialObject, TruncateObject and EndEditObject)

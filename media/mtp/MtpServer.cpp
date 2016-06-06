@@ -118,14 +118,14 @@ MtpServer::~MtpServer() {
 }
 
 void MtpServer::addStorage(MtpStorage* storage) {
-    Mutex::Autolock autoLock(mMutex);
+    Mutex::Autolock autoLock(mStorageMutex);
 
     mStorages.push(storage);
     sendStoreAdded(storage->getStorageID());
 }
 
 void MtpServer::removeStorage(MtpStorage* storage) {
-    Mutex::Autolock autoLock(mMutex);
+    Mutex::Autolock autoLock(mStorageMutex);
 
     for (size_t i = 0; i < mStorages.size(); i++) {
         if (mStorages[i] == storage) {
@@ -137,6 +137,8 @@ void MtpServer::removeStorage(MtpStorage* storage) {
 }
 
 MtpStorage* MtpServer::getStorage(MtpStorageID id) {
+    Mutex::Autolock autoLock(mStorageMutex);
+
     if (id == 0)
         return mStorages.empty() ? NULL : mStorages[0];
     for (size_t i = 0; i < mStorages.size(); i++) {
@@ -319,7 +321,7 @@ void MtpServer::commitEdit(ObjectEdit* edit) {
 
 
 bool MtpServer::handleRequest() {
-    Mutex::Autolock autoLock(mMutex);
+    Mutex::Autolock autoLock(mRequestMutex);
 
     MtpOperationCode operation = mRequest.getOperationCode();
     MtpResponseCode response;
