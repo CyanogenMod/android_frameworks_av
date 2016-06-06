@@ -137,20 +137,9 @@ void MtpServer::removeStorage(MtpStorage* storage) {
 }
 
 MtpStorage* MtpServer::getStorage(MtpStorageID id) {
-    if (id == 0)
-        return mStorages.empty() ? NULL : mStorages[0];
-    for (size_t i = 0; i < mStorages.size(); i++) {
-        MtpStorage* storage = mStorages[i];
-        if (storage->getStorageID() == id)
-            return storage;
-    }
-    return NULL;
-}
+    Mutex::Autolock autoLock(mMutex);
 
-bool MtpServer::hasStorage(MtpStorageID id) {
-    if (id == 0 || id == 0xFFFFFFFF)
-        return mStorages.size() > 0;
-    return (getStorage(id) != NULL);
+    return getStorageLocked(id);
 }
 
 void MtpServer::run() {
@@ -258,6 +247,23 @@ void MtpServer::sendObjectRemoved(MtpObjectHandle handle) {
 void MtpServer::sendObjectUpdated(MtpObjectHandle handle) {
     ALOGV("sendObjectUpdated %d\n", handle);
     sendEvent(MTP_EVENT_OBJECT_PROP_CHANGED, handle);
+}
+
+MtpStorage* MtpServer::getStorageLocked(MtpStorageID id) {
+    if (id == 0)
+        return mStorages.empty() ? NULL : mStorages[0];
+    for (size_t i = 0; i < mStorages.size(); i++) {
+        MtpStorage* storage = mStorages[i];
+        if (storage->getStorageID() == id)
+            return storage;
+    }
+    return NULL;
+}
+
+bool MtpServer::hasStorage(MtpStorageID id) {
+    if (id == 0 || id == 0xFFFFFFFF)
+        return mStorages.size() > 0;
+    return (getStorageLocked(id) != NULL);
 }
 
 void MtpServer::sendStoreAdded(MtpStorageID id) {
@@ -543,7 +549,7 @@ MtpResponseCode MtpServer::doGetStorageInfo() {
         return MTP_RESPONSE_INVALID_PARAMETER;
 
     MtpStorageID id = mRequest.getParameter(1);
-    MtpStorage* storage = getStorage(id);
+    MtpStorage* storage = getStorageLocked(id);
     if (!storage)
         return MTP_RESPONSE_INVALID_STORAGE_ID;
 
@@ -894,7 +900,7 @@ MtpResponseCode MtpServer::doSendObjectInfo() {
     if (mRequest.getParameterCount() < 2)
         return MTP_RESPONSE_INVALID_PARAMETER;
     MtpStorageID storageID = mRequest.getParameter(1);
-    MtpStorage* storage = getStorage(storageID);
+    MtpStorage* storage = getStorageLocked(storageID);
     MtpObjectHandle parent = mRequest.getParameter(2);
     if (!storage)
         return MTP_RESPONSE_INVALID_STORAGE_ID;
