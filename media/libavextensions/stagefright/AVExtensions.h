@@ -92,9 +92,7 @@ struct AVFactory {
             const String16 &opPackageName,
             uint32_t sampleRate,
             uint32_t channels,
-            uint32_t outSampleRate = 0,
-            uid_t clientUid = -1,
-            pid_t clientPid = -1);
+            uint32_t outSampleRate = 0);
     virtual MPEG4Writer *CreateMPEG4Writer(int fd);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
