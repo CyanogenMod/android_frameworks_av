@@ -31,7 +31,7 @@ sp<IMediaDeathNotifier::DeathNotifier> IMediaDeathNotifier::sDeathNotifier;
 SortedVector< wp<IMediaDeathNotifier> > IMediaDeathNotifier::sObitRecipients;
 
 // establish binder interface to MediaPlayerService
-/*static*/const sp<IMediaPlayerService>&
+/*static*/const sp<IMediaPlayerService>
 IMediaDeathNotifier::getMediaPlayerService()
 {
     ALOGV("getMediaPlayerService");
