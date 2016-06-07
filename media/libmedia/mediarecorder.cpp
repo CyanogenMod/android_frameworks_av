@@ -648,7 +648,7 @@ MediaRecorder::MediaRecorder() : mSurfaceMediaSource(NULL)
 {
     ALOGV("constructor");
 
-    const sp<IMediaPlayerService>& service(getMediaPlayerService());
+    const sp<IMediaPlayerService> service(getMediaPlayerService());
     if (service != NULL) {
         mMediaRecorder = service->createMediaRecorder();
     }
