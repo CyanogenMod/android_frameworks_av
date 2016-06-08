@@ -1323,6 +1323,7 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     mAudioEOS = false;
     mVideoEOS = false;
     mStarted = true;
+    mPaused = false;
 
     uint32_t flags = 0;
 
