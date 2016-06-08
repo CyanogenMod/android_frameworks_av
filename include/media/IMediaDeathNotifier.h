@@ -30,7 +30,7 @@ public:
     virtual ~IMediaDeathNotifier() { removeObitRecipient(this); }
 
     virtual void died() = 0;
-    static const sp<IMediaPlayerService>& getMediaPlayerService();
+    static const sp<IMediaPlayerService> getMediaPlayerService();
 
 private:
     IMediaDeathNotifier &operator=(const IMediaDeathNotifier &);
