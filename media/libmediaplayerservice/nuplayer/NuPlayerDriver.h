@@ -123,6 +123,7 @@ private:
     bool mAutoLoop;
 
     status_t prepare_l();
+    status_t start_l();
     void notifyListener_l(int msg, int ext1 = 0, int ext2 = 0, const Parcel *in = NULL);
 
     DISALLOW_EVIL_CONSTRUCTORS(NuPlayerDriver);

@@ -188,6 +188,7 @@ NuPlayer::NuPlayer(pid_t pid)
       mPlaybackSettings(AUDIO_PLAYBACK_RATE_DEFAULT),
       mVideoFpsHint(-1.f),
       mStarted(false),
+      mPrepared(false),
       mResetting(false),
       mSourceStarted(false),
       mPaused(false),
@@ -768,9 +769,17 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     newRate.mSpeed = mPlaybackSettings.mSpeed;
                     mPlaybackSettings = newRate;
                 } else { /* rate.mSpeed != 0.f */
-                    onResume();
-                    mPausedByClient = false;
                     mPlaybackSettings = rate;
+                    if (mStarted) {
+                        // do not resume yet if the source is still buffering
+                        if (!mPausedForBuffering) {
+                            onResume();
+                        }
+                    } else if (mPrepared) {
+                        onStart();
+                    }
+
+                    mPausedByClient = false;
                 }
             }
 
@@ -2012,6 +2021,7 @@ void NuPlayer::performReset() {
     }
 
     mStarted = false;
+    mPrepared = false;
     mResetting = false;
     mSourceStarted = false;
 }
@@ -2124,6 +2134,8 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
                         new FlushDecoderAction(FLUSH_CMD_SHUTDOWN /* audio */,
                                                FLUSH_CMD_SHUTDOWN /* video */));
                 processDeferredActions();
+            } else {
+                mPrepared = true;
             }
 
             sp<NuPlayerDriver> driver = mDriver.promote();

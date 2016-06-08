@@ -243,7 +243,10 @@ status_t NuPlayerDriver::prepareAsync() {
 status_t NuPlayerDriver::start() {
     ALOGD("start(%p), state is %d, eos is %d", this, mState, mAtEOS);
     Mutex::Autolock autoLock(mLock);
+    return start_l();
+}
 
+status_t NuPlayerDriver::start_l() {
     switch (mState) {
         case STATE_UNPREPARED:
         {
@@ -357,8 +360,11 @@ status_t NuPlayerDriver::setPlaybackSettings(const AudioPlaybackRate &rate) {
         if (rate.mSpeed == 0.f && mState == STATE_RUNNING) {
             mState = STATE_PAUSED;
             notifyListener_l(MEDIA_PAUSED);
-        } else if (rate.mSpeed != 0.f && mState == STATE_PAUSED) {
-            mState = STATE_RUNNING;
+        } else if (rate.mSpeed != 0.f
+                && (mState == STATE_PAUSED
+                    || mState == STATE_STOPPED_AND_PREPARED
+                    || mState == STATE_PREPARED)) {
+            err = start_l();
         }
     }
     return err;
