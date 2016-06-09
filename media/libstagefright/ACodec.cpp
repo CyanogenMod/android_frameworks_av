@@ -1732,6 +1732,14 @@ status_t ACodec::configureCodec(
         return INVALID_OPERATION;
     }
 
+    // propagate bitrate to the output so that the muxer has it
+    if (encoder && msg->findInt32("bitrate", &bitRate)) {
+        // Technically ISO spec says that 'bitrate' should be 0 for VBR even though it is the
+        // average bitrate. We've been setting both bitrate and max-bitrate to this same value.
+        outputFormat->setInt32("bitrate", bitRate);
+        outputFormat->setInt32("max-bitrate", bitRate);
+    }
+
     int32_t storeMeta;
     if (encoder
             && msg->findInt32("android._input-metadata-buffer-type", &storeMeta)

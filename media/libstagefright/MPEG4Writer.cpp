@@ -3041,9 +3041,9 @@ void MPEG4Writer::Track::writeMp4aEsdsBox() {
     mOwner->writeInt16(0x03);  // XXX
     mOwner->writeInt8(0x00);   // buffer size 24-bit (0x300)
 
-    int32_t avgBitrate = 256000;
+    int32_t avgBitrate = 0;
     (void)mMeta->findInt32(kKeyBitRate, &avgBitrate);
-    int32_t maxBitrate = avgBitrate;
+    int32_t maxBitrate = 0;
     (void)mMeta->findInt32(kKeyMaxBitRate, &maxBitrate);
     mOwner->writeInt32(maxBitrate);
     mOwner->writeInt32(avgBitrate);
@@ -3084,9 +3084,9 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
     };
     mOwner->write(kData, sizeof(kData));
 
-    int32_t avgBitrate = 256000;
+    int32_t avgBitrate = 0;
     (void)mMeta->findInt32(kKeyBitRate, &avgBitrate);
-    int32_t maxBitrate = avgBitrate;
+    int32_t maxBitrate = 0;
     (void)mMeta->findInt32(kKeyMaxBitRate, &maxBitrate);
     mOwner->writeInt32(maxBitrate);
     mOwner->writeInt32(avgBitrate);
