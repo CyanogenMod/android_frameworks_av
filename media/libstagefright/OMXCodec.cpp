@@ -2358,9 +2358,6 @@ void OMXCodec::onEvent(OMX_EVENTTYPE event, OMX_U32 data1, OMX_U32 data2) {
 #ifdef USE_S3D_SUPPORT
         case (OMX_EVENTTYPE)OMX_EventS3DInformation:
         {
-            if (mFlags & kClientNeedsFramebuffer)
-                break;
-
             sp<IServiceManager> sm = defaultServiceManager();
             sp<android::IExynosHWCService> hwc = interface_cast<android::IExynosHWCService>(
                     sm->getService(String16("Exynos.HWCService")));
