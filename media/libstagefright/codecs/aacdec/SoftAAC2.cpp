@@ -625,12 +625,15 @@ void SoftAAC2::onQueueFilled(OMX_U32 /* portIndex */) {
                         signalError = true;
                     } else {
                         adtsHeaderSize = (protectionAbsent ? 7 : 9);
+                        if (aac_frame_length < adtsHeaderSize) {
+                            signalError = true;
+                        } else {
+                            inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
+                            inBufferLength[0] = aac_frame_length - adtsHeaderSize;
 
-                        inBuffer[0] = (UCHAR *)adtsHeader + adtsHeaderSize;
-                        inBufferLength[0] = aac_frame_length - adtsHeaderSize;
-
-                        inHeader->nOffset += adtsHeaderSize;
-                        inHeader->nFilledLen -= adtsHeaderSize;
+                            inHeader->nOffset += adtsHeaderSize;
+                            inHeader->nFilledLen -= adtsHeaderSize;
+                        }
                     }
                 }
 
