@@ -396,11 +396,22 @@ status_t MediaPlayer::setPlaybackSettings(const AudioPlaybackRate& rate)
     }
     Mutex::Autolock _l(mLock);
     if (mPlayer == 0) return INVALID_OPERATION;
+
+    if (rate.mSpeed != 0.f && !(mCurrentState & MEDIA_PLAYER_STARTED)
+            && (mCurrentState & (MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_PAUSED
+                    | MEDIA_PLAYER_PLAYBACK_COMPLETE))) {
+        mPlayer->setLooping(mLoop);
+        mPlayer->setVolume(mLeftVolume, mRightVolume);
+        mPlayer->setAuxEffectSendLevel(mSendLevel);
+    }
+
     status_t err = mPlayer->setPlaybackSettings(rate);
     if (err == OK) {
         if (rate.mSpeed == 0.f && mCurrentState == MEDIA_PLAYER_STARTED) {
             mCurrentState = MEDIA_PLAYER_PAUSED;
-        } else if (rate.mSpeed != 0.f && mCurrentState == MEDIA_PLAYER_PAUSED) {
+        } else if (rate.mSpeed != 0.f
+                && (mCurrentState & (MEDIA_PLAYER_PREPARED | MEDIA_PLAYER_PAUSED
+                    | MEDIA_PLAYER_PLAYBACK_COMPLETE))) {
             mCurrentState = MEDIA_PLAYER_STARTED;
         }
     }
