@@ -367,6 +367,11 @@ class Camera3Device :
     status_t           configureStreamsLocked();
 
     /**
+     * Cancel stream configuration that did not finish successfully.
+     */
+    void               cancelStreamsConfigurationLocked();
+
+    /**
      * Add a dummy stream to the current stream set as a workaround for
      * not allowing 0 streams in the camera HAL spec.
      */
