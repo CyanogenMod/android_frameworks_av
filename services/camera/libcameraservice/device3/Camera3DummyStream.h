@@ -54,6 +54,8 @@ class Camera3DummyStream :
 
     status_t         setTransform(int transform);
 
+    virtual status_t detachBuffer(sp<GraphicBuffer>* buffer, int* fenceFd);
+
     /**
      * Return if this output stream is for video encoding.
      */

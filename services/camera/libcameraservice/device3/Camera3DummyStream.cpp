@@ -76,6 +76,13 @@ status_t Camera3DummyStream::setTransform(int) {
     return OK;
 }
 
+status_t Camera3DummyStream::detachBuffer(sp<GraphicBuffer>* buffer, int* fenceFd) {
+    (void) buffer;
+    (void) fenceFd;
+    // Do nothing
+    return OK;
+}
+
 status_t Camera3DummyStream::configureQueueLocked() {
     // Do nothing
     return OK;

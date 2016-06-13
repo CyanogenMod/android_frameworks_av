@@ -120,24 +120,35 @@ status_t Camera3OutputStream::getBufferLocked(camera3_stream_buffer *buffer) {
 
     ANativeWindowBuffer* anb;
     int fenceFd = -1;
+    bool gotBufferFromManager = false;
+
     if (mUseBufferManager) {
         sp<GraphicBuffer> gb;
         res = mBufferManager->getBufferForStream(getId(), getStreamSetId(), &gb, &fenceFd);
-        if (res != OK) {
+        if (res == OK) {
+            // Attach this buffer to the bufferQueue: the buffer will be in dequeue state after a
+            // successful return.
+            anb = gb.get();
+            res = mConsumer->attachBuffer(anb);
+            if (res != OK) {
+                ALOGE("%s: Stream %d: Can't attach the output buffer to this surface: %s (%d)",
+                        __FUNCTION__, mId, strerror(-res), res);
+                return res;
+            }
+            gotBufferFromManager = true;
+            ALOGV("Stream %d: Attached new buffer", getId());
+        } else if (res == ALREADY_EXISTS) {
+            // Have sufficient free buffers already attached, can just
+            // dequeue from buffer queue
+            ALOGV("Stream %d: Reusing attached buffer", getId());
+            gotBufferFromManager = false;
+        } else if (res != OK) {
             ALOGE("%s: Stream %d: Can't get next output buffer from buffer manager: %s (%d)",
                     __FUNCTION__, mId, strerror(-res), res);
             return res;
         }
-        // Attach this buffer to the bufferQueue: the buffer will be in dequeue state after a
-        // successful return.
-        anb = gb.get();
-        res = mConsumer->attachBuffer(anb);
-        if (res != OK) {
-            ALOGE("%s: Stream %d: Can't attach the output buffer to this surface: %s (%d)",
-                    __FUNCTION__, mId, strerror(-res), res);
-            return res;
-        }
-    } else {
+    }
+    if (!gotBufferFromManager) {
         /**
          * Release the lock briefly to avoid deadlock for below scenario:
          * Thread 1: StreamingProcessor::startStream -> Camera3Stream::isConfiguring().
@@ -433,10 +444,15 @@ status_t Camera3OutputStream::configureQueueLocked() {
      * HAL3.2 devices may not support the dynamic buffer registeration.
      */
     if (mBufferManager != 0 && mSetId > CAMERA3_STREAM_SET_ID_INVALID) {
+        uint32_t consumerUsage = 0;
+        getEndpointUsage(&consumerUsage);
         StreamInfo streamInfo(
                 getId(), getStreamSetId(), getWidth(), getHeight(), getFormat(), getDataSpace(),
-                camera3_stream::usage, mTotalBufferCount, /*isConfigured*/true);
-        res = mBufferManager->registerStream(streamInfo);
+                camera3_stream::usage | consumerUsage, mTotalBufferCount,
+                /*isConfigured*/true);
+        wp<Camera3OutputStream> weakThis(this);
+        res = mBufferManager->registerStream(weakThis,
+                streamInfo);
         if (res == OK) {
             // Disable buffer allocation for this BufferQueue, buffer manager will take over
             // the buffer allocation responsibility.
@@ -561,34 +577,49 @@ void Camera3OutputStream::BufferReleasedListener::onBufferReleased() {
         return;
     }
 
+    ALOGV("Stream %d: Buffer released", stream->getId());
+    status_t res = stream->mBufferManager->onBufferReleased(
+        stream->getId(), stream->getStreamSetId());
+    if (res != OK) {
+        ALOGE("%s: signaling buffer release to buffer manager failed: %s (%d).", __FUNCTION__,
+                strerror(-res), res);
+        stream->mState = STATE_ERROR;
+    }
+}
+
+status_t Camera3OutputStream::detachBuffer(sp<GraphicBuffer>* buffer, int* fenceFd) {
+    Mutex::Autolock l(mLock);
+
+    ALOGV("Stream %d: detachBuffer", getId());
+    if (buffer == nullptr) {
+        return BAD_VALUE;
+    }
+
     sp<Fence> fence;
-    sp<GraphicBuffer> buffer;
-    int fenceFd = -1;
-    status_t res = stream->mConsumer->detachNextBuffer(&buffer, &fence);
+    status_t res = mConsumer->detachNextBuffer(buffer, &fence);
     if (res == NO_MEMORY) {
         // This may rarely happen, which indicates that the released buffer was freed by other
         // call (e.g., attachBuffer, dequeueBuffer etc.) before reaching here. We should notify the
         // buffer manager that this buffer has been freed. It's not fatal, but should be avoided,
         // therefore log a warning.
-        buffer = 0;
+        *buffer = 0;
         ALOGW("%s: the released buffer has already been freed by the buffer queue!", __FUNCTION__);
     } else if (res != OK) {
         // Other errors are fatal.
         ALOGE("%s: detach next buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        stream->mState = STATE_ERROR;
-        return;
+        mState = STATE_ERROR;
+        return res;
     }
 
-    if (fence!= 0 && fence->isValid()) {
-        fenceFd = fence->dup();
+    if (fenceFd != nullptr) {
+        if (fence!= 0 && fence->isValid()) {
+            *fenceFd = fence->dup();
+        } else {
+            *fenceFd = -1;
+        }
     }
-    res = stream->mBufferManager->returnBufferForStream(stream->getId(), stream->getStreamSetId(),
-                buffer, fenceFd);
-    if (res != OK) {
-        ALOGE("%s: return buffer to buffer manager failed: %s (%d).", __FUNCTION__,
-                strerror(-res), res);
-       stream->mState = STATE_ERROR;
-    }
+
+    return OK;
 }
 
 bool Camera3OutputStream::isConsumedByHWComposer() const {

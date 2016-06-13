@@ -29,6 +29,7 @@ namespace android {
 namespace camera3 {
 
 struct StreamInfo;
+class Camera3OutputStream;
 
 /**
  * A class managing the graphic buffers that is used by camera output streams. It allocates and
@@ -81,7 +82,7 @@ public:
      *                     and other streams that were already registered with the same stream set
      *                     ID.
      */
-    status_t registerStream(const StreamInfo &streamInfo);
+    status_t registerStream(wp<Camera3OutputStream>& stream, const StreamInfo &streamInfo);
 
     /**
      * This method unregisters a stream from this buffer manager.
@@ -114,12 +115,36 @@ public:
      * Return values:
      *
      *  OK:        Getting buffer for this stream was successful.
+     *  ALREADY_EXISTS: Enough free buffers are already attached to this output buffer queue,
+     *             user should just dequeue from the buffer queue.
      *  BAD_VALUE: stream ID or streamSetId are invalid, or stream ID and stream set ID
      *             combination doesn't match what was registered, or this stream wasn't registered
      *             to this buffer manager before.
      *  NO_MEMORY: Unable to allocate a buffer for this stream at this time.
      */
     status_t getBufferForStream(int streamId, int streamSetId, sp<GraphicBuffer>* gb, int* fenceFd);
+
+    /**
+     * This method notifies the manager that a buffer has been released by the consumer.
+     *
+     * The buffer is not returned to the buffer manager, but is available for the stream the buffer
+     * is attached to for dequeuing.
+     *
+     * The notification lets the manager know how many buffers are directly available to the stream.
+     *
+     * If onBufferReleased is called for a given released buffer,
+     * returnBufferForStream may not be called for the same buffer, until the
+     * buffer has been reused. The manager will call detachBuffer on the stream
+     * if it needs the released buffer otherwise.
+     *
+     * Return values:
+     *
+     *  OK:        Buffer release was processed succesfully
+     *  BAD_VALUE: stream ID or streamSetId are invalid, or stream ID and stream set ID
+     *             combination doesn't match what was registered, or this stream wasn't registered
+     *             to this buffer manager before.
+     */
+    status_t onBufferReleased(int streamId, int streamSetId);
 
     /**
      * This method returns a buffer for a stream to this buffer manager.
@@ -245,6 +270,12 @@ private:
          * The count of the buffers that were handed out to the streams of this set.
          */
         BufferCountMap handoutBufferCountMap;
+        /**
+         * The count of the buffers that are attached to the streams of this set.
+         * An attached buffer may be free or handed out
+         */
+        BufferCountMap attachedBufferCountMap;
+
         StreamSet() {
             allocatedBufferWaterMark = 0;
             maxAllowedBufferCount = 0;
@@ -256,6 +287,7 @@ private:
      */
     typedef int StreamSetId;
     KeyedVector<StreamSetId, StreamSet> mStreamSetMap;
+    KeyedVector<StreamId, wp<Camera3OutputStream>> mStreamMap;
 
     // TODO: There is no easy way to query the Gralloc version in this code yet, we have different
     // code paths for different Gralloc versions, hardcode something here for now.

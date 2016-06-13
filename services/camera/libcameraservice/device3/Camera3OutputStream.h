@@ -131,6 +131,8 @@ class Camera3OutputStream :
           wp<Camera3OutputStream> mParent;
     };
 
+    virtual status_t detachBuffer(sp<GraphicBuffer>* buffer, int* fenceFd);
+
     /**
      * Set the graphic buffer manager to get/return the stream buffers.
      *
