@@ -1420,7 +1420,9 @@ void NuPlayer::GenericSource::readBuffer(
         options.setNonBlocking();
     }
 
-    bool couldReadMultiple = (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO);
+    bool couldReadMultiple =
+        (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO
+                && track->mSource->supportReadMultiple());
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         Vector<MediaBuffer *> mediaBuffers;
         status_t err = NO_ERROR;
