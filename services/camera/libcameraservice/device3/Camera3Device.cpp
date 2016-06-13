@@ -794,19 +794,12 @@ sp<Camera3Device::CaptureRequest> Camera3Device::setUpRequestLocked(
 
     if (mStatus == STATUS_UNCONFIGURED || mNeedConfig) {
         res = configureStreamsLocked();
-        // Stream configuration failed due to unsupported configuration.
-        // Device back to unconfigured state. Client might try other configuraitons
-        if (res == BAD_VALUE && mStatus == STATUS_UNCONFIGURED) {
-            CLOGE("No streams configured");
-            return NULL;
-        }
-        // Stream configuration failed for other reason. Fatal.
+        // Stream configuration failed. Client might try other configuraitons.
         if (res != OK) {
-            SET_ERR_L("Can't set up streams: %s (%d)", strerror(-res), res);
+            CLOGE("Can't set up streams: %s (%d)", strerror(-res), res);
             return NULL;
-        }
-        // Stream configuration successfully configure to empty stream configuration.
-        if (mStatus == STATUS_UNCONFIGURED) {
+        } else if (mStatus == STATUS_UNCONFIGURED) {
+            // Stream configuration successfully configure to empty stream configuration.
             CLOGE("No streams configured");
             return NULL;
         }
@@ -1823,6 +1816,33 @@ bool Camera3Device::isOpaqueInputSizeSupported(uint32_t width, uint32_t height) 
     return false;
 }
 
+void Camera3Device::cancelStreamsConfigurationLocked() {
+    int res = OK;
+    if (mInputStream != NULL && mInputStream->isConfiguring()) {
+        res = mInputStream->cancelConfiguration();
+        if (res != OK) {
+            CLOGE("Can't cancel configuring input stream %d: %s (%d)",
+                    mInputStream->getId(), strerror(-res), res);
+        }
+    }
+
+    for (size_t i = 0; i < mOutputStreams.size(); i++) {
+        sp<Camera3OutputStreamInterface> outputStream = mOutputStreams.editValueAt(i);
+        if (outputStream->isConfiguring()) {
+            res = outputStream->cancelConfiguration();
+            if (res != OK) {
+                CLOGE("Can't cancel configuring output stream %d: %s (%d)",
+                        outputStream->getId(), strerror(-res), res);
+            }
+        }
+    }
+
+    // Return state to that at start of call, so that future configures
+    // properly clean things up
+    internalUpdateStatusLocked(STATUS_UNCONFIGURED);
+    mNeedConfig = true;
+}
+
 status_t Camera3Device::configureStreamsLocked() {
     ATRACE_CALL();
     status_t res;
@@ -1862,7 +1882,8 @@ status_t Camera3Device::configureStreamsLocked() {
         camera3_stream_t *inputStream;
         inputStream = mInputStream->startConfiguration();
         if (inputStream == NULL) {
-            SET_ERR_L("Can't start input stream configuration");
+            CLOGE("Can't start input stream configuration");
+            cancelStreamsConfigurationLocked();
             return INVALID_OPERATION;
         }
         streams.add(inputStream);
@@ -1881,7 +1902,8 @@ status_t Camera3Device::configureStreamsLocked() {
         camera3_stream_t *outputStream;
         outputStream = mOutputStreams.editValueAt(i)->startConfiguration();
         if (outputStream == NULL) {
-            SET_ERR_L("Can't start output stream configuration");
+            CLOGE("Can't start output stream configuration");
+            cancelStreamsConfigurationLocked();
             return INVALID_OPERATION;
         }
         streams.add(outputStream);
@@ -1898,35 +1920,8 @@ status_t Camera3Device::configureStreamsLocked() {
     if (res == BAD_VALUE) {
         // HAL rejected this set of streams as unsupported, clean up config
         // attempt and return to unconfigured state
-        if (mInputStream != NULL && mInputStream->isConfiguring()) {
-            res = mInputStream->cancelConfiguration();
-            if (res != OK) {
-                SET_ERR_L("Can't cancel configuring input stream %d: %s (%d)",
-                        mInputStream->getId(), strerror(-res), res);
-                return res;
-            }
-        }
-
-        for (size_t i = 0; i < mOutputStreams.size(); i++) {
-            sp<Camera3OutputStreamInterface> outputStream =
-                    mOutputStreams.editValueAt(i);
-            if (outputStream->isConfiguring()) {
-                res = outputStream->cancelConfiguration();
-                if (res != OK) {
-                    SET_ERR_L(
-                        "Can't cancel configuring output stream %d: %s (%d)",
-                        outputStream->getId(), strerror(-res), res);
-                    return res;
-                }
-            }
-        }
-
-        // Return state to that at start of call, so that future configures
-        // properly clean things up
-        internalUpdateStatusLocked(STATUS_UNCONFIGURED);
-        mNeedConfig = true;
-
-        ALOGV("%s: Camera %d: Stream configuration failed", __FUNCTION__, mId);
+        CLOGE("Set of requested inputs/outputs not supported by HAL");
+        cancelStreamsConfigurationLocked();
         return BAD_VALUE;
     } else if (res != OK) {
         // Some other kind of error from configure_streams - this is not
@@ -1943,9 +1938,10 @@ status_t Camera3Device::configureStreamsLocked() {
     if (mInputStream != NULL && mInputStream->isConfiguring()) {
         res = mInputStream->finishConfiguration(mHal3Device);
         if (res != OK) {
-            SET_ERR_L("Can't finish configuring input stream %d: %s (%d)",
+            CLOGE("Can't finish configuring input stream %d: %s (%d)",
                     mInputStream->getId(), strerror(-res), res);
-            return res;
+            cancelStreamsConfigurationLocked();
+            return BAD_VALUE;
         }
     }
 
@@ -1955,9 +1951,10 @@ status_t Camera3Device::configureStreamsLocked() {
         if (outputStream->isConfiguring()) {
             res = outputStream->finishConfiguration(mHal3Device);
             if (res != OK) {
-                SET_ERR_L("Can't finish configuring output stream %d: %s (%d)",
+                CLOGE("Can't finish configuring output stream %d: %s (%d)",
                         outputStream->getId(), strerror(-res), res);
-                return res;
+                cancelStreamsConfigurationLocked();
+                return BAD_VALUE;
             }
         }
     }
