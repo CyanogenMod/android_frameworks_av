@@ -221,6 +221,10 @@ public:
         return ret;
     }
 
+    bool supportReadMultiple() {
+        return true;
+    }
+
     virtual status_t pause() {
         ALOGV("pause");
         Parcel data, reply;
