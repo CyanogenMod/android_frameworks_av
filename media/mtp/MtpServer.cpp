@@ -120,6 +120,9 @@ MtpServer::~MtpServer() {
 void MtpServer::addStorage(MtpStorage* storage) {
     Mutex::Autolock autoLock(mMutex);
 
+    if(getStorage(storage->getStorageID()) != NULL)
+       return;
+    __android_log_print (ANDROID_LOG_INFO,LOG_TAG,"MtpServer::addStorage storage->getStorageID(): %d\n", storage->getStorageID());
     mStorages.push(storage);
     sendStoreAdded(storage->getStorageID());
 }
