@@ -1444,7 +1444,7 @@ void NuPlayer::GenericSource::readBuffer(
             }
         }
 
-        options.clearSeekTo();
+        options.clearNonPersistent();
 
         size_t id = 0;
         size_t count = mediaBuffers.size();
