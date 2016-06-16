@@ -2362,10 +2362,6 @@ status_t MPEG4Writer::Track::threadEntry() {
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
                             buffer->range_length());
-                    int32_t fps;
-                    mMeta->findInt32(kKeyFrameRate, &fps);
-                    int64_t cttsOffsetTimeUs = 1000000LL/fps;
-                    mCttsOffsetTimeUs = cttsOffsetTimeUs + kMinCttsOffsetTimeUs; //delta factor
                     CHECK_EQ((status_t)OK, err);
                 } else if (mIsHevc) {
                     status_t err = makeHEVCCodecSpecificData(
@@ -2379,6 +2375,12 @@ status_t MPEG4Writer::Track::threadEntry() {
                 }
             }
 
+            if (!mIsAudio) {
+                int32_t fps;
+                mMeta->findInt32(kKeyFrameRate, &fps);
+                int64_t cttsOffsetTimeUs = 1000000LL/fps;
+                mCttsOffsetTimeUs = cttsOffsetTimeUs + kMinCttsOffsetTimeUs; //delta factor
+            }
             buffer->release();
             buffer = NULL;
 
