@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 
 #include <utility>
+#include <vector>
 
 #include "include/ESDS.h"
 #include "include/HevcUtils.h"
@@ -1377,24 +1378,24 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     // reassemble the csd data into its original form
     sp<ABuffer> csd0, csd1, csd2;
     if (msg->findBuffer("csd-0", &csd0)) {
+        int csd0size = csd0->size();
         if (mime == MEDIA_MIMETYPE_VIDEO_AVC) {
             sp<ABuffer> csd1;
             if (msg->findBuffer("csd-1", &csd1)) {
-                char avcc[1024]; // that oughta be enough, right?
-                size_t outsize = reassembleAVCC(csd0, csd1, avcc);
-                meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
+                std::vector<char> avcc(csd0size + csd1->size() + 1024);
+                size_t outsize = reassembleAVCC(csd0, csd1, avcc.data());
+                meta->setData(kKeyAVCC, kKeyAVCC, avcc.data(), outsize);
             }
         } else if (mime == MEDIA_MIMETYPE_AUDIO_AAC || mime == MEDIA_MIMETYPE_VIDEO_MPEG4) {
-            int csd0size = csd0->size();
-            char esds[csd0size + 31];
+            std::vector<char> esds(csd0size + 31);
             // The written ESDS is actually for an audio stream, but it's enough
             // for transporting the CSD to muxers.
-            reassembleESDS(csd0, esds);
-            meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
+            reassembleESDS(csd0, esds.data());
+            meta->setData(kKeyESDS, kKeyESDS, esds.data(), esds.size());
         } else if (mime == MEDIA_MIMETYPE_VIDEO_HEVC) {
-            uint8_t hvcc[1024]; // that oughta be enough, right?
-            size_t outsize = reassembleHVCC(csd0, hvcc, 1024, 4);
-            meta->setData(kKeyHVCC, kKeyHVCC, hvcc, outsize);
+            std::vector<uint8_t> hvcc(csd0size + 1024);
+            size_t outsize = reassembleHVCC(csd0, hvcc.data(), hvcc.size(), 4);
+            meta->setData(kKeyHVCC, kKeyHVCC, hvcc.data(), outsize);
         } else if (mime == MEDIA_MIMETYPE_VIDEO_VP9) {
             meta->setData(kKeyVp9CodecPrivate, 0, csd0->data(), csd0->size());
         } else if (mime == MEDIA_MIMETYPE_AUDIO_OPUS) {
