@@ -660,7 +660,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
                 sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
                 if (mPlaybackThreads.keyAt(i) != output) {
                     uint32_t sessions = t->hasAudioSession(lSessionId);
-                    if (sessions & PlaybackThread::EFFECT_SESSION) {
+                    if (sessions & ThreadBase::EFFECT_SESSION) {
                         effectThread = t.get();
                         break;
                     }
@@ -1762,7 +1762,7 @@ audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         sp<PlaybackThread> thread = mPlaybackThreads.valueAt(i);
         uint32_t sessions = thread->hasAudioSession(sessionId);
-        if (sessions & PlaybackThread::TRACK_SESSION) {
+        if (sessions & ThreadBase::TRACK_SESSION) {
             AudioParameter param = AudioParameter();
             param.addInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), value);
             thread->setParameters(param.toString());
@@ -2820,14 +2820,11 @@ status_t AudioFlinger::moveEffectChain_l(audio_session_t sessionId,
         return INVALID_OPERATION;
     }
 
-    // Check whether the destination thread has a channel count of FCC_2, which is
-    // currently required for (most) effects. Prevent moving the effect chain here rather
-    // than disabling the addEffect_l() call in dstThread below.
-    if ((dstThread->type() == ThreadBase::MIXER || dstThread->isDuplicating()) &&
-            dstThread->mChannelCount != FCC_2) {
+    // Check whether the destination thread and all effects in the chain are compatible
+    if (!chain->isCompatibleWithThread_l(dstThread)) {
         ALOGW("moveEffectChain_l() effect chain failed because"
-                " destination thread %p channel count(%u) != %u",
-                dstThread, dstThread->mChannelCount, FCC_2);
+                " destination thread %p is not compatible with effects in the chain",
+                dstThread);
         return INVALID_OPERATION;
     }
 

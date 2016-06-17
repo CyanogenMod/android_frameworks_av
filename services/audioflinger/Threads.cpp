@@ -1256,6 +1256,135 @@ void AudioFlinger::ThreadBase::checkSuspendOnEffectEnabled_l(const sp<EffectModu
     }
 }
 
+// checkEffectCompatibility_l() must be called with ThreadBase::mLock held
+status_t AudioFlinger::RecordThread::checkEffectCompatibility_l(
+        const effect_descriptor_t *desc, audio_session_t sessionId)
+{
+    // No global effect sessions on record threads
+    if (sessionId == AUDIO_SESSION_OUTPUT_MIX || sessionId == AUDIO_SESSION_OUTPUT_STAGE) {
+        ALOGW("checkEffectCompatibility_l(): global effect %s on record thread %s",
+                desc->name, mThreadName);
+        return BAD_VALUE;
+    }
+    // only pre processing effects on record thread
+    if ((desc->flags & EFFECT_FLAG_TYPE_MASK) != EFFECT_FLAG_TYPE_PRE_PROC) {
+        ALOGW("checkEffectCompatibility_l(): non pre processing effect %s on record thread %s",
+                desc->name, mThreadName);
+        return BAD_VALUE;
+    }
+    audio_input_flags_t flags = mInput->flags;
+    if (hasFastCapture() || (flags & AUDIO_INPUT_FLAG_FAST)) {
+        if (flags & AUDIO_INPUT_FLAG_RAW) {
+            ALOGW("checkEffectCompatibility_l(): effect %s on record thread %s in raw mode",
+                  desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+        if ((desc->flags & EFFECT_FLAG_HW_ACC_TUNNEL) == 0) {
+            ALOGW("checkEffectCompatibility_l(): non HW effect %s on record thread %s in fast mode",
+                  desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+    }
+    return NO_ERROR;
+}
+
+// checkEffectCompatibility_l() must be called with ThreadBase::mLock held
+status_t AudioFlinger::PlaybackThread::checkEffectCompatibility_l(
+        const effect_descriptor_t *desc, audio_session_t sessionId)
+{
+    // no preprocessing on playback threads
+    if ((desc->flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC) {
+        ALOGW("checkEffectCompatibility_l(): pre processing effect %s created on playback"
+                " thread %s", desc->name, mThreadName);
+        return BAD_VALUE;
+    }
+
+    switch (mType) {
+    case MIXER: {
+        // Reject any effect on mixer multichannel sinks.
+        // TODO: fix both format and multichannel issues with effects.
+        if (mChannelCount != FCC_2) {
+            ALOGW("checkEffectCompatibility_l(): effect %s for multichannel(%d) on MIXER"
+                    " thread %s", desc->name, mChannelCount, mThreadName);
+            return BAD_VALUE;
+        }
+        audio_output_flags_t flags = mOutput->flags;
+        if (hasFastMixer() || (flags & AUDIO_OUTPUT_FLAG_FAST)) {
+            if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
+                // global effects are applied only to non fast tracks if they are SW
+                if ((desc->flags & EFFECT_FLAG_HW_ACC_TUNNEL) == 0) {
+                    break;
+                }
+            } else if (sessionId == AUDIO_SESSION_OUTPUT_STAGE) {
+                // only post processing on output stage session
+                if ((desc->flags & EFFECT_FLAG_TYPE_MASK) != EFFECT_FLAG_TYPE_POST_PROC) {
+                    ALOGW("checkEffectCompatibility_l(): non post processing effect %s not allowed"
+                            " on output stage session", desc->name);
+                    return BAD_VALUE;
+                }
+            } else {
+                // no restriction on effects applied on non fast tracks
+                if ((hasAudioSession_l(sessionId) & ThreadBase::FAST_SESSION) == 0) {
+                    break;
+                }
+            }
+            if (flags & AUDIO_OUTPUT_FLAG_RAW) {
+                ALOGW("checkEffectCompatibility_l(): effect %s on playback thread in raw mode",
+                      desc->name);
+                return BAD_VALUE;
+            }
+            if ((desc->flags & EFFECT_FLAG_HW_ACC_TUNNEL) == 0) {
+                ALOGW("checkEffectCompatibility_l(): non HW effect %s on playback thread"
+                        " in fast mode", desc->name);
+                return BAD_VALUE;
+            }
+        }
+    } break;
+    case OFFLOAD:
+        // only offloadable effects on offload thread
+        if ((desc->flags & EFFECT_FLAG_OFFLOAD_MASK) != EFFECT_FLAG_OFFLOAD_SUPPORTED) {
+            ALOGW("checkEffectCompatibility_l(): non offloadable effect %s created on"
+                    " OFFLOAD thread %s", desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+        break;
+    case DIRECT:
+        // Reject any effect on Direct output threads for now, since the format of
+        // mSinkBuffer is not guaranteed to be compatible with effect processing (PCM 16 stereo).
+        ALOGW("checkEffectCompatibility_l(): effect %s on DIRECT output thread %s",
+                desc->name, mThreadName);
+        return BAD_VALUE;
+    case DUPLICATING:
+        // Reject any effect on mixer multichannel sinks.
+        // TODO: fix both format and multichannel issues with effects.
+        if (mChannelCount != FCC_2) {
+            ALOGW("checkEffectCompatibility_l(): effect %s for multichannel(%d)"
+                    " on DUPLICATING thread %s", desc->name, mChannelCount, mThreadName);
+            return BAD_VALUE;
+        }
+        if ((sessionId == AUDIO_SESSION_OUTPUT_STAGE) || (sessionId == AUDIO_SESSION_OUTPUT_MIX)) {
+            ALOGW("checkEffectCompatibility_l(): global effect %s on DUPLICATING"
+                    " thread %s", desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+        if ((desc->flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_POST_PROC) {
+            ALOGW("checkEffectCompatibility_l(): post processing effect %s on"
+                    " DUPLICATING thread %s", desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+        if ((desc->flags & EFFECT_FLAG_HW_ACC_TUNNEL) != 0) {
+            ALOGW("checkEffectCompatibility_l(): HW tunneled effect %s on"
+                    " DUPLICATING thread %s", desc->name, mThreadName);
+            return BAD_VALUE;
+        }
+        break;
+    default:
+        LOG_ALWAYS_FATAL("checkEffectCompatibility_l(): wrong thread type %d", mType);
+    }
+
+    return NO_ERROR;
+}
+
 // ThreadBase::createEffect_l() must be called with AudioFlinger::mLock held
 sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         const sp<AudioFlinger::Client>& client,
@@ -1280,53 +1409,15 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
         goto Exit;
     }
 
-    // Reject any effect on Direct output threads for now, since the format of
-    // mSinkBuffer is not guaranteed to be compatible with effect processing (PCM 16 stereo).
-    if (mType == DIRECT) {
-        ALOGW("createEffect_l() Cannot add effect %s on Direct output type thread %s",
-                desc->name, mThreadName);
-        lStatus = BAD_VALUE;
-        goto Exit;
-    }
-
-    // Reject any effect on mixer or duplicating multichannel sinks.
-    // TODO: fix both format and multichannel issues with effects.
-    if ((mType == MIXER || mType == DUPLICATING) && mChannelCount != FCC_2) {
-        ALOGW("createEffect_l() Cannot add effect %s for multichannel(%d) %s threads",
-                desc->name, mChannelCount, mType == MIXER ? "MIXER" : "DUPLICATING");
-        lStatus = BAD_VALUE;
-        goto Exit;
-    }
-
-    // Allow global effects only on offloaded and mixer threads
-    if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
-        switch (mType) {
-        case MIXER:
-        case OFFLOAD:
-            break;
-        case DIRECT:
-        case DUPLICATING:
-        case RECORD:
-        default:
-            ALOGW("createEffect_l() Cannot add global effect %s on thread %s",
-                    desc->name, mThreadName);
-            lStatus = BAD_VALUE;
-            goto Exit;
-        }
-    }
-
-    // Only Pre processor effects are allowed on input threads and only on input threads
-    if ((mType == RECORD) != ((desc->flags & EFFECT_FLAG_TYPE_MASK) == EFFECT_FLAG_TYPE_PRE_PROC)) {
-        ALOGW("createEffect_l() effect %s (flags %08x) created on wrong thread type %d",
-                desc->name, desc->flags, mType);
-        lStatus = BAD_VALUE;
-        goto Exit;
-    }
-
     ALOGV("createEffect_l() thread %p effect %s on session %d", this, desc->name, sessionId);
 
     { // scope for mLock
         Mutex::Autolock _l(mLock);
+
+        lStatus = checkEffectCompatibility_l(desc, sessionId);
+        if (lStatus != NO_ERROR) {
+            goto Exit;
+        }
 
         // check for existing effect chain with the requested audio session
         chain = getEffectChain_l(sessionId);
@@ -1804,8 +1895,44 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             }
             frameCount = max(frameCount, mFrameCount * sFastTrackMultiplier); // incl framecount 0
         }
-        ALOGV("AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
-                frameCount, mFrameCount);
+
+        // check compatibility with audio effects.
+        { // scope for mLock
+            Mutex::Autolock _l(mLock);
+            // do not accept RAW flag if post processing are present. Note that post processing on
+            // a fast mixer are necessarily hardware
+            sp<EffectChain> chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE);
+            if (chain != 0) {
+                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                        "AUDIO_OUTPUT_FLAG_RAW denied: post processing effect present");
+                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
+            }
+            // Do not accept FAST flag if software global effects are present
+            chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
+            if (chain != 0) {
+                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                        "AUDIO_OUTPUT_FLAG_RAW denied: global effect present");
+                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
+                if (chain->hasSoftwareEffect()) {
+                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software global effect present");
+                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+                }
+            }
+            // Do not accept FAST flag if the session has software effects
+            chain = getEffectChain_l(sessionId);
+            if (chain != 0) {
+                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                        "AUDIO_OUTPUT_FLAG_RAW denied: effect present on session");
+                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
+                if (chain->hasSoftwareEffect()) {
+                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software effect present on session");
+                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+                }
+            }
+        }
+        ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_FAST) != 0,
+                 "AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
+                 frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: sharedBuffer=%p frameCount=%zu "
                 "mFrameCount=%zu format=%#x mFormat=%#x isLinear=%d channelMask=%#x "
@@ -1814,7 +1941,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 sharedBuffer.get(), frameCount, mFrameCount, format, mFormat,
                 audio_is_linear_pcm(format),
                 channelMask, sampleRate, mSampleRate, hasFastMixer(), tid, mFastTrackAvailMask);
-        *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_FAST);
+        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
       }
     }
     // For normal PCM streaming tracks, update minimum frame count.
@@ -2400,9 +2527,9 @@ status_t AudioFlinger::PlaybackThread::getRenderPosition(uint32_t *halFrames, ui
     }
 }
 
-uint32_t AudioFlinger::PlaybackThread::hasAudioSession(audio_session_t sessionId) const
+// hasAudioSession_l() must be called with ThreadBase::mLock held
+uint32_t AudioFlinger::PlaybackThread::hasAudioSession_l(audio_session_t sessionId) const
 {
-    Mutex::Autolock _l(mLock);
     uint32_t result = 0;
     if (getEffectChain_l(sessionId) != 0) {
         result = EFFECT_SESSION;
@@ -2412,6 +2539,9 @@ uint32_t AudioFlinger::PlaybackThread::hasAudioSession(audio_session_t sessionId
         sp<Track> track = mTracks[i];
         if (sessionId == track->sessionId() && !track->isInvalid()) {
             result |= TRACK_SESSION;
+            if (track->isFastTrack()) {
+                result |= FAST_SESSION;
+            }
             break;
         }
     }
@@ -6333,8 +6463,22 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
             // there are sufficient fast track slots available
             mFastTrackAvail
         ) {
-        ALOGV("AUDIO_INPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
-                frameCount, mFrameCount);
+          // check compatibility with audio effects.
+          Mutex::Autolock _l(mLock);
+          // Do not accept FAST flag if the session has software effects
+          sp<EffectChain> chain = getEffectChain_l(sessionId);
+          if (chain != 0) {
+              ALOGV_IF((flags & AUDIO_INPUT_FLAG_RAW) != 0,
+                      "AUDIO_INPUT_FLAG_RAW denied: effect present on session");
+              *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
+              if (chain->hasSoftwareEffect()) {
+                  ALOGV("AUDIO_INPUT_FLAG_FAST denied: software effect present on session");
+                  *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
+              }
+          }
+          ALOGV_IF((flags & AUDIO_INPUT_FLAG_FAST) != 0,
+                   "AUDIO_INPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
+                   frameCount, mFrameCount);
       } else {
         ALOGV("AUDIO_INPUT_FLAG_FAST denied: frameCount=%zu mFrameCount=%zu mPipeFramesP2=%zu "
                 "format=%#x isLinear=%d channelMask=%#x sampleRate=%u mSampleRate=%u "
@@ -7224,9 +7368,9 @@ uint32_t AudioFlinger::RecordThread::getInputFramesLost()
     return mInput->stream->get_input_frames_lost(mInput->stream);
 }
 
-uint32_t AudioFlinger::RecordThread::hasAudioSession(audio_session_t sessionId) const
+// hasAudioSession_l() must be called with ThreadBase::mLock held
+uint32_t AudioFlinger::RecordThread::hasAudioSession_l(audio_session_t sessionId) const
 {
-    Mutex::Autolock _l(mLock);
     uint32_t result = 0;
     if (getEffectChain_l(sessionId) != 0) {
         result = EFFECT_SESSION;
@@ -7235,6 +7379,9 @@ uint32_t AudioFlinger::RecordThread::hasAudioSession(audio_session_t sessionId) 
     for (size_t i = 0; i < mTracks.size(); ++i) {
         if (sessionId == mTracks[i]->sessionId()) {
             result |= TRACK_SESSION;
+            if (mTracks[i]->isFastTrack()) {
+                result |= FAST_SESSION;
+            }
             break;
         }
     }

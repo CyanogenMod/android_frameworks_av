@@ -1960,4 +1960,27 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
     }
 }
 
+bool AudioFlinger::EffectChain::hasSoftwareEffect() const
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        if (mEffects[i]->isImplementationSoftware()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// isCompatibleWithThread_l() must be called with thread->mLock held
+bool AudioFlinger::EffectChain::isCompatibleWithThread_l(const sp<ThreadBase>& thread) const
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        if (thread->checkEffectCompatibility_l(&(mEffects[i]->desc()), mSessionId) != NO_ERROR) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace android
