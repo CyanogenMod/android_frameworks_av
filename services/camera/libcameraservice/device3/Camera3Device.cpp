@@ -2733,6 +2733,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
         mParent(parent),
         mStatusTracker(statusTracker),
         mHal3Device(hal3Device),
+        mListener(nullptr),
         mId(getId(parent)),
         mReconfigured(false),
         mDoPause(false),
@@ -3790,7 +3791,8 @@ status_t Camera3Device::RequestThread::addDummyTriggerIds(
  */
 
 Camera3Device::PreparerThread::PreparerThread() :
-        Thread(/*canCallJava*/false), mActive(false), mCancelNow(false) {
+        Thread(/*canCallJava*/false), mListener(nullptr),
+        mActive(false), mCancelNow(false) {
 }
 
 Camera3Device::PreparerThread::~PreparerThread() {
