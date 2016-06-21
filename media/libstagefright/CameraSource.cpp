@@ -27,8 +27,10 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
+#include <media/hardware/HardwareAPI.h>
 #include <camera/Camera.h>
 #include <camera/CameraParameters.h>
+#include <camera/ICameraRecordingProxy.h>
 #include <gui/Surface.h>
 #include <utils/String8.h>
 #include <cutils/properties.h>
@@ -822,6 +824,8 @@ void CameraSource::releaseQueuedFrames() {
     List<sp<IMemory> >::iterator it;
     while (!mFramesReceived.empty()) {
         it = mFramesReceived.begin();
+        // b/28466701
+        adjustOutgoingANWBuffer(it->get());
         releaseRecordingFrame(*it);
         mFramesReceived.erase(it);
         ++mNumFramesDropped;
@@ -843,6 +847,9 @@ void CameraSource::signalBufferReturned(MediaBuffer *buffer) {
     for (List<sp<IMemory> >::iterator it = mFramesBeingEncoded.begin();
          it != mFramesBeingEncoded.end(); ++it) {
         if ((*it)->pointer() ==  buffer->data()) {
+            // b/28466701
+            adjustOutgoingANWBuffer(it->get());
+
             releaseOneRecordingFrame((*it));
             mFramesBeingEncoded.erase(it);
             ++mNumFramesEncoded;
@@ -959,6 +966,10 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
     ++mNumFramesReceived;
 
     CHECK(data != NULL && data->size() > 0);
+
+    // b/28466701
+    adjustIncomingANWBuffer(data.get());
+
     mFramesReceived.push_back(data);
     int64_t timeUs = mStartTimeUs + (timestampUs - mFirstFrameTimeUs);
     mFrameTimes.push_back(timeUs);
@@ -970,6 +981,26 @@ void CameraSource::dataCallbackTimestamp(int64_t timestampUs,
 bool CameraSource::isMetaDataStoredInVideoBuffers() const {
     ALOGV("isMetaDataStoredInVideoBuffers");
     return mIsMetaDataStoredInVideoBuffers;
+}
+
+void CameraSource::adjustIncomingANWBuffer(IMemory* data) {
+    uint8_t *payload =
+            reinterpret_cast<uint8_t*>(data->pointer());
+    if (*(uint32_t*)payload == kMetadataBufferTypeGrallocSource) {
+        buffer_handle_t* pBuffer = (buffer_handle_t*)(payload + 4);
+        *pBuffer = (buffer_handle_t)((uint8_t*)(*pBuffer) +
+                ICameraRecordingProxy::getCommonBaseAddress());
+    }
+}
+
+void CameraSource::adjustOutgoingANWBuffer(IMemory* data) {
+    uint8_t *payload =
+            reinterpret_cast<uint8_t*>(data->pointer());
+    if (*(uint32_t*)payload == kMetadataBufferTypeGrallocSource) {
+        buffer_handle_t* pBuffer = (buffer_handle_t*)(payload + 4);
+        *pBuffer = (buffer_handle_t)((uint8_t*)(*pBuffer) -
+                ICameraRecordingProxy::getCommonBaseAddress());
+    }
 }
 
 CameraSource::ProxyListener::ProxyListener(const sp<CameraSource>& source) {
