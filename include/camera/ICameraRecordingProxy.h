@@ -83,6 +83,12 @@ public:
     virtual status_t        startRecording(const sp<ICameraRecordingProxyListener>& listener) = 0;
     virtual void            stopRecording() = 0;
     virtual void            releaseRecordingFrame(const sp<IMemory>& mem) = 0;
+
+    // b/28466701
+    static  size_t          getCommonBaseAddress();
+  private:
+
+    static  uint8_t         baseObject;
 };
 
 // ----------------------------------------------------------------------------
