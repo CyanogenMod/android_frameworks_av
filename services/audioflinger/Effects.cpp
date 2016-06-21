@@ -558,6 +558,12 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
+    if (cmdCode == EFFECT_CMD_GET_PARAM &&
+            (*replySize < sizeof(effect_param_t) ||
+                    ((effect_param_t *)pCmdData)->psize > *replySize - sizeof(effect_param_t))) {
+        android_errorWriteLog(0x534e4554, "29251553");
+        return -EINVAL;
+    }
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    cmdCode,
                                                    cmdSize,
