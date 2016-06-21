@@ -30,6 +30,7 @@
 #include <utils/Trace.h>
 #include <gui/BufferItem.h>
 #include <gui/Surface.h>
+#include <camera/ICameraRecordingProxy.h>
 #include <media/hardware/HardwareAPI.h>
 
 #include "common/CameraDeviceBase.h"
@@ -826,6 +827,9 @@ status_t StreamingProcessor::processRecordingFrame() {
             (uint8_t*)heap->getBase() + offset);
         payload->eType = kMetadataBufferTypeANWBuffer;
         payload->pBuffer = imgBuffer.mGraphicBuffer->getNativeBuffer();
+        // b/28466701
+        payload->pBuffer = (ANativeWindowBuffer*)((uint8_t*)payload->pBuffer -
+                ICameraRecordingProxy::getCommonBaseAddress());
         payload->nFenceFd = -1;
 
         ALOGVV("%s: Camera %d: Sending out ANWBuffer %p",
@@ -873,6 +877,10 @@ void StreamingProcessor::releaseRecordingFrame(const sp<IMemory>& mem) {
                 kMetadataBufferTypeANWBuffer);
         return;
     }
+
+    // b/28466701
+    payload->pBuffer = (ANativeWindowBuffer*)(((uint8_t*)payload->pBuffer) +
+            ICameraRecordingProxy::getCommonBaseAddress());
 
     // Release the buffer back to the recording queue
     size_t itemIndex;
