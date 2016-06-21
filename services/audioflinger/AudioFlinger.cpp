@@ -1694,14 +1694,14 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
 uint32_t AudioFlinger::getPrimaryOutputSamplingRate()
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = primaryPlaybackThread_l();
+    PlaybackThread *thread = fastPlaybackThread_l();
     return thread != NULL ? thread->sampleRate() : 0;
 }
 
 size_t AudioFlinger::getPrimaryOutputFrameCount()
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = primaryPlaybackThread_l();
+    PlaybackThread *thread = fastPlaybackThread_l();
     return thread != NULL ? thread->frameCountHAL() : 0;
 }
 
@@ -2526,6 +2526,25 @@ audio_devices_t AudioFlinger::primaryOutputDevice_l() const
     }
 
     return thread->outDevice();
+}
+
+AudioFlinger::PlaybackThread *AudioFlinger::fastPlaybackThread_l() const
+{
+    size_t minFrameCount = 0;
+    PlaybackThread *minThread = NULL;
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+        if (!thread->isDuplicating()) {
+            size_t frameCount = thread->frameCountHAL();
+            if (frameCount != 0 && (minFrameCount == 0 || frameCount < minFrameCount ||
+                    (frameCount == minFrameCount && thread->hasFastMixer() &&
+                    /*minThread != NULL &&*/ !minThread->hasFastMixer()))) {
+                minFrameCount = frameCount;
+                minThread = thread;
+            }
+        }
+    }
+    return minThread;
 }
 
 sp<AudioFlinger::SyncEvent> AudioFlinger::createSyncEvent(AudioSystem::sync_event_t type,

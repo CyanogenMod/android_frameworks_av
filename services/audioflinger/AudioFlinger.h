@@ -575,6 +575,9 @@ private:
               PlaybackThread *primaryPlaybackThread_l() const;
               audio_devices_t primaryOutputDevice_l() const;
 
+              // return the playback thread with smallest HAL buffer size, and prefer fast
+              PlaybackThread *fastPlaybackThread_l() const;
+
               sp<PlaybackThread> getEffectThread_l(audio_session_t sessionId, int EffectId);
 
 
