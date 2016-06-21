@@ -104,9 +104,11 @@ AudioSource* AVFactory::createAudioSource(
             const String16 &opPackageName,
             uint32_t sampleRate,
             uint32_t channels,
-            uint32_t outSampleRate) {
+            uint32_t outSampleRate,
+            uid_t clientUid,
+            pid_t clientPid) {
     return new AudioSource(inputSource, opPackageName, sampleRate,
-                            channels, outSampleRate);
+                            channels, outSampleRate, clientUid, clientPid);
 }
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVFactory::AVFactory() {
