@@ -482,8 +482,6 @@ void FastMixer::onWork()
             } else {
                 // HAL reported that more frames were presented than were written
                 mNativeFramesWrittenButNotPresented = 0;
-                mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = 0;
-                mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] = -1;
                 status = INVALID_OPERATION;
             }
         }
@@ -494,6 +492,10 @@ void FastMixer::onWork()
             // fetch server time if we can't get timestamp
             mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] =
                     systemTime(SYSTEM_TIME_MONOTONIC);
+            // clear out kernel cached position as this may get rapidly stale
+            // if we never get a new valid timestamp
+            mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = 0;
+            mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] = -1;
         }
     }
 }
