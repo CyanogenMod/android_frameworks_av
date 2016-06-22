@@ -27,7 +27,6 @@
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 #include <drm/DrmManagerClient.h>
-#include <vector>
 
 namespace android {
 
@@ -70,7 +69,7 @@ public:
     // The default value for chunkSize is set to read at least 4k bytes at a
     // time, depending on sizeof(T).
     template <typename T>
-    bool getVector(off64_t offset, std::vector<T>* x, size_t count,
+    bool getVector(off64_t offset, Vector<T>* x, size_t count,
                    size_t chunkSize = (4095 / sizeof(T)) + 1);
 
     // May return ERROR_UNSUPPORTED.
@@ -124,7 +123,7 @@ private:
 };
 
 template <typename T>
-bool DataSource::getVector(off64_t offset, std::vector<T>* x, size_t count,
+bool DataSource::getVector(off64_t offset, Vector<T>* x, size_t count,
                            size_t chunkSize)
 {
     x->clear();
@@ -150,11 +149,10 @@ bool DataSource::getVector(off64_t offset, std::vector<T>* x, size_t count,
         if (numBytesRead < numBytesPerChunk) {
             // This case is triggered when the stream ends before the whole
             // chunk is read.
-            x->insert(x->end(), &tmp[0],
-                    &tmp[(size_t)numBytesRead / sizeof(T)]);
+            x->appendArray(tmp, (size_t)numBytesRead / sizeof(T));
             return false;
         }
-        x->insert(x->end(), &tmp[0], &tmp[chunkSize]);
+        x->appendArray(tmp, chunkSize);
         offset += numBytesPerChunk;
     }
 
@@ -165,7 +163,7 @@ bool DataSource::getVector(off64_t offset, std::vector<T>* x, size_t count,
     if (numBytesRead == -1) {
         return false;
     }
-    x->insert(x->end(), &tmp[0], &tmp[(size_t)numBytesRead / sizeof(T)]);
+    x->appendArray(tmp, (size_t)numBytesRead / sizeof(T));
     return x->size() == count;
 }
 
