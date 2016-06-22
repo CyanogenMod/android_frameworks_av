@@ -24,7 +24,7 @@
 #include <media/stagefright/MediaErrors.h>
 #include <utils/RefBase.h>
 #include <utils/threads.h>
-#include <utils/Vector.h>
+#include <vector>
 
 namespace android {
 
@@ -96,6 +96,9 @@ private:
     static const uint32_t kSampleSizeType32;
     static const uint32_t kSampleSizeTypeCompact;
 
+    // Limit the total size of all internal tables to 200MiB.
+    static const size_t kMaxTotalSize = 200 * (1 << 20);
+
     sp<DataSource> mDataSource;
     Mutex mLock;
 
@@ -113,7 +116,7 @@ private:
 
     bool mHasTimeToSample;
     uint32_t mTimeToSampleCount;
-    Vector<uint32_t> mTimeToSample;
+    std::vector<uint32_t> mTimeToSample;
 
     struct SampleTimeEntry {
         uint32_t mSampleIndex;
@@ -138,6 +141,9 @@ private:
         uint32_t chunkDesc;
     };
     SampleToChunkEntry *mSampleToChunkEntries;
+
+    // Approximate size of all tables combined.
+    uint64_t mTotalSize;
 
     friend struct SampleIterator;
 
