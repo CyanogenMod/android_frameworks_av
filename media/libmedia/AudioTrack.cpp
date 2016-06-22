@@ -2365,9 +2365,14 @@ status_t AudioTrack::getTimestamp(AudioTimestamp& timestamp)
                 if (location == ExtendedTimestamp::LOCATION_SERVER) {
                     ALOGW_IF(mPreviousLocation == ExtendedTimestamp::LOCATION_KERNEL,
                             "getTimestamp() location moved from kernel to server");
+                    // check that the last kernel OK time info exists and the positions
+                    // are valid (if they predate the current track, the positions may
+                    // be zero or negative).
                     const int64_t frames =
                             (ets.mTimeNs[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] < 0 ||
-                            ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] < 0)
+                            ets.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] < 0 ||
+                            ets.mPosition[ExtendedTimestamp::LOCATION_SERVER_LASTKERNELOK] <= 0 ||
+                            ets.mPosition[ExtendedTimestamp::LOCATION_KERNEL_LASTKERNELOK] <= 0)
                             ?
                             int64_t((double)mAfLatency * mSampleRate * mPlaybackRate.mSpeed
                                     / 1000)
