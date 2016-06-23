@@ -160,10 +160,6 @@ public:
     static void acquireAudioSessionId(audio_session_t audioSession, pid_t pid);
     static void releaseAudioSessionId(audio_session_t audioSession, pid_t pid);
 
-    // FIXME remove
-    static void acquireAudioSessionId(int audioSession, pid_t pid);
-    static void releaseAudioSessionId(int audioSession, pid_t pid);
-
     // Get the HW synchronization source used for an audio session.
     // Return a valid source or AUDIO_HW_SYNC_INVALID if an error occurs
     // or no HW sync source is used.
