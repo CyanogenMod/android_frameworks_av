@@ -417,18 +417,6 @@ void AudioSystem::releaseAudioSessionId(audio_session_t audioSession, pid_t pid)
     }
 }
 
-// FIXME remove
-void AudioSystem::acquireAudioSessionId(int audioSession, pid_t pid)
-{
-    acquireAudioSessionId((audio_session_t) audioSession, pid);
-}
-
-// FIXME remove
-void AudioSystem::releaseAudioSessionId(int audioSession, pid_t pid)
-{
-    releaseAudioSessionId((audio_session_t) audioSession, pid);
-}
-
 audio_hw_sync_t AudioSystem::getAudioHwSyncForSession(audio_session_t sessionId)
 {
     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
