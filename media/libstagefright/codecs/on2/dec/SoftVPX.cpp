@@ -155,7 +155,7 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
             outHeader->nFlags = EOSseen ? OMX_BUFFERFLAG_EOS : 0;
             outHeader->nTimeStamp = inHeader->nTimeStamp;
 
-            if (outHeader->nAllocLen >= outHeader->nFilledLen) {
+            if (outputBufferSafe(outHeader)) {
                 const uint8_t *srcLine = (const uint8_t *)img->planes[VPX_PLANE_Y];
                 uint8_t *dst = outHeader->pBuffer;
                 for (size_t i = 0; i < img->d_h; ++i) {
@@ -181,8 +181,6 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
                     dst += img->d_w / 2;
                 }
             } else {
-                ALOGE("b/27597103, buffer too small");
-                android_errorWriteLog(0x534e4554, "27597103");
                 outHeader->nFilledLen = 0;
             }
             outInfo->mOwnedByUs = false;
@@ -198,6 +196,24 @@ void SoftVPX::onQueueFilled(OMX_U32 portIndex) {
         notifyEmptyBufferDone(inHeader);
         inHeader = NULL;
     }
+}
+
+bool SoftVPX::outputBufferSafe(OMX_BUFFERHEADERTYPE *outHeader) {
+    uint32_t width = mWidth;
+    uint32_t height = mHeight;
+    uint64_t nFilledLen = width;
+    nFilledLen *= height;
+    if (nFilledLen > UINT32_MAX / 3) {
+        ALOGE("b/29421675, nFilledLen overflow %llu w %u h %u", nFilledLen, width, height);
+        android_errorWriteLog(0x534e4554, "29421675");
+        return false;
+    } else if (outHeader->nAllocLen < outHeader->nFilledLen) {
+        ALOGE("b/27597103, buffer too small");
+        android_errorWriteLog(0x534e4554, "27597103");
+        return false;
+    }
+
+    return true;
 }
 
 }  // namespace android
