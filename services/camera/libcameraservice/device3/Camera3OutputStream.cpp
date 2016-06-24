@@ -271,6 +271,7 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
      */
     if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
         // Cancel buffer
+        ALOGW("A frame is dropped for stream %d", mId);
         res = currentConsumer->cancelBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
