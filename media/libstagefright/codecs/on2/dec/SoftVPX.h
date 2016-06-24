@@ -48,6 +48,7 @@ private:
     void *mCtx;
 
     status_t initDecoder();
+    bool outputBufferSafe(OMX_BUFFERHEADERTYPE *outHeader);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVPX);
 };
