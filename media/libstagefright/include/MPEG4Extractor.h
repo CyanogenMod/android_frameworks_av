@@ -95,6 +95,7 @@ private:
     status_t mInitCheck;
     bool mHasVideo;
     uint32_t mHeaderTimescale;
+    bool mIsQT;
 
     Track *mFirstTrack, *mLastTrack;
 
