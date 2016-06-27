@@ -1791,9 +1791,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         err = BAD_VALUE;
                     } else {
                         err = connectToSurface(surface);
-                        if (err == BAD_VALUE) {
-                            // assuming reconnecting to same surface
-                            // TODO: check if it is the same surface
+                        if (err == ALREADY_EXISTS) {
+                            // reconnecting to same surface
                             err = OK;
                         } else {
                             if (err == OK) {
@@ -2683,11 +2682,14 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
 status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
     status_t err = OK;
     if (surface != NULL) {
+        if (mSurface != NULL
+                && surface->getConsumerName() == mSurface->getConsumerName()) {
+            ALOGI("connecting to native window with same name. Assuming no change of surface");
+            return ALREADY_EXISTS;
+        }
+
         err = native_window_api_connect(surface.get(), NATIVE_WINDOW_API_MEDIA);
-        if (err == BAD_VALUE) {
-            ALOGI("native window already connected. Assuming no change of surface");
-            return err;
-        } else if (err == OK) {
+        if (err == OK) {
             // Require a fresh set of buffers after each connect by using a unique generation
             // number. Rely on the fact that max supported process id by Linux is 2^22.
             // PID is never 0 so we don't have to worry that we use the default generation of 0.
@@ -2709,7 +2711,8 @@ status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
             ALOGE("native_window_api_connect returned an error: %s (%d)", strerror(-err), err);
         }
     }
-    return err;
+    // do not return ALREADY_EXISTS unless surfaces are the same
+    return err == ALREADY_EXISTS ? BAD_VALUE : err;
 }
 
 status_t MediaCodec::disconnectFromSurface() {

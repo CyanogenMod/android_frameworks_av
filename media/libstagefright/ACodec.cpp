@@ -674,7 +674,10 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     }
 
     int usageBits = 0;
-    status_t err = setupNativeWindowSizeFormatAndUsage(nativeWindow, &usageBits);
+    // no need to reconnect as we will not dequeue all buffers
+    status_t err = setupNativeWindowSizeFormatAndUsage(
+            nativeWindow, &usageBits,
+            !storingMetadataInDecodedBuffers() || mLegacyAdaptiveExperiment /* reconnect */);
     if (err != OK) {
         return err;
     }
@@ -948,7 +951,8 @@ status_t ACodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 }
 
 status_t ACodec::setupNativeWindowSizeFormatAndUsage(
-        ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */) {
+        ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */,
+        bool reconnect) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
@@ -986,12 +990,14 @@ status_t ACodec::setupNativeWindowSizeFormatAndUsage(
             def.format.video.nFrameHeight,
             def.format.video.eColorFormat,
             mRotationDegrees,
-            usage);
+            usage,
+            reconnect);
 }
 
 status_t ACodec::configureOutputBuffersFromNativeWindow(
         OMX_U32 *bufferCount, OMX_U32 *bufferSize,
-        OMX_U32 *minUndequeuedBuffers) {
+        OMX_U32 *minUndequeuedBuffers, bool preregister) {
+
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
     def.nPortIndex = kPortIndexOutput;
@@ -1000,7 +1006,8 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
             mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
 
     if (err == OK) {
-        err = setupNativeWindowSizeFormatAndUsage(mNativeWindow.get(), &mNativeWindowUsageBits);
+        err = setupNativeWindowSizeFormatAndUsage(
+                mNativeWindow.get(), &mNativeWindowUsageBits, preregister /* reconnect */);
     }
     if (err != OK) {
         mNativeWindowUsageBits = 0;
@@ -1082,7 +1089,7 @@ status_t ACodec::configureOutputBuffersFromNativeWindow(
 status_t ACodec::allocateOutputBuffersFromNativeWindow() {
     OMX_U32 bufferCount, bufferSize, minUndequeuedBuffers;
     status_t err = configureOutputBuffersFromNativeWindow(
-            &bufferCount, &bufferSize, &minUndequeuedBuffers);
+            &bufferCount, &bufferSize, &minUndequeuedBuffers, true /* preregister */);
     if (err != 0)
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
@@ -1168,7 +1175,8 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
 status_t ACodec::allocateOutputMetadataBuffers() {
     OMX_U32 bufferCount, bufferSize, minUndequeuedBuffers;
     status_t err = configureOutputBuffersFromNativeWindow(
-            &bufferCount, &bufferSize, &minUndequeuedBuffers);
+            &bufferCount, &bufferSize, &minUndequeuedBuffers,
+            mLegacyAdaptiveExperiment /* preregister */);
     if (err != 0)
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;

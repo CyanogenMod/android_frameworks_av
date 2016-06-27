@@ -314,11 +314,12 @@ private:
 
     status_t handleSetSurface(const sp<Surface> &surface);
     status_t setupNativeWindowSizeFormatAndUsage(
-            ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */);
+            ANativeWindow *nativeWindow /* nonnull */, int *finalUsage /* nonnull */,
+            bool reconnect);
 
     status_t configureOutputBuffersFromNativeWindow(
             OMX_U32 *nBufferCount, OMX_U32 *nBufferSize,
-            OMX_U32 *nMinUndequeuedBuffers);
+            OMX_U32 *nMinUndequeuedBuffers, bool preregister);
     status_t allocateOutputMetadataBuffers();
     status_t submitOutputMetadataBuffer();
     void signalSubmitOutputMetadataBufferIfEOS_workaround();
