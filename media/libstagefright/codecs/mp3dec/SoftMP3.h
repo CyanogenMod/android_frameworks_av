@@ -70,6 +70,7 @@ private:
 
     void initPorts();
     void initDecoder();
+    void *memsetSafe(OMX_BUFFERHEADERTYPE *outHeader, int c, size_t len);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftMP3);
 };
