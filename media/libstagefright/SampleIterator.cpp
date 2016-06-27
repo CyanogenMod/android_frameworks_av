@@ -160,6 +160,10 @@ status_t SampleIterator::seekTo(uint32_t sampleIndex) {
 status_t SampleIterator::findChunkRange(uint32_t sampleIndex) {
     CHECK(sampleIndex >= mFirstChunkSampleIndex);
 
+    if (mTable->mSampleToChunkEntries == NULL) {
+       return ERROR_MALFORMED;
+    }
+
     while (sampleIndex >= mStopChunkSampleIndex) {
         if (mSampleToChunkIndex == mTable->mNumSampleToChunkOffsets) {
             return ERROR_OUT_OF_RANGE;
