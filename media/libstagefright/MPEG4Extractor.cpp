@@ -454,7 +454,7 @@ sp<MetaData> MPEG4Extractor::getTrackMetaData(
         --index;
     }
 
-    if (track == NULL) {
+    if ((track == NULL) || (track->sampleTable == NULL)) {
         return NULL;
     }
 
