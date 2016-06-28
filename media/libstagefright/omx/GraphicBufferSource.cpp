@@ -775,7 +775,9 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
 int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
     int64_t timeUs = item.mTimestamp / 1000;
 
-    if (mTimePerCaptureUs > 0ll) {
+    if (mTimePerCaptureUs > 0ll
+            && (mTimePerCaptureUs > 2 * mTimePerFrameUs
+            || mTimePerFrameUs > 2 * mTimePerCaptureUs)) {
         // Time lapse or slow motion mode
         if (mPrevCaptureUs < 0ll) {
             // first capture
@@ -801,6 +803,8 @@ int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
 
         return mPrevFrameUs;
     } else if (mMaxTimestampGapUs > 0ll) {
+        //TODO: Fix the case when mMaxTimestampGapUs and mTimePerCaptureUs are both set.
+
         /* Cap timestamp gap between adjacent frames to specified max
          *
          * In the scenario of cast mirroring, encoding could be suspended for

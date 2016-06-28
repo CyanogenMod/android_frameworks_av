@@ -820,6 +820,9 @@ status_t StagefrightRecorder::prepareInternal() {
             break;
     }
 
+    ALOGV("Recording frameRate: %d captureFps: %f",
+            mFrameRate, mCaptureFps);
+
     return status;
 }
 
