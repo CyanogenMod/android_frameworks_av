@@ -26,8 +26,25 @@ namespace android {
 
 status_t setNativeWindowSizeFormatAndUsage(
         ANativeWindow *nativeWindow /* nonnull */,
-        int width, int height, int format, int rotation, int usage) {
-    status_t err = native_window_set_buffers_dimensions(nativeWindow, width, height);
+        int width, int height, int format, int rotation, int usage, bool reconnect) {
+    status_t err = NO_ERROR;
+
+    // In some cases we need to reconnect so that we can dequeue all buffers
+    if (reconnect) {
+        err = native_window_api_disconnect(nativeWindow, NATIVE_WINDOW_API_MEDIA);
+        if (err != NO_ERROR) {
+            ALOGE("native_window_api_disconnect failed: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+
+        err = native_window_api_connect(nativeWindow, NATIVE_WINDOW_API_MEDIA);
+        if (err != NO_ERROR) {
+            ALOGE("native_window_api_connect failed: %s (%d)", strerror(-err), -err);
+            return err;
+        }
+    }
+
+    err = native_window_set_buffers_dimensions(nativeWindow, width, height);
     if (err != NO_ERROR) {
         ALOGE("native_window_set_buffers_dimensions failed: %s (%d)", strerror(-err), -err);
         return err;
@@ -124,7 +141,8 @@ status_t pushBlankBuffersToNativeWindow(ANativeWindow *nativeWindow /* nonnull *
     }
 
     err = setNativeWindowSizeFormatAndUsage(
-            nativeWindow, 1, 1, HAL_PIXEL_FORMAT_RGBX_8888, 0, GRALLOC_USAGE_SW_WRITE_OFTEN);
+            nativeWindow, 1, 1, HAL_PIXEL_FORMAT_RGBX_8888, 0, GRALLOC_USAGE_SW_WRITE_OFTEN,
+            false /* reconnect */);
     if (err != NO_ERROR) {
         goto error;
     }

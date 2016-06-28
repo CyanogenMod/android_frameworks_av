@@ -24,9 +24,14 @@ struct ANativeWindow;
 
 namespace android {
 
+/**
+ * Configures |nativeWindow| for given |width|x|height|, pixel |format|, |rotation| and |usage|.
+ * If |reconnect| is true, reconnects to the native window before hand.
+ * @return first error encountered, or NO_ERROR on success.
+ */
 status_t setNativeWindowSizeFormatAndUsage(
         ANativeWindow *nativeWindow /* nonnull */,
-        int width, int height, int format, int rotation, int usage);
+        int width, int height, int format, int rotation, int usage, bool reconnect);
 status_t pushBlankBuffersToNativeWindow(ANativeWindow *nativeWindow /* nonnull */);
 
 } // namespace android
