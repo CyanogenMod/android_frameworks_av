@@ -605,9 +605,9 @@ status_t Camera3OutputStream::detachBuffer(sp<GraphicBuffer>* buffer, int* fence
         *buffer = 0;
         ALOGW("%s: the released buffer has already been freed by the buffer queue!", __FUNCTION__);
     } else if (res != OK) {
-        // Other errors are fatal.
+        // Treat other errors as abandonment
         ALOGE("%s: detach next buffer failed: %s (%d).", __FUNCTION__, strerror(-res), res);
-        mState = STATE_ERROR;
+        mState = STATE_ABANDONED;
         return res;
     }
 
