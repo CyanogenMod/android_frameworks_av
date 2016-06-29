@@ -38,7 +38,8 @@ enum {
     GETFORMAT,
     // READ, deprecated
     READMULTIPLE,
-    RELEASE_BUFFER
+    RELEASE_BUFFER,
+    SUPPORT_NONBLOCKING_READ,
 };
 
 enum {
@@ -186,8 +187,20 @@ public:
         return ret;
     }
 
-    bool supportReadMultiple() {
+    // Binder proxy adds readMultiple support.
+    virtual bool supportReadMultiple() {
         return true;
+    }
+
+    virtual bool supportNonblockingRead() {
+        ALOGV("supportNonblockingRead");
+        Parcel data, reply;
+        data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
+        status_t ret = remote()->transact(SUPPORT_NONBLOCKING_READ, data, &reply);
+        if (ret == NO_ERROR) {
+            return reply.readInt32() != 0;
+        }
+        return false;
     }
 
     virtual status_t pause() {
@@ -325,6 +338,7 @@ status_t BnMediaSource::onTransact(
 
             mGroup->gc(kBinderMediaBuffers /* freeBuffers */);
             mIndexCache.gc();
+            size_t inlineTransferSize = 0;
             status_t ret = NO_ERROR;
             uint32_t bufferCount = 0;
             for (; bufferCount < maxNumBuffers; ++bufferCount, ++mBuffersSinceStop) {
@@ -344,7 +358,8 @@ status_t BnMediaSource::onTransact(
                 MediaBuffer *transferBuf = nullptr;
                 const size_t length = buf->range_length();
                 size_t offset = buf->range_offset();
-                if (length >= MediaBuffer::kSharedMemThreshold) {
+                if (length >= (supportNonblockingRead() && buf->mMemory != nullptr ?
+                        kTransferSharedAsSharedThreshold : kTransferInlineAsSharedThreshold)) {
                     if (buf->mMemory != nullptr) {
                         ALOGV("Use shared memory: %zu", length);
                         transferBuf = buf;
@@ -366,6 +381,9 @@ status_t BnMediaSource::onTransact(
                         } else {
                             memcpy(transferBuf->data(), (uint8_t*)buf->data() + offset, length);
                             offset = 0;
+                            if (!mGroup->has_buffers()) {
+                                maxNumBuffers = 0; // No more MediaBuffers, stop readMultiple.
+                            }
                         }
                     }
                 }
@@ -395,6 +413,8 @@ status_t BnMediaSource::onTransact(
                     buf->meta_data()->writeToParcel(*reply);
                     if (transferBuf != buf) {
                         buf->release();
+                    } else if (!supportNonblockingRead()) {
+                        maxNumBuffers = 0; // stop readMultiple with one shared buffer.
                     }
                 } else {
                     ALOGV_IF(buf->mMemory != nullptr,
@@ -404,12 +424,22 @@ status_t BnMediaSource::onTransact(
                     reply->writeByteArray(length, (uint8_t*)buf->data() + offset);
                     buf->meta_data()->writeToParcel(*reply);
                     buf->release();
+                    inlineTransferSize += length;
+                    if (inlineTransferSize > kInlineMaxTransfer) {
+                        maxNumBuffers = 0; // stop readMultiple if inline transfer is too large.
+                    }
                 }
             }
             reply->writeInt32(NULL_BUFFER); // Indicate no more MediaBuffers.
             reply->writeInt32(ret);
             ALOGV("readMultiple status %d, bufferCount %u, sinceStop %u",
                     ret, bufferCount, mBuffersSinceStop);
+            return NO_ERROR;
+        }
+        case SUPPORT_NONBLOCKING_READ: {
+            ALOGV("supportNonblockingRead");
+            CHECK_INTERFACE(IMediaSource, data, reply);
+            reply->writeInt32((int32_t)supportNonblockingRead());
             return NO_ERROR;
         }
         default:

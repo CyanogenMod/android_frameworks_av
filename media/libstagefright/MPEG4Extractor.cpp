@@ -75,6 +75,7 @@ public:
     virtual sp<MetaData> getFormat();
 
     virtual status_t read(MediaBuffer **buffer, const ReadOptions *options = NULL);
+    virtual bool supportNonblockingRead() { return true; }
     virtual status_t fragmentedRead(MediaBuffer **buffer, const ReadOptions *options = NULL);
 
 protected:
@@ -3563,13 +3564,20 @@ status_t MPEG4Source::start(MetaData *params) {
 
     // A somewhat arbitrary limit that should be sufficient for 8k video frames
     // If you see the message below for a valid input stream: increase the limit
-    if (max_size > 64 * 1024 * 1024) {
-        ALOGE("bogus max input size: %zu", max_size);
+    const size_t kMaxBufferSize = 64 * 1024 * 1024;
+    if (max_size > kMaxBufferSize) {
+        ALOGE("bogus max input size: %zu > %zu", max_size, kMaxBufferSize);
         return ERROR_MALFORMED;
     }
-    mGroup = new MediaBufferGroup;
-    mGroup->add_buffer(new MediaBuffer(max_size));
+    if (max_size == 0) {
+        ALOGE("zero max input size");
+        return ERROR_MALFORMED;
+    }
 
+    // Allow up to kMaxBuffers, but not if the total exceeds kMaxBufferSize.
+    const size_t kMaxBuffers = 8;
+    const size_t buffers = min(kMaxBufferSize / max_size, kMaxBuffers);
+    mGroup = new MediaBufferGroup(buffers, max_size);
     mSrcBuffer = new (std::nothrow) uint8_t[max_size];
     if (mSrcBuffer == NULL) {
         // file probably specified a bad max size
@@ -4195,6 +4203,11 @@ status_t MPEG4Source::read(
     Mutex::Autolock autoLock(mLock);
 
     CHECK(mStarted);
+
+    if (options != nullptr && options->getNonBlocking() && !mGroup->has_buffers()) {
+        *out = nullptr;
+        return WOULD_BLOCK;
+    }
 
     if (mFirstMoofOffset > 0) {
         return fragmentedRead(out, options);

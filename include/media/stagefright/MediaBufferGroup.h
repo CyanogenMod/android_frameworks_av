@@ -30,9 +30,15 @@ class MetaData;
 class MediaBufferGroup : public MediaBufferObserver {
 public:
     MediaBufferGroup(size_t growthLimit = 0);
+
+    // create a media buffer group with preallocated buffers
+    MediaBufferGroup(size_t buffers, size_t buffer_size, size_t growthLimit = 0);
+
     ~MediaBufferGroup();
 
     void add_buffer(MediaBuffer *buffer);
+
+    bool has_buffers();
 
     // If nonBlocking is false, it blocks until a buffer is available and
     // passes it to the caller in *buffer, while returning OK.

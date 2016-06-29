@@ -23,8 +23,55 @@
 
 namespace android {
 
+// std::min is not constexpr in C++11
+template<typename T>
+constexpr T MIN(const T &a, const T &b) { return a <= b ? a : b; }
+
+// MediaBufferGroup may create shared memory buffers at a
+// smaller threshold than an isolated new MediaBuffer.
+static const size_t kSharedMemoryThreshold = MIN(
+        (size_t)MediaBuffer::kSharedMemThreshold, (size_t)(4 * 1024));
+
 MediaBufferGroup::MediaBufferGroup(size_t growthLimit) :
     mGrowthLimit(growthLimit) {
+}
+
+MediaBufferGroup::MediaBufferGroup(size_t buffers, size_t buffer_size, size_t growthLimit)
+    : mGrowthLimit(growthLimit) {
+
+    if (buffer_size >= kSharedMemoryThreshold) {
+        ALOGD("creating MemoryDealer");
+        // Using a single MemoryDealer is efficient for a group of shared memory objects.
+        // This loop guarantees that we use shared memory (no fallback to malloc).
+
+        size_t alignment = MemoryDealer::getAllocationAlignment();
+        size_t augmented_size = buffer_size + sizeof(MediaBuffer::SharedControl);
+        size_t total = (augmented_size + alignment - 1) / alignment * alignment * buffers;
+        sp<MemoryDealer> memoryDealer = new MemoryDealer(total, "MediaBufferGroup");
+
+        for (size_t i = 0; i < buffers; ++i) {
+            sp<IMemory> mem = memoryDealer->allocate(augmented_size);
+            if (mem.get() == nullptr) {
+                ALOGW("Only allocated %zu shared buffers of size %zu", i, buffer_size);
+                break;
+            }
+            MediaBuffer *buffer = new MediaBuffer(mem);
+            buffer->getSharedControl()->clear();
+            add_buffer(buffer);
+        }
+        return;
+    }
+
+    // Non-shared memory allocation.
+    for (size_t i = 0; i < buffers; ++i) {
+        MediaBuffer *buffer = new MediaBuffer(buffer_size);
+        if (buffer->data() == nullptr) {
+            delete buffer; // don't call release, it's not properly formed
+            ALOGW("Only allocated %zu malloc buffers of size %zu", i, buffer_size);
+            break;
+        }
+        add_buffer(buffer);
+    }
 }
 
 MediaBufferGroup::~MediaBufferGroup() {
@@ -65,6 +112,19 @@ void MediaBufferGroup::gc(size_t freeBuffers) {
             ++it;
         }
     }
+}
+
+bool MediaBufferGroup::has_buffers() {
+    if (mBuffers.size() < mGrowthLimit) {
+        return true; // We can add more buffers internally.
+    }
+    for (MediaBuffer *buffer : mBuffers) {
+        buffer->resolvePendingRelease();
+        if (buffer->refcount() == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 status_t MediaBufferGroup::acquire_buffer(

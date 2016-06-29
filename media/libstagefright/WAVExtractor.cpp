@@ -70,6 +70,8 @@ struct WAVSource : public MediaSource {
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL);
 
+    virtual bool supportNonblockingRead() { return true; }
+
 protected:
     virtual ~WAVSource();
 
@@ -377,8 +379,8 @@ status_t WAVSource::start(MetaData * /* params */) {
 
     CHECK(!mStarted);
 
-    mGroup = new MediaBufferGroup;
-    mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
+    // some WAV files may have large audio buffers that use shared memory transfer.
+    mGroup = new MediaBufferGroup(4 /* buffers */, kMaxFrameSize);
 
     if (mBitsPerSample == 8) {
         // As a temporary buffer for 8->16 bit conversion.
@@ -414,6 +416,10 @@ sp<MetaData> WAVSource::getFormat() {
 status_t WAVSource::read(
         MediaBuffer **out, const ReadOptions *options) {
     *out = NULL;
+
+    if (options != nullptr && options->getNonBlocking() && !mGroup->has_buffers()) {
+        return WOULD_BLOCK;
+    }
 
     int64_t seekTimeUs;
     ReadOptions::SeekMode mode;
