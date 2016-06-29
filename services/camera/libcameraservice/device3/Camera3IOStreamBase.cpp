@@ -124,6 +124,7 @@ status_t Camera3IOStreamBase::disconnectLocked() {
     switch (mState) {
         case STATE_IN_RECONFIG:
         case STATE_CONFIGURED:
+        case STATE_ABANDONED:
             // OK
             break;
         default:
