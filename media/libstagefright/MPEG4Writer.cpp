@@ -2487,6 +2487,9 @@ status_t MPEG4Writer::Track::threadEntry() {
             decodingTimeUs -= previousPausedDurationUs;
             cttsOffsetTimeUs =
                     timestampUs + mCttsOffsetTimeUs - decodingTimeUs;
+            if (cttsOffsetTimeUs < 0) {
+                cttsOffsetTimeUs = 0;
+            }
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
                 return ERROR_MALFORMED;
