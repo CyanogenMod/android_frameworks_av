@@ -1903,14 +1903,14 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // a fast mixer are necessarily hardware
             sp<EffectChain> chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE);
             if (chain != 0) {
-                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
                         "AUDIO_OUTPUT_FLAG_RAW denied: post processing effect present");
                 *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
             }
             // Do not accept FAST flag if software global effects are present
             chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
             if (chain != 0) {
-                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
                         "AUDIO_OUTPUT_FLAG_RAW denied: global effect present");
                 *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
                 if (chain->hasSoftwareEffect()) {
@@ -1921,7 +1921,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
             // Do not accept FAST flag if the session has software effects
             chain = getEffectChain_l(sessionId);
             if (chain != 0) {
-                ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
+                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
                         "AUDIO_OUTPUT_FLAG_RAW denied: effect present on session");
                 *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
                 if (chain->hasSoftwareEffect()) {
@@ -1930,7 +1930,7 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
                 }
             }
         }
-        ALOGV_IF((flags & AUDIO_OUTPUT_FLAG_FAST) != 0,
+        ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_FAST) != 0,
                  "AUDIO_OUTPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
                  frameCount, mFrameCount);
       } else {
@@ -3043,7 +3043,7 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 if (timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] >= 0) {
                     kernelLocationUpdate = true;
                 } else {
-                    ALOGV("getTimestamp error - no valid kernel position");
+                    ALOGVV("getTimestamp error - no valid kernel position");
                 }
 
                 // copy over kernel info
@@ -6468,7 +6468,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
           // Do not accept FAST flag if the session has software effects
           sp<EffectChain> chain = getEffectChain_l(sessionId);
           if (chain != 0) {
-              ALOGV_IF((flags & AUDIO_INPUT_FLAG_RAW) != 0,
+              ALOGV_IF((*flags & AUDIO_INPUT_FLAG_RAW) != 0,
                       "AUDIO_INPUT_FLAG_RAW denied: effect present on session");
               *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
               if (chain->hasSoftwareEffect()) {
@@ -6476,7 +6476,7 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
                   *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
               }
           }
-          ALOGV_IF((flags & AUDIO_INPUT_FLAG_FAST) != 0,
+          ALOGV_IF((*flags & AUDIO_INPUT_FLAG_FAST) != 0,
                    "AUDIO_INPUT_FLAG_FAST accepted: frameCount=%zu mFrameCount=%zu",
                    frameCount, mFrameCount);
       } else {
