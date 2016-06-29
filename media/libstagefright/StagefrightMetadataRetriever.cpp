@@ -22,6 +22,7 @@
 #include <utils/Log.h>
 #include <gui/Surface.h>
 
+#include "include/avc_utils.h"
 #include "include/StagefrightMetadataRetriever.h"
 
 #include <media/ICrypto.h>
@@ -237,6 +238,15 @@ static VideoFrame *extractVideoFrame(
     int64_t timeUs;
     size_t retriesLeft = kRetryCount;
     bool done = false;
+    const char *mime;
+    bool success = format->findCString(kKeyMIMEType, &mime);
+    if (!success) {
+        ALOGE("Could not find mime type");
+        return NULL;
+    }
+
+    bool isAvcOrHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+            || !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
 
     do {
         size_t inputIndex = -1;
@@ -276,6 +286,11 @@ static VideoFrame *extractVideoFrame(
                 memcpy(codecBuffer->data(),
                         (const uint8_t*)mediaBuffer->data() + mediaBuffer->range_offset(),
                         mediaBuffer->range_length());
+                if (isAvcOrHevc && IsIDR(codecBuffer)) {
+                    // Only need to decode one IDR frame.
+                    haveMoreInputs = false;
+                    flags |= MediaCodec::BUFFER_FLAG_EOS;
+                }
             }
 
             mediaBuffer->release();
