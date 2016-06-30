@@ -2682,9 +2682,12 @@ ssize_t MediaCodec::dequeuePortBuffer(int32_t portIndex) {
 status_t MediaCodec::connectToSurface(const sp<Surface> &surface) {
     status_t err = OK;
     if (surface != NULL) {
+        uint64_t oldId, newId;
         if (mSurface != NULL
-                && surface->getConsumerName() == mSurface->getConsumerName()) {
-            ALOGI("connecting to native window with same name. Assuming no change of surface");
+                && surface->getUniqueId(&newId) == NO_ERROR
+                && mSurface->getUniqueId(&oldId) == NO_ERROR
+                && newId == oldId) {
+            ALOGI("[%s] connecting to the same surface. Nothing to do.", mComponentName.c_str());
             return ALREADY_EXISTS;
         }
 
