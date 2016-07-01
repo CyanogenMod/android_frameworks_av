@@ -618,6 +618,25 @@ status_t FFMPEGSoftCodec::getAudioPortFormat(OMX_U32 portIndex, int coding,
             notify->setInt32("sample-rate", params.nSamplingRate);
             break;
         }
+        case OMX_AUDIO_CodingALAC:
+        {
+            OMX_AUDIO_PARAM_ALACTYPE params;
+            InitOMXParams(&params);
+            params.nPortIndex = portIndex;
+
+            err = OMXHandle->getParameter(
+                    nodeId, (OMX_INDEXTYPE)OMX_IndexParamAudioAlac, &params, sizeof(params));
+            if (err != OK) {
+                return err;
+            }
+
+            notify->setString("mime", MEDIA_MIMETYPE_AUDIO_ALAC);
+            notify->setInt32("channel-count", params.nChannels);
+            notify->setInt32("sample-rate", params.nSamplingRate);
+            notify->setInt32("bits-per-sample", params.nBitsPerSample);
+            break;
+        }
+
         case OMX_AUDIO_CodingAPE:
         {
             OMX_AUDIO_PARAM_APETYPE params;
@@ -749,6 +768,11 @@ status_t FFMPEGSoftCodec::setAudioFormat(
         if (err != OK) {
             ALOGE("setAC3Format() failed (err = %d)", err);
         }
+    } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_ALAC, mime))  {
+        err = setALACFormat(msg, OMXhandle, nodeID);
+        if (err != OK) {
+            ALOGE("setALACFormat() failed (err = %d)", err);
+        }
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_APE, mime))  {
         err = setAPEFormat(msg, OMXhandle, nodeID);
         if (err != OK) {
@@ -798,6 +822,8 @@ status_t FFMPEGSoftCodec::setSupportedRole(
           "audio_decoder.mp2", NULL },
         { MEDIA_MIMETYPE_AUDIO_AC3,
           "audio_decoder.ac3", NULL },
+        { MEDIA_MIMETYPE_AUDIO_ALAC,
+          "audio_decoder.alac", NULL },
         { MEDIA_MIMETYPE_AUDIO_APE,
           "audio_decoder.ape", NULL },
         { MEDIA_MIMETYPE_AUDIO_DTS,
@@ -1257,6 +1283,41 @@ status_t FFMPEGSoftCodec::setAC3Format(
 
     return OMXhandle->setParameter(
             nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAndroidAc3, &param, sizeof(param));
+}
+
+status_t FFMPEGSoftCodec::setALACFormat(
+        const sp<AMessage> &msg, sp<IOMX> OMXhandle, IOMX::node_id nodeID)
+{
+    int32_t numChannels = 0;
+    int32_t sampleRate = 0;
+    int32_t bitsPerSample = 0;
+    OMX_AUDIO_PARAM_ALACTYPE param;
+
+    CHECK(msg->findInt32(getMsgKey(kKeyChannelCount), &numChannels));
+    CHECK(msg->findInt32(getMsgKey(kKeySampleRate), &sampleRate));
+    CHECK(msg->findInt32(getMsgKey(kKeyBitsPerSample), &bitsPerSample));
+
+    ALOGV("Channels:%d, SampleRate:%d, bitsPerSample:%d",
+            numChannels, sampleRate, bitsPerSample);
+
+    status_t err = setRawAudioFormat(msg, OMXhandle, nodeID);
+    if (err != OK)
+        return err;
+
+    InitOMXParams(&param);
+    param.nPortIndex = kPortIndexInput;
+
+    err = OMXhandle->getParameter(
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAlac, &param, sizeof(param));
+    if (err != OK)
+        return err;
+
+    param.nChannels = numChannels;
+    param.nSamplingRate = sampleRate;
+    param.nBitsPerSample = bitsPerSample;
+
+    return OMXhandle->setParameter(
+            nodeID, (OMX_INDEXTYPE)OMX_IndexParamAudioAlac, &param, sizeof(param));
 }
 
 status_t FFMPEGSoftCodec::setAPEFormat(
