@@ -832,16 +832,12 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
 
     char value[PROPERTY_VALUE_MAX];
     property_get("gsm.operator.iso-country", value, "");
-    if (strcmp(value,"us") == 0 ||
-        strcmp(value,"us,us") == 0 ||
-        strcmp(value,"ca") == 0 ||
-        strcmp(value,"ca,ca") == 0) {
+    if (strstr(value, "us") != NULL ||
+        strstr(value, "ca") != NULL) {
         mRegion = ANSI;
-    } else if (strcmp(value,"jp") == 0 ||
-               strcmp(value,"jp,jp") == 0) {
+    } else if (strstr(value, "jp") != NULL) {
         mRegion = JAPAN;
-    } else if (strcmp(value,"uk") == 0 ||
-               strcmp(value,"uk,uk") == 0) {
+    } else if (strstr(value, "uk") != NULL) {
         mRegion = UK;
     } else {
         mRegion = CEPT;
