@@ -212,6 +212,16 @@ status_t convertMetaDataToMessage(
         msg->setInt32("bits-per-sample", bitsPerSample);
     }
 
+    int32_t stride;
+    if (meta->findInt32(kKeyStride, &stride) && stride > 0) {
+        msg->setInt32("stride", stride);
+    }
+
+    int32_t sliceHeight;
+    if (meta->findInt32(kKeySliceHeight, &sliceHeight) && sliceHeight > 0) {
+        msg->setInt32("slice-height", sliceHeight);
+    }
+
     uint32_t type;
     const void *data;
     size_t size;
@@ -689,6 +699,16 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int32_t fps;
     if (msg->findInt32("frame-rate", &fps) && fps > 0) {
         meta->setInt32(kKeyFrameRate, fps);
+    }
+
+    int32_t stride;
+    if (msg->findInt32("stride", &stride) && stride > 0) {
+        meta->setInt32(kKeyStride, stride);
+    }
+
+    int32_t sliceHeight;
+    if (msg->findInt32("slice-height", &sliceHeight) && sliceHeight > 0) {
+        meta->setInt32(kKeySliceHeight, sliceHeight);
     }
 
     // reassemble the csd data into its original form

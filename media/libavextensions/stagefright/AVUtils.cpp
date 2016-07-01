@@ -34,6 +34,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ABuffer.h>
+#include <media/stagefright/foundation/ABitReader.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MetaData.h>
@@ -43,10 +44,11 @@
 #include <media/stagefright/Utils.h>
 #include <media/MediaProfiles.h>
 
-#if defined(QCOM_HARDWARE) || defined(FLAC_OFFLOAD_ENABLED)
+#if defined(QCOM_HARDWARE) || defined(EXTENDED_OFFLOAD_ENABLED)
 #include "QCMediaDefs.h"
 #include "QCMetaData.h"
-#ifdef FLAC_OFFLOAD_ENABLED
+#include "QOMX_AudioExtensions.h"
+#ifdef EXTENDED_OFFLOAD_ENABLED
 #include "audio_defs.h"
 #endif
 #endif
@@ -215,6 +217,8 @@ static const struct mime_conv_t mimeLookup[] = {
     { MEDIA_MIMETYPE_AUDIO_WMA,         AUDIO_FORMAT_WMA },
     { MEDIA_MIMETYPE_AUDIO_FLAC,        AUDIO_FORMAT_FLAC },
     { MEDIA_MIMETYPE_CONTAINER_QTIFLAC, AUDIO_FORMAT_FLAC },
+    { MEDIA_MIMETYPE_AUDIO_ALAC,        AUDIO_FORMAT_ALAC },
+    { MEDIA_MIMETYPE_AUDIO_APE,         AUDIO_FORMAT_APE },
 #ifdef DOLBY_UDC
     { MEDIA_MIMETYPE_AUDIO_EAC3_JOC,    AUDIO_FORMAT_E_AC3_JOC },
 #endif
@@ -238,20 +242,180 @@ status_t AVUtils::mapMimeToAudioFormat(
 
 status_t AVUtils::sendMetaDataToHal(
         const sp<MetaData>& meta, AudioParameter *param){
+
+#ifdef EXTENDED_OFFLOAD_ENABLED
+    const char *mime;
+    if (!meta->findCString(kKeyMIMEType, &mime)) {
+        return NO_INIT;
+    }
+    ALOGD("extended mime: %s", mime);
+
 #ifdef FLAC_OFFLOAD_ENABLED
-    int32_t minBlkSize, maxBlkSize, minFrmSize, maxFrmSize; //FLAC params
-    if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
-        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+    int32_t minBlkSize = 0, maxBlkSize = 0, minFrmSize = 0, maxFrmSize = 0;
+    if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_FLAC)) {
+        if (meta->findInt32(kKeyMinBlkSize, &minBlkSize)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_BLK_SIZE), minBlkSize);
+        }
+        if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+        }
+        if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+        }
+        if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+        }
+        ALOGV("FLAC metadata: minBlkSize %d, maxBlkSize %d, minFrmSize %d, maxFrmSize %d",
+                minBlkSize, maxBlkSize, minFrmSize, maxFrmSize);
+        return OK;
     }
-    if (meta->findInt32(kKeyMaxBlkSize, &maxBlkSize)) {
-        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_BLK_SIZE), maxBlkSize);
+#endif
+
+#ifdef WMA_OFFLOAD_ENABLED
+    int32_t wmaFormatTag = 0, wmaBlockAlign = 0, wmaChannelMask = 0;
+    int32_t wmaBitsPerSample = 0, wmaEncodeOpt = 0, wmaEncodeOpt1 = 0;
+    int32_t wmaEncodeOpt2 = 0;
+
+    if(!strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_WMA)) {
+        if (meta->findInt32(kKeyWMAFormatTag, &wmaFormatTag)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_FORMAT_TAG), wmaFormatTag);
+        }
+        if (meta->findInt32(kKeyWMABlockAlign, &wmaBlockAlign)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_BLOCK_ALIGN), wmaBlockAlign);
+        }
+        if (meta->findInt32(kKeyWMABitspersample, &wmaBitsPerSample)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_BIT_PER_SAMPLE), wmaBitsPerSample);
+        }
+        if (meta->findInt32(kKeyWMAChannelMask, &wmaChannelMask)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_CHANNEL_MASK), wmaChannelMask);
+        }
+        if (meta->findInt32(kKeyWMAEncodeOpt, &wmaEncodeOpt)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_ENCODE_OPTION), wmaEncodeOpt);
+        }
+        if (meta->findInt32(kKeyWMAAdvEncOpt1, &wmaEncodeOpt1)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_ENCODE_OPTION1), wmaEncodeOpt1);
+        }
+        if (meta->findInt32(kKeyWMAAdvEncOpt2, &wmaEncodeOpt2)) {
+            param->addInt(String8(AUDIO_OFFLOAD_CODEC_WMA_ENCODE_OPTION2), wmaEncodeOpt2);
+        }
+        ALOGV("WMA specific meta: fmt_tag 0x%x, blk_align %d, bits_per_sample %d, "
+                "enc_options 0x%x", wmaFormatTag, wmaBlockAlign,
+                wmaBitsPerSample, wmaEncodeOpt);
+        return OK;
     }
-    if (meta->findInt32(kKeyMinFrmSize, &minFrmSize)) {
-        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MIN_FRAME_SIZE), minFrmSize);
+#endif
+
+    const void *data;
+    size_t size;
+    uint32_t type = 0;
+    if (!meta->findData(kKeyRawCodecSpecificData, &type, &data, &size)) {
+        return NO_INIT;
     }
-    if (meta->findInt32(kKeyMaxFrmSize, &maxFrmSize)) {
-        param->addInt(String8(AUDIO_OFFLOAD_CODEC_FLAC_MAX_FRAME_SIZE), maxFrmSize);
+    ALOGV("Found kKeyRawCodecSpecificData of size %zu", size);
+    const uint8_t *ptr = (uint8_t *) data;
+
+#ifdef ALAC_OFFLOAD_ENABLED
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_ALAC,
+                strlen(MEDIA_MIMETYPE_AUDIO_ALAC))) {
+        uint32_t frameLength = 0, maxFrameBytes = 0;
+        uint32_t channelLayoutTag = 0;
+        uint16_t maxRun = 0;
+        uint8_t compatibleVersion = 0, pb = 0, mb = 0, kb = 0;
+
+        int32_t bitDepth = 0, numChannels = 0, samplingRate = 0, avgBitRate = 0;
+
+        meta->findInt32(kKeyBitsPerSample, &bitDepth);
+        meta->findInt32(kKeyChannelCount, &numChannels);
+        meta->findInt32(kKeySampleRate, &samplingRate);
+        meta->findInt32(kKeyBitRate, &avgBitRate);
+
+        /*
+		 * 32bit  atom size
+		 * 32bit  tag                  ("alac")
+		 * 32bit  tag version          (0)
+		 * 32bit  samples per frame    (used when not set explicitly in the frames)
+		 *  8bit  compatible version   (0)
+		 *  8bit  sample size
+		 *  8bit  history mult         (40)
+		 *  8bit  initial history      (10)
+		 *  8bit  rice param limit     (14)
+		 *  8bit  channels
+		 * 16bit  maxRun               (255)
+		 * 32bit  max coded frame size (0 means unknown)
+		 * 32bit  average bitrate      (0 means unknown)
+		 * 32bit  samplerate
+		 */
+        ABitReader br(ptr, size);
+        br.skipBits(96);
+        frameLength = br.getBits(32);
+        compatibleVersion = br.getBits(8);
+        br.skipBits(8);
+        pb = br.getBits(8);
+        mb = br.getBits(8);
+        kb = br.getBits(8);
+        br.skipBits(8);
+        maxRun = br.getBits(16);
+        maxFrameBytes = br.getBits(32);
+
+        ALOGV("ALAC CSD values: frameLength %d bitDepth %d numChannels %d"
+                " maxFrameBytes %d avgBitRate %d samplingRate %d",
+                frameLength, bitDepth, numChannels, maxFrameBytes, avgBitRate, samplingRate);
+
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_FRAME_LENGTH), frameLength);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_COMPATIBLE_VERSION), compatibleVersion);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_BIT_DEPTH), bitDepth);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_PB), pb);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_MB), mb);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_KB), kb);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_NUM_CHANNELS), numChannels);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_MAX_RUN), maxRun);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_MAX_FRAME_BYTES), maxFrameBytes);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_AVG_BIT_RATE), avgBitRate);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_SAMPLING_RATE), samplingRate);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_ALAC_CHANNEL_LAYOUT_TAG), channelLayoutTag);
+        return OK;
     }
+#endif
+#ifdef APE_OFFLOAD_ENABLED
+    if (!strncasecmp(mime, MEDIA_MIMETYPE_AUDIO_APE,
+                strlen(MEDIA_MIMETYPE_AUDIO_APE))) {
+		uint16_t compatibleVersion = 0, compressionLevel = 0, formatFlags = 0;
+        uint32_t blocksPerFrame = 0, finalFrameBlocks = 0;
+        uint32_t totalFrames = 0, seekTablePresent = 0;
+
+        int32_t bitsPerSample = 0, numChannels = 0, sampleRate = 0;
+
+        memcpy(&compatibleVersion, ptr, sizeof(compatibleVersion));
+        memcpy(&compressionLevel, ptr + 2, sizeof(compressionLevel));
+        memcpy(&formatFlags, ptr + 4, sizeof(formatFlags));
+        memcpy(&blocksPerFrame, ptr + 8, sizeof(blocksPerFrame));
+        memcpy(&finalFrameBlocks, ptr + 12, sizeof(finalFrameBlocks));
+        memcpy(&totalFrames, ptr + 16, sizeof(totalFrames));
+        memcpy(&seekTablePresent, ptr + 20, sizeof(seekTablePresent));
+
+        meta->findInt32(kKeyChannelCount, &numChannels);
+        meta->findInt32(kKeyBitsPerSample, &bitsPerSample);
+        meta->findInt32(kKeySampleRate, &sampleRate);
+
+        ALOGV("APE CSD values: compatibleVersion %d compressionLevel %d formatFlags %d"
+                " blocksPerFrame %d finalFrameBlocks %d totalFrames %d bitsPerSample %d"
+                " numChannels %d sampleRate %d seekTablePresent %d",
+                compatibleVersion, compressionLevel, formatFlags, blocksPerFrame, finalFrameBlocks, totalFrames,
+                bitsPerSample, numChannels, sampleRate, seekTablePresent);
+
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_COMPATIBLE_VERSION), compatibleVersion);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_COMPRESSION_LEVEL), compressionLevel);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_FORMAT_FLAGS), formatFlags);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_BLOCKS_PER_FRAME), blocksPerFrame);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_FINAL_FRAME_BLOCKS), finalFrameBlocks);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_TOTAL_FRAMES), totalFrames);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_BITS_PER_SAMPLE), bitsPerSample);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_NUM_CHANNELS), numChannels);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_SAMPLE_RATE), sampleRate);
+        param->addInt(String8(AUDIO_OFFLOAD_CODEC_APE_SEEK_TABLE_PRESENT), seekTablePresent);
+        return OK;
+    }
+#endif
 #else
     (void)meta;
     (void)param;
