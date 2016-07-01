@@ -322,6 +322,9 @@ status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
             p.fastInfo.bestStillCaptureFpsRange[0],
             p.fastInfo.bestStillCaptureFpsRange[1]);
 
+    result.appendFormat("    Use zero shutter lag: %s\n",
+            p.useZeroShutterLag() ? "yes" : "no");
+
     result.append("  Current streams:\n");
     result.appendFormat("    Preview stream ID: %d\n",
             getPreviewStreamId());
@@ -813,7 +816,7 @@ status_t Camera2Client::startPreviewL(Parameters &params, bool restart) {
         }
     }
 
-    if (params.zslMode && !params.recordingHint &&
+    if (params.useZeroShutterLag() &&
             getRecordingStreamId() == NO_STREAM) {
         res = updateProcessorStream(mZslProcessor, params);
         if (res != OK) {
@@ -1362,7 +1365,7 @@ status_t Camera2Client::cancelAutoFocus() {
 
             return OK;
         }
-        if (l.mParameters.zslMode) {
+        if (l.mParameters.allowZslMode) {
             mZslProcessor->clearZslQueue();
         }
     }
@@ -1460,7 +1463,7 @@ status_t Camera2Client::takePicture(int msgType) {
 
         // Clear ZSL buffer queue when Jpeg size is changed.
         bool jpegStreamChanged = mJpegProcessor->getStreamId() != lastJpegStreamId;
-        if (l.mParameters.zslMode && jpegStreamChanged) {
+        if (l.mParameters.allowZslMode && jpegStreamChanged) {
             ALOGV("%s: Camera %d: Clear ZSL buffer queue when Jpeg size is changed",
                     __FUNCTION__, mCameraId);
             mZslProcessor->clearZslQueue();
@@ -1495,7 +1498,7 @@ status_t Camera2Client::setParameters(const String8& params) {
     if (res != OK) return res;
     Parameters::focusMode_t focusModeAfter = l.mParameters.focusMode;
 
-    if (l.mParameters.zslMode && focusModeAfter != focusModeBefore) {
+    if (l.mParameters.allowZslMode && focusModeAfter != focusModeBefore) {
         mZslProcessor->clearZslQueue();
     }
 

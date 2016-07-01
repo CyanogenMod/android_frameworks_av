@@ -338,7 +338,7 @@ CaptureSequencer::CaptureState CaptureSequencer::manageStart(
         return DONE;
     }
 
-    else if (l.mParameters.zslMode &&
+    else if (l.mParameters.useZeroShutterLag() &&
             l.mParameters.state == Parameters::STILL_CAPTURE &&
             l.mParameters.flashMode != Parameters::FLASH_MODE_ON) {
         nextState = ZSL_START;
