@@ -126,6 +126,10 @@ private:
             const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID);
 
+    static status_t setALACFormat(
+            const sp<AMessage> &msg, sp<IOMX> OMXhandle,
+            IOMX::node_id nodeID);
+
     static status_t setAPEFormat(
             const sp<AMessage> &msg, sp<IOMX> OMXhandle,
             IOMX::node_id nodeID);
