@@ -228,6 +228,14 @@ public:
         TYPE_RECT     = 'rect',
     };
 
+    static const size_t kSharedMemThreshold = 10 * 1024;
+
+    enum ParcelAllocationType {
+        NULL_ALLOCATION,
+        SHARED_ALLOCATION,
+        INLINE_ALLOCATION
+    };
+
     void clear();
     bool remove(uint32_t key);
 
