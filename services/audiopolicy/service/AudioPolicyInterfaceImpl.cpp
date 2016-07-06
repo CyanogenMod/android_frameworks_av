@@ -316,6 +316,11 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
     if ((attr->source == AUDIO_SOURCE_HOTWORD) && !captureHotwordAllowed()) {
         return BAD_VALUE;
     }
+
+    if ((attr->source == AUDIO_SOURCE_FM_TUNER) && !accessFmRadioAllowed()) {
+        return BAD_VALUE;
+    }
+
     sp<AudioPolicyEffects>audioPolicyEffects;
     status_t status;
     AudioPolicyInterface::input_type_t inputType;

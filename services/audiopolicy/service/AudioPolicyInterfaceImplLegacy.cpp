@@ -275,6 +275,10 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         return BAD_VALUE;
     }
 
+    if ((inputSource == AUDIO_SOURCE_FM_TUNER) && !accessFmRadioAllowed()) {
+        return BAD_VALUE;
+    }
+
 #ifdef HAVE_PRE_KITKAT_AUDIO_POLICY_BLOB
     if (inputSource == AUDIO_SOURCE_HOTWORD)
         inputSource = AUDIO_SOURCE_VOICE_RECOGNITION;
