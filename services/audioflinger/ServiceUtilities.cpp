@@ -106,6 +106,14 @@ bool captureAudioOutputAllowed() {
     return ok;
 }
 
+bool accessFmRadioAllowed() {
+    static const String16 sAccessFmRadio("android.permission.ACCESS_FM_RADIO");
+    // IMPORTANT: Use PermissionCache - not a runtime permission and may not change.
+    bool ok = PermissionCache::checkCallingPermission(sAccessFmRadio);
+    if (!ok) ALOGE("Request requires android.permission.ACCESS_FM_RADIO");
+    return ok;
+}
+
 bool captureHotwordAllowed() {
     static const String16 sCaptureHotwordAllowed("android.permission.CAPTURE_AUDIO_HOTWORD");
     // IMPORTANT: Use PermissionCache - not a runtime permission and may not change.

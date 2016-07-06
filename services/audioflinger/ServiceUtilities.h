@@ -21,6 +21,7 @@ namespace android {
 extern pid_t getpid_cached;
 
 bool recordingAllowed(const String16& opPackageName);
+bool accessFmRadioAllowed();
 bool captureAudioOutputAllowed();
 bool captureHotwordAllowed();
 bool settingsAllowed();
