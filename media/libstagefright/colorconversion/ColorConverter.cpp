@@ -22,6 +22,10 @@
 #include <media/stagefright/ColorConverter.h>
 #include <media/stagefright/MediaErrors.h>
 
+#include "libyuv/convert_from.h"
+
+#define USE_LIBYUV
+
 namespace android {
 
 ColorConverter::ColorConverter(
@@ -103,7 +107,11 @@ status_t ColorConverter::convert(
 
     switch (mSrcFormat) {
         case OMX_COLOR_FormatYUV420Planar:
+#ifdef USE_LIBYUV
+            err = convertYUV420PlanarUseLibYUV(src, dst);
+#else
             err = convertYUV420Planar(src, dst);
+#endif
             break;
 
         case OMX_COLOR_FormatCbYCrY:
@@ -192,6 +200,34 @@ status_t ColorConverter::convertCbYCrY(
         src_ptr += src.mWidth * 2;
         dst_ptr += dst.mWidth;
     }
+
+    return OK;
+}
+
+status_t ColorConverter::convertYUV420PlanarUseLibYUV(
+        const BitmapParams &src, const BitmapParams &dst) {
+    if (!((src.mCropLeft & 1) == 0
+            && src.cropWidth() == dst.cropWidth()
+            && src.cropHeight() == dst.cropHeight())) {
+        return ERROR_UNSUPPORTED;
+    }
+
+    uint16_t *dst_ptr = (uint16_t *)dst.mBits
+        + dst.mCropTop * dst.mWidth + dst.mCropLeft;
+
+    const uint8_t *src_y =
+        (const uint8_t *)src.mBits + src.mCropTop * src.mWidth + src.mCropLeft;
+
+    const uint8_t *src_u =
+        (const uint8_t *)src_y + src.mWidth * src.mHeight
+        + src.mCropTop * (src.mWidth / 2) + src.mCropLeft / 2;
+
+    const uint8_t *src_v =
+        src_u + (src.mWidth / 2) * (src.mHeight / 2);
+
+
+    libyuv::I420ToRGB565(src_y, src.mWidth, src_u, src.mWidth / 2, src_v, src.mWidth / 2,
+            (uint8 *)dst_ptr, dst.mWidth * 2, dst.mWidth, dst.mHeight);
 
     return OK;
 }
