@@ -100,7 +100,10 @@ static size_t getFrameSize(bool isWide, unsigned FT) {
 static status_t getFrameSizeByOffset(const sp<DataSource> &source,
         off64_t offset, bool isWide, size_t *frameSize) {
     uint8_t header;
-    if (source->readAt(offset, &header, 1) < 1) {
+    ssize_t count = source->readAt(offset, &header, 1);
+    if (count == 0) {
+        return ERROR_END_OF_STREAM;
+    } else if (count < 0) {
         return ERROR_IO;
     }
 
@@ -140,7 +143,10 @@ AMRExtractor::AMRExtractor(const sp<DataSource> &source)
 
     if (mDataSource->getSize(&streamSize) == OK) {
          while (offset < streamSize) {
-            if (getFrameSizeByOffset(source, offset, mIsWide, &frameSize) != OK) {
+             status_t status = getFrameSizeByOffset(source, offset, mIsWide, &frameSize);
+             if (status == ERROR_END_OF_STREAM) {
+                 break;
+             } else if (status != OK) {
                 return;
             }
 
