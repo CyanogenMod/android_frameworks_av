@@ -3326,6 +3326,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                                     " ret(%zd) deltaMs(%d) requires sleep %d ms",
                                     this, ret, deltaMs, throttleMs);
                             mThreadThrottleTimeMs += throttleMs;
+                            // Throttle must be attributed to the previous mixer loop's write time
+                            // to allow back-to-back throttling.
+                            lastWriteFinished += throttleMs * 1000000;
                         } else {
                             uint32_t diff = mThreadThrottleTimeMs - mThreadThrottleEndMs;
                             if (diff > 0) {
