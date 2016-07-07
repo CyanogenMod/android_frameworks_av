@@ -1713,6 +1713,13 @@ bool ATSParser::PSISection::isCRCOkay() const {
     unsigned sectionLength = U16_AT(data + 1) & 0xfff;
     ALOGV("sectionLength %u, skip %u", sectionLength, mSkipBytes);
 
+
+    if(sectionLength < mSkipBytes) {
+        ALOGE("b/28333006");
+        android_errorWriteLog(0x534e4554, "28333006");
+        return false;
+    }
+
     // Skip the preceding field present when payload start indicator is on.
     sectionLength -= mSkipBytes;
 

@@ -95,6 +95,11 @@ status_t SampleIterator::seekTo(uint32_t sampleIndex) {
 
     CHECK(sampleIndex < mStopChunkSampleIndex);
 
+    if (mSamplesPerChunk == 0) {
+        ALOGE("b/22802344");
+        return ERROR_MALFORMED;
+    }
+
     uint32_t chunk =
         (sampleIndex - mFirstChunkSampleIndex) / mSamplesPerChunk
         + mFirstChunk;
