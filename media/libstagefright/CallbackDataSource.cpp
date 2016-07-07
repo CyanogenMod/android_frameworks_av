@@ -109,6 +109,10 @@ void CallbackDataSource::close() {
     }
 }
 
+sp<DecryptHandle> CallbackDataSource::DrmInitialization(const char *mime) {
+    return mIDataSource->DrmInitialization(mime);
+}
+
 TinyCacheSource::TinyCacheSource(const sp<DataSource>& source)
     : mSource(source), mCachedOffset(0), mCachedSize(0) {
     mName = String8::format("TinyCacheSource(%s)", mSource->toString().string());
@@ -146,12 +150,19 @@ ssize_t TinyCacheSource::readAt(off64_t offset, void* data, size_t size) {
         }
     }
 
+
     // Fill the cache and copy to the caller.
     const ssize_t numRead = mSource->readAt(offset, mCache, kCacheSize);
     if (numRead <= 0) {
+        // Flush cache on error
+        mCachedSize = 0;
+        mCachedOffset = 0;
         return numRead;
     }
     if ((size_t)numRead > kCacheSize) {
+        // Flush cache on error
+        mCachedSize = 0;
+        mCachedOffset = 0;
         return ERROR_OUT_OF_RANGE;
     }
 
@@ -172,4 +183,11 @@ uint32_t TinyCacheSource::flags() {
     return mSource->flags();
 }
 
+sp<DecryptHandle> TinyCacheSource::DrmInitialization(const char *mime) {
+    // flush cache when DrmInitialization occurs since decrypted
+    // data may differ from what is in cache.
+    mCachedOffset = 0;
+    mCachedSize = 0;
+    return mSource->DrmInitialization(mime);
+}
 } // namespace android

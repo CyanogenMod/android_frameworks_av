@@ -25,6 +25,7 @@
 namespace android {
 
 class IMemory;
+class DecryptHandle;
 
 // A binder interface for implementing a stagefright DataSource remotely.
 class IDataSource : public IInterface {
@@ -47,6 +48,8 @@ public:
     virtual uint32_t getFlags() = 0;
     // get a description of the source, e.g. the url or filename it is based on
     virtual String8 toString() = 0;
+    // Initialize DRM and return a DecryptHandle.
+    virtual sp<DecryptHandle> DrmInitialization(const char *mime) = 0;
 
 private:
     DISALLOW_EVIL_CONSTRUCTORS(IDataSource);
