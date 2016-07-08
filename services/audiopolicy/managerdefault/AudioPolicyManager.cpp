@@ -4375,7 +4375,7 @@ audio_devices_t AudioPolicyManager::getDevicesForStream(audio_stream_type_t stre
         }
         routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
         audio_devices_t curDevices =
-                getDeviceForStrategy((routing_strategy)curStrategy, true /*fromCache*/);
+                getDeviceForStrategy((routing_strategy)curStrategy, false /*fromCache*/);
         SortedVector<audio_io_handle_t> outputs = getOutputsForDevice(curDevices, mOutputs);
         for (size_t i = 0; i < outputs.size(); i++) {
             sp<AudioOutputDescriptor> outputDesc = mOutputs.valueFor(outputs[i]);
