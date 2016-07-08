@@ -142,6 +142,7 @@ const FormatConverter::Table FormatConverter::mTable[] = {
     MAKE_STRING_FROM_ENUM(AUDIO_FORMAT_DTS),
     MAKE_STRING_FROM_ENUM(AUDIO_FORMAT_DTS_HD),
     MAKE_STRING_FROM_ENUM(AUDIO_FORMAT_IEC61937),
+    MAKE_STRING_FROM_ENUM(AUDIO_FORMAT_DOLBY_TRUEHD),
 };
 template<>
 const size_t FormatConverter::mSize = sizeof(FormatConverter::mTable) /
