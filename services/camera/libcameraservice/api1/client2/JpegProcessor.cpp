@@ -67,10 +67,15 @@ void JpegProcessor::onBufferAcquired(const BufferInfo& /*bufferInfo*/) {
 }
 
 void JpegProcessor::onBufferReleased(const BufferInfo& bufferInfo) {
-    Mutex::Autolock l(mInputMutex);
     ALOGV("%s", __FUNCTION__);
-
     if (bufferInfo.mError) {
+        // Only lock in case of error, since we get one of these for each
+        // onFrameAvailable as well, and scheduling may delay this call late
+        // enough to run into later preview restart operations, for non-error
+        // cases.
+        // b/29524651
+        ALOGV("%s: JPEG buffer lost", __FUNCTION__);
+        Mutex::Autolock l(mInputMutex);
         mCaptureDone = true;
         mCaptureSuccess = false;
         mCaptureDoneSignal.signal();
