@@ -192,8 +192,12 @@ OMXNodeInstance::OMXNodeInstance(
     : mOwner(owner),
       mNodeID(0),
       mHandle(NULL),
+#ifndef USE_LEGACY_MTK_AV_BLOB
       mObserver(observer),
       mBufferIDCount(0)
+#else
+      mObserver(observer)
+#endif
 {
     mName = ADebug::GetDebugName(name);
     DEBUG = ADebug::GetDebugLevelFromProperty(name, "debug.stagefright.omx-debug");
@@ -1604,6 +1608,7 @@ void OMXNodeInstance::freeActiveBuffers() {
     }
 }
 
+#ifndef USE_LEGACY_MTK_AV_BLOB
 OMX::buffer_id OMXNodeInstance::makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader) {
     if (bufferHeader == NULL) {
         return 0;
@@ -1660,5 +1665,23 @@ void OMXNodeInstance::invalidateBufferID(OMX::buffer_id buffer) {
     mBufferHeaderToBufferID.removeItem(mBufferIDToBufferHeader.valueAt(index));
     mBufferIDToBufferHeader.removeItemsAt(index);
 }
+#else
+
+OMX::buffer_id OMXNodeInstance::makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader) {
+    return (OMX::buffer_id)bufferHeader;
+}
+
+OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(OMX::buffer_id buffer) {
+    return (OMX_BUFFERHEADERTYPE *)buffer;
+}
+
+OMX::buffer_id OMXNodeInstance::findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader) {
+    return (OMX::buffer_id)bufferHeader;
+}
+
+void OMXNodeInstance::invalidateBufferID(OMX::buffer_id buffer __unused) {
+}
+
+#endif
 
 }  // namespace android
