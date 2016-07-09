@@ -371,6 +371,10 @@ private:
             int32_t width, int32_t height,
             OMX_VIDEO_CODINGTYPE compressionFormat, float frameRate = -1.0);
 
+    // sets |portIndex| port buffer numbers to be |bufferNum|. NOTE: Component could reject
+    // this setting if the |bufferNum| is less than the minimum buffer num of the port.
+    status_t setPortBufferNum(OMX_U32 portIndex, int bufferNum);
+
     // gets index or sets it to 0 on error. Returns error from codec.
     status_t initDescribeColorAspectsIndex();
 

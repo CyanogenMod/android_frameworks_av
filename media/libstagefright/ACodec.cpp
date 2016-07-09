@@ -3146,6 +3146,29 @@ static status_t GetMimeTypeForVideoCoding(
     return ERROR_UNSUPPORTED;
 }
 
+status_t ACodec::setPortBufferNum(OMX_U32 portIndex, int bufferNum) {
+    OMX_PARAM_PORTDEFINITIONTYPE def;
+    InitOMXParams(&def);
+    def.nPortIndex = portIndex;
+    status_t err;
+    ALOGD("Setting [%s] %s port buffer number: %d", mComponentName.c_str(),
+            portIndex == kPortIndexInput ? "input" : "output", bufferNum);
+    err = mOMX->getParameter(
+        mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+    if (err != OK) {
+        return err;
+    }
+    def.nBufferCountActual = bufferNum;
+    err = mOMX->setParameter(
+        mNode, OMX_IndexParamPortDefinition, &def, sizeof(def));
+    if (err != OK) {
+        // Component could reject this request.
+        ALOGW("Fail to set [%s] %s port buffer number: %d", mComponentName.c_str(),
+            portIndex == kPortIndexInput ? "input" : "output", bufferNum);
+    }
+    return OK;
+}
+
 status_t ACodec::setupVideoDecoder(
         const char *mime, const sp<AMessage> &msg, bool haveNativeWindow,
         bool usingSwRenderer, sp<AMessage> &outputFormat) {
@@ -3200,6 +3223,24 @@ status_t ACodec::setupVideoDecoder(
 
     if (err != OK) {
         return err;
+    }
+
+    // Set the component input buffer number to be |tmp|. If succeed,
+    // component will set input port buffer number to be |tmp|. If fail,
+    // component will keep the same buffer number as before.
+    if (msg->findInt32("android._num-input-buffers", &tmp)) {
+        err = setPortBufferNum(kPortIndexInput, tmp);
+        if (err != OK)
+            return err;
+    }
+
+    // Set the component output buffer number to be |tmp|. If succeed,
+    // component will set output port buffer number to be |tmp|. If fail,
+    // component will keep the same buffer number as before.
+    if (msg->findInt32("android._num-output-buffers", &tmp)) {
+        err = setPortBufferNum(kPortIndexOutput, tmp);
+        if (err != OK)
+            return err;
     }
 
     int32_t frameRateInt;

@@ -122,7 +122,8 @@ SoftAVC::SoftAVC(
       mSignalledError(false),
       mStride(mWidth){
     initPorts(
-            kNumBuffers, INPUT_BUF_SIZE, kNumBuffers, CODEC_MIME_TYPE);
+            1 /* numMinInputBuffers */, kNumBuffers, INPUT_BUF_SIZE,
+            1 /* numMinOutputBuffers */, kNumBuffers, CODEC_MIME_TYPE);
 
     GETTIME(&mTimeStart, NULL);
 
