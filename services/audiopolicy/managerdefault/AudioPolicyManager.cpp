@@ -775,7 +775,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevice(
         const audio_offload_info_t *offloadInfo)
 {
     audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
-    uint32_t latency = 0;
     status_t status;
 
 #ifdef AUDIO_POLICY_TEST
@@ -1192,7 +1191,7 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
                 }
             }
         }
-        uint32_t muteWaitMs = setOutputDevice(outputDesc, device, force, 0, NULL, address);
+        (void) /*uint32_t muteWaitMs*/ setOutputDevice(outputDesc, device, force, 0, NULL, address);
 
         // handle special case for sonification while in call
         if (isInCall()) {
@@ -1288,7 +1287,6 @@ status_t AudioPolicyManager::stopSource(sp<AudioOutputDescriptor> outputDesc,
             // force restoring the device selection on other active outputs if it differs from the
             // one being selected for this output
             for (size_t i = 0; i < mOutputs.size(); i++) {
-                audio_io_handle_t curOutput = mOutputs.keyAt(i);
                 sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
                 if (desc != outputDesc &&
                         desc->isActive() &&
@@ -1795,7 +1793,7 @@ void AudioPolicyManager::closeAllInputs() {
         ssize_t patch_index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
         if (patch_index >= 0) {
             sp<AudioPatch> patchDesc = mAudioPatches.valueAt(patch_index);
-            status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+            (void) /*status_t status*/ mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
             mAudioPatches.removeItemsAt(patch_index);
             patchRemoved = true;
         }
@@ -2708,7 +2706,6 @@ status_t AudioPolicyManager::releaseAudioPatch(audio_patch_handle_t handle,
                            true,
                            NULL);
         } else if (patch->sinks[0].type == AUDIO_PORT_TYPE_DEVICE) {
-            audio_patch_handle_t afPatchHandle = patchDesc->mAfPatchHandle;
             status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
             ALOGV("releaseAudioPatch() patch panel returned %d patchHandle %d",
                                                               status, patchDesc->mAfPatchHandle);
@@ -3187,6 +3184,7 @@ AudioPolicyManager::AudioPolicyManager(AudioPolicyClientInterface *clientInterfa
     }
     mEngine->setObserver(this);
     status_t status = mEngine->initCheck();
+    (void) status;
     ALOG_ASSERT(status == NO_ERROR, "Policy engine not initialized(err=%d)", status);
 
     // mAvailableOutputDevices and mAvailableInputDevices now contain all attached devices
@@ -4066,7 +4064,7 @@ void AudioPolicyManager::closeOutput(audio_io_handle_t output)
     ssize_t index = mAudioPatches.indexOfKey(outputDesc->getPatchHandle());
     if (index >= 0) {
         sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
-        status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+        (void) /*status_t status*/ mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
         mAudioPatches.removeItemsAt(index);
         mpClientInterface->onAudioPatchListUpdate();
     }
@@ -4095,7 +4093,7 @@ void AudioPolicyManager::closeInput(audio_io_handle_t input)
     ssize_t index = mAudioPatches.indexOfKey(inputDesc->getPatchHandle());
     if (index >= 0) {
         sp<AudioPatch> patchDesc = mAudioPatches.valueAt(index);
-        status_t status = mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
+        (void) /*status_t status*/ mpClientInterface->releaseAudioPatch(patchDesc->mAfPatchHandle, 0);
         mAudioPatches.removeItemsAt(index);
         mpClientInterface->onAudioPatchListUpdate();
     }
@@ -5400,7 +5398,6 @@ void AudioPolicyManager::updateAudioProfiles(audio_devices_t device,
                                              AudioProfileVector &profiles)
 {
     String8 reply;
-    char *value;
 
     // Format MUST be checked first to update the list of AudioProfile
     if (profiles.hasDynamicFormat()) {
