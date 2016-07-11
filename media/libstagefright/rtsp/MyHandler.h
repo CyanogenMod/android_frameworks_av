@@ -1042,49 +1042,13 @@ struct MyHandler : public AHandler {
                     return;
                 }
 
-                sp<ABuffer> accessUnit;
-                CHECK(msg->findBuffer("access-unit", &accessUnit));
-
-                uint32_t seqNum = (uint32_t)accessUnit->int32Data();
-
                 if (mSeekPending) {
                     ALOGV("we're seeking, dropping stale packet.");
                     break;
                 }
 
-                if (track->mNewSegment) {
-                    // The sequence number from RTP packet has only 16 bits and is extended
-                    // by ARTPSource. Only the low 16 bits of seq in RTP-Info of reply of
-                    // RTSP "PLAY" command should be used to detect the first RTP packet
-                    // after seeking.
-                    if (track->mAllowedStaleAccessUnits > 0) {
-                        if ((((seqNum ^ track->mFirstSeqNumInSegment) & 0xffff) != 0)) {
-                            // Not the first rtp packet of the stream after seeking, discarding.
-                            track->mAllowedStaleAccessUnits--;
-                            ALOGV("discarding stale access unit (0x%x : 0x%x)",
-                                 seqNum, track->mFirstSeqNumInSegment);
-                            break;
-                        }
-                    } else { // track->mAllowedStaleAccessUnits <= 0
-                        mNumAccessUnitsReceived = 0;
-                        ALOGW_IF(track->mAllowedStaleAccessUnits == 0,
-                             "Still no first rtp packet after %d stale ones",
-                             kMaxAllowedStaleAccessUnits);
-                        track->mAllowedStaleAccessUnits = -1;
-                        break;
-                    }
-
-                    // Now found the first rtp packet of the stream after seeking.
-                    track->mFirstSeqNumInSegment = seqNum;
-                    track->mNewSegment = false;
-                }
-
-                if (seqNum < track->mFirstSeqNumInSegment) {
-                    ALOGV("dropping stale access-unit (%d < %d)",
-                         seqNum, track->mFirstSeqNumInSegment);
-                    break;
-                }
-
+                sp<ABuffer> accessUnit;
+                CHECK(msg->findBuffer("access-unit", &accessUnit));
                 onAccessUnitComplete(trackIndex, accessUnit);
                 break;
             }
@@ -1852,16 +1816,15 @@ private:
             int32_t trackIndex, const sp<ABuffer> &accessUnit) {
         ALOGV("onAccessUnitComplete track %d", trackIndex);
 
+        TrackInfo *track = &mTracks.editItemAt(trackIndex);
         if(!mPlayResponseParsed){
-            ALOGI("play response is not parsed, storing accessunit");
-            TrackInfo *track = &mTracks.editItemAt(trackIndex);
+            uint32_t seqNum = (uint32_t)accessUnit->int32Data();
+            ALOGI("play response is not parsed, storing accessunit %u", seqNum);
             track->mPackets.push_back(accessUnit);
             return;
         }
 
         handleFirstAccessUnit();
-
-        TrackInfo *track = &mTracks.editItemAt(trackIndex);
 
         if (!mAllTracksHaveTime) {
             ALOGV("storing accessUnit, no time established yet");
@@ -1872,6 +1835,41 @@ private:
         while (!track->mPackets.empty()) {
             sp<ABuffer> accessUnit = *track->mPackets.begin();
             track->mPackets.erase(track->mPackets.begin());
+
+            uint32_t seqNum = (uint32_t)accessUnit->int32Data();
+            if (track->mNewSegment) {
+                // The sequence number from RTP packet has only 16 bits and is extended
+                // by ARTPSource. Only the low 16 bits of seq in RTP-Info of reply of
+                // RTSP "PLAY" command should be used to detect the first RTP packet
+                // after seeking.
+                if (track->mAllowedStaleAccessUnits > 0) {
+                    if ((((seqNum ^ track->mFirstSeqNumInSegment) & 0xffff) != 0)) {
+                        // Not the first rtp packet of the stream after seeking, discarding.
+                        track->mAllowedStaleAccessUnits--;
+                        ALOGV("discarding stale access unit (0x%x : 0x%x)",
+                             seqNum, track->mFirstSeqNumInSegment);
+                        continue;
+                    }
+                } else { // track->mAllowedStaleAccessUnits <= 0
+                    mNumAccessUnitsReceived = 0;
+                    ALOGW_IF(track->mAllowedStaleAccessUnits == 0,
+                         "Still no first rtp packet after %d stale ones",
+                         kMaxAllowedStaleAccessUnits);
+                    track->mAllowedStaleAccessUnits = -1;
+                    return;
+                }
+
+                // Now found the first rtp packet of the stream after seeking.
+                track->mFirstSeqNumInSegment = seqNum;
+                track->mNewSegment = false;
+            }
+
+            if (seqNum < track->mFirstSeqNumInSegment) {
+                ALOGV("dropping stale access-unit (%d < %d)",
+                     seqNum, track->mFirstSeqNumInSegment);
+                continue;
+            }
+
 
             if (addMediaTimestamp(trackIndex, track, accessUnit)) {
                 postQueueAccessUnit(trackIndex, accessUnit);
