@@ -1341,12 +1341,10 @@ status_t AudioFlinger::PlaybackThread::checkEffectCompatibility_l(
         }
     } break;
     case OFFLOAD:
-        // only offloadable effects on offload thread
-        if ((desc->flags & EFFECT_FLAG_OFFLOAD_MASK) != EFFECT_FLAG_OFFLOAD_SUPPORTED) {
-            ALOGW("checkEffectCompatibility_l(): non offloadable effect %s created on"
-                    " OFFLOAD thread %s", desc->name, mThreadName);
-            return BAD_VALUE;
-        }
+        // nothing actionable on offload threads, if the effect:
+        //   - is offloadable: the effect can be created
+        //   - is NOT offloadable: the effect should still be created, but EffectHandle::enable()
+        //     will take care of invalidating the tracks of the thread
         break;
     case DIRECT:
         // Reject any effect on Direct output threads for now, since the format of
