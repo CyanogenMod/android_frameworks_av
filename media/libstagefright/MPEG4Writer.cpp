@@ -43,6 +43,7 @@
 
 #include "include/ESDS.h"
 #include "include/HevcUtils.h"
+#include "include/avc_utils.h"
 
 #ifndef __predict_false
 #define __predict_false(exp) __builtin_expect((exp) != 0, 0)
@@ -1163,6 +1164,37 @@ static void StripStartcode(MediaBuffer *buffer) {
     }
 }
 
+off64_t MPEG4Writer::addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer) {
+    off64_t old_offset = mOffset;
+
+    const size_t kExtensionNALSearchRange = 64; // bytes to look for non-VCL NALUs
+
+    const uint8_t *dataStart = (const uint8_t *)buffer->data() + buffer->range_offset();
+    const uint8_t *currentNalStart = dataStart;
+    const uint8_t *nextNalStart;
+    const uint8_t *data = dataStart;
+    size_t nextNalSize;
+    size_t searchSize = buffer->range_length() > kExtensionNALSearchRange ?
+                   kExtensionNALSearchRange : buffer->range_length();
+
+    while (getNextNALUnit(&data, &searchSize, &nextNalStart,
+            &nextNalSize, true) == OK) {
+        size_t currentNalSize = nextNalStart - currentNalStart - 3 /* strip start-code */;
+        MediaBuffer *nalBuf = new MediaBuffer((void *)currentNalStart, currentNalSize);
+        addLengthPrefixedSample_l(nalBuf);
+        nalBuf->release();
+
+        currentNalStart = nextNalStart;
+    }
+
+    size_t currentNalOffset = currentNalStart - dataStart;
+    buffer->set_range(buffer->range_offset() + currentNalOffset,
+            buffer->range_length() - currentNalOffset);
+    addLengthPrefixedSample_l(buffer);
+
+    return old_offset;
+}
+
 off64_t MPEG4Writer::addLengthPrefixedSample_l(MediaBuffer *buffer) {
     off64_t old_offset = mOffset;
 
@@ -1698,7 +1730,7 @@ void MPEG4Writer::writeChunkToFile(Chunk* chunk) {
         List<MediaBuffer *>::iterator it = chunk->mSamples.begin();
 
         off64_t offset = (chunk->mTrack->isAvc() || chunk->mTrack->isHevc())
-                                ? addLengthPrefixedSample_l(*it)
+                                ? addMultipleLengthPrefixedSamples_l(*it)
                                 : addSample_l(*it);
 
         if (isFirstSample) {
@@ -2607,7 +2639,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             trackProgressStatus(timestampUs);
         }
         if (!hasMultipleTracks) {
-            off64_t offset = (mIsAvc || mIsHevc) ? mOwner->addLengthPrefixedSample_l(copy)
+            off64_t offset = (mIsAvc || mIsHevc) ? mOwner->addMultipleLengthPrefixedSamples_l(copy)
                                  : mOwner->addSample_l(copy);
 
             uint32_t count = (mOwner->use32BitFileOffset()
