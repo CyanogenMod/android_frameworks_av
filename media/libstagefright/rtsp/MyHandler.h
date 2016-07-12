@@ -1843,13 +1843,19 @@ private:
                 // RTSP "PLAY" command should be used to detect the first RTP packet
                 // after seeking.
                 if (track->mAllowedStaleAccessUnits > 0) {
-                    if ((((seqNum ^ track->mFirstSeqNumInSegment) & 0xffff) != 0)) {
+                    uint32_t seqNum16 = seqNum & 0xffff;
+                    uint32_t firstSeqNumInSegment16 = track->mFirstSeqNumInSegment & 0xffff;
+                    if (seqNum16 > firstSeqNumInSegment16 + kMaxAllowedStaleAccessUnits
+                            || seqNum16 < firstSeqNumInSegment16) {
                         // Not the first rtp packet of the stream after seeking, discarding.
                         track->mAllowedStaleAccessUnits--;
                         ALOGV("discarding stale access unit (0x%x : 0x%x)",
                              seqNum, track->mFirstSeqNumInSegment);
                         continue;
                     }
+                    ALOGW_IF(seqNum16 != firstSeqNumInSegment16,
+                            "Missing the first packet(%u), now take packet(%u) as first one",
+                            track->mFirstSeqNumInSegment, seqNum);
                 } else { // track->mAllowedStaleAccessUnits <= 0
                     mNumAccessUnitsReceived = 0;
                     ALOGW_IF(track->mAllowedStaleAccessUnits == 0,
