@@ -2299,6 +2299,12 @@ void AudioFlinger::PlaybackThread::drainCallback()
     mCallbackThread->resetDraining();
 }
 
+void AudioFlinger::PlaybackThread::errorCallback()
+{
+    ALOG_ASSERT(mCallbackThread != 0);
+    mCallbackThread->setAsyncError();
+}
+
 void AudioFlinger::PlaybackThread::resetWriteBlocked(uint32_t sequence)
 {
     Mutex::Autolock _l(mLock);
@@ -2332,6 +2338,9 @@ int AudioFlinger::PlaybackThread::asyncCallback(stream_callback_event_t event,
         break;
     case STREAM_CBK_EVENT_DRAIN_READY:
         me->drainCallback();
+        break;
+    case STREAM_CBK_EVENT_ERROR:
+        me->errorCallback();
         break;
     default:
         ALOGW("asyncCallback() unknown event %d", event);
@@ -3904,6 +3913,13 @@ void AudioFlinger::PlaybackThread::onAddNewTrack_l()
     broadcast_l();
 }
 
+void AudioFlinger::PlaybackThread::onAsyncError()
+{
+    for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
+        invalidateTracks((audio_stream_type_t)i);
+    }
+}
+
 void AudioFlinger::MixerThread::threadLoop_mix()
 {
     // mix buffers...
@@ -5220,7 +5236,8 @@ AudioFlinger::AsyncCallbackThread::AsyncCallbackThread(
     :   Thread(false /*canCallJava*/),
         mPlaybackThread(playbackThread),
         mWriteAckSequence(0),
-        mDrainSequence(0)
+        mDrainSequence(0),
+        mAsyncError(false)
 {
 }
 
@@ -5238,11 +5255,13 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
     while (!exitPending()) {
         uint32_t writeAckSequence;
         uint32_t drainSequence;
+        bool asyncError;
 
         {
             Mutex::Autolock _l(mLock);
             while (!((mWriteAckSequence & 1) ||
                      (mDrainSequence & 1) ||
+                     mAsyncError ||
                      exitPending())) {
                 mWaitWorkCV.wait(mLock);
             }
@@ -5256,6 +5275,8 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
             mWriteAckSequence &= ~1;
             drainSequence = mDrainSequence;
             mDrainSequence &= ~1;
+            asyncError = mAsyncError;
+            mAsyncError = false;
         }
         {
             sp<AudioFlinger::PlaybackThread> playbackThread = mPlaybackThread.promote();
@@ -5265,6 +5286,9 @@ bool AudioFlinger::AsyncCallbackThread::threadLoop()
                 }
                 if (drainSequence & 1) {
                     playbackThread->resetDraining(drainSequence >> 1);
+                }
+                if (asyncError) {
+                    playbackThread->onAsyncError();
                 }
             }
         }
@@ -5312,6 +5336,13 @@ void AudioFlinger::AsyncCallbackThread::resetDraining()
         mDrainSequence |= 1;
         mWaitWorkCV.signal();
     }
+}
+
+void AudioFlinger::AsyncCallbackThread::setAsyncError()
+{
+    Mutex::Autolock _l(mLock);
+    mAsyncError = true;
+    mWaitWorkCV.signal();
 }
 
 

@@ -543,6 +543,7 @@ protected:
                 void        resetWriteBlocked(uint32_t sequence);
                 void        drainCallback();
                 void        resetDraining(uint32_t sequence);
+                void        errorCallback();
 
     static      int         asyncCallback(stream_callback_event_t event, void *param, void *cookie);
 
@@ -550,6 +551,7 @@ protected:
     virtual     bool        waitingAsyncCallback_l();
     virtual     bool        shouldStandby_l();
     virtual     void        onAddNewTrack_l();
+                void        onAsyncError(); // error reported by AsyncCallbackThread
 
     // ThreadBase virtuals
     virtual     void        preExit();
@@ -1044,6 +1046,7 @@ public:
             void        resetWriteBlocked();
             void        setDraining(uint32_t sequence);
             void        resetDraining();
+            void        setAsyncError();
 
 private:
     const wp<PlaybackThread>   mPlaybackThread;
@@ -1057,6 +1060,7 @@ private:
     uint32_t                   mDrainSequence;
     Condition                  mWaitWorkCV;
     Mutex                      mLock;
+    bool                       mAsyncError;
 };
 
 class DuplicatingThread : public MixerThread {
