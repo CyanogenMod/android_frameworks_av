@@ -4277,18 +4277,25 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
 
     AString tsSchema;
     if (msg->findString("ts-schema", &tsSchema)) {
-        if (tsSchema == "webrtc.vp8.1-layer") {
+        unsigned int numLayers = 0;
+        unsigned int numBLayers = 0;
+        int tags;
+        char dummy;
+        if (sscanf(tsSchema.c_str(), "webrtc.vp8.%u-layer%c", &numLayers, &dummy) == 1
+                && numLayers > 0) {
             pattern = OMX_VIDEO_VPXTemporalLayerPatternWebRTC;
-            tsLayers = 1;
-        } else if (tsSchema == "webrtc.vp8.2-layer") {
+            tsLayers = numLayers;
+        } else if ((tags = sscanf(tsSchema.c_str(), "android.generic.%u%c%u%c",
+                        &numLayers, &dummy, &numBLayers, &dummy))
+                && (tags == 1 || (tags == 3 && dummy == '+'))
+                && numLayers > 0 && numLayers < UINT32_MAX - numBLayers) {
             pattern = OMX_VIDEO_VPXTemporalLayerPatternWebRTC;
-            tsLayers = 2;
-        } else if (tsSchema == "webrtc.vp8.3-layer") {
-            pattern = OMX_VIDEO_VPXTemporalLayerPatternWebRTC;
-            tsLayers = 3;
+            // VPX does not have a concept of B-frames, so just count all layers
+            tsLayers = numLayers + numBLayers;
         } else {
-            ALOGW("Unsupported ts-schema [%s]", tsSchema.c_str());
+            ALOGW("Ignoring unsupported ts-schema [%s]", tsSchema.c_str());
         }
+        tsLayers = min(tsLayers, (size_t)OMX_VIDEO_ANDROID_MAXVP8TEMPORALLAYERS);
     }
 
     OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE vp8type;
