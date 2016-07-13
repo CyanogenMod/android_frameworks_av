@@ -2108,7 +2108,9 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
 
     for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
         sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
-        CHECK(mem.get() != NULL);
+        if (mem == NULL || mem->pointer() == NULL) {
+            return NO_MEMORY;
+        }
 
         BufferInfo info;
         info.mData = NULL;
