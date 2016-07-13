@@ -6036,7 +6036,7 @@ reacquire_wakelock:
 
             // sleep with mutex unlocked
             if (sleepUs > 0) {
-                ATRACE_BEGIN("sleep");
+                ATRACE_BEGIN("sleepC");
                 mWaitWorkCV.waitRelative(mLock, microseconds((nsecs_t)sleepUs));
                 ATRACE_END();
                 sleepUs = 0;

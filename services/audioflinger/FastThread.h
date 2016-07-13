@@ -30,7 +30,7 @@ namespace android {
 class FastThread : public Thread {
 
 public:
-            FastThread();
+            FastThread(const char *cycleMs, const char *loadUs);
     virtual ~FastThread();
 
 private:
@@ -87,6 +87,9 @@ protected:
 
     FastThreadState::Command mCommand;
     bool            mAttemptedWrite;
+
+    char            mCycleMs[16];   // cycle_ms + suffix
+    char            mLoadUs[16];    // load_us + suffix
 
 };  // class FastThread
 
