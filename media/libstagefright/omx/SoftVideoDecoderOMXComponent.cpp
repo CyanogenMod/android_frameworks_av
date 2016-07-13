@@ -81,6 +81,18 @@ void SoftVideoDecoderOMXComponent::initPorts(
         OMX_U32 numOutputBuffers,
         const char *mimeType,
         OMX_U32 minCompressionRatio) {
+    initPorts(numInputBuffers, numInputBuffers, inputBufferSize,
+            numOutputBuffers, numOutputBuffers, mimeType, minCompressionRatio);
+}
+
+void SoftVideoDecoderOMXComponent::initPorts(
+        OMX_U32 numMinInputBuffers,
+        OMX_U32 numInputBuffers,
+        OMX_U32 inputBufferSize,
+        OMX_U32 numMinOutputBuffers,
+        OMX_U32 numOutputBuffers,
+        const char *mimeType,
+        OMX_U32 minCompressionRatio) {
     mMinInputBufferSize = inputBufferSize;
     mMinCompressionRatio = minCompressionRatio;
 
@@ -89,8 +101,8 @@ void SoftVideoDecoderOMXComponent::initPorts(
 
     def.nPortIndex = kInputPortIndex;
     def.eDir = OMX_DirInput;
-    def.nBufferCountMin = numInputBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
+    def.nBufferCountMin = numMinInputBuffers;
+    def.nBufferCountActual = numInputBuffers;
     def.nBufferSize = inputBufferSize;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
@@ -112,8 +124,8 @@ void SoftVideoDecoderOMXComponent::initPorts(
 
     def.nPortIndex = kOutputPortIndex;
     def.eDir = OMX_DirOutput;
-    def.nBufferCountMin = numOutputBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
+    def.nBufferCountMin = numMinOutputBuffers;
+    def.nBufferCountActual = numOutputBuffers;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainVideo;

@@ -76,8 +76,23 @@ protected:
 
     virtual int getColorAspectPreference();
 
+    // This function sets both minimum buffer count and actual buffer count of
+    // input port to be |numInputBuffers|. It will also set both minimum buffer
+    // count and actual buffer count of output port to be |numOutputBuffers|.
     void initPorts(OMX_U32 numInputBuffers,
             OMX_U32 inputBufferSize,
+            OMX_U32 numOutputBuffers,
+            const char *mimeType,
+            OMX_U32 minCompressionRatio = 1u);
+
+    // This function sets input port's minimum buffer count to |numMinInputBuffers|,
+    // sets input port's actual buffer count to |numInputBuffers|, sets output port's
+    // minimum buffer count to |numMinOutputBuffers| and sets output port's actual buffer
+    // count to be |numOutputBuffers|.
+    void initPorts(OMX_U32 numMinInputBuffers,
+            OMX_U32 numInputBuffers,
+            OMX_U32 inputBufferSize,
+            OMX_U32 numMinOutputBuffers,
             OMX_U32 numOutputBuffers,
             const char *mimeType,
             OMX_U32 minCompressionRatio = 1u);
