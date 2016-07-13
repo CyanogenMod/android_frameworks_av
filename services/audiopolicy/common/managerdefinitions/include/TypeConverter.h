@@ -131,6 +131,7 @@ typedef TypeConverter<GainModeTraits> GainModeConverter;
 typedef TypeConverter<StreamTraits> StreamTypeConverter;
 typedef TypeConverter<DeviceCategoryTraits> DeviceCategoryConverter;
 
+inline
 static SampleRateTraits::Collection samplingRatesFromString(const std::string &samplingRates,
                                                             const char *del = "|")
 {
@@ -139,6 +140,7 @@ static SampleRateTraits::Collection samplingRatesFromString(const std::string &s
     return samplingRateCollection;
 }
 
+inline
 static FormatTraits::Collection formatsFromString(const std::string &formats, const char *del = "|")
 {
     FormatTraits::Collection formatCollection;
@@ -146,6 +148,7 @@ static FormatTraits::Collection formatsFromString(const std::string &formats, co
     return formatCollection;
 }
 
+inline
 static audio_format_t formatFromString(const std::string &literalFormat)
 {
     audio_format_t format;
@@ -156,6 +159,7 @@ static audio_format_t formatFromString(const std::string &literalFormat)
     return format;
 }
 
+inline
 static audio_channel_mask_t channelMaskFromString(const std::string &literalChannels)
 {
     audio_channel_mask_t channels;
@@ -166,6 +170,7 @@ static audio_channel_mask_t channelMaskFromString(const std::string &literalChan
     return channels;
 }
 
+inline
 static ChannelTraits::Collection channelMasksFromString(const std::string &channels,
                                                         const char *del = "|")
 {
@@ -176,6 +181,7 @@ static ChannelTraits::Collection channelMasksFromString(const std::string &chann
     return channelMaskCollection;
 }
 
+inline
 static InputChannelTraits::Collection inputChannelMasksFromString(const std::string &inChannels,
                                                                   const char *del = "|")
 {
@@ -185,6 +191,7 @@ static InputChannelTraits::Collection inputChannelMasksFromString(const std::str
     return inputChannelMaskCollection;
 }
 
+inline
 static OutputChannelTraits::Collection outputChannelMasksFromString(const std::string &outChannels,
                                                                     const char *del = "|")
 {

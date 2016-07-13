@@ -52,9 +52,11 @@ static const int kDumpLockSleepUs = 20000;
 
 static const nsecs_t kAudioCommandTimeoutNs = seconds(3); // 3 seconds
 
+#ifdef USE_LEGACY_AUDIO_POLICY
 namespace {
     extern struct audio_policy_service_ops aps_ops;
 };
+#endif
 
 // ----------------------------------------------------------------------------
 
@@ -66,11 +68,6 @@ AudioPolicyService::AudioPolicyService()
 
 void AudioPolicyService::onFirstRef()
 {
-    char value[PROPERTY_VALUE_MAX];
-    const struct hw_module_t *module;
-    int forced_val;
-    int rc;
-
     {
         Mutex::Autolock _l(mLock);
 
@@ -85,7 +82,8 @@ void AudioPolicyService::onFirstRef()
         ALOGI("AudioPolicyService CSTOR in legacy mode");
 
         /* instantiate the audio policy manager */
-        rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
+        const struct hw_module_t *module;
+        int rc = hw_get_module(AUDIO_POLICY_HARDWARE_MODULE_ID, &module);
         if (rc) {
             return;
         }
@@ -1198,6 +1196,7 @@ int aps_stop_tone(void *service);
 int aps_set_voice_volume(void *service, float volume, int delay_ms);
 };
 
+#ifdef USE_LEGACY_AUDIO_POLICY
 namespace {
     struct audio_policy_service_ops aps_ops = {
         .open_output           = aps_open_output,
@@ -1220,5 +1219,6 @@ namespace {
         .open_input_on_module  = aps_open_input_on_module,
     };
 }; // namespace <unnamed>
+#endif
 
 }; // namespace android
