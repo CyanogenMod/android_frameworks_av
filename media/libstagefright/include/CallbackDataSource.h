@@ -41,6 +41,7 @@ public:
     virtual String8 toString() {
         return mName;
     }
+    virtual sp<DecryptHandle> DrmInitialization(const char *mime = NULL);
 
 private:
     sp<IDataSource> mIDataSource;
@@ -68,6 +69,7 @@ public:
     virtual String8 toString() {
         return mName;
     }
+    virtual sp<DecryptHandle> DrmInitialization(const char *mime = NULL);
 
 private:
     // 2kb comes from experimenting with the time-to-first-frame from a MediaPlayer

@@ -88,6 +88,7 @@ public:
     virtual void close();
     virtual uint32_t getFlags();
     virtual String8 toString();
+    virtual sp<DecryptHandle> DrmInitialization(const char *mime);
 
 private:
     sp<IMemory> mMemory;
@@ -132,6 +133,10 @@ uint32_t RemoteDataSource::getFlags() {
 
 String8 RemoteDataSource::toString() {
     return mName;
+}
+
+sp<DecryptHandle> RemoteDataSource::DrmInitialization(const char *mime) {
+    return mSource->DrmInitialization(mime);
 }
 
 // static
