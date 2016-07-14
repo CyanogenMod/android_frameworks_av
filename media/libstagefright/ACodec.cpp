@@ -4255,8 +4255,15 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profile);
         h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(level);
     } else {
-        // Use baseline profile for AVC recording if profile is not specified.
+        // Use largest supported profile for AVC recording if profile is not specified.
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
+        for (OMX_VIDEO_AVCPROFILETYPE profile : {
+                OMX_VIDEO_AVCProfileHigh, OMX_VIDEO_AVCProfileMain }) {
+            if (verifySupportForProfileAndLevel(profile, 0) == OK) {
+                h264type.eProfile = profile;
+                break;
+            }
+        }
     }
 
     ALOGI("setupAVCEncoderParameters with [profile: %s] [level: %s]",
