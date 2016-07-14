@@ -1179,7 +1179,7 @@ off64_t MPEG4Writer::addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer) {
 
     while (getNextNALUnit(&data, &searchSize, &nextNalStart,
             &nextNalSize, true) == OK) {
-        size_t currentNalSize = nextNalStart - currentNalStart - 3 /* strip start-code */;
+        size_t currentNalSize = nextNalStart - currentNalStart - 4 /* strip start-code */;
         MediaBuffer *nalBuf = new MediaBuffer((void *)currentNalStart, currentNalSize);
         addLengthPrefixedSample_l(nalBuf);
         nalBuf->release();
