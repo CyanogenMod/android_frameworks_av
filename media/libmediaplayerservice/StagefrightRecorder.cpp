@@ -22,6 +22,8 @@
 #include "WebmWriter.h"
 #include "StagefrightRecorder.h"
 
+#include <algorithm>
+
 #include <android/hardware/ICamera.h>
 
 #include <binder/IPCThreadState.h>
@@ -1565,9 +1567,23 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("level", mVideoEncoderLevel);
     }
 
+    uint32_t tsLayers = 0;
     format->setInt32("priority", 0 /* realtime */);
     if (mCaptureFpsEnable) {
         format->setFloat("operating-rate", mCaptureFps);
+
+        // enable layering for all time lapse and high frame rate recordings
+        if (mFrameRate / mCaptureFps >= 1.9 || mCaptureFps / mFrameRate >= 1.9) {
+            tsLayers = 2; // use at least two layers
+            for (float fps = mCaptureFps / 1.9; fps > mFrameRate; fps /= 2) {
+                ++tsLayers;
+            }
+
+            uint32_t bLayers = std::min(2u, tsLayers - 1); // use up-to 2 B-layers
+            uint32_t pLayers = tsLayers - bLayers;
+            format->setString(
+                    "ts-schema", AStringPrintf("android.generic.%u+%u", pLayers, bLayers));
+        }
     }
 
     if (mMetaDataStoredInVideoBuffers != kMetadataBufferTypeInvalid) {
