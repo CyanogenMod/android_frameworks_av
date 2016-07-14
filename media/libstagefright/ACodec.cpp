@@ -3968,14 +3968,31 @@ status_t ACodec::setCyclicIntraMacroblockRefresh(const sp<AMessage> &msg, int32_
     return err;
 }
 
-static OMX_U32 setPFramesSpacing(int32_t iFramesInterval, int32_t frameRate) {
-    if (iFramesInterval < 0) {
-        return 0xFFFFFFFF;
-    } else if (iFramesInterval == 0) {
+static OMX_U32 setPFramesSpacing(
+        int32_t iFramesInterval /* seconds */, int32_t frameRate, uint32_t BFramesSpacing = 0) {
+    // BFramesSpacing is the number of B frames between I/P frames
+    // PFramesSpacing (the value to be returned) is the number of P frames between I frames
+    //
+    // keyFrameInterval = ((PFramesSpacing + 1) * BFramesSpacing) + PFramesSpacing + 1
+    //                                     ^^^                            ^^^        ^^^
+    //                              number of B frames                number of P    I frame
+    //
+    //                  = (PFramesSpacing + 1) * (BFramesSpacing + 1)
+    //
+    // E.g.
+    //      I   P   I  : I-interval: 8, nPFrames 1, nBFrames 3
+    //       BBB BBB
+
+    if (iFramesInterval < 0) { // just 1 key frame
+        return 0xFFFFFFFE; // don't use maxint as key-frame-interval calculation will add 1
+    } else if (iFramesInterval == 0) { // just key frames
         return 0;
     }
-    OMX_U32 ret = frameRate * iFramesInterval;
-    return ret;
+
+    // round down as key-frame-interval is an upper limit
+    uint32_t keyFrameInterval = uint32_t(frameRate * iFramesInterval);
+    OMX_U32 ret = keyFrameInterval / (BFramesSpacing + 1);
+    return ret > 0 ? ret - 1 : 0;
 }
 
 static OMX_VIDEO_CONTROLRATETYPE getBitrateMode(const sp<AMessage> &msg) {
@@ -4023,11 +4040,11 @@ status_t ACodec::setupMPEG4EncoderParameters(const sp<AMessage> &msg) {
     mpeg4type.nAllowedPictureTypes =
         OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
 
-    mpeg4type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate);
+    mpeg4type.nBFrames = 0;
+    mpeg4type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate, mpeg4type.nBFrames);
     if (mpeg4type.nPFrames == 0) {
         mpeg4type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
     }
-    mpeg4type.nBFrames = 0;
     mpeg4type.nIDCVLCThreshold = 0;
     mpeg4type.bACPred = OMX_TRUE;
     mpeg4type.nMaxPacketSize = 256;
@@ -4100,11 +4117,11 @@ status_t ACodec::setupH263EncoderParameters(const sp<AMessage> &msg) {
     h263type.nAllowedPictureTypes =
         OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP;
 
-    h263type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate);
+    h263type.nBFrames = 0;
+    h263type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate, h263type.nBFrames);
     if (h263type.nPFrames == 0) {
         h263type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
     }
-    h263type.nBFrames = 0;
 
     int32_t profile;
     if (msg->findInt32("profile", &profile)) {
@@ -4267,7 +4284,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.bUseHadamard = OMX_TRUE;
         h264type.nRefFrames = 1;
         h264type.nBFrames = 0;
-        h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate);
+        h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate, h264type.nBFrames);
         if (h264type.nPFrames == 0) {
             h264type.nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
         }
@@ -4285,7 +4302,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.bUseHadamard = OMX_TRUE;
         h264type.nRefFrames = 2;
         h264type.nBFrames = 1;
-        h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate);
+        h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate, h264type.nBFrames);
         h264type.nAllowedPictureTypes =
             OMX_VIDEO_PictureTypeI | OMX_VIDEO_PictureTypeP | OMX_VIDEO_PictureTypeB;
         h264type.nRefIdx10ActiveMinus1 = 0;
@@ -4365,7 +4382,7 @@ status_t ACodec::setupHEVCEncoderParameters(const sp<AMessage> &msg) {
         hevcType.eLevel = static_cast<OMX_VIDEO_HEVCLEVELTYPE>(level);
     }
     // TODO: finer control?
-    hevcType.nKeyFrameInterval = setPFramesSpacing(iFrameInterval, frameRate);
+    hevcType.nKeyFrameInterval = setPFramesSpacing(iFrameInterval, frameRate) + 1;
 
     err = mOMX->setParameter(
             mNode, (OMX_INDEXTYPE)OMX_IndexParamVideoHevc, &hevcType, sizeof(hevcType));
@@ -4437,7 +4454,7 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
 
     if (err == OK) {
         if (iFrameInterval > 0) {
-            vp8type.nKeyFrameInterval = setPFramesSpacing(iFrameInterval, frameRate);
+            vp8type.nKeyFrameInterval = setPFramesSpacing(iFrameInterval, frameRate) + 1;
         }
         vp8type.eTemporalPattern = pattern;
         vp8type.nTemporalLayerCount = tsLayers;
