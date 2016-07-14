@@ -194,7 +194,8 @@ bool SoftVPX::outputBufferSafe(OMX_BUFFERHEADERTYPE *outHeader) {
     uint64_t nFilledLen = width;
     nFilledLen *= height;
     if (nFilledLen > UINT32_MAX / 3) {
-        ALOGE("b/29421675, nFilledLen overflow %llu w %u h %u", nFilledLen, width, height);
+        ALOGE("b/29421675, nFilledLen overflow %llu w %u h %u",
+                (unsigned long long)nFilledLen, width, height);
         android_errorWriteLog(0x534e4554, "29421675");
         return false;
     } else if (outHeader->nAllocLen < outHeader->nFilledLen) {
