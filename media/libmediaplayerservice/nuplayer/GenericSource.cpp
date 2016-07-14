@@ -245,6 +245,7 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
                 } else {
                     mAudioIsVorbis = false;
                 }
+                mAudioTrack.mReadMultiple = track->canReadMultiple();
             }
         } else if (!strncasecmp(mime, "video/", 6)) {
             if (mVideoTrack.mSource == NULL) {
@@ -662,6 +663,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           const bool formatChange = true;
           if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
               timeUs = mAudioLastDequeueTimeUs;
+              track->mReadMultiple = source->canReadMultiple();
           } else {
               timeUs = mVideoLastDequeueTimeUs;
           }
@@ -1420,7 +1422,9 @@ void NuPlayer::GenericSource::readBuffer(
         options.setNonBlocking();
     }
 
-    bool couldReadMultiple = (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO);
+    bool couldReadMultiple =
+        (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO
+                && track->mReadMultiple);
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         Vector<MediaBuffer *> mediaBuffers;
         status_t err = NO_ERROR;
