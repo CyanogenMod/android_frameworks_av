@@ -1573,6 +1573,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
     uint32_t tsLayers = 1;
+    bool preferBFrames = true; // we like B-frames as it produces better quality per bitrate
     format->setInt32("priority", 0 /* realtime */);
     float maxPlaybackFps = mFrameRate; // assume video is only played back at normal speed
 
@@ -1581,9 +1582,11 @@ status_t StagefrightRecorder::setupVideoEncoder(
 
         // enable layering for all time lapse and high frame rate recordings
         if (mFrameRate / mCaptureFps >= 1.9) { // time lapse
+            preferBFrames = false;
             tsLayers = 2; // use at least two layers as resulting video will likely be sped up
         } else if (mCaptureFps > maxPlaybackFps) { // slow-mo
             maxPlaybackFps = mCaptureFps; // assume video will be played back at full capture speed
+            preferBFrames = false;
         }
     }
 
@@ -1603,6 +1606,10 @@ status_t StagefrightRecorder::setupVideoEncoder(
         uint32_t pLayers = tsLayers - bLayers;
         format->setString(
                 "ts-schema", AStringPrintf("android.generic.%u+%u", pLayers, bLayers));
+
+        // TODO: some encoders do not support B-frames with temporal layering, and we have a
+        // different preference based on use-case. We could move this into camera profiles.
+        format->setInt32("android._prefer-b-frames", preferBFrames);
     }
 
     if (mMetaDataStoredInVideoBuffers != kMetadataBufferTypeInvalid) {
