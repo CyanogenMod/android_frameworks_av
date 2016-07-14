@@ -27,6 +27,10 @@
 #include "vpx/vpx_codec.h"
 #include "vpx/vp8dx.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX       (4294967295U)
+#endif
+
 namespace android {
 
 SoftVPX::SoftVPX(
