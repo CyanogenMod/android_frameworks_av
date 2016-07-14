@@ -74,6 +74,7 @@ struct AVNuUtils {
     virtual bool pcmOffloadException(const sp<AMessage> &);
     virtual audio_format_t getPCMFormat(const sp<AMessage> &);
     virtual void setCodecOutputFormat(const sp<AMessage> &);
+    virtual bool isByteStreamModeEnabled(const sp<MetaData> &);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);

@@ -76,6 +76,10 @@ void AVNuUtils::checkFormatChange(bool * /*formatChange*/,
         const sp<ABuffer> & /*accessUnit*/) {
 }
 
+bool AVNuUtils::isByteStreamModeEnabled(const sp<MetaData> &) {
+    return false;
+}
+
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVNuUtils::AVNuUtils() {}
 
