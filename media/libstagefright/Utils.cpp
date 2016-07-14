@@ -1317,6 +1317,20 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         }
 
         convertMessageToMetaDataColorAspects(msg, meta);
+
+        AString tsSchema;
+        if (msg->findString("ts-schema", &tsSchema)) {
+            unsigned int numLayers = 0;
+            unsigned int numBLayers = 0;
+            char dummy;
+            int tags = sscanf(tsSchema.c_str(), "android.generic.%u%c%u%c",
+                    &numLayers, &dummy, &numBLayers, &dummy);
+            if ((tags == 1 || (tags == 3 && dummy == '+'))
+                    && numLayers > 0 && numLayers < UINT32_MAX - numBLayers
+                    && numLayers + numBLayers <= INT32_MAX) {
+                meta->setInt32(kKeyTemporalLayerCount, numLayers + numBLayers);
+            }
+        }
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
         if (msg->findInt32("channel-count", &numChannels)) {
