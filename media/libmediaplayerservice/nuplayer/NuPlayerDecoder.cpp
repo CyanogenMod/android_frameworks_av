@@ -19,6 +19,8 @@
 #include <utils/Log.h>
 #include <inttypes.h>
 
+#include <algorithm>
+
 #include "NuPlayerCCDecoder.h"
 #include "NuPlayerDecoder.h"
 #include "NuPlayerRenderer.h"
@@ -41,7 +43,7 @@
 
 namespace android {
 
-static float kDisplayRefreshingRate = 60.f;
+static float kDisplayRefreshingRate = 60.f; // TODO: get this from the display
 
 // The default total video frame rate of a stream when that info is not available from
 // the source.
@@ -77,7 +79,7 @@ NuPlayer::Decoder::Decoder(
       mTimeChangePending(false),
       mFrameRateTotal(kDefaultVideoFrameRateTotal),
       mPlaybackSpeed(1.0f),
-      mNumVideoTemporalLayerTotal(1),
+      mNumVideoTemporalLayerTotal(1), // decode all layers
       mNumVideoTemporalLayerAllowed(1),
       mCurrentMaxVideoTemporalLayerId(0),
       mResumePending(false),
@@ -351,14 +353,14 @@ void NuPlayer::Decoder::onSetParameters(const sp<AMessage> &params) {
 
     int32_t numVideoTemporalLayerTotal;
     if (params->findInt32("temporal-layer-count", &numVideoTemporalLayerTotal)
-            && numVideoTemporalLayerTotal > 0
+            && numVideoTemporalLayerTotal >= 0
             && numVideoTemporalLayerTotal <= kMaxNumVideoTemporalLayers
             && mNumVideoTemporalLayerTotal != numVideoTemporalLayerTotal) {
         needAdjustLayers = true;
-        mNumVideoTemporalLayerTotal = numVideoTemporalLayerTotal;
+        mNumVideoTemporalLayerTotal = std::max(numVideoTemporalLayerTotal, 1);
     }
 
-    if (needAdjustLayers) {
+    if (needAdjustLayers && mNumVideoTemporalLayerTotal > 1) {
         // TODO: For now, layer fps is calculated for some specific architectures.
         // But it really should be extracted from the stream.
         mVideoTemporalLayerAggregateFps[0] =
@@ -378,25 +380,21 @@ void NuPlayer::Decoder::onSetParameters(const sp<AMessage> &params) {
     }
 
     if (needAdjustLayers) {
-        int32_t layerId;
-        for (layerId = 0; layerId < mNumVideoTemporalLayerTotal; ++layerId) {
-            if (mVideoTemporalLayerAggregateFps[layerId] * mPlaybackSpeed
-                    > kDisplayRefreshingRate) {
-                --layerId;
-                break;
+        float decodeFrameRate = mFrameRateTotal;
+        // enable temporal layering optimization only if we know the layering depth
+        if (mNumVideoTemporalLayerTotal > 1) {
+            int32_t layerId;
+            for (layerId = 0; layerId < mNumVideoTemporalLayerTotal - 1; ++layerId) {
+                if (mVideoTemporalLayerAggregateFps[layerId] * mPlaybackSpeed
+                        >= kDisplayRefreshingRate * 0.9) {
+                    break;
+                }
             }
+            mNumVideoTemporalLayerAllowed = layerId + 1;
+            decodeFrameRate = mVideoTemporalLayerAggregateFps[layerId];
         }
-        if (layerId < 0) {
-            layerId = 0;
-        } else if (layerId >= mNumVideoTemporalLayerTotal) {
-            layerId = mNumVideoTemporalLayerTotal - 1;
-        }
-        mNumVideoTemporalLayerAllowed = layerId + 1;
-        if (mCurrentMaxVideoTemporalLayerId > layerId) {
-            mCurrentMaxVideoTemporalLayerId = layerId;
-        }
-        ALOGV("onSetParameters: allowed layers=%d, current max layerId=%d",
-                mNumVideoTemporalLayerAllowed, mCurrentMaxVideoTemporalLayerId);
+        ALOGV("onSetParameters: allowed layers=%d, decodeFps=%g",
+                mNumVideoTemporalLayerAllowed, decodeFrameRate);
 
         if (mCodec == NULL) {
             ALOGW("onSetParameters called before codec is created.");
@@ -404,8 +402,7 @@ void NuPlayer::Decoder::onSetParameters(const sp<AMessage> &params) {
         }
 
         sp<AMessage> codecParams = new AMessage();
-        codecParams->setFloat("operating-rate",
-                mVideoTemporalLayerAggregateFps[layerId] * mPlaybackSpeed);
+        codecParams->setFloat("operating-rate", decodeFrameRate * mPlaybackSpeed);
         mCodec->setParameters(codecParams);
     }
 }
@@ -818,11 +815,12 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
         dropAccessUnit = false;
         if (!mIsAudio && !mIsSecure) {
             int32_t layerId = 0;
+            bool haveLayerId = accessUnit->meta()->findInt32("temporal-layer-id", &layerId);
             if (mRenderer->getVideoLateByUs() > 100000ll
                     && mIsVideoAVC
                     && !IsAVCReferenceFrame(accessUnit)) {
                 dropAccessUnit = true;
-            } else if (accessUnit->meta()->findInt32("temporal-layer-id", &layerId)) {
+            } else if (haveLayerId && mNumVideoTemporalLayerTotal > 1) {
                 // Add only one layer each time.
                 if (layerId > mCurrentMaxVideoTemporalLayerId + 1
                         || layerId >= mNumVideoTemporalLayerAllowed) {
@@ -832,9 +830,14 @@ status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
                             mCurrentMaxVideoTemporalLayerId);
                 } else if (layerId > mCurrentMaxVideoTemporalLayerId) {
                     mCurrentMaxVideoTemporalLayerId = layerId;
+                } else if (layerId == 0 && mNumVideoTemporalLayerTotal > 1 && IsIDR(accessUnit)) {
+                    mCurrentMaxVideoTemporalLayerId = mNumVideoTemporalLayerTotal - 1;
                 }
             }
             if (dropAccessUnit) {
+                if (layerId <= mCurrentMaxVideoTemporalLayerId && layerId > 0) {
+                    mCurrentMaxVideoTemporalLayerId = layerId - 1;
+                }
                 ++mNumInputFramesDropped;
             }
         }
