@@ -6014,14 +6014,6 @@ reacquire_wakelock:
     for (;;) {
         Vector< sp<EffectChain> > effectChains;
 
-        // sleep with mutex unlocked
-        if (sleepUs > 0) {
-            ATRACE_BEGIN("sleep");
-            usleep(sleepUs);
-            ATRACE_END();
-            sleepUs = 0;
-        }
-
         // activeTracks accumulates a copy of a subset of mActiveTracks
         Vector< sp<RecordTrack> > activeTracks;
 
@@ -6040,6 +6032,15 @@ reacquire_wakelock:
             // checkForNewParameters_l() can temporarily release mLock
             if (exitPending()) {
                 break;
+            }
+
+            // sleep with mutex unlocked
+            if (sleepUs > 0) {
+                ATRACE_BEGIN("sleep");
+                mWaitWorkCV.waitRelative(mLock, microseconds((nsecs_t)sleepUs));
+                ATRACE_END();
+                sleepUs = 0;
+                continue;
             }
 
             // if no active track(s), then standby and release wakelock
@@ -6065,6 +6066,7 @@ reacquire_wakelock:
             }
 
             bool doBroadcast = false;
+            bool allStopped = true;
             for (size_t i = 0; i < size; ) {
 
                 activeTrack = mActiveTracks[i];
@@ -6093,15 +6095,18 @@ reacquire_wakelock:
                 case TrackBase::STARTING_1:
                     sleepUs = 10000;
                     i++;
+                    allStopped = false;
                     continue;
 
                 case TrackBase::STARTING_2:
                     doBroadcast = true;
                     mStandby = false;
                     activeTrack->mState = TrackBase::ACTIVE;
+                    allStopped = false;
                     break;
 
                 case TrackBase::ACTIVE:
+                    allStopped = false;
                     break;
 
                 case TrackBase::IDLE:
@@ -6120,6 +6125,10 @@ reacquire_wakelock:
                     ALOG_ASSERT(fastTrack == 0);
                     fastTrack = activeTrack;
                 }
+            }
+
+            if (allStopped) {
+                standbyIfNotAlreadyInStandby();
             }
             if (doBroadcast) {
                 mStartStopCond.broadcast();
@@ -6703,6 +6712,8 @@ bool AudioFlinger::RecordThread::stop(RecordThread::RecordTrack* recordTrack) {
     }
     // note that threadLoop may still be processing the track at this point [without lock]
     recordTrack->mState = TrackBase::PAUSING;
+    // signal thread to stop
+    mWaitWorkCV.broadcast();
     // do not wait for mStartStopCond if exiting
     if (exitPending()) {
         return true;
