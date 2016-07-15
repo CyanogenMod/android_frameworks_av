@@ -30,6 +30,7 @@
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
 #include "device3/Camera3BufferManager.h"
+#include "utils/TagMonitor.h"
 
 /**
  * Function pointer types with C calling convention to
@@ -854,6 +855,16 @@ class Camera3Device :
     void removeInFlightRequestIfReadyLocked(int idx);
 
     /**** End scope for mInFlightLock ****/
+
+    // Debug tracker for metadata tag value changes
+    // - Enabled with the -m <taglist> option to dumpsys, such as
+    //   dumpsys -m android.control.aeState,android.control.aeMode
+    // - Disabled with -m off
+    // - dumpsys -m 3a is a shortcut for ae/af/awbMode, State, and Triggers
+    TagMonitor mTagMonitor;
+
+    void monitorMetadata(TagMonitor::eventSource source, int64_t frameNumber,
+            nsecs_t timestamp, const CameraMetadata& metadata);
 
     /**
      * Static callback forwarding methods from HAL to instance

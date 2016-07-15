@@ -530,11 +530,25 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
             mId, __FUNCTION__);
 
     bool dumpTemplates = false;
+
     String16 templatesOption("-t");
+    String16 monitorOption("-m");
     int n = args.size();
     for (int i = 0; i < n; i++) {
         if (args[i] == templatesOption) {
             dumpTemplates = true;
+        }
+        if (args[i] == monitorOption) {
+            if (i + 1 < n) {
+                String8 monitorTags = String8(args[i + 1]);
+                if (monitorTags == "off") {
+                    mTagMonitor.disableMonitoring();
+                } else {
+                    mTagMonitor.parseTagsToMonitor(monitorTags);
+                }
+            } else {
+                mTagMonitor.disableMonitoring();
+            }
         }
     }
 
@@ -621,6 +635,8 @@ status_t Camera3Device::dump(int fd, const Vector<String16> &args) {
             }
         }
     }
+
+    mTagMonitor.dumpMonitoredMetadata(fd);
 
     if (mHal3Device != NULL) {
         lines = String8("    HAL device dump:\n");
@@ -2346,12 +2362,15 @@ void Camera3Device::sendCaptureResult(CameraMetadata &pendingMetadata,
     captureResult.mMetadata.sort();
 
     // Check that there's a timestamp in the result metadata
-    camera_metadata_entry entry = captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
-    if (entry.count == 0) {
+    camera_metadata_entry timestamp = captureResult.mMetadata.find(ANDROID_SENSOR_TIMESTAMP);
+    if (timestamp.count == 0) {
         SET_ERR("No timestamp provided by HAL for frame %d!",
                 frameNumber);
         return;
     }
+
+    mTagMonitor.monitorMetadata(TagMonitor::RESULT,
+            frameNumber, timestamp.data.i64[0], captureResult.mMetadata);
 
     insertResultLocked(&captureResult, frameNumber, aeTriggerCancelOverride);
 }
@@ -2720,6 +2739,11 @@ CameraMetadata Camera3Device::getLatestRequestLocked() {
     return retVal;
 }
 
+
+void Camera3Device::monitorMetadata(TagMonitor::eventSource source,
+        int64_t frameNumber, nsecs_t timestamp, const CameraMetadata& metadata) {
+    mTagMonitor.monitorMetadata(source, frameNumber, timestamp, metadata);
+}
 
 /**
  * RequestThread inner class methods
@@ -3147,6 +3171,12 @@ bool Camera3Device::RequestThread::threadLoop() {
 
             camera_metadata_t* cloned = clone_camera_metadata(nextRequest.halRequest.settings);
             mLatestRequest.acquire(cloned);
+
+            sp<Camera3Device> parent = mParent.promote();
+            if (parent != NULL) {
+                parent->monitorMetadata(TagMonitor::REQUEST, nextRequest.halRequest.frame_number,
+                        0, mLatestRequest);
+            }
         }
 
         if (nextRequest.halRequest.settings != NULL) {

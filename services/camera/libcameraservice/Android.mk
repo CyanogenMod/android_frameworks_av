@@ -51,7 +51,8 @@ LOCAL_SRC_FILES :=  \
     device3/Camera3BufferManager.cpp \
     gui/RingBufferConsumer.cpp \
     utils/CameraTraces.cpp \
-    utils/AutoConditionLock.cpp
+    utils/AutoConditionLock.cpp \
+    utils/TagMonitor.cpp
 
 LOCAL_SHARED_LIBRARIES:= \
     libui \

@@ -280,8 +280,8 @@ status_t VendorTagDescriptor::writeToParcel(Parcel* parcel) const {
     return res;
 }
 
-SortedVector<String8> VendorTagDescriptor::getAllSectionNames() const {
-    return mSections;
+const SortedVector<String8>* VendorTagDescriptor::getAllSectionNames() const {
+    return &mSections;
 }
 
 status_t VendorTagDescriptor::lookupTag(String8 name, String8 section, /*out*/uint32_t* tag) const {

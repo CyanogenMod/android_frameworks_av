@@ -18,11 +18,14 @@
 #define ANDROID_CLIENT_CAMERA2_CAMERAMETADATA_CPP
 
 #include "system/camera_metadata.h"
+
 #include <utils/String8.h>
 #include <utils/Vector.h>
 #include <binder/Parcelable.h>
 
 namespace android {
+
+class VendorTagDescriptor;
 
 /**
  * A convenience wrapper around the C-based camera_metadata_t library.
@@ -137,6 +140,8 @@ class CameraMetadata: public Parcelable {
             const camera_metadata_rational_t *data, size_t data_count);
     status_t update(uint32_t tag,
             const String8 &string);
+    status_t update(const camera_metadata_ro_entry &entry);
+
 
     template<typename T>
     status_t update(uint32_t tag, Vector<T> data) {
@@ -205,6 +210,15 @@ class CameraMetadata: public Parcelable {
       */
     static status_t writeToParcel(Parcel &parcel,
                                   const camera_metadata_t* metadata);
+
+    /**
+     * Find tag id for a given tag name, also checking vendor tags if available.
+     * On success, returns OK and writes the tag id into tag.
+     *
+     * This is a slow method.
+     */
+    static status_t getTagFromName(const char *name,
+            const VendorTagDescriptor* vTags, uint32_t *tag);
 
   private:
     camera_metadata_t *mBuffer;
