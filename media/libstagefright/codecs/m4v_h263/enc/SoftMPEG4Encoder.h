@@ -63,7 +63,7 @@ private:
     } InputBufferInfo;
 
     MP4EncodingMode mEncodeMode;
-    int32_t  mIDRFrameRefreshIntervalInSec;
+    int32_t  mKeyFrameInterval; // 1: all I-frames, <0: infinite
 
     int64_t  mNumInputFrames;
     bool     mStarted;
