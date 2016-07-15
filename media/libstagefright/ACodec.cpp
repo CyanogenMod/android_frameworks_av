@@ -4341,6 +4341,34 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         return err;
     }
 
+    // TRICKY: if we are enabling temporal layering as well, some codecs may not support layering
+    // when B-frames are enabled. Detect this now so we can disable B frames if temporal layering
+    // is preferred.
+    AString tsSchema;
+    int32_t preferBFrames = (int32_t)false;
+    if (msg->findString("ts-schema", &tsSchema)
+            && (!msg->findInt32("android._prefer-b-frames", &preferBFrames) || !preferBFrames)) {
+        OMX_VIDEO_PARAM_ANDROID_TEMPORALLAYERINGTYPE layering;
+        InitOMXParams(&layering);
+        layering.nPortIndex = kPortIndexOutput;
+        if (mOMX->getParameter(
+                        mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
+                        &layering, sizeof(layering)) == OK
+                && layering.eSupportedPatterns
+                && layering.nBLayerCountMax == 0) {
+            h264type.nBFrames = 0;
+            h264type.nPFrames = setPFramesSpacing(iFrameInterval, frameRate, h264type.nBFrames);
+            h264type.nAllowedPictureTypes &= ~OMX_VIDEO_PictureTypeB;
+            ALOGI("disabling B-frames");
+            err = mOMX->setParameter(
+                    mNode, OMX_IndexParamVideoAvc, &h264type, sizeof(h264type));
+
+            if (err != OK) {
+                return err;
+            }
+        }
+    }
+
     return configureBitrate(bitrate, bitrateMode);
 }
 
