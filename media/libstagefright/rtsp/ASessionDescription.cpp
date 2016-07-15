@@ -214,11 +214,13 @@ void ASessionDescription::getFormatType(
 
     char key[32];
     snprintf(key, sizeof(key), "a=rtpmap:%lu", x);
-
-    CHECK(findAttribute(index, key, desc));
-
-    snprintf(key, sizeof(key), "a=fmtp:%lu", x);
-    if (!findAttribute(index, key, params)) {
+    if (findAttribute(index, key, desc)) {
+        snprintf(key, sizeof(key), "a=fmtp:%lu", x);
+        if (!findAttribute(index, key, params)) {
+            params->clear();
+        }
+    } else {
+        desc->clear();
         params->clear();
     }
 }
