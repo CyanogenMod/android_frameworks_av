@@ -59,6 +59,11 @@
 
 namespace android {
 
+static const float kTypicalDisplayRefreshingRate = 60.f;
+// display refresh rate drops on battery saver
+static const float kMinTypicalDisplayRefreshingRate = kTypicalDisplayRefreshingRate / 2;
+static const int kMaxNumVideoTemporalLayers = 8;
+
 // To collect the encoder usage for the battery app
 static void addBatteryData(uint32_t params) {
     sp<IBinder> binder =
@@ -1567,23 +1572,37 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("level", mVideoEncoderLevel);
     }
 
-    uint32_t tsLayers = 0;
+    uint32_t tsLayers = 1;
     format->setInt32("priority", 0 /* realtime */);
+    float maxPlaybackFps = mFrameRate; // assume video is only played back at normal speed
+
     if (mCaptureFpsEnable) {
         format->setFloat("operating-rate", mCaptureFps);
 
         // enable layering for all time lapse and high frame rate recordings
-        if (mFrameRate / mCaptureFps >= 1.9 || mCaptureFps / mFrameRate >= 1.9) {
-            tsLayers = 2; // use at least two layers
-            for (float fps = mCaptureFps / 1.9; fps > mFrameRate; fps /= 2) {
-                ++tsLayers;
-            }
-
-            uint32_t bLayers = std::min(2u, tsLayers - 1); // use up-to 2 B-layers
-            uint32_t pLayers = tsLayers - bLayers;
-            format->setString(
-                    "ts-schema", AStringPrintf("android.generic.%u+%u", pLayers, bLayers));
+        if (mFrameRate / mCaptureFps >= 1.9) { // time lapse
+            tsLayers = 2; // use at least two layers as resulting video will likely be sped up
+        } else if (mCaptureFps > maxPlaybackFps) { // slow-mo
+            maxPlaybackFps = mCaptureFps; // assume video will be played back at full capture speed
         }
+    }
+
+    for (uint32_t tryLayers = 1; tryLayers <= kMaxNumVideoTemporalLayers; ++tryLayers) {
+        if (tryLayers > tsLayers) {
+            tsLayers = tryLayers;
+        }
+        // keep going until the base layer fps falls below the typical display refresh rate
+        float baseLayerFps = maxPlaybackFps / (1 << (tryLayers - 1));
+        if (baseLayerFps < kMinTypicalDisplayRefreshingRate / 0.9) {
+            break;
+        }
+    }
+
+    if (tsLayers > 1) {
+        uint32_t bLayers = std::min(2u, tsLayers - 1); // use up-to 2 B-layers
+        uint32_t pLayers = tsLayers - bLayers;
+        format->setString(
+                "ts-schema", AStringPrintf("android.generic.%u+%u", pLayers, bLayers));
     }
 
     if (mMetaDataStoredInVideoBuffers != kMetadataBufferTypeInvalid) {
