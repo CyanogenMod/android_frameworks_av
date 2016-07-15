@@ -1385,7 +1385,7 @@ void NuPlayer::GenericSource::readBuffer(
             if (mIsWidevine) {
                 maxBuffers = 2;
             } else {
-                maxBuffers = 4;
+                maxBuffers = 8;  // too large of a number may influence seeks
             }
             break;
         case MEDIA_TRACK_TYPE_AUDIO:
@@ -1417,25 +1417,24 @@ void NuPlayer::GenericSource::readBuffer(
     MediaSource::ReadOptions options;
 
     bool seeking = false;
-
     if (seekTimeUs >= 0) {
         options.setSeekTo(seekTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
         seeking = true;
     }
 
-    if (mIsWidevine) {
+    const bool couldReadMultiple = (!mIsWidevine && track->mSource->supportReadMultiple());
+
+    if (mIsWidevine || couldReadMultiple) {
         options.setNonBlocking();
     }
 
-    bool couldReadMultiple =
-        (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO
-                && track->mSource->supportReadMultiple());
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         Vector<MediaBuffer *> mediaBuffers;
         status_t err = NO_ERROR;
 
-        if (!seeking && couldReadMultiple) {
-            err = track->mSource->readMultiple(&mediaBuffers, (maxBuffers - numBuffers));
+        if (couldReadMultiple) {
+            err = track->mSource->readMultiple(
+                    &mediaBuffers, maxBuffers - numBuffers, &options);
         } else {
             MediaBuffer *mbuf = NULL;
             err = track->mSource->read(&mbuf, &options);

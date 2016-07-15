@@ -131,6 +131,10 @@ public:
     // Returns true if |readMultiple| is supported, otherwise false.
     virtual bool supportReadMultiple() = 0;
 
+    // Returns true if |read| supports nonblocking option, otherwise false.
+    // |readMultiple| if supported, always allows the nonblocking option.
+    virtual bool supportNonblockingRead() = 0;
+
     // Causes this source to suspend pulling data from its upstream source
     // until a subsequent read-with-seek. Currently only supported by
     // OMXCodec.
@@ -161,6 +165,7 @@ public:
         return ERROR_UNSUPPORTED;
     }
 
+    // TODO: Implement this for local media sources.
     virtual status_t readMultiple(
             Vector<MediaBuffer *> * /* buffers */, uint32_t /* maxNumBuffers = 1 */,
             const ReadOptions * /* options = nullptr */) {
@@ -171,7 +176,15 @@ public:
         return false;
     }
 
+    // Override in source if nonblocking reads are supported.
+    virtual bool supportNonblockingRead() {
+        return false;
+    }
+
     static const size_t kBinderMediaBuffers = 4; // buffers managed by BnMediaSource
+    static const size_t kTransferSharedAsSharedThreshold = 4 * 1024;  // if >= shared, else inline
+    static const size_t kTransferInlineAsSharedThreshold = 64 * 1024; // if >= shared, else inline
+    static const size_t kInlineMaxTransfer = 256 * 1024; // Binder size limited to BINDER_VM_SIZE.
 
 protected:
     virtual ~BnMediaSource();
