@@ -17,6 +17,8 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "MPEG4Writer"
 
+#include <algorithm>
+
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -30,6 +32,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+#include <media/stagefright/foundation/AUtils.h>
 #include <media/stagefright/foundation/ColorUtils.h>
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/MediaBuffer.h>
@@ -256,6 +259,7 @@ private:
     int32_t mTrackId;
     int64_t mTrackDurationUs;
     int64_t mMaxChunkDurationUs;
+    int64_t mLastDecodingTimeUs;
 
     int64_t mEstimatedTrackSizeBytes;
     int64_t mMdatSizeBytes;
@@ -1928,6 +1932,7 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
     mEstimatedTrackSizeBytes = 0;
     mMdatSizeBytes = 0;
     mMaxChunkDurationUs = 0;
+    mLastDecodingTimeUs = -1;
 
     pthread_create(&mThread, &attr, ThreadWrapper, this);
     pthread_attr_destroy(&attr);
@@ -2512,6 +2517,17 @@ status_t MPEG4Writer::Track::threadEntry() {
             int64_t decodingTimeUs;
             CHECK(meta_data->findInt64(kKeyDecodingTime, &decodingTimeUs));
             decodingTimeUs -= previousPausedDurationUs;
+
+            // ensure non-negative, monotonic decoding time
+            if (mLastDecodingTimeUs < 0) {
+                decodingTimeUs = std::max((int64_t)0, decodingTimeUs);
+            } else {
+                // increase decoding time by at least 1 tick
+                decodingTimeUs = std::max(
+                        mLastDecodingTimeUs + divUp(1000000, mTimeScale), decodingTimeUs);
+            }
+
+            mLastDecodingTimeUs = decodingTimeUs;
             cttsOffsetTimeUs =
                     timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
