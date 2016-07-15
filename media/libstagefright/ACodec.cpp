@@ -3872,7 +3872,7 @@ status_t ACodec::setupVideoEncoder(
 
         case OMX_VIDEO_CodingVP8:
         case OMX_VIDEO_CodingVP9:
-            err = setupVPXEncoderParameters(msg);
+            err = setupVPXEncoderParameters(msg, outputFormat);
             break;
 
         default:
@@ -4432,7 +4432,7 @@ status_t ACodec::setupHEVCEncoderParameters(const sp<AMessage> &msg) {
     return configureBitrate(bitrate, bitrateMode);
 }
 
-status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
+status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg, sp<AMessage> &outputFormat) {
     int32_t bitrate;
     float iFrameInterval = 0;
     size_t tsLayers = 0;
@@ -4462,6 +4462,9 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
     }
 
     AString tsSchema;
+    OMX_VIDEO_ANDROID_TEMPORALLAYERINGPATTERNTYPE tsType =
+        OMX_VIDEO_AndroidTemporalLayeringPatternNone;
+
     if (msg->findString("ts-schema", &tsSchema)) {
         unsigned int numLayers = 0;
         unsigned int numBLayers = 0;
@@ -4470,6 +4473,7 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
         if (sscanf(tsSchema.c_str(), "webrtc.vp8.%u-layer%c", &numLayers, &dummy) == 1
                 && numLayers > 0) {
             pattern = OMX_VIDEO_VPXTemporalLayerPatternWebRTC;
+            tsType = OMX_VIDEO_AndroidTemporalLayeringPatternWebRTC;
             tsLayers = numLayers;
         } else if ((tags = sscanf(tsSchema.c_str(), "android.generic.%u%c%u%c",
                         &numLayers, &dummy, &numBLayers, &dummy))
@@ -4477,6 +4481,7 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
                 && numLayers > 0 && numLayers < UINT32_MAX - numBLayers) {
             pattern = OMX_VIDEO_VPXTemporalLayerPatternWebRTC;
             // VPX does not have a concept of B-frames, so just count all layers
+            tsType = OMX_VIDEO_AndroidTemporalLayeringPatternAndroid;
             tsLayers = numLayers + numBLayers;
         } else {
             ALOGW("Ignoring unsupported ts-schema [%s]", tsSchema.c_str());
@@ -4513,6 +4518,12 @@ status_t ACodec::setupVPXEncoderParameters(const sp<AMessage> &msg) {
                 &vp8type, sizeof(vp8type));
         if (err != OK) {
             ALOGW("Extended VP8 parameters set failed: %d", err);
+        } else if (tsType == OMX_VIDEO_AndroidTemporalLayeringPatternWebRTC) {
+            // advertise even single layer WebRTC layering, as it is defined
+            outputFormat->setString("ts-schema", AStringPrintf("webrtc.vp8.%u-layer", tsLayers));
+        } else if (tsLayers > 0) {
+            // tsType == OMX_VIDEO_AndroidTemporalLayeringPatternAndroid
+            outputFormat->setString("ts-schema", AStringPrintf("android.generic.%u", tsLayers));
         }
     }
 
@@ -5043,32 +5054,21 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                             sizeof(vp8type));
 
                     if (err == OK) {
-                        AString tsSchema = "none";
-                        if (vp8type.eTemporalPattern
-                                == OMX_VIDEO_VPXTemporalLayerPatternWebRTC) {
-                            switch (vp8type.nTemporalLayerCount) {
-                                case 1:
-                                {
-                                    tsSchema = "webrtc.vp8.1-layer";
-                                    break;
-                                }
-                                case 2:
-                                {
-                                    tsSchema = "webrtc.vp8.2-layer";
-                                    break;
-                                }
-                                case 3:
-                                {
-                                    tsSchema = "webrtc.vp8.3-layer";
-                                    break;
-                                }
-                                default:
-                                {
-                                    break;
-                                }
+                        if (vp8type.eTemporalPattern == OMX_VIDEO_VPXTemporalLayerPatternWebRTC
+                                && vp8type.nTemporalLayerCount > 0
+                                && vp8type.nTemporalLayerCount
+                                        <= OMX_VIDEO_ANDROID_MAXVP8TEMPORALLAYERS) {
+                            // advertise as android.generic if we configured for android.generic
+                            AString origSchema;
+                            if (notify->findString("ts-schema", &origSchema)
+                                    && origSchema.startsWith("android.generic")) {
+                                notify->setString("ts-schema", AStringPrintf(
+                                        "android.generic.%u", vp8type.nTemporalLayerCount));
+                            } else {
+                                notify->setString("ts-schema", AStringPrintf(
+                                        "webrtc.vp8.%u-layer", vp8type.nTemporalLayerCount));
                             }
                         }
-                        notify->setString("ts-schema", tsSchema);
                     }
                     // Fall through to set up mime.
                 }
