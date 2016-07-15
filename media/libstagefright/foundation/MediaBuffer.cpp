@@ -32,7 +32,6 @@ namespace android {
 
 MediaBuffer::MediaBuffer(void *data, size_t size)
     : mObserver(NULL),
-      mNextBuffer(NULL),
       mRefCount(0),
       mData(data),
       mSize(size),
@@ -45,7 +44,6 @@ MediaBuffer::MediaBuffer(void *data, size_t size)
 
 MediaBuffer::MediaBuffer(size_t size)
     : mObserver(NULL),
-      mNextBuffer(NULL),
       mRefCount(0),
       mData(NULL),
       mSize(size),
@@ -57,8 +55,10 @@ MediaBuffer::MediaBuffer(size_t size)
     if (size < kSharedMemThreshold) {
         mData = malloc(size);
     } else {
-        sp<MemoryDealer> memoryDealer = new MemoryDealer(size, "MediaBuffer");
-        mMemory = memoryDealer->allocate(size);
+        ALOGV("creating memoryDealer");
+        sp<MemoryDealer> memoryDealer =
+                new MemoryDealer(size + sizeof(SharedControl), "MediaBuffer");
+        mMemory = memoryDealer->allocate(size + sizeof(SharedControl));
         if (mMemory == NULL) {
             ALOGW("Failed to allocate shared memory, trying regular allocation!");
             mData = malloc(size);
@@ -66,7 +66,8 @@ MediaBuffer::MediaBuffer(size_t size)
                 ALOGE("Out of memory");
             }
         } else {
-            mData = mMemory->pointer();
+            getSharedControl()->clear();
+            mData = (uint8_t *)mMemory->pointer() + sizeof(SharedControl);
             ALOGV("Allocated shared mem buffer of size %zu @ %p", size, mData);
         }
     }
@@ -74,7 +75,6 @@ MediaBuffer::MediaBuffer(size_t size)
 
 MediaBuffer::MediaBuffer(const sp<GraphicBuffer>& graphicBuffer)
     : mObserver(NULL),
-      mNextBuffer(NULL),
       mRefCount(0),
       mData(NULL),
       mSize(1),
@@ -88,7 +88,6 @@ MediaBuffer::MediaBuffer(const sp<GraphicBuffer>& graphicBuffer)
 
 MediaBuffer::MediaBuffer(const sp<ABuffer> &buffer)
     : mObserver(NULL),
-      mNextBuffer(NULL),
       mRefCount(0),
       mData(buffer->data()),
       mSize(buffer->size()),
@@ -102,6 +101,14 @@ MediaBuffer::MediaBuffer(const sp<ABuffer> &buffer)
 
 void MediaBuffer::release() {
     if (mObserver == NULL) {
+        if (mMemory.get() != nullptr) {
+            // See if there is a pending release and there are no observers.
+            // Ideally this never happens.
+            while (addPendingRelease(-1) > 0) {
+                __sync_fetch_and_sub(&mRefCount, 1);
+            }
+            addPendingRelease(1);
+        }
         CHECK_EQ(mRefCount, 0);
         delete this;
         return;
@@ -183,19 +190,15 @@ MediaBuffer::~MediaBuffer() {
         mOriginal->release();
         mOriginal = NULL;
     }
+
+   if (mMemory.get() != nullptr) {
+       getSharedControl()->setDeadObject();
+   }
 }
 
 void MediaBuffer::setObserver(MediaBufferObserver *observer) {
     CHECK(observer == NULL || mObserver == NULL);
     mObserver = observer;
-}
-
-void MediaBuffer::setNextBuffer(MediaBuffer *buffer) {
-    mNextBuffer = buffer;
-}
-
-MediaBuffer *MediaBuffer::nextBuffer() {
-    return mNextBuffer;
 }
 
 int MediaBuffer::refcount() const {

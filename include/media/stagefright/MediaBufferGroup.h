@@ -29,7 +29,7 @@ class MetaData;
 
 class MediaBufferGroup : public MediaBufferObserver {
 public:
-    MediaBufferGroup();
+    MediaBufferGroup(size_t growthLimit = 0);
     ~MediaBufferGroup();
 
     void add_buffer(MediaBuffer *buffer);
@@ -45,6 +45,11 @@ public:
     status_t acquire_buffer(
             MediaBuffer **buffer, bool nonBlocking = false, size_t requestedSize = 0);
 
+    size_t buffers() const { return mBuffers.size(); }
+
+    // freeBuffers is the number of free buffers allowed to remain.
+    void gc(size_t freeBuffers = 0);
+
 protected:
     virtual void signalBufferReturned(MediaBuffer *buffer);
 
@@ -53,8 +58,8 @@ private:
 
     Mutex mLock;
     Condition mCondition;
-
-    MediaBuffer *mFirstBuffer, *mLastBuffer;
+    size_t mGrowthLimit;  // Do not automatically grow group larger than this.
+    std::list<MediaBuffer *> mBuffers;
 
     MediaBufferGroup(const MediaBufferGroup &);
     MediaBufferGroup &operator=(const MediaBufferGroup &);
