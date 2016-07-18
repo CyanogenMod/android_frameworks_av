@@ -415,12 +415,17 @@ MediaCodecSource::MediaCodecSource(
     CHECK(mLooper != NULL);
 
     AString mime;
+    int32_t storeMeta = kMetadataBufferTypeInvalid;
     CHECK(mOutputFormat->findString("mime", &mime));
 
     if (!strncasecmp("video/", mime.c_str(), 6)) {
         mIsVideo = true;
     }
 
+    if (mOutputFormat->findInt32("android._input-metadata-buffer-type", &storeMeta)
+            && storeMeta == kMetadataBufferTypeNativeHandleSource) {
+        mFlags |= FLAG_USE_METADATA_INPUT;
+    }
     if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
         mPuller = new Puller(source);
     }
