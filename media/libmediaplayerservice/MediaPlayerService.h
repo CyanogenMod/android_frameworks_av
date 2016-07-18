@@ -135,6 +135,7 @@ class MediaPlayerService : public BnMediaPlayerService
                 int event, void *me, void *info);
                void             deleteRecycledTrack_l();
                void             close_l();
+           status_t             updateTrack();
 
         sp<AudioTrack>          mTrack;
         sp<AudioTrack>          mRecycledTrack;
