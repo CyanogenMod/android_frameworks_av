@@ -4878,9 +4878,12 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
             }
         } else if (track->isResumePending()) {
             track->resumeAck();
-            if (last && mHwPaused) {
-                doHwResume = true;
-                mHwPaused = false;
+            if (last) {
+                mLeftVolFloat = mRightVolFloat = -1.0;
+                if (mHwPaused) {
+                    doHwResume = true;
+                    mHwPaused = false;
+                }
             }
         }
 
@@ -4906,8 +4909,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
 
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
-                // make sure processVolume_l() will apply new volume even if 0
-                mLeftVolFloat = mRightVolFloat = -1.0;
+                if (last) {
+                    // make sure processVolume_l() will apply new volume even if 0
+                    mLeftVolFloat = mRightVolFloat = -1.0;
+                }
                 if (!mHwSupportsPause) {
                     track->resumeAck();
                 }
@@ -5460,6 +5465,8 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 // enable write to audio HAL
                 mSleepTimeUs = 0;
 
+                mLeftVolFloat = mRightVolFloat = -1.0;
+
                 // Do not handle new data in this iteration even if track->framesReady()
                 mixerStatus = MIXER_TRACKS_ENABLED;
             }
@@ -5468,8 +5475,10 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             ALOGVV("OffloadThread: track %d s=%08x [OK]", track->name(), cblk->mServer);
             if (track->mFillingUpStatus == Track::FS_FILLED) {
                 track->mFillingUpStatus = Track::FS_ACTIVE;
-                // make sure processVolume_l() will apply new volume even if 0
-                mLeftVolFloat = mRightVolFloat = -1.0;
+                if (last) {
+                    // make sure processVolume_l() will apply new volume even if 0
+                    mLeftVolFloat = mRightVolFloat = -1.0;
+                }
             }
 
             if (last) {
