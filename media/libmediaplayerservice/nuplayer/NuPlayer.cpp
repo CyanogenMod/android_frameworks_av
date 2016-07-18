@@ -1356,8 +1356,6 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
     ALOGV_IF(audioMeta == NULL, "no metadata for audio source");  // video only stream
 
-    AVNuUtils::get()->setSourcePCMFormat(audioMeta);
-
     audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
 
     if (mAudioSink != NULL) {
@@ -1644,15 +1642,12 @@ status_t NuPlayer::instantiateDecoder(
         if (mOffloadAudio)
             mSource->setOffloadAudio(true /* offload */);
 
-        if (AVNuUtils::get()->isRAWFormat(format)) {
-            AVNuUtils::get()->setPCMFormat(format,
-                    AVNuUtils::get()->getKeyPCMFormat(mSource->getFormatMeta(true /* audio */)));
-        }
         if (mOffloadAudio) {
             const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
             format->setInt32("has-video", hasVideo);
             *decoder = AVNuFactory::get()->createPassThruDecoder(notify, mSource, mRenderer);
         } else {
+            AVNuUtils::get()->setCodecOutputFormat(format);
             mSource->setOffloadAudio(false /* offload */);
             *decoder = AVNuFactory::get()->createDecoder(notify, mSource, mPID, mRenderer);
         }
