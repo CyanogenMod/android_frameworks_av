@@ -3054,7 +3054,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             }
         } else {
             if (fd >= 0) {
-                dprintf(fd, "unable to rotate tees in %.*s: %s\n", teePathLen, teePath,
+                dprintf(fd, "unable to rotate tees in %.*s: %s\n", (int) teePathLen, teePath,
                         strerror(errno));
             }
         }
