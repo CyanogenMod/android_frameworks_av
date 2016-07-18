@@ -72,16 +72,7 @@ struct AVNuUtils {
     virtual void checkFormatChange(bool *formatChange, const sp<ABuffer> &accessUnit);
     virtual void overWriteAudioOutputFormat(sp <AMessage> &dst, const sp <AMessage> &src);
     virtual bool pcmOffloadException(const sp<AMessage> &);
-    virtual bool isRAWFormat(const sp<MetaData> &);
-    virtual bool isRAWFormat(const sp<AMessage> &);
-    virtual int updateAudioBitWidth(audio_format_t audioFormat,
-            const sp<AMessage> &);
-    virtual audio_format_t getKeyPCMFormat(const sp<MetaData> &);
-    virtual void setKeyPCMFormat(const sp<MetaData> &, audio_format_t audioFormat);
     virtual audio_format_t getPCMFormat(const sp<AMessage> &);
-    virtual void setPCMFormat(const sp<AMessage> &, audio_format_t audioFormat);
-    virtual void setSourcePCMFormat(const sp<MetaData> &);
-    virtual void setDecodedPCMFormat(const sp<AMessage> &);
     virtual void setCodecOutputFormat(const sp<AMessage> &);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
