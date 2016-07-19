@@ -129,6 +129,10 @@ OMX_ERRORTYPE SoftMPEG4Encoder::initEncParams() {
         ALOGE("Failed to get default encoding parameters");
         return OMX_ErrorUndefined;
     }
+    if (mVideoFrameRate == 0) {
+        ALOGE("Framerate should not be 0");
+        return OMX_ErrorUndefined;
+    }
     mEncParams->encMode = mEncodeMode;
     mEncParams->encWidth[0] = mVideoWidth;
     mEncParams->encHeight[0] = mVideoHeight;
