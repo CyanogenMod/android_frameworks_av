@@ -6246,7 +6246,8 @@ reacquire_wakelock:
         mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_SERVER] = systemTime();
 
         // Update server timestamp with kernel stats
-        if (mInput->stream->get_capture_position != nullptr) {
+        if (mInput->stream->get_capture_position != nullptr
+                && mPipeSource.get() == nullptr /* don't obtain for FastCapture, could block */) {
             int64_t position, time;
             int ret = mInput->stream->get_capture_position(mInput->stream, &position, &time);
             if (ret == NO_ERROR) {
