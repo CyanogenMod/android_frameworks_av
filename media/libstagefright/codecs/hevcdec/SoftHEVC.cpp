@@ -182,6 +182,48 @@ status_t SoftHEVC::resetPlugin() {
     return OK;
 }
 
+bool SoftHEVC::getVUIParams() {
+    IV_API_CALL_STATUS_T status;
+    ihevcd_cxa_ctl_get_vui_params_ip_t s_ctl_get_vui_params_ip;
+    ihevcd_cxa_ctl_get_vui_params_op_t s_ctl_get_vui_params_op;
+
+    s_ctl_get_vui_params_ip.e_cmd = IVD_CMD_VIDEO_CTL;
+    s_ctl_get_vui_params_ip.e_sub_cmd =
+        (IVD_CONTROL_API_COMMAND_TYPE_T)IHEVCD_CXA_CMD_CTL_GET_VUI_PARAMS;
+
+    s_ctl_get_vui_params_ip.u4_size =
+        sizeof(ihevcd_cxa_ctl_get_vui_params_ip_t);
+
+    s_ctl_get_vui_params_op.u4_size = sizeof(ihevcd_cxa_ctl_get_vui_params_op_t);
+
+    status = ivdec_api_function(
+            (iv_obj_t *)mCodecCtx, (void *)&s_ctl_get_vui_params_ip,
+            (void *)&s_ctl_get_vui_params_op);
+
+    if (status != IV_SUCCESS) {
+        ALOGW("Error in getting VUI params: 0x%x",
+                s_ctl_get_vui_params_op.u4_error_code);
+        return false;
+    }
+
+    int32_t primaries = s_ctl_get_vui_params_op.u1_colour_primaries;
+    int32_t transfer = s_ctl_get_vui_params_op.u1_transfer_characteristics;
+    int32_t coeffs = s_ctl_get_vui_params_op.u1_matrix_coefficients;
+    bool fullRange = s_ctl_get_vui_params_op.u1_video_full_range_flag;
+
+    ColorAspects colorAspects;
+    ColorUtils::convertIsoColorAspectsToCodecAspects(
+            primaries, transfer, coeffs, fullRange, colorAspects);
+
+    // Update color aspects if necessary.
+    if (colorAspectsDiffer(colorAspects, mBitstreamColorAspects)) {
+        mBitstreamColorAspects = colorAspects;
+        status_t err = handleColorAspectsChange();
+        CHECK(err == OK);
+    }
+    return true;
+}
+
 status_t SoftHEVC::resetDecoder() {
     ivd_ctl_reset_ip_t s_ctl_ip;
     ivd_ctl_reset_op_t s_ctl_op;
@@ -554,6 +596,8 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
 
             bool resChanged = (IVD_RES_CHANGED == (s_dec_op.u4_error_code & 0xFF));
 
+            getVUIParams();
+
             GETTIME(&mTimeEnd, NULL);
             /* Compute time taken for decode() */
             TIME_DIFF(mTimeStart, mTimeEnd, timeTaken);
@@ -589,6 +633,8 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
                 continue;
             }
 
+            // Combine the resolution change and coloraspects change in one PortSettingChange event
+            // if necessary.
             if ((0 < s_dec_op.u4_pic_wd) && (0 < s_dec_op.u4_pic_ht)) {
                 uint32_t width = s_dec_op.u4_pic_wd;
                 uint32_t height = s_dec_op.u4_pic_ht;
@@ -599,6 +645,11 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
                     resetDecoder();
                     return;
                 }
+            } else if (mUpdateColorAspects) {
+                notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
+                    kDescribeColorAspectsIndex, NULL);
+                mUpdateColorAspects = false;
+                return;
             }
 
             if (s_dec_op.u4_output_present) {
@@ -652,6 +703,10 @@ void SoftHEVC::onQueueFilled(OMX_U32 portIndex) {
             inHeader = NULL;
         }
     }
+}
+
+int SoftHEVC::getColorAspectPreference() {
+    return kPreferBitstream;
 }
 
 }  // namespace android

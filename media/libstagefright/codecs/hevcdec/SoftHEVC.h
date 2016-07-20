@@ -61,6 +61,7 @@ protected:
     virtual void onQueueFilled(OMX_U32 portIndex);
     virtual void onPortFlushCompleted(OMX_U32 portIndex);
     virtual void onReset();
+    virtual int getColorAspectPreference();
 private:
     // Number of input and output buffers
     enum {
@@ -111,6 +112,8 @@ private:
         OMX_BUFFERHEADERTYPE *inHeader,
         OMX_BUFFERHEADERTYPE *outHeader,
         size_t timeStampIx);
+
+    bool getVUIParams();
 
     DISALLOW_EVIL_CONSTRUCTORS (SoftHEVC);
 };
