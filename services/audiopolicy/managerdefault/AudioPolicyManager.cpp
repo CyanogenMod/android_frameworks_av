@@ -49,6 +49,9 @@
 
 namespace android {
 
+//FIXME: workaround for truncated touch sounds
+// to be removed when the problem is handled by system UI
+#define TOUCH_SOUND_FIXED_DELAY_MS 100
 // ----------------------------------------------------------------------------
 // AudioPolicyInterface implementation
 // ----------------------------------------------------------------------------
@@ -316,15 +319,16 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
             AUDIO_POLICY_DEVICE_STATE_AVAILABLE : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
 }
 
-void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs)
+uint32_t AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, uint32_t delayMs)
 {
     bool createTxPatch = false;
     status_t status;
     audio_patch_handle_t afPatchHandle;
     DeviceVector deviceList;
+    uint32_t muteWaitMs = 0;
 
     if(!hasPrimaryOutput()) {
-        return;
+        return muteWaitMs;
     }
     audio_devices_t txDevice = getDeviceAndMixForInputSource(AUDIO_SOURCE_VOICE_COMMUNICATION);
     ALOGV("updateCallRouting device rxDevice %08x txDevice %08x", rxDevice, txDevice);
@@ -344,7 +348,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
     // via setOutputDevice() on primary output.
     // Otherwise, create two audio patches for TX and RX path.
     if (availablePrimaryOutputDevices() & rxDevice) {
-        setOutputDevice(mPrimaryOutput, rxDevice, true, delayMs);
+        muteWaitMs = setOutputDevice(mPrimaryOutput, rxDevice, true, delayMs);
         // If the TX device is also on the primary HW module, setOutputDevice() will take care
         // of it due to legacy implementation. If not, create a patch.
         if ((availablePrimaryInputDevices() & txDevice & ~AUDIO_DEVICE_BIT_IN)
@@ -384,7 +388,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         }
 
         afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
-        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, 0);
+        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, delayMs);
         ALOGW_IF(status != NO_ERROR, "updateCallRouting() error %d creating RX audio patch",
                                                status);
         if (status == NO_ERROR) {
@@ -443,7 +447,7 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
         }
 
         afPatchHandle = AUDIO_PATCH_HANDLE_NONE;
-        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, 0);
+        status = mpClientInterface->createAudioPatch(&patch, &afPatchHandle, delayMs);
         ALOGW_IF(status != NO_ERROR, "setPhoneState() error %d creating TX audio patch",
                                                status);
         if (status == NO_ERROR) {
@@ -452,6 +456,8 @@ void AudioPolicyManager::updateCallRouting(audio_devices_t rxDevice, int delayMs
             mCallTxPatch->mUid = mUidCached;
         }
     }
+
+    return muteWaitMs;
 }
 
 void AudioPolicyManager::setPhoneState(audio_mode_t state)
@@ -584,18 +590,26 @@ void AudioPolicyManager::setForceUse(audio_policy_force_use_t usage,
     checkOutputForAllStrategies();
     updateDevicesAndOutputs();
 
+    //FIXME: workaround for truncated touch sounds
+    // to be removed when the problem is handled by system UI
+    uint32_t delayMs = 0;
+    uint32_t waitMs = 0;
+    if (usage == AUDIO_POLICY_FORCE_FOR_COMMUNICATION) {
+        delayMs = TOUCH_SOUND_FIXED_DELAY_MS;
+    }
     if (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL && hasPrimaryOutput()) {
         audio_devices_t newDevice = getNewOutputDevice(mPrimaryOutput, true /*fromCache*/);
-        updateCallRouting(newDevice);
+        waitMs = updateCallRouting(newDevice, delayMs);
     }
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
         audio_devices_t newDevice = getNewOutputDevice(outputDesc, true /*fromCache*/);
         if ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) || (outputDesc != mPrimaryOutput)) {
-            setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE));
+            waitMs = setOutputDevice(outputDesc, newDevice, (newDevice != AUDIO_DEVICE_NONE),
+                                     delayMs);
         }
         if (forceVolumeReeval && (newDevice != AUDIO_DEVICE_NONE)) {
-            applyStreamVolumes(outputDesc, newDevice, 0, true);
+            applyStreamVolumes(outputDesc, newDevice, waitMs, true);
         }
     }
 
@@ -1191,7 +1205,7 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
                 }
             }
         }
-        (void) /*uint32_t muteWaitMs*/ setOutputDevice(outputDesc, device, force, 0, NULL, address);
+        uint32_t muteWaitMs = setOutputDevice(outputDesc, device, force, 0, NULL, address);
 
         // handle special case for sonification while in call
         if (isInCall()) {
@@ -1212,7 +1226,12 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
         if (strategy == STRATEGY_SONIFICATION) {
             mpClientInterface->invalidateStream(AUDIO_STREAM_ACCESSIBILITY);
         }
+
+        if (waitMs > muteWaitMs) {
+            *delayMs = waitMs - muteWaitMs;
+        }
     }
+
     return NO_ERROR;
 }
 
@@ -1885,8 +1904,12 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
             }
 
             if (applyDefault || ((curDevice & curStreamDevice) != 0)) {
+                //FIXME: workaround for truncated touch sounds
+                // delayed volume change for system stream to be removed when the problem is
+                // handled by system UI
                 status_t volStatus =
-                        checkAndSetVolume((audio_stream_type_t)curStream, index, desc, curDevice);
+                        checkAndSetVolume((audio_stream_type_t)curStream, index, desc, curDevice,
+                            (stream == AUDIO_STREAM_SYSTEM) ? TOUCH_SOUND_FIXED_DELAY_MS : 0);
                 if (volStatus != NO_ERROR) {
                     status = volStatus;
                 }
@@ -4573,15 +4596,20 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(sp<AudioOutputDescriptor>
     // temporary mute output if device selection changes to avoid volume bursts due to
     // different per device volumes
     if (outputDesc->isActive() && (device != prevDevice)) {
-        if (muteWaitMs < outputDesc->latency() * 2) {
-            muteWaitMs = outputDesc->latency() * 2;
+        uint32_t tempMuteWaitMs = outputDesc->latency() * 2;
+        // temporary mute duration is conservatively set to 4 times the reported latency
+        uint32_t tempMuteDurationMs = outputDesc->latency() * 4;
+        if (muteWaitMs < tempMuteWaitMs) {
+            muteWaitMs = tempMuteWaitMs;
         }
+
         for (size_t i = 0; i < NUM_STRATEGIES; i++) {
             if (isStrategyActive(outputDesc, (routing_strategy)i)) {
-                setStrategyMute((routing_strategy)i, true, outputDesc);
-                // do tempMute unmute after twice the mute wait time
+                // make sure that we do not start the temporary mute period too early in case of
+                // delayed device change
+                setStrategyMute((routing_strategy)i, true, outputDesc, delayMs);
                 setStrategyMute((routing_strategy)i, false, outputDesc,
-                                muteWaitMs *2, device);
+                                delayMs + tempMuteDurationMs, device);
             }
         }
     }
