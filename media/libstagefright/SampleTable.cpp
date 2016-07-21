@@ -27,11 +27,6 @@
 #include <media/stagefright/DataSource.h>
 #include <media/stagefright/Utils.h>
 
-/* TODO: remove after being merged into other branches */
-#ifndef UINT32_MAX
-#define UINT32_MAX       (4294967295U)
-#endif
-
 namespace android {
 
 // static
@@ -44,6 +39,8 @@ const uint32_t SampleTable::kSampleSizeType32 = FOURCC('s', 't', 's', 'z');
 const uint32_t SampleTable::kSampleSizeTypeCompact = FOURCC('s', 't', 'z', '2');
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const off64_t kMaxOffset = INT64_MAX;
 
 struct SampleTable::CompositionDeltaLookup {
     CompositionDeltaLookup();
@@ -233,11 +230,11 @@ status_t SampleTable::setSampleToChunkParams(
 
     mNumSampleToChunkOffsets = U32_AT(&header[4]);
 
-    if (data_size < 8 + mNumSampleToChunkOffsets * 12) {
+    if ((data_size - 8) / sizeof(SampleToChunkEntry) < mNumSampleToChunkOffsets) {
         return ERROR_MALFORMED;
     }
 
-    if ((uint64_t)SIZE_MAX / sizeof(SampleToChunkEntry) <=
+    if ((uint64_t)kMaxTotalSize / sizeof(SampleToChunkEntry) <=
             (uint64_t)mNumSampleToChunkOffsets) {
         ALOGE("Sample-to-chunk table size too large.");
         return ERROR_OUT_OF_RANGE;
@@ -269,16 +266,19 @@ status_t SampleTable::setSampleToChunkParams(
         return OK;
     }
 
-    if ((off64_t)(SIZE_MAX - 8 -
+    if ((off64_t)(kMaxOffset - 8 -
             ((mNumSampleToChunkOffsets - 1) * sizeof(SampleToChunkEntry)))
             < mSampleToChunkOffset) {
         return ERROR_MALFORMED;
     }
 
     for (uint32_t i = 0; i < mNumSampleToChunkOffsets; ++i) {
-        uint8_t buffer[12];
+        uint8_t buffer[sizeof(SampleToChunkEntry)];
+
         if (mDataSource->readAt(
-                    mSampleToChunkOffset + 8 + i * 12, buffer, sizeof(buffer))
+                    mSampleToChunkOffset + 8 + i * sizeof(SampleToChunkEntry),
+                    buffer,
+                    sizeof(buffer))
                 != (ssize_t)sizeof(buffer)) {
             return ERROR_IO;
         }
@@ -378,8 +378,7 @@ status_t SampleTable::setTimeToSampleParams(
     }
 
     mTimeToSampleCount = U32_AT(&header[4]);
-    if ((uint64_t)mTimeToSampleCount >
-        (uint64_t)UINT32_MAX / (2 * sizeof(uint32_t))) {
+    if (mTimeToSampleCount > UINT32_MAX / (2 * sizeof(uint32_t))) {
         // Choose this bound because
         // 1) 2 * sizeof(uint32_t) is the amount of memory needed for one
         //    time-to-sample entry in the time-to-sample table.
@@ -456,7 +455,7 @@ status_t SampleTable::setCompositionTimeToSampleParams(
 
     mNumCompositionTimeDeltaEntries = numEntries;
     uint64_t allocSize = (uint64_t)numEntries * 2 * sizeof(uint32_t);
-    if (allocSize > SIZE_MAX) {
+    if (allocSize > kMaxTotalSize) {
         ALOGE("Composition-time-to-sample table size too large.");
         return ERROR_OUT_OF_RANGE;
     }
@@ -523,7 +522,7 @@ status_t SampleTable::setSyncSampleParams(off64_t data_offset, size_t data_size)
     }
 
     uint64_t allocSize = (uint64_t)mNumSyncSamples * sizeof(uint32_t);
-    if (allocSize > SIZE_MAX) {
+    if (allocSize > kMaxTotalSize) {
         ALOGE("Sync sample table size too large.");
         return ERROR_OUT_OF_RANGE;
     }
