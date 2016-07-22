@@ -331,6 +331,11 @@ status_t AudioPolicyEffects::updateOutputAudioSessionInfo(audio_io_handle_t /* o
 
     Mutex::Autolock _l(mLock);
 
+    // TODO: Handle other stream types based on client registration
+    if (stream != AUDIO_STREAM_MUSIC) {
+        return NO_ERROR;
+    }
+
     // update AudioSessionInfo. This is used in the stream open/close path
     // to notify userspace applications about session creation and
     // teardown, allowing the app to make decisions about effects for
