@@ -891,6 +891,9 @@ ssize_t AudioRecord::read(void* buffer, size_t userSize, bool blocking)
             if (read > 0) {
                 break;
             }
+            if (err == TIMED_OUT || err == -EINTR) {
+                err = WOULD_BLOCK;
+            }
             return ssize_t(err);
         }
 
