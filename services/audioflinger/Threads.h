@@ -1020,7 +1020,7 @@ protected:
     virtual     bool        waitingAsyncCallback_l();
     virtual     void        invalidateTracks(audio_stream_type_t streamType);
 
-    virtual     bool        keepWakeLock() const { return mKeepWakeLock; }
+    virtual     bool        keepWakeLock() const { return (mKeepWakeLock || (mDrainSequence & 1)); }
 
 private:
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
