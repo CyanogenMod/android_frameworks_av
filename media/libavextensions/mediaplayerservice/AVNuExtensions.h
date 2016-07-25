@@ -82,6 +82,7 @@ struct AVNuUtils {
     virtual void setPCMFormat(const sp<AMessage> &, audio_format_t audioFormat);
     virtual void setSourcePCMFormat(const sp<MetaData> &);
     virtual void setDecodedPCMFormat(const sp<AMessage> &);
+    virtual void setCodecOutputFormat(const sp<AMessage> &);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
     DECLARE_LOADABLE_SINGLETON(AVNuUtils);

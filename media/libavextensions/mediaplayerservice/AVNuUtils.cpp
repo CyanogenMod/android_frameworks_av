@@ -97,6 +97,9 @@ void AVNuUtils::setDecodedPCMFormat(const sp<AMessage> &) {
 
 }
 
+void AVNuUtils::setCodecOutputFormat(const sp<AMessage> &) {
+
+}
 
 void AVNuUtils::overWriteAudioOutputFormat(
        sp <AMessage> & /*dst*/, const sp <AMessage> & /*src*/) {
