@@ -2042,19 +2042,15 @@ status_t Camera3Device::configureStreamsLocked() {
     // across configure_streams() calls
     mRequestThread->configurationComplete(mIsConstrainedHighSpeedConfiguration);
 
-    // Boost priority of request thread for high speed recording to SCHED_FIFO
-    if (mIsConstrainedHighSpeedConfiguration) {
-        pid_t requestThreadTid = mRequestThread->getTid();
-        res = requestPriority(getpid(), requestThreadTid,
-                kConstrainedHighSpeedThreadPriority, /*asynchronous*/ false);
-        if (res != OK) {
-            ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
-                    strerror(-res), res);
-        } else {
-            ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
-        }
+    // Boost priority of request thread to SCHED_FIFO.
+    pid_t requestThreadTid = mRequestThread->getTid();
+    res = requestPriority(getpid(), requestThreadTid,
+            kRequestThreadPriority, /*asynchronous*/ false);
+    if (res != OK) {
+        ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
+                strerror(-res), res);
     } else {
-        // TODO: Set/restore normal priority for normal use cases
+        ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
     }
 
     // Update device state
