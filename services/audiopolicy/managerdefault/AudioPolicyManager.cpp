@@ -1167,8 +1167,10 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
         beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
     }
 
+    // force device change if the output is inactive and no audio patch is already present.
     // check active before incrementing usage count
-    bool force = !outputDesc->isActive();
+    bool force = !outputDesc->isActive() &&
+            (outputDesc->getPatchHandle() == AUDIO_PATCH_HANDLE_NONE);
 
     // increment usage count for this stream on the requested output:
     // NOTE that the usage count is the same for duplicated output and hardware output which is
@@ -1188,12 +1190,17 @@ status_t AudioPolicyManager::startSource(sp<AudioOutputDescriptor> outputDesc,
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
             if (desc != outputDesc) {
-                // force a device change if any other output is managed by the same hw
-                // module and has a current device selection that differs from selected device.
+                // force a device change if any other output is:
+                // - managed by the same hw module
+                // - has a current device selection that differs from selected device.
+                // - supports currently selected device
+                // - has an active audio patch
                 // In this case, the audio HAL must receive the new device selection so that it can
                 // change the device currently selected by the other active output.
                 if (outputDesc->sharesHwModuleWith(desc) &&
-                    desc->device() != device) {
+                        desc->device() != device &&
+                        desc->supportedDevices() & device &&
+                        desc->getPatchHandle() != AUDIO_PATCH_HANDLE_NONE) {
                     force = true;
                 }
                 // wait for audio on other active outputs to be presented when starting
