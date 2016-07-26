@@ -1063,46 +1063,36 @@ void ToneGenerator::stopTone() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 bool ToneGenerator::initAudioTrack() {
-
-    // Open audio track in mono, PCM 16bit, default sampling rate, default buffer size
+    // Open audio track in mono, PCM 16bit, default sampling rate.
     mpAudioTrack = new AudioTrack();
-    ALOGV("Create Track: %p", mpAudioTrack.get());
+    ALOGV("AudioTrack(%p) created", mpAudioTrack.get());
 
-    mpAudioTrack->set(mStreamType,
-                      0,    // sampleRate
-                      AUDIO_FORMAT_PCM_16_BIT,
-                      AUDIO_CHANNEL_OUT_MONO,
-                      0,    // frameCount
-                      AUDIO_OUTPUT_FLAG_FAST,
-                      audioCallback,
-                      this, // user
-                      0,    // notificationFrames
-                      0,    // sharedBuffer
-                      mThreadCanCallJava,
-                      AUDIO_SESSION_ALLOCATE,
-                      AudioTrack::TRANSFER_CALLBACK);
+    const size_t frameCount = mProcessSize;
+    status_t status = mpAudioTrack->set(
+            mStreamType,
+            0,    // sampleRate
+            AUDIO_FORMAT_PCM_16_BIT,
+            AUDIO_CHANNEL_OUT_MONO,
+            frameCount,
+            AUDIO_OUTPUT_FLAG_FAST,
+            audioCallback,
+            this, // user
+            0,    // notificationFrames
+            0,    // sharedBuffer
+            mThreadCanCallJava,
+            AUDIO_SESSION_ALLOCATE,
+            AudioTrack::TRANSFER_CALLBACK);
 
-    if (mpAudioTrack->initCheck() != NO_ERROR) {
-        ALOGE("AudioTrack->initCheck failed");
-        goto initAudioTrack_exit;
+    if (status != NO_ERROR) {
+        ALOGE("AudioTrack(%p) set failed with error %d", mpAudioTrack.get(), status);
+        mpAudioTrack.clear();
+        return false;
     }
 
     mpAudioTrack->setVolume(mVolume);
-
     mState = TONE_INIT;
-
     return true;
-
-initAudioTrack_exit:
-
-    ALOGV("Init failed: %p", mpAudioTrack.get());
-
-    // Cleanup
-    mpAudioTrack.clear();
-
-    return false;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
