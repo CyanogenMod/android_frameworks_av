@@ -1739,6 +1739,9 @@ ssize_t AudioTrack::write(const void* buffer, size_t userSize, bool blocking)
             if (written > 0) {
                 break;
             }
+            if (err == TIMED_OUT || err == -EINTR) {
+                err = WOULD_BLOCK;
+            }
             return ssize_t(err);
         }
 
