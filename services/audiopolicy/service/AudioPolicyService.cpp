@@ -987,6 +987,18 @@ void AudioPolicyService::AudioCommandThread::insertCommand_l(sp<AudioCommand>& c
             delayMs = 1;
         } break;
 
+        case SET_VOICE_VOLUME: {
+            VoiceVolumeData *data = (VoiceVolumeData *)command->mParam.get();
+            VoiceVolumeData *data2 = (VoiceVolumeData *)command2->mParam.get();
+            ALOGV("Filtering out voice volume command value %f replaced by %f",
+                  data2->mVolume, data->mVolume);
+            removedCommands.add(command2);
+            command->mTime = command2->mTime;
+            // force delayMs to non 0 so that code below does not request to wait for
+            // command status as the command is now delayed
+            delayMs = 1;
+        } break;
+
         case CREATE_AUDIO_PATCH:
         case RELEASE_AUDIO_PATCH: {
             audio_patch_handle_t handle;
