@@ -303,6 +303,12 @@ status_t MuxOMX::allocateNode(
 status_t MuxOMX::freeNode(node_id node) {
     Mutex::Autolock autoLock(mLock);
 
+    // exit if we have already freed the node
+    if (mNodeLocation.indexOfKey(node) < 0) {
+        ALOGD("MuxOMX::freeNode: node %d seems to be released already --- ignoring.", node);
+        return OK;
+    }
+
     status_t err = getOMX_l(node)->freeNode(node);
 
     if (err != OK) {
