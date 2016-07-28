@@ -648,15 +648,6 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
             CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
             timeUs += mInputBufferTimeOffsetUs;
 
-            // Due to the extra delay adjustment at the beginning of start/resume,
-            // the adjusted timeUs may be negative if MediaCodecSource goes into pause
-            // state before feeding any buffers to the encoder. Drop the buffer in this
-            // case.
-            if (timeUs < 0) {
-                mbuf->release();
-                return OK;
-            }
-
             // push decoding time for video, or drift time for audio
             if (mIsVideo) {
                 mDecodingTimeQueue.push_back(timeUs);
@@ -841,16 +832,9 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                         // Time offset is not applied at
                         // feedEncoderInputBuffer() in surface input case.
                         timeUs += mInputBufferTimeOffsetUs;
-
-                        // Due to the extra delay adjustment at the beginning of
-                        // start/resume, the adjusted timeUs may be negative if
-                        // MediaCodecSource goes into pause state before feeding
-                        // any buffers to the encoder. Drop the buffer in this case.
-                        if (timeUs < 0) {
-                            mEncoder->releaseOutputBuffer(index);
-                            break;
-                        }
-
+                        // GraphicBufferSource is supposed to discard samples
+                        // queued before start, and offset timeUs by start time
+                        CHECK_GE(timeUs, 0ll);
                         // TODO:
                         // Decoding time for surface source is unavailable,
                         // use presentation time for now. May need to move
