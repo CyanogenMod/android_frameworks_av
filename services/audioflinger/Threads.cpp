@@ -1573,6 +1573,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mEffectBufferValid(false),
         mSuspended(0), mBytesWritten(0),
         mFramesWritten(0),
+        mSuspendedFrames(0),
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
@@ -2915,7 +2916,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
                 // copy over kernel info
                 mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
-                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL]
+                        + mSuspendedFrames; // add frames discarded when suspended
                 mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
                         timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
             }
@@ -3079,10 +3081,12 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
             mBytesRemaining = mCurrentWriteLength;
             if (isSuspended()) {
-                mSleepTimeUs = suspendSleepTimeUs();
-                // simulate write to HAL when suspended
-                mBytesWritten += mSinkBufferSize;
-                mFramesWritten += mSinkBufferSize / mFrameSize;
+                // Simulate write to HAL when suspended (e.g. BT SCO phone call).
+                mSleepTimeUs = suspendSleepTimeUs(); // assumes full buffer.
+                const size_t framesRemaining = mBytesRemaining / mFrameSize;
+                mBytesWritten += mBytesRemaining;
+                mFramesWritten += framesRemaining;
+                mSuspendedFrames += framesRemaining; // to adjust kernel HAL position
                 mBytesRemaining = 0;
             }
 
