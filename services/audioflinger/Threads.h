@@ -703,6 +703,7 @@ protected:
 
     int64_t                         mBytesWritten;
     int64_t                         mFramesWritten; // not reset on standby
+    int64_t                         mSuspendedFrames; // not reset on standby
 private:
     // mMasterMute is in both PlaybackThread and in AudioFlinger.  When a
     // PlaybackThread needs to find out if master-muted, it checks it's local
