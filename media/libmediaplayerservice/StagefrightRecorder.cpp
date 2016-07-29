@@ -1807,19 +1807,38 @@ status_t StagefrightRecorder::resume() {
         return OK;
     }
 
-    // 30 ms buffer to avoid timestamp overlap
-    mTotalPausedDurationUs += (systemTime() / 1000) - mPauseStartTimeUs - 30000;
+    int64_t bufferStartTimeUs = 0;
+    bool allSourcesStarted = true;
+    for (const auto &source : { mAudioEncoderSource, mVideoEncoderSource }) {
+        if (source == nullptr) {
+            continue;
+        }
+        int64_t timeUs = source->getFirstSampleSystemTimeUs();
+        if (timeUs < 0) {
+            allSourcesStarted = false;
+        }
+        if (bufferStartTimeUs < timeUs) {
+            bufferStartTimeUs = timeUs;
+        }
+    }
+
+    if (allSourcesStarted) {
+        if (mPauseStartTimeUs < bufferStartTimeUs) {
+            mPauseStartTimeUs = bufferStartTimeUs;
+        }
+        // 30 ms buffer to avoid timestamp overlap
+        mTotalPausedDurationUs += (systemTime() / 1000) - mPauseStartTimeUs - 30000;
+    }
     double timeOffset = -mTotalPausedDurationUs;
     if (mCaptureFpsEnable) {
         timeOffset *= mCaptureFps / mFrameRate;
     }
-    if (mAudioEncoderSource != NULL) {
-        mAudioEncoderSource->setInputBufferTimeOffset((int64_t)timeOffset);
-        mAudioEncoderSource->start();
-    }
-    if (mVideoEncoderSource != NULL) {
-        mVideoEncoderSource->setInputBufferTimeOffset((int64_t)timeOffset);
-        mVideoEncoderSource->start();
+    for (const auto &source : { mAudioEncoderSource, mVideoEncoderSource }) {
+        if (source == nullptr) {
+            continue;
+        }
+        source->setInputBufferTimeOffset((int64_t)timeOffset);
+        source->start();
     }
     mPauseStartTimeUs = 0;
 
