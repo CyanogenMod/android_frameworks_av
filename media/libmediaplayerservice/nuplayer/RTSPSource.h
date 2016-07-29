@@ -64,6 +64,7 @@ private:
         kWhatDisconnect      = 'disc',
         kWhatPerformSeek     = 'seek',
         kWhatPollBuffering   = 'poll',
+        kWhatSignalEOS       = 'eos ',
     };
 
     enum State {
@@ -106,6 +107,7 @@ private:
     Mutex mBufferingLock;
     bool mBuffering;
     bool mInPreparationPhase;
+    bool mEOSPending;
 
     sp<ALooper> mLooper;
     sp<MyHandler> mHandler;
@@ -133,7 +135,12 @@ private:
 
     void performSeek(int64_t seekTimeUs);
     void schedulePollBuffering();
-    void checkBuffering(bool *prepared, bool *underflow, bool *overflow, bool *startServer);
+    void checkBuffering(
+            bool *prepared,
+            bool *underflow,
+            bool *overflow,
+            bool *startServer,
+            bool *finished);
     void onPollBuffering();
 
     bool haveSufficientDataOnAllTracks();
@@ -143,6 +150,13 @@ private:
     void startBufferingIfNecessary();
     bool stopBufferingIfNecessary();
     void finishSeek(status_t err);
+
+    void postSourceEOSIfNecessary();
+    void signalSourceEOS(status_t result);
+    void onSignalEOS(const sp<AMessage> &msg);
+
+    bool sourceNearEOS(bool audio);
+    bool sourceReachedEOS(bool audio);
 
     DISALLOW_EVIL_CONSTRUCTORS(RTSPSource);
 };
