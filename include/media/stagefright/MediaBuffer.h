@@ -108,6 +108,14 @@ public:
         return reinterpret_cast<SharedControl *>(memory->pointer())->isDeadObject();
     }
 
+    // Sticky on enabling of shared memory MediaBuffers. By default we don't use
+    // shared memory for MediaBuffers, but we enable this for those processes
+    // that export MediaBuffers.
+    static void useSharedMemory() {
+        std::atomic_store_explicit(
+                &mUseSharedMemory, (int_least32_t)1, std::memory_order_seq_cst);
+    }
+
 protected:
     // MediaBuffer remote releases are handled through a
     // pending release count variable stored in a SharedControl block
@@ -160,6 +168,8 @@ private:
     sp<MetaData> mMetaData;
 
     MediaBuffer *mOriginal;
+
+    static std::atomic_int_least32_t mUseSharedMemory;
 
     MediaBuffer(const MediaBuffer &);
     MediaBuffer &operator=(const MediaBuffer &);

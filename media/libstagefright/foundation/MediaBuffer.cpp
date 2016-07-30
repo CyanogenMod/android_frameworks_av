@@ -30,6 +30,9 @@
 
 namespace android {
 
+/* static */
+std::atomic_int_least32_t MediaBuffer::mUseSharedMemory(0);
+
 MediaBuffer::MediaBuffer(void *data, size_t size)
     : mObserver(NULL),
       mRefCount(0),
@@ -52,7 +55,8 @@ MediaBuffer::MediaBuffer(size_t size)
       mOwnsData(true),
       mMetaData(new MetaData),
       mOriginal(NULL) {
-    if (size < kSharedMemThreshold) {
+    if (size < kSharedMemThreshold
+            || std::atomic_load_explicit(&mUseSharedMemory, std::memory_order_seq_cst) == 0) {
         mData = malloc(size);
     } else {
         ALOGV("creating memoryDealer");
