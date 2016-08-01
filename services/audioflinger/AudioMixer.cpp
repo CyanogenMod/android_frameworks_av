@@ -430,7 +430,7 @@ void AudioMixer::deleteTrackName(int name)
 {
     ALOGV("AudioMixer::deleteTrackName(%d)", name);
     name -= TRACK0;
-    ALOG_ASSERT(uint32_t(name) < MAX_NUM_TRACKS, "bad track name %d", name);
+    LOG_ALWAYS_FATAL_IF(name < 0 || name >= (int)MAX_NUM_TRACKS, "bad track name %d", name);
     ALOGV("deleteTrackName(%d)", name);
     track_t& track(mState.tracks[ name ]);
     if (track.enabled) {

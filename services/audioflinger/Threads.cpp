@@ -5772,12 +5772,15 @@ void AudioFlinger::DuplicatingThread::addOutputTrack(MixerThread *thread)
                                             mChannelMask,
                                             frameCount,
                                             IPCThreadState::self()->getCallingUid());
-    if (outputTrack->cblk() != NULL) {
-        thread->setStreamVolume(AUDIO_STREAM_PATCH, 1.0f);
-        mOutputTracks.add(outputTrack);
-        ALOGV("addOutputTrack() track %p, on thread %p", outputTrack.get(), thread);
-        updateWaitTime_l();
+    status_t status = outputTrack != 0 ? outputTrack->initCheck() : (status_t) NO_MEMORY;
+    if (status != NO_ERROR) {
+        ALOGE("addOutputTrack() initCheck failed %d", status);
+        return;
     }
+    thread->setStreamVolume(AUDIO_STREAM_PATCH, 1.0f);
+    mOutputTracks.add(outputTrack);
+    ALOGV("addOutputTrack() track %p, on thread %p", outputTrack.get(), thread);
+    updateWaitTime_l();
 }
 
 void AudioFlinger::DuplicatingThread::removeOutputTrack(MixerThread *thread)
