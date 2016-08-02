@@ -664,6 +664,7 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     // reassemble the csd data into its original form
     sp<ABuffer> csd0;
     if (msg->findBuffer("csd-0", &csd0)) {
+        int csd0size = csd0->size();
         if (mime.startsWith("video/")) { // do we need to be stricter than this?
             sp<ABuffer> csd1;
 
@@ -683,20 +684,37 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                     ALOGE("Failed to reassemble HVCC data");
                 }
             } else if (msg->findBuffer("csd-1", &csd1)) {
-                char avcc[1024]; // that oughta be enough, right?
-                size_t outsize = reassembleAVCC(csd0, csd1, avcc);
-                meta->setData(kKeyAVCC, kKeyAVCC, avcc, outsize);
+                Vector<char> avcc;
+                int avccSize = csd0size + csd1->size() + 1024;
+                if (avcc.resize(avccSize) < 0) {
+                    ALOGE("error allocating avcc (size %d); abort setting avcc.", avccSize);
+                } else {
+                    size_t outsize = reassembleAVCC(csd0, csd1, avcc.editArray());
+                    meta->setData(kKeyAVCC, kKeyAVCC, avcc.array(), outsize);
+                }
             } else {
-                int csd0size = csd0->size();
-                char esds[csd0size + 31];
-                reassembleESDS(csd0, esds);
-                meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
+                Vector<char> esds;
+                int esdsSize = csd0size + 31;
+                if (esds.resize(esdsSize) < 0) {
+                    ALOGE("error allocating esds (size %d); abort setting esds.", esdsSize);
+                } else {
+                    // The written ESDS is actually for an audio stream, but it's enough
+                    // for transporting the CSD to muxers.
+                    reassembleESDS(csd0, esds.editArray());
+                    meta->setData(kKeyESDS, kKeyESDS, esds.array(), esds.size());
+                }
             }
         } else if (mime.startsWith("audio/")) {
-            int csd0size = csd0->size();
-            char esds[csd0size + 31];
-            reassembleESDS(csd0, esds);
-            meta->setData(kKeyESDS, kKeyESDS, esds, sizeof(esds));
+            Vector<char> esds;
+            int esdsSize = csd0size + 31;
+            if (esds.resize(esdsSize) < 0) {
+                ALOGE("error allocating esds (size %d); abort setting esds.", esdsSize);
+            } else {
+                // The written ESDS is actually for an audio stream, but it's enough
+                // for transporting the CSD to muxers.
+                reassembleESDS(csd0, esds.editArray());
+                meta->setData(kKeyESDS, kKeyESDS, esds.array(), esds.size());
+            }
         }
     }
 
