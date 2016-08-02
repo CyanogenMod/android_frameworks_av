@@ -107,7 +107,7 @@ public:
     // Use |params| as an OMX buffer, but limit the size of the OMX buffer to |allottedSize|.
     virtual status_t useBuffer(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
-            buffer_id *buffer, OMX_U32 allottedSize) = 0;
+            buffer_id *buffer, OMX_U32 allottedSize, OMX_BOOL crossProcess = OMX_FALSE) = 0;
 
     virtual status_t useGraphicBuffer(
             node_id node, OMX_U32 port_index,
@@ -149,7 +149,7 @@ public:
     // may be larger.
     virtual status_t allocateBufferWithBackup(
             node_id node, OMX_U32 port_index, const sp<IMemory> &params,
-            buffer_id *buffer, OMX_U32 allottedSize) = 0;
+            buffer_id *buffer, OMX_U32 allottedSize, OMX_BOOL crossProcess = OMX_FALSE) = 0;
 
     virtual status_t freeBuffer(
             node_id node, OMX_U32 port_index, buffer_id buffer) = 0;
