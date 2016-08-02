@@ -117,6 +117,11 @@ class Camera3OutputStream :
      */
     bool isConsumedByHWComposer() const;
 
+    /**
+     * Return if this output stream is consumed by hardware texture.
+     */
+    bool isConsumedByHWTexture() const;
+
     class BufferReleasedListener : public BnProducerListener {
         public:
           BufferReleasedListener(wp<Camera3OutputStream> parent) : mParent(parent) {}
@@ -160,6 +165,9 @@ class Camera3OutputStream :
 
     sp<Surface> mConsumer;
   private:
+
+    static const nsecs_t       kDequeueBufferTimeout   = 1000000000; // 1 sec
+
     int               mTransform;
 
     virtual status_t  setTransformLocked(int transform);
