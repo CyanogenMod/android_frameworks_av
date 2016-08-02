@@ -435,6 +435,12 @@ status_t Camera3OutputStream::configureQueueLocked() {
                 __FUNCTION__, mTransform, strerror(-res), res);
     }
 
+    // Set dequeueBuffer/attachBuffer timeout if the consumer is not hw composer or hw texture.
+    // We need skip these cases as timeout will disable the non-blocking (async) mode.
+    if (!(isConsumedByHWComposer() || isConsumedByHWTexture())) {
+        mConsumer->setDequeueTimeout(kDequeueBufferTimeout);
+    }
+
     /**
      * Camera3 Buffer manager is only supported by HAL3.3 onwards, as the older HALs requires
      * buffers to be statically allocated for internal static buffer registration, while the
@@ -631,6 +637,17 @@ bool Camera3OutputStream::isConsumedByHWComposer() const {
     }
 
     return (usage & GRALLOC_USAGE_HW_COMPOSER) != 0;
+}
+
+bool Camera3OutputStream::isConsumedByHWTexture() const {
+    uint32_t usage = 0;
+    status_t res = getEndpointUsage(&usage);
+    if (res != OK) {
+        ALOGE("%s: getting end point usage failed: %s (%d).", __FUNCTION__, strerror(-res), res);
+        return false;
+    }
+
+    return (usage & GRALLOC_USAGE_HW_TEXTURE) != 0;
 }
 
 }; // namespace camera3
