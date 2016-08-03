@@ -60,7 +60,7 @@ public:
 
     int         id() const { return mId; }
     void process();
-    void updateState();
+    bool updateState();
     status_t command(uint32_t cmdCode,
                      uint32_t cmdSize,
                      void *pCmdData,
@@ -277,7 +277,8 @@ public:
     sp<EffectModule> getEffectFromId_l(int id);
     sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
     // FIXME use float to improve the dynamic range
-    bool setVolume_l(uint32_t *left, uint32_t *right);
+    bool setVolume_l(uint32_t *left, uint32_t *right, bool force = false);
+    void resetVolume_l();
     void setDevice_l(audio_devices_t device);
     void setMode_l(audio_mode_t mode);
     void setAudioSource_l(audio_source_t source);
@@ -322,13 +323,6 @@ public:
 
     // At least one non offloadable effect in the chain is enabled
     bool isNonOffloadableEnabled();
-
-    // use release_cas because we don't care about the observed value, just want to make sure the
-    // new value is observable.
-    void forceVolume() { android_atomic_release_cas(false, true, &mForceVolume); }
-    // use acquire_cas because we are interested in the observed value and
-    // we are the only observers.
-    bool isVolumeForced() { return (android_atomic_acquire_cas(true, false, &mForceVolume) == 0); }
 
     void syncHalEffectsState();
 
@@ -393,5 +387,4 @@ protected:
              // timeLow fields among effect type UUIDs.
              // Updated by updateSuspendedSessions_l() only.
              KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
-    volatile int32_t mForceVolume; // force next volume command because a new effect was enabled
 };
