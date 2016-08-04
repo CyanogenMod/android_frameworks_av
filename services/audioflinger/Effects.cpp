@@ -1733,9 +1733,11 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right, boo
 // resetVolume_l() must be called with PlaybackThread::mLock or EffectChain::mLock held
 void AudioFlinger::EffectChain::resetVolume_l()
 {
-    uint32_t left = mLeftVolume;
-    uint32_t right = mRightVolume;
-    (void)setVolume_l(&left, &right, true);
+    if ((mLeftVolume != UINT_MAX) && (mRightVolume != UINT_MAX)) {
+        uint32_t left = mLeftVolume;
+        uint32_t right = mRightVolume;
+        (void)setVolume_l(&left, &right, true);
+    }
 }
 
 void AudioFlinger::EffectChain::syncHalEffectsState()
