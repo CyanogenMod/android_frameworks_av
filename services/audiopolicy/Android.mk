@@ -81,7 +81,11 @@ LOCAL_SHARED_LIBRARIES += libaudiopolicyengineconfigurable
 
 else
 
+ifdef TARGET_AUDIO_POLICY_ENGINE
+LOCAL_SHARED_LIBRARIES += $(TARGET_AUDIO_POLICY_ENGINE)
+else
 LOCAL_SHARED_LIBRARIES += libaudiopolicyenginedefault
+endif
 
 endif
 
