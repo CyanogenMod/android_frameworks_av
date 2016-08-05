@@ -1938,6 +1938,7 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
                     continue;
                 }
                 callbackData->mSwitching = true; // begin track switch
+                callbackData->setOutput(NULL);
 #else
                 // tryBeginTrackSwitch() returns false if the callback has the lock.
                 if (!mCallbackData->tryBeginTrackSwitch()) {
