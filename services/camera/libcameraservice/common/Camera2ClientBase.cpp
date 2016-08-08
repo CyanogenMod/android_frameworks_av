@@ -104,7 +104,8 @@ status_t Camera2ClientBase<TClientBase>::initialize(CameraModule *module) {
         return res;
     }
 
-    res = mDevice->setNotifyCallback(this);
+    wp<CameraDeviceBase::NotificationListener> weakThis(this);
+    res = mDevice->setNotifyCallback(weakThis);
 
     return OK;
 }

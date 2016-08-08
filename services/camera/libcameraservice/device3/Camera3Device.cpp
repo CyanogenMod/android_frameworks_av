@@ -256,7 +256,7 @@ status_t Camera3Device::disconnect() {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
 
-    ALOGV("%s: E", __FUNCTION__);
+    ALOGI("%s: E", __FUNCTION__);
 
     status_t res = OK;
 
@@ -333,7 +333,7 @@ status_t Camera3Device::disconnect() {
         internalUpdateStatusLocked(STATUS_UNINITIALIZED);
     }
 
-    ALOGV("%s: X", __FUNCTION__);
+    ALOGI("%s: X", __FUNCTION__);
     return res;
 }
 
@@ -1479,7 +1479,7 @@ status_t Camera3Device::waitUntilStateThenRelock(bool active, nsecs_t timeout) {
 }
 
 
-status_t Camera3Device::setNotifyCallback(NotificationListener *listener) {
+status_t Camera3Device::setNotifyCallback(wp<NotificationListener> listener) {
     ATRACE_CALL();
     Mutex::Autolock l(mOutputLock);
 
@@ -1612,15 +1612,9 @@ status_t Camera3Device::flush(int64_t *frameNumber) {
     ALOGV("%s: Camera %d: Flushing all requests", __FUNCTION__, mId);
     Mutex::Autolock il(mInterfaceLock);
 
-    NotificationListener* listener;
-    {
-        Mutex::Autolock l(mOutputLock);
-        listener = mListener;
-    }
-
     {
         Mutex::Autolock l(mLock);
-        mRequestThread->clear(listener, /*out*/frameNumber);
+        mRequestThread->clear(/*out*/frameNumber);
     }
 
     status_t res;
@@ -1746,10 +1740,11 @@ void Camera3Device::notifyStatus(bool idle) {
         // state changes
         if (mPauseStateNotify) return;
     }
-    NotificationListener *listener;
+
+    sp<NotificationListener> listener;
     {
         Mutex::Autolock l(mOutputLock);
-        listener = mListener;
+        listener = mListener.promote();
     }
     if (idle && listener != NULL) {
         listener->notifyIdle();
@@ -2169,8 +2164,9 @@ void Camera3Device::setErrorStateLockedV(const char *fmt, va_list args) {
     internalUpdateStatusLocked(STATUS_ERROR);
 
     // Notify upstream about a device error
-    if (mListener != NULL) {
-        mListener->notifyError(hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
+    sp<NotificationListener> listener = mListener.promote();
+    if (listener != NULL) {
+        listener->notifyError(hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE,
                 CaptureResultExtras());
     }
 
@@ -2563,10 +2559,10 @@ void Camera3Device::processCaptureResult(const camera3_capture_result *result) {
 
 void Camera3Device::notify(const camera3_notify_msg *msg) {
     ATRACE_CALL();
-    NotificationListener *listener;
+    sp<NotificationListener> listener;
     {
         Mutex::Autolock l(mOutputLock);
-        listener = mListener;
+        listener = mListener.promote();
     }
 
     if (msg == NULL) {
@@ -2590,7 +2586,7 @@ void Camera3Device::notify(const camera3_notify_msg *msg) {
 }
 
 void Camera3Device::notifyError(const camera3_error_msg_t &msg,
-        NotificationListener *listener) {
+        sp<NotificationListener> listener) {
 
     // Map camera HAL error codes to ICameraDeviceCallback error codes
     // Index into this with the HAL error code
@@ -2661,7 +2657,7 @@ void Camera3Device::notifyError(const camera3_error_msg_t &msg,
 }
 
 void Camera3Device::notifyShutter(const camera3_shutter_msg_t &msg,
-        NotificationListener *listener) {
+        sp<NotificationListener> listener) {
     ssize_t idx;
 
     // Set timestamp for the request in the in-flight tracking
@@ -2770,7 +2766,7 @@ Camera3Device::RequestThread::RequestThread(wp<Camera3Device> parent,
 }
 
 void Camera3Device::RequestThread::setNotificationListener(
-        NotificationListener *listener) {
+        wp<NotificationListener> listener) {
     Mutex::Autolock l(mRequestLock);
     mListener = listener;
 }
@@ -2905,7 +2901,6 @@ status_t Camera3Device::RequestThread::clearRepeatingRequestsLocked(/*out*/int64
 }
 
 status_t Camera3Device::RequestThread::clear(
-        NotificationListener *listener,
         /*out*/int64_t *lastFrameNumber) {
     Mutex::Autolock l(mRequestLock);
     ALOGV("RequestThread::%s:", __FUNCTION__);
@@ -2914,6 +2909,7 @@ status_t Camera3Device::RequestThread::clear(
 
     // Send errors for all requests pending in the request queue, including
     // pending repeating requests
+    sp<NotificationListener> listener = mListener.promote();
     if (listener != NULL) {
         for (RequestList::iterator it = mRequestQueue.begin();
                  it != mRequestQueue.end(); ++it) {
@@ -3053,6 +3049,7 @@ void Camera3Device::overrideResultForPrecaptureCancel(
 void Camera3Device::RequestThread::checkAndStopRepeatingRequest() {
     bool surfaceAbandoned = false;
     int64_t lastFrameNumber = 0;
+    sp<NotificationListener> listener;
     {
         Mutex::Autolock l(mRequestLock);
         // Check all streams needed by repeating requests are still valid. Otherwise, stop
@@ -3069,9 +3066,11 @@ void Camera3Device::RequestThread::checkAndStopRepeatingRequest() {
                 break;
             }
         }
+        listener = mListener.promote();
     }
-    if (surfaceAbandoned) {
-        mListener->notifyRepeatingRequestError(lastFrameNumber);
+
+    if (listener != NULL && surfaceAbandoned) {
+        listener->notifyRepeatingRequestError(lastFrameNumber);
     }
 }
 
@@ -3414,8 +3413,9 @@ void Camera3Device::RequestThread::cleanUpFailedRequests(bool sendRequestError) 
 
         if (sendRequestError) {
             Mutex::Autolock l(mRequestLock);
-            if (mListener != NULL) {
-                mListener->notifyError(
+            sp<NotificationListener> listener = mListener.promote();
+            if (listener != NULL) {
+                listener->notifyError(
                         hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
                         captureRequest->mResultExtras);
             }
@@ -3554,8 +3554,10 @@ sp<Camera3Device::CaptureRequest>
                 // error
                 ALOGE("%s: Can't get input buffer, skipping request:"
                         " %s (%d)", __FUNCTION__, strerror(-res), res);
-                if (mListener != NULL) {
-                    mListener->notifyError(
+
+                sp<NotificationListener> listener = mListener.promote();
+                if (listener != NULL) {
+                    listener->notifyError(
                             hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_REQUEST,
                             nextRequest->mResultExtras);
                 }
@@ -3835,13 +3837,14 @@ status_t Camera3Device::PreparerThread::prepare(int maxCount, sp<Camera3StreamIn
     status_t res;
 
     Mutex::Autolock l(mLock);
+    sp<NotificationListener> listener = mListener.promote();
 
     res = stream->startPrepare(maxCount);
     if (res == OK) {
         // No preparation needed, fire listener right off
         ALOGV("%s: Stream %d already prepared", __FUNCTION__, stream->getId());
-        if (mListener) {
-            mListener->notifyPrepared(stream->getId());
+        if (listener != NULL) {
+            listener->notifyPrepared(stream->getId());
         }
         return OK;
     } else if (res != NOT_ENOUGH_DATA) {
@@ -3856,8 +3859,8 @@ status_t Camera3Device::PreparerThread::prepare(int maxCount, sp<Camera3StreamIn
         res = Thread::run("C3PrepThread", PRIORITY_BACKGROUND);
         if (res != OK) {
             ALOGE("%s: Unable to start preparer stream: %d (%s)", __FUNCTION__, res, strerror(-res));
-            if (mListener) {
-                mListener->notifyPrepared(stream->getId());
+            if (listener != NULL) {
+                listener->notifyPrepared(stream->getId());
             }
             return res;
         }
@@ -3885,7 +3888,7 @@ status_t Camera3Device::PreparerThread::clear() {
     return OK;
 }
 
-void Camera3Device::PreparerThread::setNotificationListener(NotificationListener *listener) {
+void Camera3Device::PreparerThread::setNotificationListener(wp<NotificationListener> listener) {
     Mutex::Autolock l(mLock);
     mListener = listener;
 }
@@ -3932,10 +3935,11 @@ bool Camera3Device::PreparerThread::threadLoop() {
 
     // This stream has finished, notify listener
     Mutex::Autolock l(mLock);
-    if (mListener) {
+    sp<NotificationListener> listener = mListener.promote();
+    if (listener != NULL) {
         ALOGV("%s: Stream %d prepare done, signaling listener", __FUNCTION__,
                 mCurrentStream->getId());
-        mListener->notifyPrepared(mCurrentStream->getId());
+        listener->notifyPrepared(mCurrentStream->getId());
     }
 
     ATRACE_ASYNC_END("stream prepare", mCurrentStream->getId());

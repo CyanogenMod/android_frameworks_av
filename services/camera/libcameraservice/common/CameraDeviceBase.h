@@ -190,7 +190,7 @@ class CameraDeviceBase : public virtual RefBase {
     /**
      * Abstract class for HAL notification listeners
      */
-    class NotificationListener {
+    class NotificationListener : public virtual RefBase {
       public:
         // The set of notifications is a merge of the notifications required for
         // API1 and API2.
@@ -219,7 +219,7 @@ class CameraDeviceBase : public virtual RefBase {
      * Connect HAL notifications to a listener. Overwrites previous
      * listener. Set to NULL to stop receiving notifications.
      */
-    virtual status_t setNotifyCallback(NotificationListener *listener) = 0;
+    virtual status_t setNotifyCallback(wp<NotificationListener> listener) = 0;
 
     /**
      * Whether the device supports calling notifyAutofocus, notifyAutoExposure,
