@@ -132,7 +132,7 @@ class Camera3Device :
     // Transitions to the idle state on success
     virtual status_t waitUntilDrained();
 
-    virtual status_t setNotifyCallback(NotificationListener *listener);
+    virtual status_t setNotifyCallback(wp<NotificationListener> listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
     virtual status_t getNextResult(CaptureResult *frame);
@@ -460,7 +460,7 @@ class Camera3Device :
                 camera3_device_t *hal3Device,
                 bool aeLockAvailable);
 
-        void     setNotificationListener(NotificationListener *listener);
+        void     setNotificationListener(wp<NotificationListener> listener);
 
         /**
          * Call after stream (re)-configuration is completed.
@@ -485,9 +485,7 @@ class Camera3Device :
         /**
          * Remove all queued and repeating requests, and pending triggers
          */
-        status_t clear(NotificationListener *listener,
-                       /*out*/
-                       int64_t *lastFrameNumber = NULL);
+        status_t clear(/*out*/int64_t *lastFrameNumber = NULL);
 
         /**
          * Flush all pending requests in HAL.
@@ -603,7 +601,7 @@ class Camera3Device :
         wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
 
-        NotificationListener *mListener;
+        wp<NotificationListener> mListener;
 
         const int          mId;       // The camera ID
         int                mStatusId; // The RequestThread's component ID for
@@ -759,7 +757,7 @@ class Camera3Device :
         PreparerThread();
         ~PreparerThread();
 
-        void setNotificationListener(NotificationListener *listener);
+        void setNotificationListener(wp<NotificationListener> listener);
 
         /**
          * Queue up a stream to be prepared. Streams are processed by a background thread in FIFO
@@ -780,7 +778,7 @@ class Camera3Device :
 
         // Guarded by mLock
 
-        NotificationListener *mListener;
+        wp<NotificationListener> mListener;
         List<sp<camera3::Camera3StreamInterface> > mPendingStreams;
         bool mActive;
         bool mCancelNow;
@@ -809,7 +807,7 @@ class Camera3Device :
     uint32_t               mNextReprocessShutterFrameNumber;
     List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
-    NotificationListener  *mListener;
+    wp<NotificationListener>  mListener;
 
     /**** End scope for mOutputLock ****/
 
@@ -822,9 +820,9 @@ class Camera3Device :
 
     // Specific notify handlers
     void notifyError(const camera3_error_msg_t &msg,
-            NotificationListener *listener);
+            sp<NotificationListener> listener);
     void notifyShutter(const camera3_shutter_msg_t &msg,
-            NotificationListener *listener);
+            sp<NotificationListener> listener);
 
     // helper function to return the output buffers to the streams.
     void returnOutputBuffers(const camera3_stream_buffer_t *outputBuffers,
