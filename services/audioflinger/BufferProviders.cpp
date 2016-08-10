@@ -474,18 +474,18 @@ void TimestretchBufferProvider::processFrames(void *dstBuffer, size_t *dstFrames
     ALOGV("processFrames(%zu %zu)  remaining(%zu)", *dstFrames, *srcFrames, mRemaining);
     // Note dstFrames is the required number of frames.
 
-    // Ensure consumption from src is as expected.
-    //TODO: add logic to track "very accurate" consumption related to speed, original sampling
-    //rate, actual frames processed.
-    const size_t targetSrc = *dstFrames * mPlaybackRate.mSpeed;
-    if (*srcFrames < targetSrc) { // limit dst frames to that possible
-        *dstFrames = *srcFrames / mPlaybackRate.mSpeed;
-    } else if (*srcFrames > targetSrc + 1) {
-        *srcFrames = targetSrc + 1;
-    }
-
     if (!mAudioPlaybackRateValid) {
         //fallback mode
+        // Ensure consumption from src is as expected.
+        // TODO: add logic to track "very accurate" consumption related to speed, original sampling
+        // rate, actual frames processed.
+
+        const size_t targetSrc = *dstFrames * mPlaybackRate.mSpeed;
+        if (*srcFrames < targetSrc) { // limit dst frames to that possible
+            *dstFrames = *srcFrames / mPlaybackRate.mSpeed;
+        } else if (*srcFrames > targetSrc + 1) {
+            *srcFrames = targetSrc + 1;
+        }
         if (*dstFrames > 0) {
             switch(mPlaybackRate.mFallbackMode) {
             case AUDIO_TIMESTRETCH_FALLBACK_CUT_REPEAT:
