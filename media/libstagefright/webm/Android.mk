@@ -14,7 +14,10 @@ LOCAL_SRC_FILES:= EbmlUtil.cpp        \
                   WebmWriter.cpp
 
 
-LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include
+LOCAL_C_INCLUDES += $(TOP)/frameworks/av/include \
+                    $(TOP)/frameworks/av/media/libavextensions \
+                    $(TOP)/frameworks/av/media/libstagefright/mpeg2ts \
+                    $(TOP)/frameworks/native/include/media/openmax
 
 LOCAL_SHARED_LIBRARIES += libstagefright_foundation \
                           libstagefright \

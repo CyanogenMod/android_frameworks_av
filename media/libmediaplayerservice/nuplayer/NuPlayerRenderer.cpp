@@ -36,7 +36,6 @@
 #include "mediaplayerservice/AVNuExtensions.h"
 #include "stagefright/AVExtensions.h"
 
-#include "stagefright/AVExtensions.h"
 namespace android {
 
 /*

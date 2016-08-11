@@ -108,6 +108,8 @@ struct AVUtils {
 
     virtual status_t convertMetaDataToMessage(
             const sp<MetaData> &meta, sp<AMessage> *format);
+    virtual status_t convertMessageToMetaData(
+            const sp<AMessage> &msg, sp<MetaData> &meta);
     virtual DataSource::SnifferFunc getExtendedSniffer();
     virtual status_t mapMimeToAudioFormat( audio_format_t& format, const char* mime);
     virtual status_t sendMetaDataToHal(const sp<MetaData>& meta, AudioParameter *param);
@@ -115,6 +117,8 @@ struct AVUtils {
                 const char* mime, bool encoder, const sp<AMessage> &format);
     virtual bool isEnhancedExtension(const char *extension);
 
+    virtual bool hasAudioSampleBits(const sp<MetaData> &);
+    virtual bool hasAudioSampleBits(const sp<AMessage> &);
     virtual int getAudioSampleBits(const sp<MetaData> &);
     virtual int getAudioSampleBits(const sp<AMessage> &);
     virtual audio_format_t updateAudioFormat(audio_format_t audioFormat,

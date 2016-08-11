@@ -49,6 +49,11 @@ status_t AVUtils::convertMetaDataToMessage(
     return OK;
 }
 
+status_t AVUtils::convertMessageToMetaData(
+        const sp<AMessage> &, sp<MetaData> &) {
+    return OK;
+}
+
 status_t AVUtils::mapMimeToAudioFormat(
         audio_format_t&, const char* ) {
     return OK;
@@ -57,6 +62,14 @@ status_t AVUtils::mapMimeToAudioFormat(
 status_t AVUtils::sendMetaDataToHal(
         const sp<MetaData>&, AudioParameter *){
     return OK;
+}
+
+bool AVUtils::hasAudioSampleBits(const sp<MetaData> &) {
+    return false;
+}
+
+bool AVUtils::hasAudioSampleBits(const sp<AMessage> &) {
+    return false;
 }
 
 int AVUtils::getAudioSampleBits(const sp<MetaData> &) {
