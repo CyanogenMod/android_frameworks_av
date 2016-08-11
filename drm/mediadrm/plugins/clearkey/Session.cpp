@@ -36,10 +36,10 @@ using android::status_t;
 
 status_t Session::getKeyRequest(
         const Vector<uint8_t>& initData,
-        const String8& initDataType,
+        const String8& mimeType,
         Vector<uint8_t>* keyRequest) const {
     InitDataParser parser;
-    return parser.parse(initData, initDataType, keyRequest);
+    return parser.parse(initData, mimeType, keyRequest);
 }
 
 status_t Session::provideKeyResponse(const Vector<uint8_t>& response) {

@@ -29,7 +29,7 @@ public:
     InitDataParser() {}
 
     android::status_t parse(const android::Vector<uint8_t>& initData,
-            const android::String8& initDataType,
+            const android::String8& type,
             android::Vector<uint8_t>* licenseRequest);
 
 private:

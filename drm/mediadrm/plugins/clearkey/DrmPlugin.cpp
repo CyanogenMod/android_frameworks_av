@@ -46,7 +46,7 @@ status_t DrmPlugin::closeSession(const Vector<uint8_t>& sessionId) {
 status_t DrmPlugin::getKeyRequest(
         const Vector<uint8_t>& scope,
         const Vector<uint8_t>& initData,
-        const String8& initDataType,
+        const String8& mimeType,
         KeyType keyType,
         const KeyedVector<String8, String8>& optionalParameters,
         Vector<uint8_t>& request,
@@ -62,7 +62,7 @@ status_t DrmPlugin::getKeyRequest(
     if (!session.get()) {
         return android::ERROR_DRM_SESSION_NOT_OPENED;
     }
-    return session->getKeyRequest(initData, initDataType, &request);
+    return session->getKeyRequest(initData, mimeType, &request);
 }
 
 status_t DrmPlugin::provideKeyResponse(

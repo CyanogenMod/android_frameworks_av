@@ -30,27 +30,27 @@ using namespace android;
 
 namespace {
     const size_t kKeyIdSize = 16;
-    const String8 kCencType("cenc");
-    const String8 kWebMType("webm");
+    const String8 kCencMimeType("video/mp4");
+    const String8 kWebmMimeType("video/webm");
     const String8 kBase64Padding("=");
 }
 
 class InitDataParserTest : public ::testing::Test {
   protected:
     status_t attemptParse(const Vector<uint8_t>& initData,
-                          const String8& initDataType,
+                          const String8& mimeType,
                           Vector<uint8_t>* licenseRequest) {
         InitDataParser parser;
-        return parser.parse(initData, initDataType, licenseRequest);
+        return parser.parse(initData, mimeType, licenseRequest);
     }
 
     void attemptParseExpectingSuccess(const Vector<uint8_t>& initData,
-                                      const String8& initDataType,
+                                      const String8& mimeType,
                                       const Vector<String8>& expectedKeys) {
         const String8 kRequestPrefix("{\"kids\":[");
         const String8 kRequestSuffix("],\"type\":\"temporary\"}");
         Vector<uint8_t> request;
-        ASSERT_EQ(android::OK, attemptParse(initData, initDataType, &request));
+        ASSERT_EQ(android::OK, attemptParse(initData, mimeType, &request));
 
         String8 requestString(reinterpret_cast<const char*>(request.array()),
                               request.size());
@@ -68,9 +68,9 @@ class InitDataParserTest : public ::testing::Test {
     }
 
     void attemptParseExpectingFailure(const Vector<uint8_t>& initData,
-                                      const String8& initDataType) {
+                                      const String8& mimeType) {
         Vector<uint8_t> request;
-        ASSERT_NE(android::OK, attemptParse(initData, initDataType, &request));
+        ASSERT_NE(android::OK, attemptParse(initData, mimeType, &request));
         EXPECT_EQ(0, request.size());
     }
 };
@@ -93,7 +93,7 @@ TEST_F(InitDataParserTest, ParsesSingleKeyPssh) {
     Vector<String8> expectedKeys;
     expectedKeys.push(String8("01234567890ABCDE"));
 
-    attemptParseExpectingSuccess(initData, kCencType, expectedKeys);
+    attemptParseExpectingSuccess(initData, kCencMimeType, expectedKeys);
 }
 
 TEST_F(InitDataParserTest, ParsesMultipleKeyPssh) {
@@ -120,7 +120,7 @@ TEST_F(InitDataParserTest, ParsesMultipleKeyPssh) {
     expectedKeys.push(String8("ClearKeyClearKey"));
     expectedKeys.push(String8(" GOOGLE  GOOGLE "));
 
-    attemptParseExpectingSuccess(initData, kCencType, expectedKeys);
+    attemptParseExpectingSuccess(initData, kCencMimeType, expectedKeys);
 }
 
 TEST_F(InitDataParserTest, ParsesWebM) {
@@ -134,7 +134,7 @@ TEST_F(InitDataParserTest, ParsesWebM) {
     Vector<String8> expectedKeys;
     expectedKeys.push(String8("01234567890ABCDE"));
 
-    attemptParseExpectingSuccess(initData, kWebMType, expectedKeys);
+    attemptParseExpectingSuccess(initData, kWebmMimeType, expectedKeys);
 }
 
 TEST_F(InitDataParserTest, FailsForPsshTooSmall) {
@@ -147,7 +147,7 @@ TEST_F(InitDataParserTest, FailsForPsshTooSmall) {
     Vector<uint8_t> initData;
     initData.appendArray(pssh, 16);
 
-    attemptParseExpectingFailure(initData, kCencType);
+    attemptParseExpectingFailure(initData, kCencMimeType);
 }
 
 TEST_F(InitDataParserTest, FailsForWebMTooSmall) {
@@ -157,7 +157,7 @@ TEST_F(InitDataParserTest, FailsForWebMTooSmall) {
     Vector<uint8_t> initData;
     initData.appendArray(initDataRaw, 8);
 
-    attemptParseExpectingFailure(initData, kWebMType);
+    attemptParseExpectingFailure(initData, kWebmMimeType);
 }
 
 TEST_F(InitDataParserTest, FailsForPsshBadSystemId) {
@@ -175,7 +175,7 @@ TEST_F(InitDataParserTest, FailsForPsshBadSystemId) {
     Vector<uint8_t> initData;
     initData.appendArray(pssh, 52);
 
-    attemptParseExpectingFailure(initData, kCencType);
+    attemptParseExpectingFailure(initData, kCencMimeType);
 }
 
 TEST_F(InitDataParserTest, FailsForPsshBadSize) {
@@ -193,7 +193,7 @@ TEST_F(InitDataParserTest, FailsForPsshBadSize) {
     Vector<uint8_t> initData;
     initData.appendArray(pssh, 52);
 
-    attemptParseExpectingFailure(initData, kCencType);
+    attemptParseExpectingFailure(initData, kCencMimeType);
 }
 
 TEST_F(InitDataParserTest, FailsForPsshWrongVersion) {
@@ -211,7 +211,7 @@ TEST_F(InitDataParserTest, FailsForPsshWrongVersion) {
     Vector<uint8_t> initData;
     initData.appendArray(pssh, 52);
 
-    attemptParseExpectingFailure(initData, kCencType);
+    attemptParseExpectingFailure(initData, kCencMimeType);
 }
 
 TEST_F(InitDataParserTest, FailsForPsshBadKeyCount) {
@@ -229,7 +229,7 @@ TEST_F(InitDataParserTest, FailsForPsshBadKeyCount) {
     Vector<uint8_t> initData;
     initData.appendArray(pssh, 52);
 
-    attemptParseExpectingFailure(initData, kCencType);
+    attemptParseExpectingFailure(initData, kCencMimeType);
 }
 
 }  // namespace clearkeydrm

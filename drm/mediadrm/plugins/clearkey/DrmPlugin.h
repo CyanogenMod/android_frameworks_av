@@ -49,7 +49,7 @@ public:
 
     virtual status_t getKeyRequest(
             const Vector<uint8_t>& scope,
-            const Vector<uint8_t>& initData,
+            const Vector<uint8_t>& mimeType,
             const String8& initDataType,
             KeyType keyType,
             const KeyedVector<String8, String8>& optionalParameters,

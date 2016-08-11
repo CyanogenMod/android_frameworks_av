@@ -24,6 +24,7 @@
 
 #include "DrmPlugin.h"
 #include "ClearKeyUUID.h"
+#include "MimeType.h"
 #include "SessionLibrary.h"
 
 namespace clearkeydrm {
@@ -32,10 +33,14 @@ bool DrmFactory::isCryptoSchemeSupported(const uint8_t uuid[16]) {
     return isClearKeyUUID(uuid);
 }
 
-bool DrmFactory::isContentTypeSupported(const android::String8 &initDataType) {
+bool DrmFactory::isContentTypeSupported(const android::String8 &type) {
     // This should match the types handed by InitDataParser.
-    return initDataType == "cenc" ||
-           initDataType == "webm";
+    return type == kIsoBmffVideoMimeType ||
+        type == kIsoBmffAudioMimeType ||
+        type == kCencInitDataFormat ||
+        type == kWebmVideoMimeType ||
+        type == kWebmAudioMimeType ||
+        type == kWebmInitDataFormat;
 }
 
 android::status_t DrmFactory::createDrmPlugin(
