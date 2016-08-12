@@ -240,6 +240,9 @@ private:
     bool mShutdownInProgress;
     bool mExplicitShutdown;
 
+    bool mHasLastCrop;
+    android_native_rect_t mLastCrop;
+
     // If "mKeepComponentAllocated" we only transition back to Loaded state
     // and do not release the component instance.
     bool mKeepComponentAllocated;
