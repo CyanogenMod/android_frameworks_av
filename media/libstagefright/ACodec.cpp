@@ -500,6 +500,8 @@ ACodec::ACodec()
       mFatalError(false),
       mShutdownInProgress(false),
       mExplicitShutdown(false),
+      mHasLastCrop(false),
+      mLastCrop{0, 0, 0, 0},
       mEncoderDelay(0),
       mEncoderPadding(0),
       mRotationDegrees(0),
@@ -716,7 +718,8 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         if (storingMetadataInDecodedBuffers()
                 && !mLegacyAdaptiveExperiment
                 && info.mStatus == BufferInfo::OWNED_BY_NATIVE_WINDOW) {
-            ALOGV("skipping buffer %p", info.mGraphicBuffer->getNativeBuffer());
+            ALOGV("skipping buffer %p", info.mGraphicBuffer == NULL ?
+                    NULL : info.mGraphicBuffer->getNativeBuffer());
             continue;
         }
         ALOGV("attaching buffer %p", info.mGraphicBuffer->getNativeBuffer());
@@ -724,7 +727,8 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
         err = surface->attachBuffer(info.mGraphicBuffer->getNativeBuffer());
         if (err != OK) {
             ALOGE("failed to attach buffer %p to the new surface: %s (%d)",
-                    info.mGraphicBuffer->getNativeBuffer(),
+                    info.mGraphicBuffer == NULL ?
+                    NULL : info.mGraphicBuffer->getNativeBuffer(),
                     strerror(-err), -err);
             return err;
         }
@@ -754,6 +758,12 @@ status_t ACodec::handleSetSurface(const sp<Surface> &surface) {
     // push blank buffers to previous window if requested
     if (mFlags & kFlagPushBlankBuffersToNativeWindowOnShutdown) {
         pushBlankBuffersToNativeWindow(mNativeWindow.get());
+    }
+
+    // Restore the crop rectangle using past information if available
+    if (mHasLastCrop) {
+        status_t err = native_window_set_crop(nativeWindow, &mLastCrop);
+        ALOGW_IF(err != NO_ERROR, "failed to restore crop: %d", err);
     }
 
     mNativeWindow = nativeWindow;
@@ -5242,6 +5252,9 @@ void ACodec::BaseState::onOutputBufferDrained(const sp<AMessage> &msg) {
     if (msg->findRect("crop", &crop.left, &crop.top, &crop.right, &crop.bottom)) {
         status_t err = native_window_set_crop(mCodec->mNativeWindow.get(), &crop);
         ALOGW_IF(err != NO_ERROR, "failed to set crop: %d", err);
+        // Save the crop rectangle to be used when the surface changes
+        mCodec->mHasLastCrop = true;
+        mCodec->mLastCrop = crop;
     }
 
     int32_t render;
