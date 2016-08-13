@@ -1706,7 +1706,7 @@ OMX::buffer_id OMXNodeInstance::makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader)
     return (OMX::buffer_id)(size_t)bufferHeader;
 }
 
-OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(OMX::buffer_id buffer) {
+OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(OMX::buffer_id buffer, OMX_U32 portIndex __unused) {
     return (OMX_BUFFERHEADERTYPE *)(size_t)buffer;
 }
 
