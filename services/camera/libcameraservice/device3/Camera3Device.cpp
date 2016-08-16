@@ -42,6 +42,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <utils/Timers.h>
+#include <cutils/properties.h>
 
 #include <android/hardware/camera2/ICameraDeviceUser.h>
 
@@ -2037,15 +2038,20 @@ status_t Camera3Device::configureStreamsLocked() {
     // across configure_streams() calls
     mRequestThread->configurationComplete(mIsConstrainedHighSpeedConfiguration);
 
-    // Boost priority of request thread to SCHED_FIFO.
-    pid_t requestThreadTid = mRequestThread->getTid();
-    res = requestPriority(getpid(), requestThreadTid,
-            kRequestThreadPriority, /*asynchronous*/ false);
-    if (res != OK) {
-        ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
-                strerror(-res), res);
-    } else {
-        ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
+    char value[PROPERTY_VALUE_MAX];
+    property_get("camera.fifo.disable", value, "0");
+    int32_t disableFifo = atoi(value);
+    if (disableFifo != 1) {
+        // Boost priority of request thread to SCHED_FIFO.
+        pid_t requestThreadTid = mRequestThread->getTid();
+        res = requestPriority(getpid(), requestThreadTid,
+                kRequestThreadPriority, /*asynchronous*/ false);
+        if (res != OK) {
+            ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
+                    strerror(-res), res);
+        } else {
+            ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
+        }
     }
 
     // Update device state
