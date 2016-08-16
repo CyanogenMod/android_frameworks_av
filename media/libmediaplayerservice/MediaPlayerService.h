@@ -292,6 +292,7 @@ public:
             const char *host, int32_t port, const char *exclusionList);
 
             void                removeClient(wp<Client> client);
+            bool                hasClient(wp<Client> client);
 
     // For battery usage tracking purpose
     struct BatteryUsageInfo {
