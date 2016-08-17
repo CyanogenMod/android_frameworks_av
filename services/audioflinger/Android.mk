@@ -3,7 +3,8 @@ LOCAL_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := \
-    ServiceUtilities.cpp
+    ServiceUtilities.cpp \
+    LockWatch.cpp
 
 # FIXME Move this library to frameworks/native
 LOCAL_MODULE := libserviceutility

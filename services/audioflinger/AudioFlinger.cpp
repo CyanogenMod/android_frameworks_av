@@ -246,7 +246,9 @@ void AudioFlinger::onFirstRef()
     }
 
     mPatchPanel = new PatchPanel(this);
-
+    // FIXME: bug 30737845: trigger audioserver restart if main audioflinger lock
+    // is held continuously for more than 3 seconds
+    mLockWatch = new LockWatch(mLock, String8("AudioFlinger"));
     mMode = AUDIO_MODE_NORMAL;
 }
 
@@ -279,6 +281,7 @@ AudioFlinger::~AudioFlinger()
             }
         }
     }
+    mLockWatch->requestExitAndWait();
 }
 
 static const char * const audio_interfaces[] = {
