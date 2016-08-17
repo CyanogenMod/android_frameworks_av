@@ -565,6 +565,22 @@ status_t SoundTriggerHwService::Module::loadSoundModel(const sp<IMemory>& modelM
     struct sound_trigger_sound_model *sound_model =
             (struct sound_trigger_sound_model *)modelMemory->pointer();
 
+    size_t structSize;
+    if (sound_model->type == SOUND_MODEL_TYPE_KEYPHRASE) {
+        structSize = sizeof(struct sound_trigger_phrase_sound_model);
+    } else {
+        structSize = sizeof(struct sound_trigger_sound_model);
+    }
+
+    if (sound_model->data_offset < structSize ||
+           sound_model->data_size > (UINT_MAX - sound_model->data_offset) ||
+           modelMemory->size() < sound_model->data_offset ||
+           sound_model->data_size > (modelMemory->size() - sound_model->data_offset)) {
+        android_errorWriteLog(0x534e4554, "30148546");
+        ALOGE("loadSoundModel() data_size is too big");
+        return BAD_VALUE;
+    }
+
     AutoMutex lock(mLock);
 
     if (mModels.size() >= mDescriptor.properties.max_sound_models) {
@@ -634,11 +650,23 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
         return PERMISSION_DENIED;
     }
 
-    if (dataMemory != 0 && dataMemory->pointer() == NULL) {
-        ALOGE("startRecognition() dataMemory is non-0 but has NULL pointer()");
+    if (dataMemory == 0 || dataMemory->pointer() == NULL) {
+        ALOGE("startRecognition() dataMemory is 0 or has NULL pointer()");
         return BAD_VALUE;
 
     }
+
+    struct sound_trigger_recognition_config *config =
+            (struct sound_trigger_recognition_config *)dataMemory->pointer();
+
+    if (config->data_offset < sizeof(struct sound_trigger_recognition_config) ||
+            config->data_size > (UINT_MAX - config->data_offset) ||
+            dataMemory->size() < config->data_offset ||
+            config->data_size > (dataMemory->size() - config->data_offset)) {
+        ALOGE("startRecognition() data_size is too big");
+        return BAD_VALUE;
+    }
+
     AutoMutex lock(mLock);
     if (mServiceState == SOUND_TRIGGER_STATE_DISABLED) {
         return INVALID_OPERATION;
@@ -647,17 +675,11 @@ status_t SoundTriggerHwService::Module::startRecognition(sound_model_handle_t ha
     if (model == 0) {
         return BAD_VALUE;
     }
-    if ((dataMemory == 0) ||
-            (dataMemory->size() < sizeof(struct sound_trigger_recognition_config))) {
-        return BAD_VALUE;
-    }
 
     if (model->mState == Model::STATE_ACTIVE) {
         return INVALID_OPERATION;
     }
 
-    struct sound_trigger_recognition_config *config =
-            (struct sound_trigger_recognition_config *)dataMemory->pointer();
 
     //TODO: get capture handle and device from audio policy service
     config->capture_handle = model->mCaptureIOHandle;
