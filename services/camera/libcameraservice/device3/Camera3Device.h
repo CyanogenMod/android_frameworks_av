@@ -725,6 +725,7 @@ class Camera3Device :
 
     Mutex                  mInFlightLock; // Protects mInFlightMap
     InFlightMap            mInFlightMap;
+    int                    mInFlightStatusId;
 
     status_t registerInFlight(uint32_t frameNumber,
             int32_t numBuffers, CaptureResultExtras resultExtras, bool hasInput,
