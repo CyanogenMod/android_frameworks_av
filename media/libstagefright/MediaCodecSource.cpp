@@ -600,7 +600,7 @@ void MediaCodecSource::signalEOS(status_t err) {
             output->mBufferQueue.clear();
             output->mEncoderReachedEOS = true;
             output->mErrorCode = err;
-            if (err == OMX_ErrorHardware) {
+            if (err == OMX_ErrorHardware || err == DEAD_OBJECT) {
                 output->mErrorCode = ERROR_IO;
             }
             output->mCond.signal();
