@@ -1612,8 +1612,8 @@ void ToneGenerator::WaveGenerator::getSamples(short *outBuffer,
         lS1 = (long)0;
         lS2 = (long)mS2_0;
     } else {
-        lS1 = (long)mS1;
-        lS2 = (long)mS2;
+        lS1 = mS1;
+        lS2 = mS2;
     }
     lA1 = (long)mA1_Q14;
     lAmplitude = (long)mAmplitude_Q15;
@@ -1649,8 +1649,8 @@ void ToneGenerator::WaveGenerator::getSamples(short *outBuffer,
     }
 
     // save status
-    mS1 = (short)lS1;
-    mS2 = (short)lS2;
+    mS1 = lS1;
+    mS2 = lS2;
 }
 
 }  // end namespace android
