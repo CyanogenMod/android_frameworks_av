@@ -555,6 +555,13 @@ status_t AudioFlinger::EffectModule::remove_effect_from_hal_l()
     return NO_ERROR;
 }
 
+// round up delta valid if value and divisor are positive.
+template <typename T>
+static T roundUpDelta(const T &value, const T &divisor) {
+    T remainder = value % divisor;
+    return remainder == 0 ? 0 : divisor - remainder;
+}
+
 status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
                                              uint32_t cmdSize,
                                              void *pCmdData,
@@ -574,6 +581,22 @@ status_t AudioFlinger::EffectModule::command(uint32_t cmdCode,
             (*replySize < sizeof(effect_param_t) ||
                     ((effect_param_t *)pCmdData)->psize > *replySize - sizeof(effect_param_t))) {
         android_errorWriteLog(0x534e4554, "29251553");
+        return -EINVAL;
+    }
+    if ((cmdCode == EFFECT_CMD_SET_PARAM
+            || cmdCode == EFFECT_CMD_SET_PARAM_DEFERRED) &&  // DEFERRED not generally used
+        (sizeof(effect_param_t) > cmdSize
+            || ((effect_param_t *)pCmdData)->psize > cmdSize
+                                                     - sizeof(effect_param_t)
+            || ((effect_param_t *)pCmdData)->vsize > cmdSize
+                                                     - sizeof(effect_param_t)
+                                                     - ((effect_param_t *)pCmdData)->psize
+            || roundUpDelta(((effect_param_t *)pCmdData)->psize, (uint32_t)sizeof(int)) >
+                                                     cmdSize
+                                                     - sizeof(effect_param_t)
+                                                     - ((effect_param_t *)pCmdData)->psize
+                                                     - ((effect_param_t *)pCmdData)->vsize)) {
+        android_errorWriteLog(0x534e4554, "30204301");
         return -EINVAL;
     }
     status_t status = (*mEffectInterface)->command(mEffectInterface,
