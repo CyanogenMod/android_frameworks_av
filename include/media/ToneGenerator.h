@@ -313,7 +313,7 @@ private:
 
         short mA1_Q14;  // Q14 coefficient
         // delay line of full amplitude generator
-        short mS1, mS2;  // delay line S2 oldest
+        long mS1, mS2;  // delay line S2 oldest
         short mS2_0;  // saved value for reinitialisation
         short mAmplitude_Q15;  // Q15 amplitude
     };
