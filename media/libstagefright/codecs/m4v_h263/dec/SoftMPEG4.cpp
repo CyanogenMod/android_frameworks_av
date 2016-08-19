@@ -27,6 +27,10 @@
 
 #include "mp4dec_api.h"
 
+#ifndef UINT32_MAX
+#define UINT32_MAX (4294967295U)
+#endif
+
 namespace android {
 
 static const CodecProfileLevel kM4VProfileLevels[] = {
@@ -193,8 +197,8 @@ void SoftMPEG4::onQueueFilled(OMX_U32 portIndex) {
             OMX_U32 yFrameSize = sizeof(uint8) * mHandle->size;
             if ((outHeader->nAllocLen < yFrameSize) ||
                     (outHeader->nAllocLen - yFrameSize < yFrameSize / 2)) {
-                ALOGE("Too small output buffer for reference frame: %zu bytes",
-                        outHeader->nAllocLen);
+                ALOGE("Too small output buffer for reference frame: %lu bytes",
+                        (unsigned long)outHeader->nAllocLen);
                 android_errorWriteLog(0x534e4554, "30033990");
                 notify(OMX_EventError, OMX_ErrorUndefined, 0, NULL);
                 mSignalledError = true;
