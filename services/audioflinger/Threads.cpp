@@ -2574,11 +2574,10 @@ void AudioFlinger::PlaybackThread::cacheParameters_l()
     }
 }
 
-void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
+void AudioFlinger::PlaybackThread::invalidateTracks_l(audio_stream_type_t streamType)
 {
     ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %d",
             this,  streamType, mTracks.size());
-    Mutex::Autolock _l(mLock);
 
     size_t size = mTracks.size();
     for (size_t i = 0; i < size; i++) {
@@ -2587,6 +2586,12 @@ void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamTy
             t->invalidate();
         }
     }
+}
+
+void AudioFlinger::PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
+{
+    Mutex::Autolock _l(mLock);
+    invalidateTracks_l(streamType);
 }
 
 status_t AudioFlinger::PlaybackThread::addEffectChain_l(const sp<EffectChain>& chain)
@@ -4470,8 +4475,12 @@ void AudioFlinger::MixerThread::dumpInternals(int fd, const Vector<String16>& ar
     dprintf(fd, "  AudioMixer tracks: 0x%08x\n", mAudioMixer->trackNames());
 
     // Make a non-atomic copy of fast mixer dump state so it won't change underneath us
-    const FastMixerDumpState copy(mFastMixerDumpState);
-    copy.dump(fd);
+    // while we are dumping it.  It may be inconsistent, but it won't mutate!
+    // This is a large object so we place it on the heap.
+    // FIXME 25972958: Need an intelligent copy constructor that does not touch unused pages.
+    const FastMixerDumpState *copy = new FastMixerDumpState(mFastMixerDumpState);
+    copy->dump(fd);
+    delete copy;
 
 #ifdef STATE_QUEUE_DUMP
     // Similar for state queue
@@ -5160,15 +5169,9 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
         if (track->isInvalid()) {
             ALOGW("An invalidated track shouldn't be in active list");
             tracksToRemove->add(track);
-            continue;
-        }
-
-        if (track->mState == TrackBase::IDLE) {
+        } else if (track->mState == TrackBase::IDLE) {
             ALOGW("An idle track shouldn't be in active list");
-            continue;
-        }
-
-        if (track->isPausing()) {
+        } else if (track->isPausing()) {
             track->setPaused();
             if (last) {
                 if (mHwSupportsPause && !mHwPaused) {
@@ -5191,7 +5194,7 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
             if (last) {
                 mFlushPending = true;
             }
-        } else if (track->isResumePending()){
+        } else if (track->isResumePending()) {
             track->resumeAck();
             if (last) {
                 if (mPausedBytesRemaining) {
@@ -5365,6 +5368,13 @@ void AudioFlinger::OffloadThread::flushHw_l()
         mCallbackThread->setWriteBlocked(mWriteAckSequence);
         mCallbackThread->setDraining(mDrainSequence);
     }
+}
+
+void AudioFlinger::OffloadThread::invalidateTracks(audio_stream_type_t streamType)
+{
+    Mutex::Autolock _l(mLock);
+    mFlushPending = true;
+    PlaybackThread::invalidateTracks_l(streamType);
 }
 
 // ----------------------------------------------------------------------------
@@ -6460,9 +6470,13 @@ void AudioFlinger::RecordThread::dumpInternals(int fd, const Vector<String16>& a
     dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
 
-    //  Make a non-atomic copy of fast capture dump state so it won't change underneath us
-    const FastCaptureDumpState copy(mFastCaptureDumpState);
-    copy.dump(fd);
+    // Make a non-atomic copy of fast capture dump state so it won't change underneath us
+    // while we are dumping it.  It may be inconsistent, but it won't mutate!
+    // This is a large object so we place it on the heap.
+    // FIXME 25972958: Need an intelligent copy constructor that does not touch unused pages.
+    const FastCaptureDumpState *copy = new FastCaptureDumpState(mFastCaptureDumpState);
+    copy->dump(fd);
+    delete copy;
 }
 
 void AudioFlinger::RecordThread::dumpTracks(int fd, const Vector<String16>& args __unused)

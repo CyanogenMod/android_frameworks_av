@@ -35,6 +35,8 @@
 #include <media/stagefright/OMXCodec.h>
 #include <media/stagefright/Utils.h>
 
+#include <cutils/properties.h>
+
 #include <OMX_Component.h>
 #include <OMX_AudioExt.h>
 #include <OMX_IndexExt.h>
@@ -394,9 +396,13 @@ status_t FFMPEGSoftCodec::setVideoFormat(
         }
 
         // Enable Sync-frame decode mode for thumbnails
+        char board[PROPERTY_VALUE_MAX];
+        property_get("ro.board.platform", board, NULL);
         int32_t thumbnailMode = 0;
         if (msg->findInt32("thumbnail-mode", &thumbnailMode) &&
-                thumbnailMode > 0) {
+                thumbnailMode > 0 &&
+                !(!strcmp(board, "msm8996") || !strcmp(board, "msm8937") ||
+                 !strcmp(board, "msm8953") || !strcmp(board, "msm8976"))) {
             ALOGV("Enabling thumbnail mode.");
             QOMX_ENABLETYPE enableType;
             OMX_INDEXTYPE indexType;
