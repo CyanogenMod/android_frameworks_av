@@ -4109,11 +4109,13 @@ status_t MPEG4Source::parseTrackFragmentRun(off64_t offset, off64_t size) {
     if (!mDataSource->getUInt32(offset, &flags)) {
         return ERROR_MALFORMED;
     }
-    ALOGV("fragment run flags: %08x", flags);
-
-    if (flags & 0xff000000) {
-        return -EINVAL;
-    }
+    // |version| only affects SampleCompositionTimeOffset field.
+    // If version == 0, SampleCompositionTimeOffset is uint32_t;
+    // Otherwise, SampleCompositionTimeOffset is int32_t.
+    // Sample.compositionOffset is defined as int32_t.
+    uint8_t version = flags >> 24;
+    flags &= 0xffffff;
+    ALOGV("fragment run version: 0x%02x, flags: 0x%06x", version, flags);
 
     if ((flags & kFirstSampleFlagsPresent) && (flags & kSampleFlagsPresent)) {
         // These two shall not be used together.
