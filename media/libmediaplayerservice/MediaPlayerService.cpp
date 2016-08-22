@@ -572,6 +572,12 @@ void MediaPlayerService::removeClient(wp<Client> client)
     mClients.remove(client);
 }
 
+bool MediaPlayerService::hasClient(wp<Client> client)
+{
+    Mutex::Autolock lock(mLock);
+    return mClients.indexOf(client) != NAME_NOT_FOUND;
+}
+
 MediaPlayerService::Client::Client(
         const sp<MediaPlayerService>& service, pid_t pid,
         int32_t connId, const sp<IMediaPlayerClient>& client,
@@ -1008,6 +1014,10 @@ status_t MediaPlayerService::Client::setNextPlayer(const sp<IMediaPlayer>& playe
     ALOGV("setNextPlayer");
     Mutex::Autolock l(mLock);
     sp<Client> c = static_cast<Client*>(player.get());
+    if (!mService->hasClient(c)) {
+      return BAD_VALUE;
+    }
+
     mNextClient = c;
 
     if (c != NULL) {
