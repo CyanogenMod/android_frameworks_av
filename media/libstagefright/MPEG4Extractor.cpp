@@ -1732,8 +1732,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             // Worst case the location string length would be 18,
             // for instance +90.0000-180.0000, without the trailing "/" and
-            // the string length + language code.
-            char buffer[18];
+            // the string length + language code, and some devices include
+            // an additional 8 bytes of altitude, e.g. +007.186
+            char buffer[18 + 8];
 
             // Substracting 5 from the data size is because the text string length +
             // language code takes 4 bytes, and the trailing slash "/" takes 1 byte.
