@@ -167,7 +167,7 @@ bool FastThread::threadLoop()
                 if (old <= 0) {
                     syscall(__NR_futex, coldFutexAddr, FUTEX_WAIT_PRIVATE, old - 1, NULL);
                 }
-                int policy = sched_getscheduler(0);
+                int policy = sched_getscheduler(0) & ~SCHED_RESET_ON_FORK;
                 if (!(policy == SCHED_FIFO || policy == SCHED_RR)) {
                     ALOGE("did not receive expected priority boost");
                 }
