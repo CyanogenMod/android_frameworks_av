@@ -924,7 +924,7 @@ nsecs_t AudioRecord::processAudioBuffer()
         int32_t tryCounter = kMaxTries;
         uint32_t pollUs = 10000;
         do {
-            int policy = sched_getscheduler(0);
+            int policy = sched_getscheduler(0) & ~SCHED_RESET_ON_FORK;
             if (policy == SCHED_FIFO || policy == SCHED_RR) {
                 break;
             }
