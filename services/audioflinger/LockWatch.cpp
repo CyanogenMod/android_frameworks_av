@@ -32,8 +32,12 @@ bool LockWatch::threadLoop()
     while (!exitPending()) {
         // we neglect previous lock time effect on period
         usleep(mPeriodMs * 1000);
-        if (mLock.timedLock(milliseconds(mTimeOutMs)) != NO_ERROR) {
-            LOG_ALWAYS_FATAL("LockWatch timeout for: %s", mTag.string());
+        if (mLock.timedLock(ms2ns(mTimeOutMs)) != NO_ERROR) {
+            // FIXME: Current implementation of timedLock uses CLOCK_REALTIME which
+            // increments even during CPU suspend.  Check twice to be sure.
+            if (mLock.timedLock(ms2ns(mTimeOutMs)) != NO_ERROR) {
+                LOG_ALWAYS_FATAL("LockWatch timeout for: %s", mTag.string());
+            }
         }
         mLock.unlock();
     }
