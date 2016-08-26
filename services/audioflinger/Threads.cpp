@@ -3447,10 +3447,15 @@ status_t AudioFlinger::PlaybackThread::getTimestamp_l(AudioTimestamp& timestamp)
 status_t AudioFlinger::MixerThread::createAudioPatch_l(const struct audio_patch *patch,
                                                           audio_patch_handle_t *handle)
 {
-    AutoPark<FastMixer> park(mFastMixer);
-
-    status_t status = PlaybackThread::createAudioPatch_l(patch, handle);
-
+    status_t status;
+    if (property_get_bool("af.patch_park", false /* default_value */)) {
+        // Park FastMixer to avoid potential DOS issues with writing to the HAL
+        // or if HAL does not properly lock against access.
+        AutoPark<FastMixer> park(mFastMixer);
+        status = PlaybackThread::createAudioPatch_l(patch, handle);
+    } else {
+        status = PlaybackThread::createAudioPatch_l(patch, handle);
+    }
     return status;
 }
 
@@ -3532,10 +3537,15 @@ status_t AudioFlinger::PlaybackThread::createAudioPatch_l(const struct audio_pat
 
 status_t AudioFlinger::MixerThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
 {
-    AutoPark<FastMixer> park(mFastMixer);
-
-    status_t status = PlaybackThread::releaseAudioPatch_l(handle);
-
+    status_t status;
+    if (property_get_bool("af.patch_park", false /* default_value */)) {
+        // Park FastMixer to avoid potential DOS issues with writing to the HAL
+        // or if HAL does not properly lock against access.
+        AutoPark<FastMixer> park(mFastMixer);
+        status = PlaybackThread::releaseAudioPatch_l(handle);
+    } else {
+        status = PlaybackThread::releaseAudioPatch_l(handle);
+    }
     return status;
 }
 
