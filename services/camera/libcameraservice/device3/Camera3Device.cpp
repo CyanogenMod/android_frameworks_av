@@ -3052,7 +3052,7 @@ bool Camera3Device::RequestThread::threadLoop() {
         mFlushLock.lock();
     }
 
-    ALOGVV("%s: %d: submitting %d requests in a batch.", __FUNCTION__, __LINE__,
+    ALOGVV("%s: %d: submitting %zu requests in a batch.", __FUNCTION__, __LINE__,
             mNextRequests.size());
     for (auto& nextRequest : mNextRequests) {
         // Submit request and block until ready for next one
