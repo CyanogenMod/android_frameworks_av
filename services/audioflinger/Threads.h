@@ -1009,6 +1009,10 @@ private:
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
     bool        mKeepWakeLock;          // keep wake lock while waiting for write callback
+    uint64_t    mOffloadUnderrunPosition; // Current frame position for offloaded playback
+                                          // used and valid only during underrun.  ~0 if
+                                          // no underrun has occurred during playback and
+                                          // is not reset on standby.
 };
 
 class AsyncCallbackThread : public Thread {
