@@ -35,20 +35,8 @@ LOCAL_C_INCLUDES := \
     $(TOPDIR)frameworks/av/services/audiopolicy/utilities \
 
 ifeq ($(call is-vendor-board-platform,QCOM),true)
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_FLAC_OFFLOAD)),true)
-LOCAL_CFLAGS     += -DFLAC_OFFLOAD_ENABLED
-endif
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_WMA_OFFLOAD)),true)
-LOCAL_CFLAGS     += -DWMA_OFFLOAD_ENABLED
-endif
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_ALAC_OFFLOAD)),true)
-LOCAL_CFLAGS     += -DALAC_OFFLOAD_ENABLED
-endif
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_APE_OFFLOAD)),true)
-LOCAL_CFLAGS     += -DAPE_OFFLOAD_ENABLED
-endif
-ifeq ($(strip $(AUDIO_FEATURE_ENABLED_AAC_ADTS_OFFLOAD)),true)
-LOCAL_CFLAGS     += -DAAC_ADTS_OFFLOAD_ENABLED
+ifeq ($(strip $(AUDIO_FEATURE_ENABLED_EXTN_FORMATS)),true)
+LOCAL_CFLAGS     += -DAUDIO_EXTN_FORMATS_ENABLED
 endif
 endif
 ifeq ($(USE_XML_AUDIO_POLICY_CONF), 1)
