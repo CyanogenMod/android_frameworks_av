@@ -209,7 +209,7 @@ public:
             void            died();
             void            disconnect();
 
-            status_t        setDataSource(
+    virtual status_t        setDataSource(
                     const sp<IMediaHTTPService> &httpService,
                     const char *url,
                     const KeyedVector<String8, String8> *headers);
@@ -223,7 +223,7 @@ public:
             status_t        prepareAsync();
             status_t        start();
             status_t        stop();
-            status_t        pause();
+    virtual status_t        pause();
             bool            isPlaying();
             status_t        setPlaybackSettings(const AudioPlaybackRate& rate);
             status_t        getPlaybackSettings(AudioPlaybackRate* rate /* nonnull */);
@@ -233,7 +233,7 @@ public:
                                     float* videoFps /* nonnull */);
             status_t        getVideoWidth(int *w);
             status_t        getVideoHeight(int *h);
-            status_t        seekTo(int msec);
+    virtual status_t        seekTo(int msec);
             status_t        getCurrentPosition(int *msec);
             status_t        getDuration(int *msec);
             status_t        reset();
@@ -242,7 +242,7 @@ public:
             status_t        setLooping(int loop);
             bool            isLooping();
             status_t        setVolume(float leftVolume, float rightVolume);
-            void            notify(int msg, int ext1, int ext2, const Parcel *obj = NULL);
+    virtual void            notify(int msg, int ext1, int ext2, const Parcel *obj = NULL);
             status_t        invoke(const Parcel& request, Parcel *reply);
             status_t        setMetadataFilter(const Parcel& filter);
             status_t        getMetadata(bool update_only, bool apply_filter, Parcel *metadata);
@@ -288,6 +288,7 @@ private:
     float                       mSendLevel;
     struct sockaddr_in          mRetransmitEndpoint;
     bool                        mRetransmitEndpointValid;
+    friend class QCMediaPlayer;
 };
 
 }; // namespace android

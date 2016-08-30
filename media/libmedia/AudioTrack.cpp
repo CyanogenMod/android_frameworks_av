@@ -30,6 +30,7 @@
 #include <media/IAudioFlinger.h>
 #include <media/AudioPolicyHelper.h>
 #include <media/AudioResamplerPublic.h>
+#include "media/AVMediaExtensions.h"
 
 #define WAIT_PERIOD_MS                  10
 #define WAIT_STREAM_END_TIMEOUT_SEC     120
@@ -176,7 +177,9 @@ AudioTrack::AudioTrack()
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mAttributes.content_type = AUDIO_CONTENT_TYPE_UNKNOWN;
     mAttributes.usage = AUDIO_USAGE_UNKNOWN;
@@ -207,7 +210,9 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             frameCount, flags, cbf, user, notificationFrames,
@@ -238,7 +243,9 @@ AudioTrack::AudioTrack(
       mPreviousPriority(ANDROID_PRIORITY_NORMAL),
       mPreviousSchedulingGroup(SP_DEFAULT),
       mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE)
+      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
+      mTrackOffloaded(false),
+      mPlaybackRateSet(false)
 {
     mStatus = set(streamType, sampleRate, format, channelMask,
             0 /*frameCount*/, flags, cbf, user, notificationFrames,
@@ -904,6 +911,12 @@ status_t AudioTrack::setPlaybackRate(const AudioPlaybackRate &playbackRate)
     //set effective rates
     mProxy->setPlaybackRate(playbackRateTemp);
     mProxy->setSampleRate(effectiveRate); // FIXME: not quite "atomic" with setPlaybackRate
+
+    // Playback Rate cannot be changed for direct tracks, hence fallback to deep buffer
+    if (mTrackOffloaded) {
+        mPlaybackRateSet = true;
+        android_atomic_or(CBLK_INVALID, &mCblk->mFlags);
+    }
     return NO_ERROR;
 }
 
@@ -1096,6 +1109,7 @@ status_t AudioTrack::getPosition(uint32_t *position)
     // There may be some latency differences between the HAL position and the proxy position.
     if (isOffloadedOrDirect_l() && !isPurePcmData_l()) {
         uint32_t dspFrames = 0;
+        status_t status;
 
         if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
             ALOGV("getPosition called in paused state, return cached position %u", mPausedPosition);
@@ -1105,8 +1119,11 @@ status_t AudioTrack::getPosition(uint32_t *position)
 
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t halFrames; // actually unused
-            (void) AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
-            // FIXME: on getRenderPosition() error, we return OK with frame position 0.
+            status = AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames);
+            if (status != NO_ERROR) {
+                ALOGW("failed to getRenderPosition for offload session");
+                return INVALID_OPERATION;
+            }
         }
         // FIXME: dspFrames may not be zero in (mState == STATE_STOPPED || mState == STATE_FLUSHED)
         // due to hardware latency. We leave this behavior for now.
@@ -1234,6 +1251,13 @@ status_t AudioTrack::createTrack_l()
     // mFlags (not mOrigFlags) is modified depending on whether fast request is accepted.
     // After fast request is denied, we will request again if IAudioTrack is re-created.
 
+    // Playback Rate is set, ensure we dont get a direct output
+    audio_offload_info_t tOffloadInfo = AUDIO_INFO_INITIALIZER;
+    if (mPlaybackRateSet == true && mOffloadInfo == NULL
+        && audio_is_linear_pcm(mFormat)) {
+        mOffloadInfo = &tOffloadInfo;
+    }
+
     status_t status;
     status = AudioSystem::getOutputForAttr(attr, &output,
                                            mSessionId, &streamType, mClientUid,
@@ -1246,11 +1270,15 @@ status_t AudioTrack::createTrack_l()
               mSessionId, streamType, mAttributes.usage, mSampleRate, mFormat, mChannelMask, mFlags);
         return BAD_VALUE;
     }
+    //reset offload info if forced
+    mOffloadInfo = (mOffloadInfo == &tOffloadInfo) ? NULL : mOffloadInfo;
+
     {
     // Now that we have a reference to an I/O handle and have not yet handed it off to AudioFlinger,
     // we must release it ourselves if anything goes wrong.
 
     // Not all of these values are needed under all conditions, but it is easier to get them all
+    mTrackOffloaded = AVMediaUtils::get()->AudioTrackIsTrackOffloaded(output);
     status = AudioSystem::getLatency(output, &mAfLatency);
     if (status != NO_ERROR) {
         ALOGE("getLatency(%d) failed status %d", output, status);
@@ -1315,6 +1343,7 @@ status_t AudioTrack::createTrack_l()
             frameCount = mSharedBuffer->size();
         } else if (frameCount == 0) {
             frameCount = mAfFrameCount;
+            frameCount = AVMediaUtils::get()->AudioTrackGetOffloadFrameCount(frameCount);
         }
         if (mNotificationFramesAct != frameCount) {
             mNotificationFramesAct = frameCount;
@@ -1386,7 +1415,7 @@ status_t AudioTrack::createTrack_l()
         trackFlags |= IAudioFlinger::TRACK_OFFLOAD;
     }
 
-    if (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
+    if ((mFlags & AUDIO_OUTPUT_FLAG_DIRECT) || mTrackOffloaded) {
         trackFlags |= IAudioFlinger::TRACK_DIRECT;
     }
 
@@ -1902,6 +1931,36 @@ nsecs_t AudioTrack::processAudioBuffer()
     // get anchor time to account for callbacks.
     const nsecs_t timeBeforeCallbacks = systemTime();
 
+    // perform callbacks while unlocked
+    if (newUnderrun) {
+        mCbf(EVENT_UNDERRUN, mUserData, NULL);
+    }
+    while (loopCountNotifications > 0) {
+        mCbf(EVENT_LOOP_END, mUserData, NULL);
+        --loopCountNotifications;
+    }
+    if (flags & CBLK_BUFFER_END) {
+        mCbf(EVENT_BUFFER_END, mUserData, NULL);
+    }
+    if (markerReached) {
+        mCbf(EVENT_MARKER, mUserData, &markerPosition);
+    }
+    while (newPosCount > 0) {
+        size_t temp = newPosition.value(); // FIXME size_t != uint32_t
+        mCbf(EVENT_NEW_POS, mUserData, &temp);
+        newPosition += updatePeriod;
+        newPosCount--;
+    }
+
+    if (mObservedSequence != sequence) {
+        mObservedSequence = sequence;
+        mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, NULL);
+        // for offloaded tracks, just wait for the upper layers to recreate the track
+        if (isOffloadedOrDirect()) {
+            return NS_INACTIVE;
+        }
+    }
+
     if (waitStreamEnd) {
         // FIXME:  Instead of blocking in proxy->waitStreamEndDone(), Callback thread
         // should wait on proxy futex and handle CBLK_STREAM_END_DONE within this function
@@ -1938,36 +1997,6 @@ nsecs_t AudioTrack::processAudioBuffer()
             break;
         }
         return 0;
-    }
-
-    // perform callbacks while unlocked
-    if (newUnderrun) {
-        mCbf(EVENT_UNDERRUN, mUserData, NULL);
-    }
-    while (loopCountNotifications > 0) {
-        mCbf(EVENT_LOOP_END, mUserData, NULL);
-        --loopCountNotifications;
-    }
-    if (flags & CBLK_BUFFER_END) {
-        mCbf(EVENT_BUFFER_END, mUserData, NULL);
-    }
-    if (markerReached) {
-        mCbf(EVENT_MARKER, mUserData, &markerPosition);
-    }
-    while (newPosCount > 0) {
-        size_t temp = newPosition.value(); // FIXME size_t != uint32_t
-        mCbf(EVENT_NEW_POS, mUserData, &temp);
-        newPosition += updatePeriod;
-        newPosCount--;
-    }
-
-    if (mObservedSequence != sequence) {
-        mObservedSequence = sequence;
-        mCbf(EVENT_NEW_IAUDIOTRACK, mUserData, NULL);
-        // for offloaded tracks, just wait for the upper layers to recreate the track
-        if (isOffloadedOrDirect()) {
-            return NS_INACTIVE;
-        }
     }
 
     // if inactive, then don't run me again until re-started

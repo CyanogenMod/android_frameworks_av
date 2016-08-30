@@ -22,6 +22,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#include <binder/IPCThreadState.h>
+
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
 #include <media/stagefright/foundation/hexdump.h>
@@ -392,6 +396,7 @@ void MetaData::dumpToLog() const {
 }
 
 status_t MetaData::writeToParcel(Parcel &parcel) {
+    status_t status = OK;
     size_t numItems = mItems.size();
     parcel.writeUint32(uint32_t(numItems));
     for (size_t i = 0; i < numItems; i++) {
@@ -403,12 +408,34 @@ status_t MetaData::writeToParcel(Parcel &parcel) {
         item.getData(&type, &data, &size);
         parcel.writeInt32(key);
         parcel.writeUint32(type);
-        parcel.writeByteArray(size, (uint8_t*)data);
+        if (size < SIZE_MAX && size >= kSharedMemThreshold) {
+            sp<MemoryHeapBase> heap =
+                    new MemoryHeapBase(size, 0, "Metadata::writeToParcel");
+            if (heap == NULL) {
+                ALOGE("cannot create HeapBase for shared allocation");
+                status = UNKNOWN_ERROR;
+                break;
+            }
+            sp<IMemory>  mem = new MemoryBase(heap, 0, size);
+            if (mem == NULL || mem->pointer() == NULL) {
+                ALOGE("cannot create MemoryBase for shared allocation");
+                status = UNKNOWN_ERROR;
+                break;
+            }
+            parcel.writeInt32(SHARED_ALLOCATION);
+            parcel.writeUint32(size);
+            memcpy(mem->pointer(), data, size);
+            parcel.writeStrongBinder(IInterface::asBinder(mem));
+        } else {
+            parcel.writeInt32(INLINE_ALLOCATION);
+            parcel.writeByteArray(size, (uint8_t*)data);
+        }
     }
-    return OK;
+    return status;
 }
 
 status_t MetaData::updateFromParcel(const Parcel &parcel) {
+    status_t status = OK;
     uint32_t numItems;
     if (parcel.readUint32(&numItems) == OK) {
 
@@ -416,17 +443,34 @@ status_t MetaData::updateFromParcel(const Parcel &parcel) {
             int32_t key;
             uint32_t type;
             uint32_t size;
+            int32_t allocationType;
             status_t ret = parcel.readInt32(&key);
             ret |= parcel.readUint32(&type);
+            ret |= parcel.readInt32(&allocationType);
             ret |= parcel.readUint32(&size);
             if (ret != OK) {
                 break;
             }
-            // copy data directly from Parcel storage, then advance position
-            setData(key, type, parcel.readInplace(size), size);
+            if (allocationType == SHARED_ALLOCATION) {
+                sp<IBinder> binder = parcel.readStrongBinder();
+                sp<IMemory> mem = interface_cast<IMemory>(binder);
+                if (mem == NULL || mem->pointer() == NULL) {
+                    ALOGE("received NULL IMemory for shared allocation");
+                    status = UNKNOWN_ERROR;
+                    break;
+                }
+                setData(key, type, mem->pointer(), size);
+            } else if (allocationType == INLINE_ALLOCATION) {
+                // copy data directly from Parcel storage, then advance position
+                setData(key, type, parcel.readInplace(size), size);
+            } else {
+                ALOGE("unknown allocation");
+                status = UNKNOWN_ERROR;
+                break;
+            }
          }
 
-        return OK;
+        return status;
     }
     ALOGW("no metadata in parcel");
     return UNKNOWN_ERROR;

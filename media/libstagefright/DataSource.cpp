@@ -49,6 +49,7 @@
 #include <cutils/properties.h>
 
 #include <private/android_filesystem_config.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -180,6 +181,7 @@ void DataSource::RegisterDefaultSniffers() {
         RegisterSniffer_l(SniffWVM);
     }
     RegisterSniffer_l(SniffMidi);
+    RegisterSniffer_l(AVUtils::get()->getExtendedSniffer());
 
     char value[PROPERTY_VALUE_MAX];
     if (property_get("drm.service.enabled", value, NULL)

@@ -318,6 +318,7 @@ void AudioFlinger::EffectModule::reset_l()
 status_t AudioFlinger::EffectModule::configure()
 {
     status_t status;
+    status_t cmdStatus = 0;
     sp<ThreadBase> thread;
     uint32_t size;
     audio_channel_mask_t channelMask;
@@ -383,7 +384,6 @@ status_t AudioFlinger::EffectModule::configure()
     ALOGV("configure() %p thread %p buffer %p framecount %zu",
             this, thread.get(), mConfig.inputCfg.buffer.raw, mConfig.inputCfg.buffer.frameCount);
 
-    status_t cmdStatus;
     size = sizeof(int);
     status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_SET_CONFIG,
@@ -434,7 +434,7 @@ status_t AudioFlinger::EffectModule::init()
     if (mEffectInterface == NULL) {
         return NO_INIT;
     }
-    status_t cmdStatus;
+    status_t cmdStatus = 0;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_INIT,
@@ -476,7 +476,7 @@ status_t AudioFlinger::EffectModule::start_l()
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
-    status_t cmdStatus;
+    status_t cmdStatus = 0;
     uint32_t size = sizeof(status_t);
     status_t status = (*mEffectInterface)->command(mEffectInterface,
                                                    EFFECT_CMD_ENABLE,
@@ -717,7 +717,7 @@ status_t AudioFlinger::EffectModule::setDevice(audio_devices_t device)
     }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_DEVICE_MASK) == EFFECT_FLAG_DEVICE_IND) {
-        status_t cmdStatus;
+        status_t cmdStatus = 0;
         uint32_t size = sizeof(status_t);
         uint32_t cmd = audio_is_output_devices(device) ? EFFECT_CMD_SET_DEVICE :
                             EFFECT_CMD_SET_INPUT_DEVICE;
@@ -739,7 +739,7 @@ status_t AudioFlinger::EffectModule::setMode(audio_mode_t mode)
     }
     status_t status = NO_ERROR;
     if ((mDescriptor.flags & EFFECT_FLAG_AUDIO_MODE_MASK) == EFFECT_FLAG_AUDIO_MODE_IND) {
-        status_t cmdStatus;
+        status_t cmdStatus = 0;
         uint32_t size = sizeof(status_t);
         status = (*mEffectInterface)->command(mEffectInterface,
                                               EFFECT_CMD_SET_AUDIO_MODE,
@@ -1118,13 +1118,15 @@ status_t AudioFlinger::EffectHandle::enable()
         mEnabled = false;
     } else {
         if (thread != 0) {
-            if (thread->type() == ThreadBase::OFFLOAD) {
+            if ((thread->type() == ThreadBase::OFFLOAD) ||
+                (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)) {
                 PlaybackThread *t = (PlaybackThread *)thread.get();
                 Mutex::Autolock _l(t->mLock);
                 t->broadcast_l();
             }
             if (!mEffect->isOffloadable()) {
-                if (thread->type() == ThreadBase::OFFLOAD) {
+                if (thread->type() == ThreadBase::OFFLOAD ||
+                   (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)) {
                     PlaybackThread *t = (PlaybackThread *)thread.get();
                     t->invalidateTracks(AUDIO_STREAM_MUSIC);
                 }
@@ -1161,7 +1163,8 @@ status_t AudioFlinger::EffectHandle::disable()
     sp<ThreadBase> thread = mEffect->thread().promote();
     if (thread != 0) {
         thread->checkSuspendOnEffectEnabled(mEffect, false, mEffect->sessionId());
-        if (thread->type() == ThreadBase::OFFLOAD) {
+        if ((thread->type() == ThreadBase::OFFLOAD) ||
+            (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)){
             PlaybackThread *t = (PlaybackThread *)thread.get();
             Mutex::Autolock _l(t->mLock);
             t->broadcast_l();
@@ -1444,8 +1447,10 @@ void AudioFlinger::EffectChain::process_l()
             (mSessionId == AUDIO_SESSION_OUTPUT_STAGE);
     // never process effects when:
     // - on an OFFLOAD thread
+    // - on DIRECT thread with directPcm flag enabled
     // - no more tracks are on the session and the effect tail has been rendered
-    bool doProcess = (thread->type() != ThreadBase::OFFLOAD);
+    bool doProcess = ((thread->type() != ThreadBase::OFFLOAD) &&
+                      (!(thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)));
     if (!isGlobalSession) {
         bool tracksOnSession = (trackCnt() != 0);
 

@@ -468,6 +468,7 @@ protected:
                 bool                    mSystemReady;
                 bool                    mNotifiedBatteryStart;
                 ExtendedTimestamp       mTimestamp;
+                bool                    mIsDirectPcm; // flag to indicate unique Direct thread
 };
 
 // --- PlaybackThread ---

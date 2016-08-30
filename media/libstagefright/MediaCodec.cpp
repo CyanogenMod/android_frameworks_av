@@ -50,6 +50,7 @@
 #include <private/android_filesystem_config.h>
 #include <utils/Log.h>
 #include <utils/Singleton.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -318,7 +319,7 @@ void MediaCodec::PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err)
 sp<CodecBase> MediaCodec::GetCodecBase(const AString &name, bool nameIsType) {
     // at this time only ACodec specifies a mime type.
     if (nameIsType || name.startsWithIgnoreCase("omx.")) {
-        return new ACodec;
+        return AVFactory::get()->createACodec();;
     } else if (name.startsWithIgnoreCase("android.filter.")) {
         return new MediaFilter;
     } else {
@@ -1071,6 +1072,12 @@ bool MediaCodec::handleDequeueOutputBuffer(const sp<AReplyToken> &replyID, bool 
         if (omxFlags & OMX_BUFFERFLAG_EOS) {
             flags |= BUFFER_FLAG_EOS;
         }
+        if (omxFlags & OMX_BUFFERFLAG_EXTRADATA) {
+            flags |= BUFFER_FLAG_EXTRADATA;
+        }
+        if (omxFlags & OMX_BUFFERFLAG_DATACORRUPT) {
+            flags |= BUFFER_FLAG_DATACORRUPT;
+        }
 
         response->setInt32("flags", flags);
         response->postReply(replyID);
@@ -1264,6 +1271,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     // reset input surface flag
                     mHaveInputSurface = false;
 
+                    CHECK(msg->findString("componentName", &mComponentName));
                     CHECK(msg->findMessage("input-format", &mInputFormat));
                     CHECK(msg->findMessage("output-format", &mOutputFormat));
                     ALOGV("[%s] configured as input format: %s, output format: %s",
@@ -2404,6 +2412,7 @@ size_t MediaCodec::updateBuffers(
 
     uint32_t bufferID;
     CHECK(msg->findInt32("buffer-id", (int32_t*)&bufferID));
+    Mutex::Autolock al(mBufferLock);
 
     Vector<BufferInfo> *buffers = &mPortBuffers[portIndex];
 
@@ -2496,7 +2505,12 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     }
 
     if (offset + size > info->mData->capacity()) {
-        return -EINVAL;
+        if ( ((int)size < 0) && !(flags & BUFFER_FLAG_EOS)) {
+            size = 0;
+            ALOGD("EOS, reset size to zero");
+        } else {
+            return -EINVAL;
+        }
     }
 
     sp<AMessage> reply = info->mNotify;
@@ -2785,6 +2799,9 @@ void MediaCodec::onOutputBufferAvailable() {
         }
         if (omxFlags & OMX_BUFFERFLAG_EOS) {
             flags |= BUFFER_FLAG_EOS;
+        }
+        if (omxFlags & OMX_BUFFERFLAG_DATACORRUPT) {
+            flags |= BUFFER_FLAG_DATACORRUPT;
         }
 
         msg->setInt32("flags", flags);

@@ -36,6 +36,8 @@
 #include <utils/String8.h>
 #include <cutils/properties.h>
 
+#include <stagefright/AVExtensions.h>
+
 #if LOG_NDEBUG
 #define UNUSED_UNLESS_VERBOSE(x) (void)(x)
 #else
@@ -111,6 +113,11 @@ void CameraSourceListener::postRecordingFrameHandleTimestamp(nsecs_t timestamp,
 }
 
 static int32_t getColorFormat(const char* colorFormat) {
+    if (!colorFormat) {
+        ALOGE("Invalid color format");
+        return -1;
+    }
+
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420P)) {
        return OMX_COLOR_FormatYUV420Planar;
     }
@@ -313,6 +320,12 @@ status_t CameraSource::isCameraColorFormatSupported(
     return OK;
 }
 
+static int32_t getHighSpeedFrameRate(const CameraParameters& params) {
+    const char* hsr = params.get("video-hsr");
+    int32_t rate = (hsr != NULL && strncmp(hsr, "off", 3)) ? atoi(hsr) : 0;
+    return rate > 240 ? 240 : rate;
+}
+
 /*
  * Configure the camera to use the requested video size
  * (width and height) and/or frame rate. If both width and
@@ -360,11 +373,15 @@ status_t CameraSource::configureCamera(
     }
 
     if (frameRate != -1) {
-        CHECK(frameRate > 0 && frameRate <= 120);
+        CHECK(frameRate > 0 && frameRate <= 240);
         const char* supportedFrameRates =
                 params->get(CameraParameters::KEY_SUPPORTED_PREVIEW_FRAME_RATES);
         CHECK(supportedFrameRates != NULL);
         ALOGV("Supported frame rates: %s", supportedFrameRates);
+        if (getHighSpeedFrameRate(*params)) {
+            ALOGI("Use default 30fps for HighSpeed %dfps", frameRate);
+            frameRate = 30;
+        }
         char buf[4];
         snprintf(buf, 4, "%d", frameRate);
         if (strstr(supportedFrameRates, buf) == NULL) {
@@ -466,6 +483,8 @@ status_t CameraSource::checkFrameRate(
         ALOGE("Failed to retrieve preview frame rate (%d)", frameRateActual);
         return UNKNOWN_ERROR;
     }
+    int32_t highSpeedRate = getHighSpeedFrameRate(params);
+    frameRateActual = highSpeedRate ? highSpeedRate : frameRateActual;
 
     // Check the actual video frame rate against the target/requested
     // video frame rate.
@@ -677,6 +696,8 @@ status_t CameraSource::initWithCameraAccess(
     mMeta->setInt32(kKeyStride,      mVideoSize.width);
     mMeta->setInt32(kKeySliceHeight, mVideoSize.height);
     mMeta->setInt32(kKeyFrameRate,   mVideoFrameRate);
+    AVUtils::get()->extractCustomCameraKeys(params, mMeta);
+
     return OK;
 }
 
@@ -1117,6 +1138,9 @@ void CameraSource::releaseRecordingFrameHandle(native_handle_t* handle) {
         int64_t token = IPCThreadState::self()->clearCallingIdentity();
         mCamera->releaseRecordingFrameHandle(handle);
         IPCThreadState::self()->restoreCallingIdentity(token);
+    } else {
+        native_handle_close(handle);
+        native_handle_delete(handle);
     }
 }
 

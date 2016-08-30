@@ -150,7 +150,7 @@ private:
     OMX::node_id mNodeID;
     OMX_HANDLETYPE mHandle;
     sp<IOMXObserver> mObserver;
-    bool mDying;
+    atomic_bool mDying;
     bool mIsSecure;
 
     // Lock only covers mGraphicBufferSource.  We can't always use mLock

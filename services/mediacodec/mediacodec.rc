@@ -1,6 +1,6 @@
 service mediacodec /system/bin/mediacodec
     class main
     user mediacodec
-    group camera drmrpc mediadrm
+    group camera drmrpc mediadrm audio
     ioprio rt 4
     writepid /dev/cpuset/foreground/tasks

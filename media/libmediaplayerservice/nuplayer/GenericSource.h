@@ -111,6 +111,7 @@ private:
         size_t mIndex;
         sp<IMediaSource> mSource;
         sp<AnotherPacketSource> mPackets;
+        bool mReadMultiple;
     };
 
     // Helper to monitor buffering status. The polling happens every second.
@@ -204,6 +205,7 @@ private:
     int32_t mFetchTimedTextDataGeneration;
     int64_t mDurationUs;
     bool mAudioIsVorbis;
+    bool mIsByteMode;
     bool mIsWidevine;
     bool mIsSecure;
     bool mIsStreaming;

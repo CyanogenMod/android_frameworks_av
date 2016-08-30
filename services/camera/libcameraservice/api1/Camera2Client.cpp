@@ -1700,8 +1700,6 @@ void Camera2Client::notifyError(int32_t errorCode,
             err = CAMERA_ERROR_RELEASED;
             break;
         case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DEVICE:
-            err = CAMERA_ERROR_UNKNOWN;
-            break;
         case hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_SERVICE:
             err = CAMERA_ERROR_SERVER_DIED;
             break;

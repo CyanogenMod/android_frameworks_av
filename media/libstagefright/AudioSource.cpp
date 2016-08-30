@@ -66,10 +66,11 @@ AudioSource::AudioSource(
       mNumClientOwnedBuffers(0) {
     ALOGV("sampleRate: %u, outSampleRate: %u, channelCount: %u",
             sampleRate, outSampleRate, channelCount);
-    CHECK(channelCount == 1 || channelCount == 2);
+    CHECK(channelCount == 1 || channelCount == 2 || channelCount == 6);
     CHECK(sampleRate > 0);
 
     size_t minFrameCount;
+    mMaxBufferSize = kMaxBufferSize;
     status_t status = AudioRecord::getMinFrameCount(&minFrameCount,
                                            sampleRate,
                                            AUDIO_FORMAT_PCM_16_BIT,
@@ -77,7 +78,7 @@ AudioSource::AudioSource(
     if (status == OK) {
         // make sure that the AudioRecord callback never returns more than the maximum
         // buffer size
-        uint32_t frameCount = kMaxBufferSize / sizeof(int16_t) / channelCount;
+        uint32_t frameCount = mMaxBufferSize / sizeof(int16_t) / channelCount;
 
         // make sure that the AudioRecord total buffer size is large enough
         size_t bufCount = 2;
@@ -193,7 +194,7 @@ sp<MetaData> AudioSource::getFormat() {
     meta->setCString(kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
     meta->setInt32(kKeySampleRate, mSampleRate);
     meta->setInt32(kKeyChannelCount, mRecord->channelCount());
-    meta->setInt32(kKeyMaxInputSize, kMaxBufferSize);
+    meta->setInt32(kKeyMaxInputSize, mMaxBufferSize);
     meta->setInt32(kKeyPcmEncoding, kAudioEncodingPcm16bit);
 
     return meta;
@@ -350,9 +351,9 @@ status_t AudioSource::dataCallback(const AudioRecord::Buffer& audioBuffer) {
 
     while (numLostBytes > 0) {
         size_t bufferSize = numLostBytes;
-        if (numLostBytes > kMaxBufferSize) {
-            numLostBytes -= kMaxBufferSize;
-            bufferSize = kMaxBufferSize;
+        if (numLostBytes > mMaxBufferSize) {
+            numLostBytes -= mMaxBufferSize;
+            bufferSize = mMaxBufferSize;
         } else {
             numLostBytes = 0;
         }

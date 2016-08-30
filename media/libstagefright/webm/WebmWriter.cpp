@@ -31,6 +31,8 @@
 #include <sys/stat.h>
 #include <inttypes.h>
 
+#include "stagefright/AVExtensions.h"
+
 using namespace webm;
 
 namespace {
@@ -118,6 +120,7 @@ sp<WebmElement> WebmWriter::audioTrack(const sp<MetaData>& md) {
             'a', 'n', 'd', 'r', 'o', 'i', 'd', 0, 0, 0, 0, 1 };
     const void *headerData3;
     size_t headerSize1, headerSize2 = sizeof(headerData2), headerSize3;
+    int32_t bitWidth = 0;
 
     if (!md->findInt32(kKeyChannelCount, &nChannels)
             || !md->findInt32(kKeySampleRate, &samplerate)
@@ -147,10 +150,15 @@ sp<WebmElement> WebmWriter::audioTrack(const sp<MetaData>& md) {
     off += headerSize2;
     memcpy(codecPrivateData + off, headerData3, headerSize3);
 
+    if (AVUtils::get()->hasAudioSampleBits(md)) {
+        bitWidth = AVUtils::get()->getAudioSampleBits(md);
+    }
+
     sp<WebmElement> entry = WebmElement::AudioTrackEntry(
             nChannels,
             samplerate,
-            codecPrivateBuf);
+            codecPrivateBuf,
+            bitWidth);
     return entry;
 }
 

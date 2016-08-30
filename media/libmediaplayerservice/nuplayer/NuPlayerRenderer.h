@@ -78,8 +78,10 @@ struct NuPlayer::Renderer : public AHandler {
             bool offloadOnly,
             bool hasVideo,
             uint32_t flags,
-            bool *isOffloaded);
+            bool *isOffloaded,
+            bool isStreaming);
     void closeAudioSink();
+    void signalAudioTearDownComplete();
 
     enum {
         kWhatEOS                      = 'eos ',
@@ -89,6 +91,7 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatMediaRenderingStart      = 'mdrd',
         kWhatAudioTearDown            = 'adTD',
         kWhatAudioOffloadPauseTimeout = 'aOPT',
+        kWhatAudioTearDownComplete    = 'aTDC',
     };
 
     enum AudioTearDownReason {
@@ -102,7 +105,6 @@ protected:
 
     virtual void onMessageReceived(const sp<AMessage> &msg);
 
-private:
     enum {
         kWhatDrainAudioQueue     = 'draA',
         kWhatDrainVideoQueue     = 'draV',
@@ -186,7 +188,7 @@ private:
     int64_t mLastAudioMediaTimeUs;
 
     int32_t mAudioOffloadPauseTimeoutGeneration;
-    bool mAudioTornDown;
+    bool mAudioTearingDown;
     audio_offload_info_t mCurrentOffloadInfo;
 
     struct PcmInfo {
@@ -233,7 +235,7 @@ private:
     void prepareForMediaRenderingStart_l();
     void notifyIfMediaRenderingStarted_l();
 
-    void onQueueBuffer(const sp<AMessage> &msg);
+    virtual void onQueueBuffer(const sp<AMessage> &msg);
     void onQueueEOS(const sp<AMessage> &msg);
     void onFlush(const sp<AMessage> &msg);
     void onAudioSinkChanged();
@@ -255,8 +257,10 @@ private:
             const sp<AMessage> &format,
             bool offloadOnly,
             bool hasVideo,
-            uint32_t flags);
+            uint32_t flags,
+            bool isStreaming);
     void onCloseAudioSink();
+    void onAudioTearDownComplete();
 
     void notifyEOS(bool audio, status_t finalResult, int64_t delayUs = 0);
     void notifyFlushComplete(bool audio);

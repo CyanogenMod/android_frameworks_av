@@ -75,8 +75,11 @@ enum AudioEncoding {
     kAudioEncodingPcm16bit = 2,
     kAudioEncodingPcm8bit = 3,
     kAudioEncodingPcmFloat = 4,
+    kAudioEncodingPcm24bitPacked = 100,
 };
 
 }  // namespace android
+
+#include <media/stagefright/ExtendedMediaDefs.h>
 
 #endif  // MEDIA_DEFS_H_

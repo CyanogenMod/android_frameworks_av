@@ -41,6 +41,7 @@
 
 #include <cutils/properties.h>
 #include <expat.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -175,8 +176,9 @@ MediaCodecList::MediaCodecList()
     : mInitCheck(NO_INIT),
       mUpdate(false),
       mGlobalSettings(new AMessage()) {
-    parseTopLevelXMLFile("/etc/media_codecs.xml");
-    parseTopLevelXMLFile("/etc/media_codecs_performance.xml", true/* ignore_errors */);
+    parseTopLevelXMLFile(AVUtils::get()->getCustomCodecsLocation());
+    parseTopLevelXMLFile(AVUtils::get()->getCustomCodecsPerformanceLocation(),
+                            true/* ignore_errors */);
     parseTopLevelXMLFile(kProfilingResults, true/* ignore_errors */);
 }
 
@@ -944,7 +946,13 @@ status_t MediaCodecList::addLimit(const char **attrs) {
     // complexity: range + default
     bool found;
 
-    if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
+    // VT specific limits
+    if (name.find("vt-") == 0) {
+        AString value;
+        if (msg->findString("value", &value) && value.size()) {
+            mCurrentInfo->addDetail(name, value);
+        }
+    } else if (name == "aspect-ratio" || name == "bitrate" || name == "block-count"
             || name == "blocks-per-second" || name == "complexity"
             || name == "frame-rate" || name == "quality" || name == "size"
             || name == "measured-blocks-per-second" || name.startsWith("measured-frame-rate-")) {

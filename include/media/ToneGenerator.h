@@ -148,6 +148,8 @@ public:
         TONE_CDMA_ABBR_ALERT,
         TONE_CDMA_SIGNAL_OFF,
         //CDMA end
+        TONE_HOLD_RECALL,
+
         NUM_TONES,
         NUM_SUP_TONES = LAST_SUP_TONE-FIRST_SUP_TONE+1
     };

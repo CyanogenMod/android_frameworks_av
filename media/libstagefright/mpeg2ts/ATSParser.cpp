@@ -38,6 +38,7 @@
 #include <utils/Vector.h>
 
 #include <inttypes.h>
+#include <stagefright/AVExtensions.h>
 
 namespace android {
 
@@ -603,6 +604,12 @@ ATSParser::Stream::Stream(
                     (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
                         ? ElementaryStreamQueue::kFlag_AlignedData : 0);
             break;
+        case STREAMTYPE_H265:
+            mQueue = AVFactory::get()->createESQueue(
+                    ElementaryStreamQueue::H265,
+                    (mProgram->parserFlags() & ALIGNED_VIDEO_DATA)
+                        ? ElementaryStreamQueue::kFlag_AlignedData : 0);
+            break;
         case STREAMTYPE_MPEG2_AUDIO_ADTS:
             mQueue = new ElementaryStreamQueue(ElementaryStreamQueue::AAC);
             break;
@@ -736,6 +743,7 @@ status_t ATSParser::Stream::parse(
 bool ATSParser::Stream::isVideo() const {
     switch (mStreamType) {
         case STREAMTYPE_H264:
+        case STREAMTYPE_H265:
         case STREAMTYPE_MPEG1_VIDEO:
         case STREAMTYPE_MPEG2_VIDEO:
         case STREAMTYPE_MPEG4_VIDEO:
@@ -1085,9 +1093,11 @@ void ATSParser::Stream::onPayloadData(
                      mElementaryPID, mStreamType);
 
                 const char *mime;
-                if (meta->findCString(kKeyMIMEType, &mime)
-                        && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
-                        && !IsIDR(accessUnit)) {
+                if (meta->findCString(kKeyMIMEType, &mime) &&
+                        ((!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
+                           && !IsIDR(accessUnit)) ||
+                         (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC)
+                          && !AVUtils::get()->IsHevcIDR(accessUnit)))) {
                     continue;
                 }
                 mSource = new AnotherPacketSource(meta);

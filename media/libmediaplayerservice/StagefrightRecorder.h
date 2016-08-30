@@ -21,7 +21,7 @@
 #include <media/MediaRecorderBase.h>
 #include <camera/CameraParameters.h>
 #include <utils/String8.h>
-
+#include <media/stagefright/MediaSource.h>
 #include <system/audio.h>
 
 #include <MetadataBufferType.h>
@@ -42,6 +42,7 @@ class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
 class SurfaceMediaSource;
 struct ALooper;
+struct AMessage;
 
 struct StagefrightRecorder : public MediaRecorderBase {
     StagefrightRecorder(const String16 &opPackageName);
@@ -74,7 +75,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     // Querying a SurfaceMediaSourcer
     virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
 
-private:
+protected:
     sp<hardware::ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
     sp<IGraphicBufferProducer> mPreviewSurface;
@@ -141,7 +142,7 @@ private:
 
     static const int kMaxHighSpeedFps = 1000;
 
-    status_t prepareInternal();
+    virtual status_t prepareInternal();
     status_t setupMPEG4orWEBMRecording();
     void setupMPEG4orWEBMMetaData(sp<MetaData> *meta);
     status_t setupAMRRecording();
@@ -159,6 +160,8 @@ private:
     status_t setupCameraSource(sp<CameraSource> *cameraSource);
     status_t setupAudioEncoder(const sp<MediaWriter>& writer);
     status_t setupVideoEncoder(sp<MediaSource> cameraSource, sp<MediaCodecSource> *source);
+    virtual void setupCustomVideoEncoderParams(sp<MediaSource> /*cameraSource*/,
+            sp<AMessage> &/*format*/) {}
 
     // Encoding parameter handling utilities
     status_t setParameter(const String8 &key, const String8 &value);
@@ -192,7 +195,11 @@ private:
     void clipNumberOfAudioChannels();
     void setDefaultProfileIfNecessary();
     void setDefaultVideoEncoderIfNecessary();
-
+    virtual status_t handleCustomOutputFormats() {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomRecording() {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomAudioSource(sp<AMessage> /*format*/) {return UNKNOWN_ERROR;}
+    virtual status_t handleCustomAudioEncoder() {return UNKNOWN_ERROR;}
+    virtual sp<MediaSource> setPCMRecording() {return NULL;}
 
     StagefrightRecorder(const StagefrightRecorder &);
     StagefrightRecorder &operator=(const StagefrightRecorder &);

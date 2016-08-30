@@ -38,6 +38,7 @@ enum {
     GETFORMAT,
     READ,
     READMULTIPLE,
+    CANREADMULTIPLE,
     RELEASE_BUFFER
 };
 
@@ -221,6 +222,16 @@ public:
         return ret;
     }
 
+    bool canReadMultiple() {
+        ALOGV("canReadMultiple");
+        Parcel data, reply;
+        data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
+        if (remote()->transact(CANREADMULTIPLE, data, &reply) == NO_ERROR) {
+            return reply.readBool();
+        }
+        return true;
+    }
+
     virtual status_t pause() {
         ALOGV("pause");
         Parcel data, reply;
@@ -401,6 +412,12 @@ status_t BnMediaSource::onTransact(
             }
             reply->writeInt32(0);  // indicate no more MediaBuffer.
             reply->writeInt32(ret);
+            return NO_ERROR;
+        }
+        case CANREADMULTIPLE: {
+            ALOGV("canReadmultiple");
+            CHECK_INTERFACE(IMediaSource, data, reply);
+            reply->writeBool(canReadMultiple());
             return NO_ERROR;
         }
         default:

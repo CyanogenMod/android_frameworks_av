@@ -28,6 +28,10 @@
 #include "AudioResamplerCubic.h"
 #include "AudioResamplerDyn.h"
 
+#ifdef QTI_RESAMPLER
+#include "AudioResamplerQTI.h"
+#endif
+
 #ifdef __arm__
     // bug 13102576
     //#define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
@@ -91,6 +95,9 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
     case DYN_LOW_QUALITY:
     case DYN_MED_QUALITY:
     case DYN_HIGH_QUALITY:
+#ifdef QTI_RESAMPLER
+    case QTI_QUALITY:
+#endif
         return true;
     default:
         return false;
@@ -111,7 +118,11 @@ void AudioResampler::init_routine()
         if (*endptr == '\0') {
             defaultQuality = (src_quality) l;
             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
+#ifdef QTI_RESAMPLER
+            if (defaultQuality < DEFAULT_QUALITY || defaultQuality > QTI_QUALITY) {
+#else
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > DYN_HIGH_QUALITY) {
+#endif
                 defaultQuality = DEFAULT_QUALITY;
             }
         }
@@ -130,6 +141,9 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
     case HIGH_QUALITY:
         return 20;
     case VERY_HIGH_QUALITY:
+#ifdef QTI_RESAMPLER
+    case QTI_QUALITY: //for QTI_QUALITY, currently assuming same as VHQ
+#endif
         return 34;
     case DYN_LOW_QUALITY:
         return 4;
@@ -205,6 +219,11 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
         case DYN_HIGH_QUALITY:
             quality = DYN_MED_QUALITY;
             break;
+#ifdef QTI_RESAMPLER
+        case QTI_QUALITY:
+            quality = DYN_HIGH_QUALITY;
+            break;
+#endif
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -251,6 +270,12 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
             }
         }
         break;
+#ifdef QTI_RESAMPLER
+    case QTI_QUALITY:
+        ALOGV("Create QTI_QUALITY Resampler = %d",quality);
+        resampler = new AudioResamplerQTI(format, inChannelCount, sampleRate);
+        break;
+#endif
     }
 
     // initialize resampler

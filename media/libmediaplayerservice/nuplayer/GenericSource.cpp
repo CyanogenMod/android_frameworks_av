@@ -37,6 +37,7 @@
 #include "../../libstagefright/include/NuCachedSource2.h"
 #include "../../libstagefright/include/WVMExtractor.h"
 #include "../../libstagefright/include/HTTPBase.h"
+#include "mediaplayerservice/AVNuExtensions.h"
 
 namespace android {
 
@@ -59,6 +60,7 @@ NuPlayer::GenericSource::GenericSource(
       mFetchTimedTextDataGeneration(0),
       mDurationUs(-1ll),
       mAudioIsVorbis(false),
+      mIsByteMode(false),
       mIsWidevine(false),
       mIsSecure(false),
       mIsStreaming(false),
@@ -245,6 +247,11 @@ status_t NuPlayer::GenericSource::initFromDataSource() {
                 } else {
                     mAudioIsVorbis = false;
                 }
+
+                if (AVNuUtils::get()->isByteStreamModeEnabled(meta)) {
+                    mIsByteMode = true;
+                }
+                mAudioTrack.mReadMultiple = track->canReadMultiple();
             }
         } else if (!strncasecmp(mime, "video/", 6)) {
             if (mVideoTrack.mSource == NULL) {
@@ -662,6 +669,7 @@ void NuPlayer::GenericSource::onMessageReceived(const sp<AMessage> &msg) {
           const bool formatChange = true;
           if (trackType == MEDIA_TRACK_TYPE_AUDIO) {
               timeUs = mAudioLastDequeueTimeUs;
+              track->mReadMultiple = source->canReadMultiple();
           } else {
               timeUs = mVideoLastDequeueTimeUs;
           }
@@ -1385,6 +1393,11 @@ void NuPlayer::GenericSource::readBuffer(
             track = &mAudioTrack;
             if (mIsWidevine) {
                 maxBuffers = 8;
+            } else if (mIsByteMode) {
+                // byte stream mode is enabled only for mp3 & aac
+                // and the parser gives a huge chunk of data per read,
+                // so reading one buffer is sufficient.
+                maxBuffers = 1;
             } else {
                 maxBuffers = 64;
             }
@@ -1420,7 +1433,9 @@ void NuPlayer::GenericSource::readBuffer(
         options.setNonBlocking();
     }
 
-    bool couldReadMultiple = (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO);
+    bool couldReadMultiple =
+        (!mIsWidevine && trackType == MEDIA_TRACK_TYPE_AUDIO
+                && track->mReadMultiple);
     for (size_t numBuffers = 0; numBuffers < maxBuffers; ) {
         Vector<MediaBuffer *> mediaBuffers;
         status_t err = NO_ERROR;

@@ -26,6 +26,7 @@
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/openmax/OMX_IndexExt.h>
 #include <utils/NativeHandle.h>
+#include <media/AVMediaExtensions.h>
 
 namespace android {
 
@@ -176,6 +177,7 @@ public:
         data.writeInt32(index);
         data.writeInt64(size);
         data.write(params, size);
+        AVMediaUtils::get()->writeCustomParamData(index, params, size, &data);
         remote()->transact(SET_PARAMETER, data, &reply);
 
         return reply.readInt32();
@@ -781,6 +783,7 @@ status_t BnOMX::onTransact(
                                     err = getParameter(node, index, params, size);
                                     break;
                                 case SET_PARAMETER:
+                                    AVMediaUtils::get()->readCustomParamData(index, params, size, &data);
                                     err = setParameter(node, index, params, size);
                                     break;
                                 case GET_CONFIG:

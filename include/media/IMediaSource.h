@@ -114,6 +114,9 @@ public:
     virtual status_t readMultiple(
             Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers = 1) = 0;
 
+    // Returns true if readMultiple is supported, otherwise false.
+    virtual bool canReadMultiple() = 0;
+
     // Causes this source to suspend pulling data from its upstream source
     // until a subsequent read-with-seek. Currently only supported by
     // OMXCodec.
@@ -147,6 +150,10 @@ public:
     virtual status_t readMultiple(
             Vector<MediaBuffer *> * /* buffers */, uint32_t /* maxNumBuffers = 1 */) {
         return ERROR_UNSUPPORTED;
+    }
+
+    virtual bool canReadMultiple() {
+        return true;
     }
 protected:
     virtual ~BnMediaSource();

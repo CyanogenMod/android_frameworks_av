@@ -206,6 +206,9 @@ public:
     virtual status_t setMasterMono(bool mono);
     virtual status_t getMasterMono(bool *mono);
 
+            status_t doStartOutput(audio_io_handle_t output,
+                                   audio_stream_type_t stream,
+                                   audio_session_t session);
             status_t doStopOutput(audio_io_handle_t output,
                                   audio_stream_type_t stream,
                                   audio_session_t session);
@@ -259,6 +262,7 @@ private:
             SET_VOLUME,
             SET_PARAMETERS,
             SET_VOICE_VOLUME,
+            START_OUTPUT,
             STOP_OUTPUT,
             RELEASE_OUTPUT,
             CREATE_AUDIO_PATCH,
@@ -288,6 +292,9 @@ private:
                     status_t    parametersCommand(audio_io_handle_t ioHandle,
                                             const char *keyValuePairs, int delayMs = 0);
                     status_t    voiceVolumeCommand(float volume, int delayMs = 0);
+                    status_t    startOutputCommand(audio_io_handle_t output,
+                                                   audio_stream_type_t stream,
+                                                   audio_session_t session);
                     void        stopOutputCommand(audio_io_handle_t output,
                                                   audio_stream_type_t stream,
                                                   audio_session_t session);
@@ -364,6 +371,13 @@ private:
         class VoiceVolumeData : public AudioCommandData {
         public:
             float mVolume;
+        };
+
+        class StartOutputData : public AudioCommandData {
+        public:
+            audio_io_handle_t mIO;
+            audio_stream_type_t mStream;
+            audio_session_t mSession;
         };
 
         class StopOutputData : public AudioCommandData {
