@@ -2160,14 +2160,19 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             CHECK(msg->findPointer("buffers", (void **)&dstBuffers));
 
             dstBuffers->clear();
-            const Vector<BufferInfo> &srcBuffers = mPortBuffers[portIndex];
+            // If we're using input surface (either non-persistent created by
+            // createInputSurface(), or persistent set by setInputSurface()),
+            // give the client an empty input buffers array.
+            if (portIndex != kPortIndexInput || !mHaveInputSurface) {
+                const Vector<BufferInfo> &srcBuffers = mPortBuffers[portIndex];
 
-            for (size_t i = 0; i < srcBuffers.size(); ++i) {
-                const BufferInfo &info = srcBuffers.itemAt(i);
+                for (size_t i = 0; i < srcBuffers.size(); ++i) {
+                    const BufferInfo &info = srcBuffers.itemAt(i);
 
-                dstBuffers->push_back(
-                        (portIndex == kPortIndexInput && mCrypto != NULL)
-                                ? info.mEncryptedData : info.mData);
+                    dstBuffers->push_back(
+                            (portIndex == kPortIndexInput && mCrypto != NULL)
+                                    ? info.mEncryptedData : info.mData);
+                }
             }
 
             (new AMessage)->postReply(replyID);
