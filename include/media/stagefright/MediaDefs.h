@@ -72,11 +72,26 @@ extern const char *MEDIA_MIMETYPE_DATA_TIMED_ID3;
 // frameworks/base/media/java/android/media/AudioFormat.java. Unfortunately,
 // they are not defined in frameworks/av, so defining them here.
 enum AudioEncoding {
+    kAudioEncodingInvalid = 0,
     kAudioEncodingPcm16bit = 2,
     kAudioEncodingPcm8bit = 3,
     kAudioEncodingPcmFloat = 4,
-    kAudioEncodingPcm24bitPacked = 100,
+    kAudioEncodingPcm24bitPacked = 200,
+    kAudioEncodingPcm32bit = 201,
 };
+
+static AudioEncoding getAudioEncodingFromBits(int bits) {
+    if (bits == 8) {
+        return kAudioEncodingPcm8bit;
+    } else if (bits == 16) {
+        return kAudioEncodingPcm16bit;
+    } else if (bits == 24) {
+        return kAudioEncodingPcm24bitPacked;
+    } else if (bits == 32) {
+        return kAudioEncodingPcm32bit;
+    }
+    return kAudioEncodingInvalid;
+}
 
 }  // namespace android
 
