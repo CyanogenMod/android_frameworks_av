@@ -18,6 +18,8 @@
 
 #define MEDIA_DEFS_H_
 
+#include <stdint.h>
+
 namespace android {
 
 extern const char *MEDIA_MIMETYPE_IMAGE_JPEG;
@@ -72,11 +74,44 @@ extern const char *MEDIA_MIMETYPE_DATA_TIMED_ID3;
 // frameworks/base/media/java/android/media/AudioFormat.java. Unfortunately,
 // they are not defined in frameworks/av, so defining them here.
 enum AudioEncoding {
+    kAudioEncodingInvalid = 0,
     kAudioEncodingPcm16bit = 2,
     kAudioEncodingPcm8bit = 3,
     kAudioEncodingPcmFloat = 4,
-    kAudioEncodingPcm24bitPacked = 100,
+    kAudioEncodingPcm24bitPacked = 200,
+    kAudioEncodingPcm32bit = 201,
 };
+
+static AudioEncoding bitsToAudioEncoding(int32_t bits) {
+    switch (bits) {
+        case 8:
+            return kAudioEncodingPcm8bit;
+        case 16:
+            return kAudioEncodingPcm16bit;
+        case 24:
+            return kAudioEncodingPcm24bitPacked;
+        case 32:
+            return kAudioEncodingPcmFloat;
+    }
+    return kAudioEncodingInvalid;
+}
+
+static int32_t audioEncodingToBits(AudioEncoding encoding) {
+    switch (encoding) {
+        case kAudioEncodingInvalid:
+            return 0;
+        case kAudioEncodingPcm8bit:
+            return 8;
+        case kAudioEncodingPcm16bit:
+            return 16;
+        case kAudioEncodingPcm24bitPacked:
+            return 24;
+        case kAudioEncodingPcmFloat:
+        case kAudioEncodingPcm32bit:
+            return 32;
+    }
+    return 0;
+}
 
 }  // namespace android
 

@@ -30,6 +30,7 @@
 #include <media/stagefright/MetaData.h>
 #include <utils/String8.h>
 #include <cutils/bitops.h>
+#include <system/audio.h>
 
 #define CHANNEL_MASK_USE_CHANNEL_ORDER 0
 
@@ -289,6 +290,12 @@ status_t WAVExtractor::init() {
                     case WAVE_FORMAT_IEEE_FLOAT:
                         mTrackMeta->setCString(
                                 kKeyMIMEType, MEDIA_MIMETYPE_AUDIO_RAW);
+                        if (mWaveFormat == WAVE_FORMAT_IEEE_FLOAT) {
+                            mTrackMeta->setInt32(kKeyPcmEncoding, kAudioEncodingPcmFloat);
+                        } else {
+                            mTrackMeta->setInt32(kKeyPcmEncoding,
+                                    bitsToAudioEncoding(mBitsPerSample));
+                        }
                         break;
                     case WAVE_FORMAT_ALAW:
                         mTrackMeta->setCString(
@@ -373,15 +380,16 @@ WAVSource::~WAVSource() {
 }
 
 status_t WAVSource::start(MetaData * /* params */) {
-    ALOGV("WAVSource::start");
 
-    CHECK(!mStarted);
+    if (mStarted) {
+        return OK;
+    }
 
     mGroup = new MediaBufferGroup;
     mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
 
-    if (mBitsPerSample == 8) {
-        // As a temporary buffer for 8->16 bit conversion.
+    if (mBitsPerSample == 8 || mBitsPerSample == 24) {
+        // As a temporary buffer for 8->16/24->32 bit conversion.
         mGroup->add_buffer(new MediaBuffer(kMaxFrameSize));
     }
 
@@ -441,9 +449,15 @@ status_t WAVSource::read(
     }
 
     // make sure that maxBytesToRead is multiple of 3, in 24-bit case
-    size_t maxBytesToRead =
-        mBitsPerSample == 8 ? kMaxFrameSize / 2 : 
-        (mBitsPerSample == 24 ? 3*(kMaxFrameSize/3): kMaxFrameSize);
+    size_t maxBytesToRead;
+    if(8 == mBitsPerSample)
+        maxBytesToRead = kMaxFrameSize / 2;
+    else if (24 == mBitsPerSample) {
+        maxBytesToRead = 3*(kMaxFrameSize/4);
+    } else
+        maxBytesToRead = kMaxFrameSize;
+    ALOGV("%s mBitsPerSample %d, kMaxFrameSize %zu, ",
+          __func__, mBitsPerSample, kMaxFrameSize);
 
     size_t maxBytesAvailable =
         (mCurrentPos - mOffset >= (off64_t)mSize)
@@ -493,17 +507,24 @@ status_t WAVSource::read(
             buffer->release();
             buffer = tmp;
         } else if (mBitsPerSample == 24) {
-            // Convert 24-bit signed samples to 16-bit signed in place
-            const size_t numSamples = n / 3;
-
-            memcpy_to_i16_from_p24((int16_t *)buffer->data(), (const uint8_t *)buffer->data(), numSamples);
-            buffer->set_range(0, 2 * numSamples);
-        }  else if (mBitsPerSample == 32) {
-            // Convert 32-bit signed samples to 16-bit signed in place
-            const size_t numSamples = n / 4;
-
-            memcpy_to_i16_from_i32((int16_t *)buffer->data(), (const int32_t *)buffer->data(), numSamples);
-            buffer->set_range(0, 2 * numSamples);
+            // Padding done here to convert to 32-bit samples
+            MediaBuffer *tmp;
+            CHECK_EQ(mGroup->acquire_buffer(&tmp), (status_t)OK);
+            ssize_t numBytes = buffer->range_length() / 3;
+            tmp->set_range(0, 4 * numBytes);
+            int8_t *dst = (int8_t *)tmp->data();
+            const uint8_t *src = (const uint8_t *)buffer->data();
+            ALOGV("numBytes = %zu", numBytes);
+            while(numBytes-- > 0) {
+               *dst++ = 0x0;
+               *dst++ = src[0];
+               *dst++ = src[1];
+               *dst++ = src[2];
+               src += 3;
+            }
+            buffer->release();
+            buffer = tmp;
+            ALOGV("length = %zu", buffer->range_length());
         }
     } else if (mWaveFormat == WAVE_FORMAT_IEEE_FLOAT) {
         if (mBitsPerSample == 32) {
