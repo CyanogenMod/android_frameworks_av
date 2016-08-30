@@ -49,7 +49,7 @@ struct MediaCodecSource : public MediaSource,
 
     bool isVideo() const { return mIsVideo; }
     sp<IGraphicBufferProducer> getGraphicBufferProducer();
-    void setInputBufferTimeOffset(int64_t timeOffsetUs);
+    status_t setInputBufferTimeOffset(int64_t timeOffsetUs);
     int64_t getFirstSampleSystemTimeUs();
 
     // MediaSource
