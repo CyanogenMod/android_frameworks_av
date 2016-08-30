@@ -68,6 +68,7 @@ status_t CaptureRequest::readFromParcel(const Parcel* parcel) {
         const char16_t* name = parcel->readString16Inplace(&len);
         ALOGV("%s: Read surface name = %s", __FUNCTION__,
             name != NULL ? String8(name).string() : "<null>");
+        parcel->readInt32();
         sp<IBinder> binder(parcel->readStrongBinder());
         ALOGV("%s: Read surface binder = %p",
               __FUNCTION__, binder.get());
@@ -123,6 +124,7 @@ status_t CaptureRequest::writeToParcel(Parcel* parcel) const {
 
         // Surface.writeToParcel
         parcel->writeString16(String16("unknown_name"));
+        parcel->writeInt32(0);
         // Surface.nativeWriteToParcel
         parcel->writeStrongBinder(binder);
     }
