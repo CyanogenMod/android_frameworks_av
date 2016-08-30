@@ -7473,6 +7473,23 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
         }
     }
 
+    int64_t timeOffsetUs;
+    if (params->findInt64("time-offset-us", &timeOffsetUs)) {
+        status_t err = mOMX->setInternalOption(
+            mNode,
+            kPortIndexInput,
+            IOMX::INTERNAL_OPTION_TIME_OFFSET,
+            &timeOffsetUs,
+            sizeof(timeOffsetUs));
+
+        if (err != OK) {
+            ALOGE("[%s] Unable to set input buffer time offset (err %d)",
+                mComponentName.c_str(),
+                err);
+            return err;
+        }
+    }
+
     int64_t skipFramesBeforeUs;
     if (params->findInt64("skip-frames-before", &skipFramesBeforeUs)) {
         status_t err =
