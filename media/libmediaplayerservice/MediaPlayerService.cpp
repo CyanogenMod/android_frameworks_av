@@ -1092,7 +1092,7 @@ status_t MediaPlayerService::Client::setNextPlayer(const sp<IMediaPlayer>& playe
     ALOGV("setNextPlayer");
     Mutex::Autolock l(mLock);
     sp<Client> c = static_cast<Client*>(player.get());
-    if (!mService->hasClient(c)) {
+    if (c != NULL && !mService->hasClient(c)) {
       return BAD_VALUE;
     }
 
