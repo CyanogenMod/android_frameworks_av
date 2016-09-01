@@ -426,7 +426,19 @@ void SimpleSoftOMXComponent::onSendCommand(
 }
 
 void SimpleSoftOMXComponent::onChangeState(OMX_STATETYPE state) {
+    ALOGV("%p requesting change from %d to %d", this, mState, state);
     // We shouldn't be in a state transition already.
+
+    if (mState == OMX_StateLoaded
+            && mTargetState == OMX_StateIdle
+            && state == OMX_StateLoaded) {
+        // OMX specifically allows "canceling" a state transition from loaded
+        // to idle. Pretend we made it to idle, and go back to loaded
+        ALOGV("load->idle canceled");
+        mState = mTargetState = OMX_StateIdle;
+        state = OMX_StateLoaded;
+    }
+
     CHECK_EQ((int)mState, (int)mTargetState);
 
     switch (mState) {
@@ -606,6 +618,7 @@ void SimpleSoftOMXComponent::checkTransitions() {
         }
 
         if (transitionComplete) {
+            ALOGV("state transition from %d to %d complete", mState, mTargetState);
             mState = mTargetState;
 
             if (mState == OMX_StateLoaded) {
@@ -613,6 +626,8 @@ void SimpleSoftOMXComponent::checkTransitions() {
             }
 
             notify(OMX_EventCmdComplete, OMX_CommandStateSet, mState, NULL);
+        } else {
+            ALOGV("state transition from %d to %d not yet complete", mState, mTargetState);
         }
     }
 
