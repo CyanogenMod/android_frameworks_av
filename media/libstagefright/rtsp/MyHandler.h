@@ -1823,27 +1823,29 @@ private:
                 // by ARTPSource. Only the low 16 bits of seq in RTP-Info of reply of
                 // RTSP "PLAY" command should be used to detect the first RTP packet
                 // after seeking.
-                if (track->mAllowedStaleAccessUnits > 0) {
-                    uint32_t seqNum16 = seqNum & 0xffff;
-                    uint32_t firstSeqNumInSegment16 = track->mFirstSeqNumInSegment & 0xffff;
-                    if (seqNum16 > firstSeqNumInSegment16 + kMaxAllowedStaleAccessUnits
-                            || seqNum16 < firstSeqNumInSegment16) {
-                        // Not the first rtp packet of the stream after seeking, discarding.
-                        track->mAllowedStaleAccessUnits--;
-                        ALOGV("discarding stale access unit (0x%x : 0x%x)",
-                             seqNum, track->mFirstSeqNumInSegment);
-                        continue;
+                if (mSeekable) {
+                    if (track->mAllowedStaleAccessUnits > 0) {
+                        uint32_t seqNum16 = seqNum & 0xffff;
+                        uint32_t firstSeqNumInSegment16 = track->mFirstSeqNumInSegment & 0xffff;
+                        if (seqNum16 > firstSeqNumInSegment16 + kMaxAllowedStaleAccessUnits
+                                || seqNum16 < firstSeqNumInSegment16) {
+                            // Not the first rtp packet of the stream after seeking, discarding.
+                            track->mAllowedStaleAccessUnits--;
+                            ALOGV("discarding stale access unit (0x%x : 0x%x)",
+                                 seqNum, track->mFirstSeqNumInSegment);
+                            continue;
+                        }
+                        ALOGW_IF(seqNum16 != firstSeqNumInSegment16,
+                                "Missing the first packet(%u), now take packet(%u) as first one",
+                                track->mFirstSeqNumInSegment, seqNum);
+                    } else { // track->mAllowedStaleAccessUnits <= 0
+                        mNumAccessUnitsReceived = 0;
+                        ALOGW_IF(track->mAllowedStaleAccessUnits == 0,
+                             "Still no first rtp packet after %d stale ones",
+                             kMaxAllowedStaleAccessUnits);
+                        track->mAllowedStaleAccessUnits = -1;
+                        return UNKNOWN_ERROR;
                     }
-                    ALOGW_IF(seqNum16 != firstSeqNumInSegment16,
-                            "Missing the first packet(%u), now take packet(%u) as first one",
-                            track->mFirstSeqNumInSegment, seqNum);
-                } else { // track->mAllowedStaleAccessUnits <= 0
-                    mNumAccessUnitsReceived = 0;
-                    ALOGW_IF(track->mAllowedStaleAccessUnits == 0,
-                         "Still no first rtp packet after %d stale ones",
-                         kMaxAllowedStaleAccessUnits);
-                    track->mAllowedStaleAccessUnits = -1;
-                    return UNKNOWN_ERROR;
                 }
 
                 // Now found the first rtp packet of the stream after seeking.
