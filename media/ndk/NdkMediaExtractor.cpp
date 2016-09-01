@@ -343,9 +343,9 @@ AMediaCodecCryptoInfo *AMediaExtractor_getSampleCryptoInfo(AMediaExtractor *ex) 
 
     const void *key;
     size_t keysize;
-    if (meta->findData(kKeyCryptoIV, &type, &key, &keysize)) {
+    if (meta->findData(kKeyCryptoKey, &type, &key, &keysize)) {
         if (keysize != 16) {
-            // IVs must be 16 bytes in length.
+            // Keys must be 16 bytes in length.
             return NULL;
         }
     }
