@@ -912,7 +912,7 @@ status_t BnDrm::onTransact(
             readVector(data, keyId);
             readVector(data, message);
             readVector(data, signature);
-            bool match;
+            bool match = false;
             uint32_t result = verify(sessionId, keyId, message, signature, match);
             reply->writeInt32(match);
             reply->writeInt32(result);
