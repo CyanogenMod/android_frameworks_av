@@ -371,11 +371,21 @@ status_t MediaRecorderClient::setListener(const sp<IMediaRecorderClient>& listen
 
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16("media.camera"));
+    if (binder == NULL) {
+        ALOGE("Unable to connect to camera service");
+        return NO_INIT;
+    }
+
     mCameraDeathListener = new ServiceDeathNotifier(binder, listener,
             MediaPlayerService::CAMERA_PROCESS_DEATH);
     binder->linkToDeath(mCameraDeathListener);
 
     binder = sm->getService(String16("media.codec"));
+    if (binder == NULL) {
+        ALOGE("Unable to connect to media codec service");
+        return NO_INIT;
+    }
+
     mCodecDeathListener = new ServiceDeathNotifier(binder, listener,
             MediaPlayerService::MEDIACODEC_PROCESS_DEATH);
     binder->linkToDeath(mCodecDeathListener);
