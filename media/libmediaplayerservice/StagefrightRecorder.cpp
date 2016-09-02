@@ -588,7 +588,7 @@ status_t StagefrightRecorder::setParamCaptureFpsEnable(int32_t captureFpsEnable)
 status_t StagefrightRecorder::setParamCaptureFps(float fps) {
     ALOGV("setParamCaptureFps: %.2f", fps);
 
-    int64_t timeUs = (int64_t) (1000000.0 / fps + 0.5f);
+    int64_t timeUs = (int64_t) (1000000.0f / fps + 0.5f);
 
     // Not allowing time more than a day
     if (timeUs <= 0 || timeUs > 86400*1E6) {
