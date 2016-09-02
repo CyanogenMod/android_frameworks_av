@@ -336,10 +336,10 @@ sp<MediaCodecSource> MediaCodecSource::Create(
     return NULL;
 }
 
-void MediaCodecSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
+status_t MediaCodecSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
     sp<AMessage> msg = new AMessage(kWhatSetInputBufferTimeOffset, mReflector);
     msg->setInt64("time-offset-us", timeOffsetUs);
-    postSynchronouslyAndReturnError(msg);
+    return postSynchronouslyAndReturnError(msg);
 }
 
 int64_t MediaCodecSource::getFirstSampleSystemTimeUs() {
@@ -874,9 +874,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                                 break;
                             }
                         }
-                        // Time offset is not applied at
-                        // feedEncoderInputBuffer() in surface input case.
-                        timeUs += mInputBufferTimeOffsetUs;
+                        // Timestamp offset is already adjusted in GraphicBufferSource.
                         // GraphicBufferSource is supposed to discard samples
                         // queued before start, and offset timeUs by start time
                         CHECK_GE(timeUs, 0ll);
@@ -1015,10 +1013,18 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     {
         sp<AReplyToken> replyID;
         CHECK(msg->senderAwaitsResponse(&replyID));
-
+        status_t err = OK;
         CHECK(msg->findInt64("time-offset-us", &mInputBufferTimeOffsetUs));
 
+        // Propagate the timestamp offset to GraphicBufferSource.
+        if (mIsVideo) {
+            sp<AMessage> params = new AMessage;
+            params->setInt64("time-offset-us", mInputBufferTimeOffsetUs);
+            err = mEncoder->setParameters(params);
+        }
+
         sp<AMessage> response = new AMessage;
+        response->setInt32("err", err);
         response->postReply(replyID);
         break;
     }
