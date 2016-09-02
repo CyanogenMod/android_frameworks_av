@@ -367,8 +367,11 @@ void NuPlayer::RTSPSource::onPollBuffering() {
         startBufferingIfNecessary();
     }
 
-    if (overflow && mHandler != NULL) {
+    if (haveSufficientDataOnAllTracks()) {
         stopBufferingIfNecessary();
+    }
+
+    if (overflow && mHandler != NULL) {
         mHandler->pause();
     }
 
