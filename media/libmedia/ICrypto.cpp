@@ -150,10 +150,10 @@ struct BpCrypto : public BpInterface<ICrypto> {
 
         if (isCryptoError(result)) {
             errorDetailMsg->setTo(reply.readCString());
-        }
-
-        if (dstType == kDestinationTypeVmPointer && result >= 0) {
-            reply.read(dstPtr, result);
+        } else if (dstType == kDestinationTypeVmPointer) {
+            // For the non-secure case, copy the decrypted-in-place
+            // data from shared memory to its final destination
+            memcpy(dstPtr, sharedBuffer->pointer(), result);
         }
 
         return result;
@@ -320,7 +320,10 @@ status_t BnCrypto::onTransact(
                 dstPtr = secureBufferId;
             } else {
                 dstType = kDestinationTypeVmPointer;
-                dstPtr = malloc(totalSize);
+
+                // For the non-secure case, decrypt in-place back to the
+                // shared memory segment.
+                dstPtr = sharedBuffer->pointer();
             }
 
             AString errorDetailMsg;
@@ -366,14 +369,7 @@ status_t BnCrypto::onTransact(
                 reply->writeCString(errorDetailMsg.c_str());
             }
 
-            if (dstType == kDestinationTypeVmPointer) {
-                if (result >= 0) {
-                    CHECK_LE(result, static_cast<ssize_t>(totalSize));
-                    reply->write(dstPtr, result);
-                }
-                free(dstPtr);
-                dstPtr = NULL;
-            } else if (dstType == kDestinationTypeNativeHandle) {
+            if (dstType == kDestinationTypeNativeHandle) {
                 int err;
                 if ((err = native_handle_close(nativeHandle)) < 0) {
                     ALOGW("secure buffer native_handle_close failed: %d", err);
