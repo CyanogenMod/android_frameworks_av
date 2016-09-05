@@ -31,16 +31,16 @@ namespace android {
 // class to store streaminfo
 class AudioSessionInfo : public RefBase {
 public:
-    AudioSessionInfo(int session, audio_stream_type_t stream, audio_output_flags_t flags,
+    AudioSessionInfo(audio_session_t session, audio_stream_type_t stream, audio_output_flags_t flags,
             audio_channel_mask_t channelMask, uid_t uid) :
         mSessionId(session), mStream(stream), mFlags(flags), mChannelMask(channelMask),
         mUid(uid), mRefCount(0) {}
 
-    AudioSessionInfo() : mSessionId(0), mStream(AUDIO_STREAM_DEFAULT), mFlags(AUDIO_OUTPUT_FLAG_NONE), mChannelMask(AUDIO_CHANNEL_NONE), mUid(0) {}
+    AudioSessionInfo() : mSessionId((audio_session_t) 0), mStream(AUDIO_STREAM_DEFAULT), mFlags(AUDIO_OUTPUT_FLAG_NONE), mChannelMask(AUDIO_CHANNEL_NONE), mUid(0) {}
 
     /*virtual*/ ~AudioSessionInfo() {}
 
-    int mSessionId;
+    audio_session_t mSessionId;
     audio_stream_type_t mStream;
     audio_output_flags_t mFlags;
     audio_channel_mask_t mChannelMask;
@@ -50,7 +50,7 @@ public:
     int mRefCount;
 
     void readFromParcel(const Parcel &parcel)  {
-        mSessionId = parcel.readInt32();
+        mSessionId = (audio_session_t) parcel.readInt32();
         mStream = static_cast<audio_stream_type_t>(parcel.readInt32());
         mFlags = static_cast<audio_output_flags_t>(parcel.readInt32());
         mChannelMask = static_cast<audio_channel_mask_t>(parcel.readInt32());
