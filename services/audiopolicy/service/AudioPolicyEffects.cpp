@@ -295,7 +295,7 @@ status_t AudioPolicyEffects::addOutputSessionEffects(audio_io_handle_t output,
 
 status_t AudioPolicyEffects::releaseOutputAudioSessionInfo(audio_io_handle_t /* output */,
                                            audio_stream_type_t stream,
-                                           int session)
+                                           audio_session_t session)
 {
     if (uint32_t(stream) >= AUDIO_STREAM_CNT) {
         return BAD_VALUE;
@@ -319,7 +319,7 @@ status_t AudioPolicyEffects::releaseOutputAudioSessionInfo(audio_io_handle_t /* 
 
 status_t AudioPolicyEffects::updateOutputAudioSessionInfo(audio_io_handle_t /* output */,
                                            audio_stream_type_t stream,
-                                           int session,
+                                           audio_session_t session,
                                            audio_output_flags_t flags,
                                            audio_channel_mask_t channelMask, uid_t uid)
 {
