@@ -543,7 +543,7 @@ status_t FLACParser::init()
             // sample rate is non-zero, so division by zero not possible
             mTrackMetadata->setInt64(kKeyDuration,
                     (getTotalSamples() * 1000000LL) / getSampleRate());
-            mTrackMetadata->setInt32(kKeyPcmEncoding, getAudioEncodingFromBits(getBitsPerSample()));
+            mTrackMetadata->setInt32(kKeyPcmEncoding, bitsToAudioEncoding(getBitsPerSample()));
         }
     } else {
         ALOGE("missing STREAMINFO");

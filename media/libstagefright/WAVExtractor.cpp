@@ -294,7 +294,7 @@ status_t WAVExtractor::init() {
                             mTrackMeta->setInt32(kKeyPcmEncoding, kAudioEncodingPcmFloat);
                         } else {
                             mTrackMeta->setInt32(kKeyPcmEncoding,
-                                    getAudioEncodingFromBits(mBitsPerSample));
+                                    bitsToAudioEncoding(mBitsPerSample));
                         }
                         break;
                     case WAVE_FORMAT_ALAW:

@@ -18,6 +18,8 @@
 
 #define MEDIA_DEFS_H_
 
+#include <stdint.h>
+
 namespace android {
 
 extern const char *MEDIA_MIMETYPE_IMAGE_JPEG;
@@ -80,17 +82,35 @@ enum AudioEncoding {
     kAudioEncodingPcm32bit = 201,
 };
 
-static AudioEncoding getAudioEncodingFromBits(int bits) {
-    if (bits == 8) {
-        return kAudioEncodingPcm8bit;
-    } else if (bits == 16) {
-        return kAudioEncodingPcm16bit;
-    } else if (bits == 24) {
-        return kAudioEncodingPcm24bitPacked;
-    } else if (bits == 32) {
-        return kAudioEncodingPcm32bit;
+static AudioEncoding bitsToAudioEncoding(int32_t bits) {
+    switch (bits) {
+        case 8:
+            return kAudioEncodingPcm8bit;
+        case 16:
+            return kAudioEncodingPcm16bit;
+        case 24:
+            return kAudioEncodingPcm24bitPacked;
+        case 32:
+            return kAudioEncodingPcmFloat;
     }
     return kAudioEncodingInvalid;
+}
+
+static int32_t audioEncodingToBits(AudioEncoding encoding) {
+    switch (encoding) {
+        case kAudioEncodingInvalid:
+            return 0;
+        case kAudioEncodingPcm8bit:
+            return 8;
+        case kAudioEncodingPcm16bit:
+            return 16;
+        case kAudioEncodingPcm24bitPacked:
+            return 24;
+        case kAudioEncodingPcmFloat:
+        case kAudioEncodingPcm32bit:
+            return 32;
+    }
+    return 0;
 }
 
 }  // namespace android
