@@ -272,6 +272,7 @@ private:
     bool mIsHevc;
     bool mIsAudio;
     bool mIsMPEG4;
+    bool mIsMalformed;
     int32_t mTrackId;
     int64_t mTrackDurationUs;
     int64_t mMaxChunkDurationUs;
@@ -1536,6 +1537,7 @@ MPEG4Writer::Track::Track(
       mPaused(false),
       mResumed(false),
       mStarted(false),
+      mIsMalformed(false),
       mTrackId(trackId),
       mTrackDurationUs(0),
       mEstimatedTrackSizeBytes(0),
@@ -2505,13 +2507,15 @@ status_t MPEG4Writer::Track::threadEntry() {
             int64_t durExcludingEarlierPausesUs = timestampUs - previousPausedDurationUs;
             if (WARN_UNLESS(durExcludingEarlierPausesUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
-                return ERROR_MALFORMED;
+                mIsMalformed = true;
+                break;
             }
 
             int64_t pausedDurationUs = durExcludingEarlierPausesUs - mTrackDurationUs;
             if (WARN_UNLESS(pausedDurationUs >= lastDurationUs, "for %s track", trackName)) {
                 copy->release();
-                return ERROR_MALFORMED;
+                mIsMalformed = true;
+                break;
             }
 
             previousPausedDurationUs += pausedDurationUs - lastDurationUs;
@@ -2521,7 +2525,8 @@ status_t MPEG4Writer::Track::threadEntry() {
         timestampUs -= previousPausedDurationUs;
         if (WARN_UNLESS(timestampUs >= 0ll, "for %s track", trackName)) {
             copy->release();
-            return ERROR_MALFORMED;
+            mIsMalformed = true;
+            break;
         }
 
         if (!mIsAudio) {
@@ -2548,7 +2553,8 @@ status_t MPEG4Writer::Track::threadEntry() {
                     timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
-                return ERROR_MALFORMED;
+                mIsMalformed = true;
+                break;
             }
 
             timestampUs = decodingTimeUs;
@@ -2560,7 +2566,8 @@ status_t MPEG4Writer::Track::threadEntry() {
                     (cttsOffsetTimeUs * mTimeScale + 500000LL) / 1000000LL;
             if (WARN_UNLESS(currCttsOffsetTimeTicks <= 0x0FFFFFFFFLL, "for %s track", trackName)) {
                 copy->release();
-                return ERROR_MALFORMED;
+                mIsMalformed = true;
+                break;
             }
 
             if (mStszTableEntries->count() == 0) {
@@ -2602,7 +2609,8 @@ status_t MPEG4Writer::Track::threadEntry() {
 
         if (WARN_UNLESS(timestampUs >= 0ll, "for %s track", trackName)) {
             copy->release();
-            return ERROR_MALFORMED;
+            mIsMalformed = true;
+            break;
         }
 
         ALOGV("%s media time stamp: %" PRId64 " and previous paused duration %" PRId64,
@@ -2624,7 +2632,8 @@ status_t MPEG4Writer::Track::threadEntry() {
                     (long long)timestampUs, (long long)lastTimestampUs, trackName);
             copy->release();
             mSource->stop();
-            return UNKNOWN_ERROR;
+            mIsMalformed = true;
+            break;
         }
 
         // if the duration is different for this sample, see if it is close enough to the previous
@@ -2780,6 +2789,10 @@ status_t MPEG4Writer::Track::threadEntry() {
 }
 
 bool MPEG4Writer::Track::isTrackMalFormed() const {
+    if (mIsMalformed) {
+        return true;
+    }
+
     if (mStszTableEntries->count() == 0) {                      // no samples written
         ALOGE("The number of recorded samples is 0");
         return true;
