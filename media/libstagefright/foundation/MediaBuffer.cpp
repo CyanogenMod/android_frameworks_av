@@ -105,14 +105,7 @@ MediaBuffer::MediaBuffer(const sp<ABuffer> &buffer)
 
 void MediaBuffer::release() {
     if (mObserver == NULL) {
-        if (mMemory.get() != nullptr) {
-            // See if there is a pending release and there are no observers.
-            // Ideally this never happens.
-            while (addPendingRelease(-1) > 0) {
-                __sync_fetch_and_sub(&mRefCount, 1);
-            }
-            addPendingRelease(1);
-        }
+        // Legacy contract for MediaBuffer without a MediaBufferGroup.
         CHECK_EQ(mRefCount, 0);
         delete this;
         return;
@@ -203,10 +196,6 @@ MediaBuffer::~MediaBuffer() {
 void MediaBuffer::setObserver(MediaBufferObserver *observer) {
     CHECK(observer == NULL || mObserver == NULL);
     mObserver = observer;
-}
-
-int MediaBuffer::refcount() const {
-    return mRefCount;
 }
 
 MediaBuffer *MediaBuffer::clone() {
