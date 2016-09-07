@@ -68,7 +68,7 @@ public:
 private:
             SoundTrigger(sound_trigger_module_handle_t module,
                             const sp<SoundTriggerCallback>&);
-            static const sp<ISoundTriggerHwService>& getSoundTriggerHwService();
+            static const sp<ISoundTriggerHwService> getSoundTriggerHwService();
 
             Mutex                               mLock;
             sp<ISoundTrigger>                   mISoundTrigger;
