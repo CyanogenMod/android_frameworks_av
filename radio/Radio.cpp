@@ -55,7 +55,7 @@ namespace {
     sp<DeathNotifier>         gDeathNotifier;
 }; // namespace anonymous
 
-const sp<IRadioService>& Radio::getRadioService()
+const sp<IRadioService> Radio::getRadioService()
 {
     Mutex::Autolock _l(gLock);
     if (gRadioService.get() == 0) {
@@ -84,7 +84,7 @@ status_t Radio::listModules(struct radio_properties *properties,
                             uint32_t *numModules)
 {
     ALOGV("listModules()");
-    const sp<IRadioService>& service = getRadioService();
+    const sp<IRadioService> service = getRadioService();
     if (service == 0) {
         return NO_INIT;
     }
@@ -98,7 +98,7 @@ sp<Radio> Radio::attach(radio_handle_t handle,
 {
     ALOGV("attach()");
     sp<Radio> radio;
-    const sp<IRadioService>& service = getRadioService();
+    const sp<IRadioService> service = getRadioService();
     if (service == 0) {
         return radio;
     }
