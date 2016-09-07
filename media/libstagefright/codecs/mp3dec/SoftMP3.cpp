@@ -122,6 +122,17 @@ void SoftMP3::initDecoder() {
     mIsFirst = true;
 }
 
+void *SoftMP3::memsetSafe(OMX_BUFFERHEADERTYPE *outHeader, int c, size_t len) {
+    if (len > outHeader->nAllocLen) {
+        ALOGE("memset buffer too small: got %u, expected %zu", outHeader->nAllocLen, len);
+        android_errorWriteLog(0x534e4554, "29422022");
+        notify(OMX_EventError, OMX_ErrorUndefined, OUTPUT_BUFFER_TOO_SMALL, NULL);
+        mSignalledError = true;
+        return NULL;
+    }
+    return memset(outHeader->pBuffer, c, len);
+}
+
 OMX_ERRORTYPE SoftMP3::internalGetParameter(
         OMX_INDEXTYPE index, OMX_PTR params) {
     switch (index) {
@@ -318,7 +329,10 @@ void SoftMP3::onQueueFilled(OMX_U32 /* portIndex */) {
                     outHeader->nOffset = 0;
                     outHeader->nFilledLen = kPVMP3DecoderDelay * mNumChannels * sizeof(int16_t);
 
-                    memset(outHeader->pBuffer, 0, outHeader->nFilledLen);
+                    if (!memsetSafe(outHeader, 0, outHeader->nFilledLen)) {
+                        return;
+                    }
+
                 }
                 outHeader->nFlags = OMX_BUFFERFLAG_EOS;
                 mSignalledOutputEos = true;
@@ -330,9 +344,9 @@ void SoftMP3::onQueueFilled(OMX_U32 /* portIndex */) {
                 // if mIsFirst is true as we may not have a valid
                 // mConfig->samplingRate and mConfig->num_channels?
                 ALOGV_IF(mIsFirst, "insufficient data for first frame, sending silence");
-                memset(outHeader->pBuffer,
-                       0,
-                       mConfig->outputFrameSize * sizeof(int16_t));
+                if (!memsetSafe(outHeader, 0, mConfig->outputFrameSize * sizeof(int16_t))) {
+                    return;
+                }
 
                 if (inHeader) {
                     mConfig->inputBufferUsedLength = inHeader->nFilledLen;
