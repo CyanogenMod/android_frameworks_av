@@ -145,7 +145,8 @@ GraphicBufferSource::GraphicBufferSource(
     mTimePerCaptureUs(-1ll),
     mTimePerFrameUs(-1ll),
     mPrevCaptureUs(-1ll),
-    mPrevFrameUs(-1ll) {
+    mPrevFrameUs(-1ll),
+    mInputBufferTimeOffsetUs(0ll) {
 
     ALOGV("GraphicBufferSource w=%u h=%u c=%u",
             bufferWidth, bufferHeight, bufferCount);
@@ -774,6 +775,7 @@ status_t GraphicBufferSource::signalEndOfInputStream() {
 
 int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
     int64_t timeUs = item.mTimestamp / 1000;
+    timeUs += mInputBufferTimeOffsetUs;
 
     if (mTimePerCaptureUs > 0ll
             && (mTimePerCaptureUs > 2 * mTimePerFrameUs
@@ -802,35 +804,38 @@ int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
                 static_cast<long long>(mPrevFrameUs));
 
         return mPrevFrameUs;
-    } else if (mMaxTimestampGapUs > 0ll) {
-        //TODO: Fix the case when mMaxTimestampGapUs and mTimePerCaptureUs are both set.
-
-        /* Cap timestamp gap between adjacent frames to specified max
-         *
-         * In the scenario of cast mirroring, encoding could be suspended for
-         * prolonged periods. Limiting the pts gap to workaround the problem
-         * where encoder's rate control logic produces huge frames after a
-         * long period of suspension.
-         */
-
+    } else {
         int64_t originalTimeUs = timeUs;
-        if (mPrevOriginalTimeUs >= 0ll) {
-            if (originalTimeUs < mPrevOriginalTimeUs) {
+        if (originalTimeUs <= mPrevOriginalTimeUs) {
                 // Drop the frame if it's going backward in time. Bad timestamp
                 // could disrupt encoder's rate control completely.
-                ALOGW("Dropping frame that's going backward in time");
-                return -1;
-            }
-            int64_t timestampGapUs = originalTimeUs - mPrevOriginalTimeUs;
-            timeUs = (timestampGapUs < mMaxTimestampGapUs ?
-                    timestampGapUs : mMaxTimestampGapUs) + mPrevModifiedTimeUs;
+            ALOGW("Dropping frame that's going backward in time");
+            return -1;
         }
+
+        if (mMaxTimestampGapUs > 0ll) {
+            //TODO: Fix the case when mMaxTimestampGapUs and mTimePerCaptureUs are both set.
+
+            /* Cap timestamp gap between adjacent frames to specified max
+             *
+             * In the scenario of cast mirroring, encoding could be suspended for
+             * prolonged periods. Limiting the pts gap to workaround the problem
+             * where encoder's rate control logic produces huge frames after a
+             * long period of suspension.
+             */
+            if (mPrevOriginalTimeUs >= 0ll) {
+                int64_t timestampGapUs = originalTimeUs - mPrevOriginalTimeUs;
+                timeUs = (timestampGapUs < mMaxTimestampGapUs ?
+                    timestampGapUs : mMaxTimestampGapUs) + mPrevModifiedTimeUs;
+                mOriginalTimeUs.add(timeUs, originalTimeUs);
+                ALOGV("IN  timestamp: %lld -> %lld",
+                    static_cast<long long>(originalTimeUs),
+                    static_cast<long long>(timeUs));
+            }
+        }
+
         mPrevOriginalTimeUs = originalTimeUs;
         mPrevModifiedTimeUs = timeUs;
-        mOriginalTimeUs.add(timeUs, originalTimeUs);
-        ALOGV("IN  timestamp: %lld -> %lld",
-            static_cast<long long>(originalTimeUs),
-            static_cast<long long>(timeUs));
     }
 
     return timeUs;
@@ -1045,6 +1050,18 @@ status_t GraphicBufferSource::setMaxTimestampGapUs(int64_t maxGapUs) {
 
     mMaxTimestampGapUs = maxGapUs;
 
+    return OK;
+}
+
+status_t GraphicBufferSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
+    Mutex::Autolock autoLock(mMutex);
+
+    // timeOffsetUs must be negative for adjustment.
+    if (timeOffsetUs >= 0ll) {
+        return INVALID_OPERATION;
+    }
+
+    mInputBufferTimeOffsetUs = timeOffsetUs;
     return OK;
 }
 
