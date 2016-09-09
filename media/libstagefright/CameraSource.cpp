@@ -1117,6 +1117,9 @@ void CameraSource::releaseRecordingFrameHandle(native_handle_t* handle) {
         int64_t token = IPCThreadState::self()->clearCallingIdentity();
         mCamera->releaseRecordingFrameHandle(handle);
         IPCThreadState::self()->restoreCallingIdentity(token);
+    } else {
+        native_handle_close(handle);
+        native_handle_delete(handle);
     }
 }
 
