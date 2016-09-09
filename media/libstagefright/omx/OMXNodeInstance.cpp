@@ -100,19 +100,22 @@ static void InitOMXParams(T *params) {
 namespace android {
 
 struct BufferMeta {
-    BufferMeta(const sp<IMemory> &mem, bool is_backup = false)
+    BufferMeta(const sp<IMemory> &mem, OMX_U32 portIndex, bool is_backup = false)
         : mMem(mem),
-          mIsBackup(is_backup) {
+          mIsBackup(is_backup),
+          mPortIndex(portIndex) {
     }
 
-    BufferMeta(size_t size)
+    BufferMeta(size_t size, OMX_U32 portIndex)
         : mSize(size),
-          mIsBackup(false) {
+          mIsBackup(false),
+          mPortIndex(portIndex) {
     }
 
-    BufferMeta(const sp<GraphicBuffer> &graphicBuffer)
+    BufferMeta(const sp<GraphicBuffer> &graphicBuffer, OMX_U32 portIndex)
         : mGraphicBuffer(graphicBuffer),
-          mIsBackup(false) {
+          mIsBackup(false),
+          mPortIndex(portIndex) {
     }
 
     void CopyFromOMX(const OMX_BUFFERHEADERTYPE *header) {
@@ -139,11 +142,16 @@ struct BufferMeta {
         mGraphicBuffer = graphicBuffer;
     }
 
+    OMX_U32 getPortIndex() {
+        return mPortIndex;
+    }
+
 private:
     sp<GraphicBuffer> mGraphicBuffer;
     sp<IMemory> mMem;
     size_t mSize;
     bool mIsBackup;
+    OMX_U32 mPortIndex;
 
     BufferMeta(const BufferMeta &);
     BufferMeta &operator=(const BufferMeta &);
@@ -622,7 +630,7 @@ status_t OMXNodeInstance::useBuffer(
         OMX::buffer_id *buffer) {
     Mutex::Autolock autoLock(mLock);
 
-    BufferMeta *buffer_meta = new BufferMeta(params);
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex);
 
     OMX_BUFFERHEADERTYPE *header;
 
@@ -673,7 +681,7 @@ status_t OMXNodeInstance::useGraphicBuffer2_l(
         return UNKNOWN_ERROR;
     }
 
-    BufferMeta *bufferMeta = new BufferMeta(graphicBuffer);
+    BufferMeta *bufferMeta = new BufferMeta(graphicBuffer, portIndex);
 
     OMX_BUFFERHEADERTYPE *header = NULL;
     OMX_U8* bufferHandle = const_cast<OMX_U8*>(
@@ -731,7 +739,7 @@ status_t OMXNodeInstance::useGraphicBuffer(
         return StatusFromOMXError(err);
     }
 
-    BufferMeta *bufferMeta = new BufferMeta(graphicBuffer);
+    BufferMeta *bufferMeta = new BufferMeta(graphicBuffer, portIndex);
 
     OMX_BUFFERHEADERTYPE *header;
 
@@ -774,7 +782,10 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
         OMX::buffer_id buffer) {
     Mutex::Autolock autoLock(mLock);
 
-    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, portIndex);
+    if (header == NULL) {
+        return BAD_VALUE;
+    }
     VideoDecoderOutputMetaData *metadata =
         (VideoDecoderOutputMetaData *)(header->pBuffer);
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
@@ -856,7 +867,7 @@ status_t OMXNodeInstance::allocateBuffer(
         void **buffer_data) {
     Mutex::Autolock autoLock(mLock);
 
-    BufferMeta *buffer_meta = new BufferMeta(size);
+    BufferMeta *buffer_meta = new BufferMeta(size, portIndex);
 
     OMX_BUFFERHEADERTYPE *header;
 
@@ -894,7 +905,7 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
         OMX::buffer_id *buffer) {
     Mutex::Autolock autoLock(mLock);
 
-    BufferMeta *buffer_meta = new BufferMeta(params, true);
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex, true);
 
     OMX_BUFFERHEADERTYPE *header;
 
@@ -936,7 +947,10 @@ status_t OMXNodeInstance::freeBuffer(
 
     removeActiveBuffer(portIndex, buffer);
 
-    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, portIndex);
+    if (header == NULL) {
+        return BAD_VALUE;
+    }
     BufferMeta *buffer_meta = static_cast<BufferMeta *>(header->pAppPrivate);
 
     OMX_ERRORTYPE err = OMX_FreeBuffer(mHandle, portIndex, header);
@@ -952,7 +966,10 @@ status_t OMXNodeInstance::freeBuffer(
 status_t OMXNodeInstance::fillBuffer(OMX::buffer_id buffer) {
     Mutex::Autolock autoLock(mLock);
 
-    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, kPortIndexOutput);
+    if (header == NULL) {
+        return BAD_VALUE;
+    }
     header->nFilledLen = 0;
     header->nOffset = 0;
     header->nFlags = 0;
@@ -978,7 +995,10 @@ status_t OMXNodeInstance::emptyBuffer(
         OMX_U32 flags, OMX_TICKS timestamp) {
     Mutex::Autolock autoLock(mLock);
 
-    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer);
+    OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, kPortIndexInput);
+    if (header == NULL) {
+        return BAD_VALUE;
+    }
     // rangeLength and rangeOffset must be a subset of the allocated data in the buffer.
     // corner case: we permit rangeOffset == end-of-buffer with rangeLength == 0.
     if (rangeOffset > header->nAllocLen
@@ -1168,7 +1188,10 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
 
     if (msg.type == omx_message::FILL_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
-            findBufferHeader(msg.u.extended_buffer_data.buffer);
+            findBufferHeader(msg.u.extended_buffer_data.buffer, kPortIndexOutput);
+        if (buffer == NULL) {
+            return;
+        }
 
         {
             Mutex::Autolock _l(mDebugLock);
@@ -1196,7 +1219,10 @@ void OMXNodeInstance::onMessage(const omx_message &msg) {
         }
     } else if (msg.type == omx_message::EMPTY_BUFFER_DONE) {
         OMX_BUFFERHEADERTYPE *buffer =
-            findBufferHeader(msg.u.buffer_data.buffer);
+            findBufferHeader(msg.u.buffer_data.buffer, kPortIndexInput);
+        if (buffer == NULL) {
+            return;
+        }
 
         {
             Mutex::Autolock _l(mDebugLock);
@@ -1377,12 +1403,26 @@ OMX::buffer_id OMXNodeInstance::makeBufferID(OMX_BUFFERHEADERTYPE *bufferHeader)
     return buffer;
 }
 
-OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(OMX::buffer_id buffer) {
+OMX_BUFFERHEADERTYPE *OMXNodeInstance::findBufferHeader(
+        OMX::buffer_id buffer, OMX_U32 portIndex) {
     if (buffer == 0) {
         return NULL;
     }
     Mutex::Autolock autoLock(mBufferIDLock);
-    return mBufferIDToBufferHeader.valueFor(buffer);
+    ssize_t index = mBufferIDToBufferHeader.indexOfKey(buffer);
+    if (index < 0) {
+        ALOGW("findBufferHeader: buffer %u not found", buffer);
+        return NULL;
+    }
+    OMX_BUFFERHEADERTYPE *header = mBufferIDToBufferHeader.valueAt(index);
+    BufferMeta *buffer_meta =
+        static_cast<BufferMeta *>(header->pAppPrivate);
+    if (buffer_meta->getPortIndex() != portIndex) {
+        ALOGW("findBufferHeader: buffer %u found but with incorrect port index.", buffer);
+        android_errorWriteLog(0x534e4554, "28816827");
+        return NULL;
+    }
+    return header;
 }
 
 OMX::buffer_id OMXNodeInstance::findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader) {
