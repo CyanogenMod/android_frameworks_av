@@ -68,11 +68,16 @@ public:
         mMemory = mem;
     }
 
-    // Decrements the reference count and returns the buffer to its
-    // associated MediaBufferGroup if the reference count drops to 0.
+    // If MediaBufferGroup is set, decrement the local reference count;
+    // if the local reference count drops to 0, return the buffer to the
+    // associated MediaBufferGroup.
+    //
+    // If no MediaBufferGroup is set, the local reference count must be zero
+    // when called, whereupon the MediaBuffer is deleted.
     virtual void release();
 
-    // Increments the reference count.
+    // Increments the local reference count.
+    // Use only when MediaBufferGroup is set.
     virtual void add_ref();
 
     void *data() const;
@@ -97,7 +102,28 @@ public:
     // MetaData.
     MediaBuffer *clone();
 
-    int refcount() const;
+    // sum of localRefcount() and remoteRefcount()
+    int refcount() const {
+        return localRefcount() + remoteRefcount();
+    }
+
+    int localRefcount() const {
+        return mRefCount;
+    }
+
+    int remoteRefcount() const {
+        if (mMemory.get() == nullptr || mMemory->pointer() == nullptr) return 0;
+        int32_t remoteRefcount =
+                reinterpret_cast<SharedControl *>(mMemory->pointer())->getRemoteRefcount();
+        // Sanity check so that remoteRefCount() is non-negative.
+        return remoteRefcount >= 0 ? remoteRefcount : 0; // do not allow corrupted data.
+    }
+
+    // returns old value
+    int addRemoteRefcount(int32_t value) {
+        if (mMemory.get() == nullptr || mMemory->pointer() == nullptr) return 0;
+        return reinterpret_cast<SharedControl *>(mMemory->pointer())->addRemoteRefcount(value);
+    }
 
     bool isDeadObject() const {
         return isDeadObject(mMemory);
@@ -117,25 +143,6 @@ public:
     }
 
 protected:
-    // MediaBuffer remote releases are handled through a
-    // pending release count variable stored in a SharedControl block
-    // at the start of the IMemory.
-
-    // Returns old value of pending release count.
-    inline int32_t addPendingRelease(int32_t value) {
-        return getSharedControl()->addPendingRelease(value);
-    }
-
-    // Issues all pending releases (works in parallel).
-    // Assumes there is a MediaBufferObserver.
-    inline void resolvePendingRelease() {
-        if (mMemory.get() == nullptr) return;
-        while (addPendingRelease(-1) > 0) {
-            release();
-        }
-        addPendingRelease(1);
-    }
-
     // true if MediaBuffer is observed (part of a MediaBufferGroup).
     inline bool isObserved() const {
         return mObserver != nullptr;
@@ -181,18 +188,18 @@ private:
         };
 
         // returns old value
-        inline int32_t addPendingRelease(int32_t value) {
+        inline int32_t addRemoteRefcount(int32_t value) {
             return std::atomic_fetch_add_explicit(
-                    &mPendingRelease, (int_least32_t)value, std::memory_order_seq_cst);
+                    &mRemoteRefcount, (int_least32_t)value, std::memory_order_seq_cst);
         }
 
-        inline int32_t getPendingRelease() const {
-            return std::atomic_load_explicit(&mPendingRelease, std::memory_order_seq_cst);
+        inline int32_t getRemoteRefcount() const {
+            return std::atomic_load_explicit(&mRemoteRefcount, std::memory_order_seq_cst);
         }
 
-        inline void setPendingRelease(int32_t value) {
+        inline void setRemoteRefcount(int32_t value) {
             std::atomic_store_explicit(
-                    &mPendingRelease, (int_least32_t)value, std::memory_order_seq_cst);
+                    &mRemoteRefcount, (int_least32_t)value, std::memory_order_seq_cst);
         }
 
         inline bool isDeadObject() const {
@@ -209,13 +216,13 @@ private:
             std::atomic_store_explicit(
                     &mFlags, (int_least32_t)0, std::memory_order_seq_cst);
             std::atomic_store_explicit(
-                    &mPendingRelease, (int_least32_t)0, std::memory_order_seq_cst);
+                    &mRemoteRefcount, (int_least32_t)0, std::memory_order_seq_cst);
         }
 
     private:
         // Caution: atomic_int_fast32_t is 64 bits on LP64.
         std::atomic_int_least32_t mFlags;
-        std::atomic_int_least32_t mPendingRelease;
+        std::atomic_int_least32_t mRemoteRefcount;
         int32_t unused[6]; // additional buffer space
     };
 
