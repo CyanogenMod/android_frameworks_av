@@ -21,6 +21,7 @@
 #include "OMX.h"
 
 #include <utils/RefBase.h>
+#include <utils/SortedVector.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -64,7 +65,7 @@ struct OMXNodeInstance {
 
     status_t useBuffer(
             OMX_U32 portIndex, const sp<IMemory> &params,
-            OMX::buffer_id *buffer);
+            OMX::buffer_id *buffer, OMX_BOOL crossProcess);
 
     status_t useGraphicBuffer(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
@@ -85,7 +86,7 @@ struct OMXNodeInstance {
 
     status_t allocateBufferWithBackup(
             OMX_U32 portIndex, const sp<IMemory> &params,
-            OMX::buffer_id *buffer);
+            OMX::buffer_id *buffer, OMX_BOOL crossProcess);
 
     status_t freeBuffer(OMX_U32 portIndex, OMX::buffer_id buffer);
 
@@ -129,6 +130,9 @@ private:
     OMX_HANDLETYPE mHandle;
     sp<IOMXObserver> mObserver;
     bool mDying;
+    bool mSailed;  // configuration is set (no more meta-mode changes)
+    bool mQueriedProhibitedExtensions;
+    SortedVector<OMX_INDEXTYPE> mProhibitedExtensions;
     bool mIsSecure;
 
     // Lock only covers mGraphicBufferSource.  We can't always use mLock
@@ -144,11 +148,17 @@ private:
     };
     Vector<ActiveBuffer> mActiveBuffers;
 
+    // metadata mode tracking
+    bool mUsingMetadata[2];
+
     ~OMXNodeInstance();
 
     void addActiveBuffer(OMX_U32 portIndex, OMX::buffer_id id);
     void removeActiveBuffer(OMX_U32 portIndex, OMX::buffer_id id);
     void freeActiveBuffers();
+
+    bool isProhibitedIndex_l(OMX_INDEXTYPE index);
+
     status_t useGraphicBuffer2_l(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,
             OMX::buffer_id *buffer);
