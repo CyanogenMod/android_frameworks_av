@@ -93,26 +93,34 @@ static const OMX_U32 kPortIndexOutput = 1;
 namespace android {
 
 struct BufferMeta {
-    BufferMeta(const sp<IMemory> &mem, OMX_U32 portIndex, bool is_backup = false)
+    BufferMeta(
+            const sp<IMemory> &mem, OMX_U32 portIndex, bool copyToOmx,
+            bool copyFromOmx, OMX_U8 *backup)
         : mMem(mem),
-          mIsBackup(is_backup),
-          mPortIndex(portIndex) {
+          mCopyFromOmx(copyFromOmx),
+          mCopyToOmx(copyToOmx),
+          mPortIndex(portIndex),
+          mBackup(backup) {
     }
 
     BufferMeta(size_t size, OMX_U32 portIndex)
         : mSize(size),
-          mIsBackup(false),
-          mPortIndex(portIndex) {
+          mCopyFromOmx(false),
+          mCopyToOmx(false),
+          mPortIndex(portIndex),
+          mBackup(NULL) {
     }
 
     BufferMeta(const sp<GraphicBuffer> &graphicBuffer, OMX_U32 portIndex)
         : mGraphicBuffer(graphicBuffer),
-          mIsBackup(false),
-          mPortIndex(portIndex) {
+          mCopyFromOmx(false),
+          mCopyToOmx(false),
+          mPortIndex(portIndex),
+          mBackup(NULL) {
     }
 
     void CopyFromOMX(const OMX_BUFFERHEADERTYPE *header) {
-        if (!mIsBackup) {
+        if (!mCopyFromOmx) {
             return;
         }
 
@@ -123,7 +131,7 @@ struct BufferMeta {
     }
 
     void CopyToOMX(const OMX_BUFFERHEADERTYPE *header) {
-        if (!mIsBackup) {
+        if (!mCopyToOmx) {
             return;
         }
 
@@ -163,13 +171,19 @@ struct BufferMeta {
         return mPortIndex;
     }
 
+    ~BufferMeta() {
+        delete[] mBackup;
+    }
+
 private:
     sp<GraphicBuffer> mGraphicBuffer;
     sp<NativeHandle> mNativeHandle;
     sp<IMemory> mMem;
     size_t mSize;
-    bool mIsBackup;
+    bool mCopyFromOmx;
+    bool mCopyToOmx;
     OMX_U32 mPortIndex;
+    OMX_U8 *mBackup;
 
     BufferMeta(const BufferMeta &);
     BufferMeta &operator=(const BufferMeta &);
@@ -196,6 +210,8 @@ OMXNodeInstance::OMXNodeInstance(
       mHandle(NULL),
       mObserver(observer),
       mDying(false),
+      mSailed(false),
+      mQueriedProhibitedExtensions(false),
       mBufferIDCount(0)
 {
     mName = ADebug::GetDebugName(name);
@@ -355,7 +371,12 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
-    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+    if (cmd == OMX_CommandStateSet) {
+        // We do not support returning from unloaded state, so there are no configurations past
+        // first StateSet command.
+        mSailed = true;
+    }
+    const sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
     if (bufferSource != NULL && cmd == OMX_CommandStateSet) {
         if (param == OMX_StateIdle) {
             // Initiating transition from Executing -> Idle
@@ -388,9 +409,56 @@ status_t OMXNodeInstance::sendCommand(
     return StatusFromOMXError(err);
 }
 
+bool OMXNodeInstance::isProhibitedIndex_l(OMX_INDEXTYPE index) {
+    // these extensions can only be used from OMXNodeInstance, not by clients directly.
+    static const char *restricted_extensions[] = {
+        "OMX.google.android.index.storeMetaDataInBuffers",
+        "OMX.google.android.index.storeANWBufferInMetadata",
+        "OMX.google.android.index.prepareForAdaptivePlayback",
+        "OMX.google.android.index.configureVideoTunnelMode",
+        "OMX.google.android.index.useAndroidNativeBuffer2",
+        "OMX.google.android.index.useAndroidNativeBuffer",
+        "OMX.google.android.index.enableAndroidNativeBuffers",
+        "OMX.google.android.index.allocateNativeHandle",
+        "OMX.google.android.index.getAndroidNativeBufferUsage",
+    };
+
+    if ((index > OMX_IndexComponentStartUnused && index <= OMX_IndexParamStandardComponentRole)
+            || (index > OMX_IndexPortStartUnused && index <= OMX_IndexParamCompBufferSupplier)
+            || (index > OMX_IndexAudioStartUnused && index <= OMX_IndexConfigAudioChannelVolume)
+            || (index > OMX_IndexVideoStartUnused && index <= OMX_IndexConfigVideoNalSize)
+            || (index > OMX_IndexCommonStartUnused
+                    && index <= OMX_IndexConfigCommonTransitionEffect)
+            || (index > (OMX_INDEXTYPE)OMX_IndexExtAudioStartUnused
+                    && index <= (OMX_INDEXTYPE)OMX_IndexParamAudioProfileQuerySupported)
+            || (index > (OMX_INDEXTYPE)OMX_IndexExtVideoStartUnused
+                    && index <= (OMX_INDEXTYPE)OMX_IndexConfigAndroidVideoTemporalLayering)
+            || (index > (OMX_INDEXTYPE)OMX_IndexExtOtherStartUnused
+                    && index <= (OMX_INDEXTYPE)OMX_IndexParamConsumerUsageBits)) {
+        return false;
+    }
+
+    if (!mQueriedProhibitedExtensions) {
+        for (size_t i = 0; i < NELEM(restricted_extensions); ++i) {
+            OMX_INDEXTYPE ext;
+            if (OMX_GetExtensionIndex(mHandle, (OMX_STRING)restricted_extensions[i], &ext) == OMX_ErrorNone) {
+                mProhibitedExtensions.add(ext);
+            }
+        }
+        mQueriedProhibitedExtensions = true;
+    }
+
+    return mProhibitedExtensions.indexOf(index) >= 0;
+}
+
 status_t OMXNodeInstance::getParameter(
         OMX_INDEXTYPE index, void *params, size_t /* size */) {
     Mutex::Autolock autoLock(mLock);
+
+    if (isProhibitedIndex_l(index)) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return BAD_INDEX;
+    }
 
     OMX_ERRORTYPE err = OMX_GetParameter(mHandle, index, params);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
@@ -407,6 +475,11 @@ status_t OMXNodeInstance::setParameter(
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     CLOG_CONFIG(setParameter, "%s(%#x), %zu@%p)", asString(extIndex), index, size, params);
 
+    if (isProhibitedIndex_l(index)) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return BAD_INDEX;
+    }
+
     OMX_ERRORTYPE err = OMX_SetParameter(
             mHandle, index, const_cast<void *>(params));
     CLOG_IF_ERROR(setParameter, err, "%s(%#x)", asString(extIndex), index);
@@ -416,6 +489,11 @@ status_t OMXNodeInstance::setParameter(
 status_t OMXNodeInstance::getConfig(
         OMX_INDEXTYPE index, void *params, size_t /* size */) {
     Mutex::Autolock autoLock(mLock);
+
+    if (isProhibitedIndex_l(index)) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return BAD_INDEX;
+    }
 
     OMX_ERRORTYPE err = OMX_GetConfig(mHandle, index, params);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
@@ -431,6 +509,11 @@ status_t OMXNodeInstance::setConfig(
     Mutex::Autolock autoLock(mLock);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     CLOG_CONFIG(setConfig, "%s(%#x), %zu@%p)", asString(extIndex), index, size, params);
+
+    if (isProhibitedIndex_l(index)) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return BAD_INDEX;
+    }
 
     OMX_ERRORTYPE err = OMX_SetConfig(
             mHandle, index, const_cast<void *>(params));
@@ -534,6 +617,10 @@ status_t OMXNodeInstance::storeMetaDataInBuffers(
 
 status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type) {
+    if (mSailed) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return INVALID_OPERATION;
+    }
     if (portIndex != kPortIndexInput && portIndex != kPortIndexOutput) {
         android_errorWriteLog(0x534e4554, "26324358");
         if (type != NULL) {
@@ -611,6 +698,10 @@ status_t OMXNodeInstance::prepareForAdaptivePlayback(
         OMX_U32 portIndex, OMX_BOOL enable, OMX_U32 maxFrameWidth,
         OMX_U32 maxFrameHeight) {
     Mutex::Autolock autolock(mLock);
+    if (mSailed) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return INVALID_OPERATION;
+    }
     CLOG_CONFIG(prepareForAdaptivePlayback, "%s:%u en=%d max=%ux%u",
             portString(portIndex), portIndex, enable, maxFrameWidth, maxFrameHeight);
 
@@ -641,6 +732,10 @@ status_t OMXNodeInstance::configureVideoTunnelMode(
         OMX_U32 portIndex, OMX_BOOL tunneled, OMX_U32 audioHwSync,
         native_handle_t **sidebandHandle) {
     Mutex::Autolock autolock(mLock);
+    if (mSailed) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return INVALID_OPERATION;
+    }
     CLOG_CONFIG(configureVideoTunnelMode, "%s:%u tun=%d sync=%u",
             portString(portIndex), portIndex, tunneled, audioHwSync);
 
@@ -688,21 +783,46 @@ status_t OMXNodeInstance::useBuffer(
     }
 
     Mutex::Autolock autoLock(mLock);
-    if (allottedSize > params->size()) {
+    if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
         return BAD_VALUE;
     }
 
-    BufferMeta *buffer_meta = new BufferMeta(params, portIndex);
+    // metadata buffers are not connected cross process
+    // use a backup buffer instead of the actual buffer
+    BufferMeta *buffer_meta;
+    bool useBackup = mMetadataType[portIndex] != kMetadataBufferTypeInvalid;
+    OMX_U8 *data = static_cast<OMX_U8 *>(params->pointer());
+    // allocate backup buffer
+    if (useBackup) {
+        data = new (std::nothrow) OMX_U8[allottedSize];
+        if (data == NULL) {
+            return NO_MEMORY;
+        }
+        memset(data, 0, allottedSize);
+
+        // if we are not connecting the buffers, the sizes must match
+        if (allottedSize != params->size()) {
+            CLOG_ERROR(useBuffer, BAD_VALUE, SIMPLE_BUFFER(portIndex, (size_t)allottedSize, data));
+            delete[] data;
+            return BAD_VALUE;
+        }
+
+        buffer_meta = new BufferMeta(
+                params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, data);
+    } else {
+        buffer_meta = new BufferMeta(
+                params, portIndex, false /* copyFromOmx */, false /* copyToOmx */, NULL);
+    }
 
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
-            allottedSize, static_cast<OMX_U8 *>(params->pointer()));
+            allottedSize, data);
 
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
-                portIndex, (size_t)allottedSize, params->pointer()));
+                portIndex, (size_t)allottedSize, data));
 
         delete buffer_meta;
         buffer_meta = NULL;
@@ -901,7 +1021,7 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
     // update backup buffer for input, codec buffer for output
     return updateGraphicBufferInMeta_l(
             portIndex, graphicBuffer, buffer, header,
-            portIndex == kPortIndexOutput /* updateCodecBuffer */);
+            true /* updateCodecBuffer */);
 }
 
 status_t OMXNodeInstance::updateNativeHandleInMeta(
@@ -921,7 +1041,7 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
     // update backup buffer for input, codec buffer for output
     sp<ABuffer> data = bufferMeta->getBuffer(
-            header, portIndex == kPortIndexInput /* backup */, false /* limit */);
+            header, false /* backup */, false /* limit */);
     bufferMeta->setNativeHandle(nativeHandle);
     if (mMetadataType[portIndex] == kMetadataBufferTypeNativeHandleSource
             && data->capacity() >= sizeof(VideoNativeHandleMetadata)) {
@@ -945,7 +1065,16 @@ status_t OMXNodeInstance::createGraphicBufferSource(
         OMX_U32 portIndex, sp<IGraphicBufferConsumer> bufferConsumer, MetadataBufferType *type) {
     status_t err;
 
-    const sp<GraphicBufferSource>& surfaceCheck = getGraphicBufferSource();
+    // only allow graphic source on input port, when there are no allocated buffers yet
+    if (portIndex != kPortIndexInput) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return BAD_VALUE;
+    } else if (mNumPortBuffers[portIndex] > 0) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return INVALID_OPERATION;
+    }
+
+    const sp<GraphicBufferSource> surfaceCheck = getGraphicBufferSource();
     if (surfaceCheck != NULL) {
         if (portIndex < NELEM(mMetadataType) && type != NULL) {
             *type = mMetadataType[portIndex];
@@ -1141,11 +1270,18 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     }
 
     Mutex::Autolock autoLock(mLock);
-    if (allottedSize > params->size()) {
+    if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
         return BAD_VALUE;
     }
 
-    BufferMeta *buffer_meta = new BufferMeta(params, portIndex, true);
+    // metadata buffers are not connected cross process; only copy if not meta
+    bool copy = mMetadataType[portIndex] == kMetadataBufferTypeInvalid;
+
+    BufferMeta *buffer_meta = new BufferMeta(
+            params, portIndex,
+            (portIndex == kPortIndexInput) && copy /* copyToOmx */,
+            (portIndex == kPortIndexOutput) && copy /* copyFromOmx */,
+            NULL /* data */);
 
     OMX_BUFFERHEADERTYPE *header;
 
@@ -1163,6 +1299,7 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     }
 
     CHECK_EQ(header->pAppPrivate, buffer_meta);
+    memset(header->pBuffer, 0, header->nAllocLen);
 
     *buffer = makeBufferID(header);
 
@@ -1242,6 +1379,12 @@ status_t OMXNodeInstance::emptyBuffer(
         OMX_U32 rangeOffset, OMX_U32 rangeLength,
         OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
     Mutex::Autolock autoLock(mLock);
+
+    // no emptybuffer if using input surface
+    if (getGraphicBufferSource() != NULL) {
+        android_errorWriteLog(0x534e4554, "29422020");
+        return INVALID_OPERATION;
+    }
 
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, kPortIndexInput);
     if (header == NULL) {
