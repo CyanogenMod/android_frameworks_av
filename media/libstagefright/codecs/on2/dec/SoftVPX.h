@@ -66,6 +66,7 @@ private:
     status_t initDecoder();
     status_t destroyDecoder();
     bool outputBuffers(bool flushDecoder, bool display, bool eos, bool *portWillReset);
+    bool outputBufferSafe(OMX_BUFFERHEADERTYPE *outHeader);
 
     DISALLOW_EVIL_CONSTRUCTORS(SoftVPX);
 };

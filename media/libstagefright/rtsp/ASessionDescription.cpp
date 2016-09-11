@@ -17,6 +17,7 @@
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ASessionDescription"
 #include <utils/Log.h>
+#include <cutils/log.h>
 
 #include "ASessionDescription.h"
 
@@ -211,12 +212,12 @@ void ASessionDescription::getFormatType(
 
     *PT = x;
 
-    char key[20];
-    sprintf(key, "a=rtpmap:%lu", x);
+    char key[32];
+    snprintf(key, sizeof(key), "a=rtpmap:%lu", x);
 
     CHECK(findAttribute(index, key, desc));
 
-    sprintf(key, "a=fmtp:%lu", x);
+    snprintf(key, sizeof(key), "a=fmtp:%lu", x);
     if (!findAttribute(index, key, params)) {
         params->clear();
     }
@@ -228,8 +229,11 @@ bool ASessionDescription::getDimensions(
     *width = 0;
     *height = 0;
 
-    char key[20];
-    sprintf(key, "a=framesize:%lu", PT);
+    char key[33];
+    snprintf(key, sizeof(key), "a=framesize:%lu", PT);
+    if (PT > 9999999) {
+        android_errorWriteLog(0x534e4554, "25747670");
+    }
     AString value;
     if (!findAttribute(index, key, &value)) {
         return false;
