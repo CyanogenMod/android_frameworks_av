@@ -827,11 +827,11 @@ int64_t GraphicBufferSource::getTimestamp(const BufferItem &item) {
                 int64_t timestampGapUs = originalTimeUs - mPrevOriginalTimeUs;
                 timeUs = (timestampGapUs < mMaxTimestampGapUs ?
                     timestampGapUs : mMaxTimestampGapUs) + mPrevModifiedTimeUs;
-                mOriginalTimeUs.add(timeUs, originalTimeUs);
-                ALOGV("IN  timestamp: %lld -> %lld",
-                    static_cast<long long>(originalTimeUs),
-                    static_cast<long long>(timeUs));
             }
+            mOriginalTimeUs.add(timeUs, originalTimeUs);
+            ALOGV("IN  timestamp: %lld -> %lld",
+                static_cast<long long>(originalTimeUs),
+                static_cast<long long>(timeUs));
         }
 
         mPrevOriginalTimeUs = originalTimeUs;
