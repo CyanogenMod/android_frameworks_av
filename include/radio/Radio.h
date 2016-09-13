@@ -75,7 +75,7 @@ public:
 private:
             Radio(radio_handle_t handle,
                             const sp<RadioCallback>&);
-            static const sp<IRadioService>& getRadioService();
+            static const sp<IRadioService> getRadioService();
 
             Mutex                   mLock;
             sp<IRadio>              mIRadio;
