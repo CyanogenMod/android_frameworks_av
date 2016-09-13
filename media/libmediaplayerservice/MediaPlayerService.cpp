@@ -237,7 +237,8 @@ void unmarshallAudioAttributes(const Parcel& parcel, audio_attributes_t *attribu
             // copying array size -1, array for tags was calloc'd, no need to NULL-terminate it
             size_t tagSize = realTagSize > AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1 ?
                     AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1 : realTagSize;
-            utf16_to_utf8(tags.string(), tagSize, attributes->tags);
+            utf16_to_utf8(tags.string(), tagSize, attributes->tags,
+                    sizeof(attributes->tags) / sizeof(attributes->tags[0]));
         }
     } else {
         ALOGE("unmarshallAudioAttributes() received unflattened tags, ignoring tag values");
