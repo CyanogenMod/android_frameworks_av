@@ -4209,6 +4209,16 @@ status_t ACodec::getPortFormat(OMX_U32 portIndex, sp<AMessage> &notify) {
                         rect.nWidth = videoDef->nFrameWidth;
                         rect.nHeight = videoDef->nFrameHeight;
                     }
+#ifdef MTK_HARDWARE
+                    if (!strncmp(mComponentName.c_str(), "OMX.MTK.", 8) && mOMX->getConfig(
+                            mNode, (OMX_INDEXTYPE) 0x7f00001c /* OMX_IndexVendorMtkOmxVdecGetCropInfo */,
+                            &rect, sizeof(rect)) != OK) {
+                        rect.nLeft = 0;
+                        rect.nTop = 0;
+                        rect.nWidth = videoDef->nFrameWidth;
+                        rect.nHeight = videoDef->nFrameHeight;
+                    }
+#endif
 
                     if (rect.nLeft < 0 ||
                         rect.nTop < 0 ||
