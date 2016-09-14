@@ -372,8 +372,7 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
     if (cmd == OMX_CommandStateSet) {
-        // We do not support returning from unloaded state, so there are no configurations past
-        // first StateSet command.
+        // There are no configurations past first StateSet command.
         mSailed = true;
     }
     const sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
@@ -1843,6 +1842,13 @@ void OMXNodeInstance::onEvent(
             && arg1 == OMX_CommandStateSet
             && arg2 == OMX_StateExecuting) {
         bufferSource->omxExecuting();
+    }
+
+    // allow configuration if we return to the loaded state
+    if (event == OMX_EventCmdComplete
+            && arg1 == OMX_CommandStateSet
+            && arg2 == OMX_StateLoaded) {
+        mSailed = false;
     }
 }
 
