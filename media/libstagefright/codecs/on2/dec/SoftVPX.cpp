@@ -156,7 +156,7 @@ bool SoftVPX::outputBuffers(bool flushDecoder, bool display, bool eos, bool *por
         outHeader->nFlags = 0;
         outHeader->nFilledLen = (outputBufferWidth() * outputBufferHeight() * 3) / 2;
         outHeader->nTimeStamp = *(OMX_TICKS *)mImg->user_priv;
-        if (outHeader->nAllocLen >= outHeader->nFilledLen) {
+        if (outputBufferSafe(outHeader)) {
             uint8_t *dst = outHeader->pBuffer;
             const uint8_t *srcY = (const uint8_t *)mImg->planes[VPX_PLANE_Y];
             const uint8_t *srcU = (const uint8_t *)mImg->planes[VPX_PLANE_U];
@@ -166,8 +166,6 @@ bool SoftVPX::outputBuffers(bool flushDecoder, bool display, bool eos, bool *por
             size_t srcVStride = mImg->stride[VPX_PLANE_V];
             copyYV12FrameToOutputBuffer(dst, srcY, srcU, srcV, srcYStride, srcUStride, srcVStride);
         } else {
-            ALOGE("b/27597103, buffer too small");
-            android_errorWriteLog(0x534e4554, "27597103");
             outHeader->nFilledLen = 0;
         }
 
@@ -194,6 +192,25 @@ bool SoftVPX::outputBuffers(bool flushDecoder, bool display, bool eos, bool *por
         notifyFillBufferDone(outHeader);
         mEOSStatus = OUTPUT_FRAMES_FLUSHED;
     }
+    return true;
+}
+
+bool SoftVPX::outputBufferSafe(OMX_BUFFERHEADERTYPE *outHeader) {
+    uint32_t width = outputBufferWidth();
+    uint32_t height = outputBufferHeight();
+    uint64_t nFilledLen = width;
+    nFilledLen *= height;
+    if (nFilledLen > UINT32_MAX / 3) {
+        ALOGE("b/29421675, nFilledLen overflow %llu w %u h %u",
+                (unsigned long long)nFilledLen, width, height);
+        android_errorWriteLog(0x534e4554, "29421675");
+        return false;
+    } else if (outHeader->nAllocLen < outHeader->nFilledLen) {
+        ALOGE("b/27597103, buffer too small");
+        android_errorWriteLog(0x534e4554, "27597103");
+        return false;
+    }
+
     return true;
 }
 

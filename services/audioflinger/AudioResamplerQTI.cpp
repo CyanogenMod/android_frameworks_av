@@ -100,6 +100,7 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
 
             if (frameIndex >= mBuffer.frameCount) {
                 provider->releaseBuffer(&mBuffer);
+                mInputIndex = 0;
             }
         }
 
@@ -126,6 +127,7 @@ size_t AudioResamplerQTI::resample(int32_t* out, size_t outFrameCount,
             pBuf[index++] = clampq4_27_from_float(*((float *)mBuffer.raw + frameIndex++));
             if (frameIndex >= mBuffer.frameCount * 2) {
                 provider->releaseBuffer(&mBuffer);
+                mInputIndex = 0;
             }
        }
 
@@ -142,6 +144,10 @@ resample_exit:
         fout[i+1] += float_from_q4_27((int32_t)(tempR>>12));
     }
 
+    // save the unreleased frame count to mInputIndex
+    if (mBuffer.frameCount) {
+        mInputIndex = mChannelCount == 1 ? frameIndex : frameIndex/2;
+    }
     mFrameIndex = frameIndex;
     return index;
 }
