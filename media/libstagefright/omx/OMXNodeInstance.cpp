@@ -365,8 +365,8 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
     if (cmd == OMX_CommandStateSet && param != OMX_StateIdle) {
-        // We do not support returning from unloaded state, so there are no configurations past
-        // first StateSet command. However, OMXCodec supports meta configuration past Stateset:Idle.
+        // Normally there are no configurations past first StateSet; however, OMXCodec supports
+        // meta configuration past Stateset:Idle.
         mSailed = true;
     }
     const sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
@@ -758,7 +758,7 @@ status_t OMXNodeInstance::useBuffer(
                 params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, data);
     } else {
         buffer_meta = new BufferMeta(
-                params, portIndex, false /* copyFromOmx */, false /* copyToOmx */, NULL);
+                params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, NULL);
     }
 
     OMX_BUFFERHEADERTYPE *header;
@@ -1470,6 +1470,13 @@ void OMXNodeInstance::onEvent(
             && arg1 == OMX_CommandStateSet
             && arg2 == OMX_StateExecuting) {
         bufferSource->omxExecuting();
+    }
+
+    // allow configuration if we return to the loaded state
+    if (event == OMX_EventCmdComplete
+            && arg1 == OMX_CommandStateSet
+            && arg2 == OMX_StateLoaded) {
+        mSailed = false;
     }
 }
 
