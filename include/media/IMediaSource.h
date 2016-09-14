@@ -89,7 +89,7 @@ public:
         SeekMode mSeekMode;
         int64_t mLatenessUs;
         bool mNonBlocking;
-    };
+    } __attribute__((packed)); // sent through Binder
 
     // Returns a new buffer of data. Call blocks until a
     // buffer is available, an error is encountered or the end of the stream
