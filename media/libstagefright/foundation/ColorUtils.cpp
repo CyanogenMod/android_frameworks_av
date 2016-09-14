@@ -286,6 +286,7 @@ ALookup<int32_t, ColorAspects::Transfer> sIsoTransfers {
         { 15, ColorAspects::TransferSMPTE170M },
         { 16, ColorAspects::TransferST2084 },
         { 17, ColorAspects::TransferST428 },
+        { 18, ColorAspects::TransferHLG },
     }
 };
 
