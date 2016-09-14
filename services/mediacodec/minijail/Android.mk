@@ -19,7 +19,7 @@ ifneq (,$(wildcard $(BOARD_SECCOMP_POLICY)/mediacodec-seccomp.policy))
     LOCAL_SRC_FILES += $(BOARD_SECCOMP_POLICY)/mediacodec-seccomp.policy
 endif
 
-include $(BUILD_SYSTEM)/base_rules.mk
+#include $(BUILD_SYSTEM)/base_rules.mk
 
 $(LOCAL_BUILT_MODULE): $(LOCAL_SRC_FILES)
 	@mkdir -p $(dir $@)
