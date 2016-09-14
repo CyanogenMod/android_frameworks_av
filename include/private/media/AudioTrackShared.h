@@ -522,6 +522,12 @@ public:
         mTimestampMutator.push(timestamp);
     }
 
+    // Flushes the shared ring buffer if the client had requested it using mStreaming.mFlush.
+    // If flush occurs then:
+    //   cblk->u.mStreaming.mFront, ServerProxy::mFlush and ServerProxy::mFlushed will be modified
+    //   client will be notified via Futex
+    virtual void    flushBufferIfNeeded();
+
     // Total count of the number of flushed frames since creation (never reset).
     virtual int64_t     framesFlushed() const { return mFlushed; }
 

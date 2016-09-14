@@ -622,6 +622,56 @@ ServerProxy::ServerProxy(audio_track_cblk_t* cblk, void *buffers, size_t frameCo
 }
 
 __attribute__((no_sanitize("integer")))
+void ServerProxy::flushBufferIfNeeded()
+{
+    audio_track_cblk_t* cblk = mCblk;
+    // The acquire_load is not really required. But since the write is a release_store in the
+    // client, using acquire_load here makes it easier for people to maintain the code,
+    // and the logic for communicating ipc variables seems somewhat standard,
+    // and there really isn't much penalty for 4 or 8 byte atomics.
+    int32_t flush = android_atomic_acquire_load(&cblk->u.mStreaming.mFlush);
+    if (flush != mFlush) {
+        ALOGV("ServerProxy::flushBufferIfNeeded() mStreaming.mFlush = 0x%x, mFlush = 0x%0x",
+                flush, mFlush);
+        int32_t rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
+        int32_t front = cblk->u.mStreaming.mFront;
+
+        // effectively obtain then release whatever is in the buffer
+        const size_t overflowBit = mFrameCountP2 << 1;
+        const size_t mask = overflowBit - 1;
+        int32_t newFront = (front & ~mask) | (flush & mask);
+        ssize_t filled = rear - newFront;
+        if (filled >= (ssize_t)overflowBit) {
+            // front and rear offsets span the overflow bit of the p2 mask
+            // so rebasing newFront on the front offset is off by the overflow bit.
+            // adjust newFront to match rear offset.
+            ALOGV("flush wrap: filled %zx >= overflowBit %zx", filled, overflowBit);
+            newFront += overflowBit;
+            filled -= overflowBit;
+        }
+        // Rather than shutting down on a corrupt flush, just treat it as a full flush
+        if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
+            ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, "
+                    "filled %zd=%#x",
+                    mFlush, flush, front, rear,
+                    (unsigned)mask, newFront, filled, (unsigned)filled);
+            newFront = rear;
+        }
+        mFlush = flush;
+        android_atomic_release_store(newFront, &cblk->u.mStreaming.mFront);
+        // There is no danger from a false positive, so err on the side of caution
+        if (true /*front != newFront*/) {
+            int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
+            if (!(old & CBLK_FUTEX_WAKE)) {
+                (void) syscall(__NR_futex, &cblk->mFutex,
+                        mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
+            }
+        }
+        mFlushed += (newFront - front) & mask;
+    }
+}
+
+__attribute__((no_sanitize("integer")))
 status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
 {
     LOG_ALWAYS_FATAL_IF(buffer == NULL || buffer->mFrameCount == 0);
@@ -636,44 +686,9 @@ status_t ServerProxy::obtainBuffer(Buffer* buffer, bool ackFlush)
     int32_t rear;
     // See notes on barriers at ClientProxy::obtainBuffer()
     if (mIsOut) {
-        int32_t flush = cblk->u.mStreaming.mFlush;
+        flushBufferIfNeeded(); // might modify mFront
         rear = android_atomic_acquire_load(&cblk->u.mStreaming.mRear);
         front = cblk->u.mStreaming.mFront;
-        if (flush != mFlush) {
-            // effectively obtain then release whatever is in the buffer
-            const size_t overflowBit = mFrameCountP2 << 1;
-            const size_t mask = overflowBit - 1;
-            int32_t newFront = (front & ~mask) | (flush & mask);
-            ssize_t filled = rear - newFront;
-            if (filled >= (ssize_t)overflowBit) {
-                // front and rear offsets span the overflow bit of the p2 mask
-                // so rebasing newFront on the front offset is off by the overflow bit.
-                // adjust newFront to match rear offset.
-                ALOGV("flush wrap: filled %zx >= overflowBit %zx", filled, overflowBit);
-                newFront += overflowBit;
-                filled -= overflowBit;
-            }
-            // Rather than shutting down on a corrupt flush, just treat it as a full flush
-            if (!(0 <= filled && (size_t) filled <= mFrameCount)) {
-                ALOGE("mFlush %#x -> %#x, front %#x, rear %#x, mask %#x, newFront %#x, "
-                        "filled %zd=%#x",
-                        mFlush, flush, front, rear,
-                        (unsigned)mask, newFront, filled, (unsigned)filled);
-                newFront = rear;
-            }
-            mFlush = flush;
-            android_atomic_release_store(newFront, &cblk->u.mStreaming.mFront);
-            // There is no danger from a false positive, so err on the side of caution
-            if (true /*front != newFront*/) {
-                int32_t old = android_atomic_or(CBLK_FUTEX_WAKE, &cblk->mFutex);
-                if (!(old & CBLK_FUTEX_WAKE)) {
-                    (void) syscall(__NR_futex, &cblk->mFutex,
-                            mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE, 1);
-                }
-            }
-            mFlushed += (newFront - front) & mask;
-            front = newFront;
-        }
     } else {
         front = android_atomic_acquire_load(&cblk->u.mStreaming.mFront);
         rear = cblk->u.mStreaming.mRear;
