@@ -27,6 +27,7 @@
 #include "InitDataParser.h"
 
 #include "ClearKeyUUID.h"
+#include "MimeType.h"
 #include "Utils.h"
 
 namespace clearkeydrm {
@@ -41,16 +42,20 @@ namespace {
 }
 
 android::status_t InitDataParser::parse(const Vector<uint8_t>& initData,
-        const String8& initDataType,
+        const String8& type,
         Vector<uint8_t>* licenseRequest) {
     // Build a list of the key IDs
     Vector<const uint8_t*> keyIds;
-    if (initDataType == "cenc") {
+    if (type == kIsoBmffVideoMimeType ||
+        type == kIsoBmffAudioMimeType ||
+        type == kCencInitDataFormat) {
         android::status_t res = parsePssh(initData, &keyIds);
         if (res != android::OK) {
             return res;
         }
-    } else if (initDataType == "webm") {
+    } else if (type == kWebmVideoMimeType ||
+        type == kWebmAudioMimeType ||
+        type == kWebmInitDataFormat) {
         // WebM "init data" is just a single key ID
         if (initData.size() != kKeyIdSize) {
             return android::ERROR_DRM_CANNOT_HANDLE;

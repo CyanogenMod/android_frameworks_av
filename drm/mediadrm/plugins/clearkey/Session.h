@@ -38,7 +38,7 @@ public:
     const android::Vector<uint8_t>& sessionId() const { return mSessionId; }
 
     android::status_t getKeyRequest(
-            const android::Vector<uint8_t>& initData,
+            const android::Vector<uint8_t>& mimeType,
             const android::String8& initDataType,
             android::Vector<uint8_t>* keyRequest) const;
 
