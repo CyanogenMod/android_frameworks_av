@@ -4939,6 +4939,18 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                         audio_devices_t device)
 {
     float volumeDB = mVolumeCurves->volIndexToDb(stream, Volume::getDeviceCategory(device), index);
+
+    // handle the case of accessibility active while a ringtone is playing: if the ringtone is much
+    // louder than the accessibility prompt, the prompt cannot be heard, thus masking the touch
+    // exploration of the dialer UI. In this situation, bring the accessibility volume closer to
+    // the ringtone volume
+    if ((stream == AUDIO_STREAM_ACCESSIBILITY)
+            && (AUDIO_MODE_RINGTONE == mEngine->getPhoneState())
+            && isStreamActive(AUDIO_STREAM_RING, 0)) {
+        const float ringVolumeDB = computeVolume(AUDIO_STREAM_RING, index, device);
+        return ringVolumeDB - 4 > volumeDB ? ringVolumeDB - 4 : volumeDB;
+    }
+
     // if a headset is connected, apply the following rules to ring tones and notifications
     // to avoid sound level bursts in user's ears:
     // - always attenuate notifications volume by 6dB
