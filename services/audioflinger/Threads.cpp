@@ -1272,6 +1272,12 @@ status_t AudioFlinger::RecordThread::checkEffectCompatibility_l(
                 desc->name, mThreadName);
         return BAD_VALUE;
     }
+
+    // always allow effects without processing load or latency
+    if ((desc->flags & EFFECT_FLAG_NO_PROCESS_MASK) == EFFECT_FLAG_NO_PROCESS) {
+        return NO_ERROR;
+    }
+
     audio_input_flags_t flags = mInput->flags;
     if (hasFastCapture() || (flags & AUDIO_INPUT_FLAG_FAST)) {
         if (flags & AUDIO_INPUT_FLAG_RAW) {
@@ -1327,6 +1333,11 @@ status_t AudioFlinger::PlaybackThread::checkEffectCompatibility_l(
                 if ((hasAudioSession_l(sessionId) & ThreadBase::FAST_SESSION) == 0) {
                     break;
                 }
+            }
+
+            // always allow effects without processing load or latency
+            if ((desc->flags & EFFECT_FLAG_NO_PROCESS_MASK) == EFFECT_FLAG_NO_PROCESS) {
+                break;
             }
             if (flags & AUDIO_OUTPUT_FLAG_RAW) {
                 ALOGW("checkEffectCompatibility_l(): effect %s on playback thread in raw mode",

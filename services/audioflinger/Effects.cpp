@@ -279,12 +279,29 @@ void AudioFlinger::EffectModule::process()
                                         mConfig.inputCfg.buffer.s32,
                                         mConfig.inputCfg.buffer.frameCount/2);
         }
+        int ret;
+        if (isProcessImplemented()) {
+            // do the actual processing in the effect engine
+            ret = (*mEffectInterface)->process(mEffectInterface,
+                                                   &mConfig.inputCfg.buffer,
+                                                   &mConfig.outputCfg.buffer);
+        } else {
+            if (mConfig.inputCfg.buffer.raw != mConfig.outputCfg.buffer.raw) {
+                size_t frameCnt = mConfig.inputCfg.buffer.frameCount * FCC_2;  //always stereo here
+                int16_t *in = mConfig.inputCfg.buffer.s16;
+                int16_t *out = mConfig.outputCfg.buffer.s16;
 
-        // do the actual processing in the effect engine
-        int ret = (*mEffectInterface)->process(mEffectInterface,
-                                               &mConfig.inputCfg.buffer,
-                                               &mConfig.outputCfg.buffer);
-
+                if (mConfig.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE) {
+                    for (size_t i = 0; i < frameCnt; i++) {
+                        out[i] = clamp16((int32_t)out[i] + (int32_t)in[i]);
+                    }
+                } else {
+                    memcpy(mConfig.outputCfg.buffer.raw, mConfig.inputCfg.buffer.raw,
+                           frameCnt * sizeof(int16_t));
+                }
+            }
+            ret = -ENODATA;
+        }
         // force transition to IDLE state when engine is ready
         if (mState == STOPPED && ret == -ENODATA) {
             mDisableWaitCnt = 1;
@@ -301,7 +318,7 @@ void AudioFlinger::EffectModule::process()
         // accumulate input onto output
         sp<EffectChain> chain = mChain.promote();
         if (chain != 0 && chain->activeTrackCnt() != 0) {
-            size_t frameCnt = mConfig.inputCfg.buffer.frameCount * 2;  //always stereo here
+            size_t frameCnt = mConfig.inputCfg.buffer.frameCount * FCC_2;  //always stereo here
             int16_t *in = mConfig.inputCfg.buffer.s16;
             int16_t *out = mConfig.outputCfg.buffer.s16;
             for (size_t i = 0; i < frameCnt; i++) {
