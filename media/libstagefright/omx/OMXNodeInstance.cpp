@@ -810,7 +810,7 @@ status_t OMXNodeInstance::useBuffer(
                 params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, data);
     } else {
         buffer_meta = new BufferMeta(
-                params, portIndex, false /* copyFromOmx */, false /* copyToOmx */, NULL);
+                params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, NULL);
     }
 
     OMX_BUFFERHEADERTYPE *header;
@@ -1038,7 +1038,7 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
     }
 
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
-    // update backup buffer for input, codec buffer for output
+    // update backup buffer
     sp<ABuffer> data = bufferMeta->getBuffer(
             header, false /* backup */, false /* limit */);
     bufferMeta->setNativeHandle(nativeHandle);
@@ -1392,23 +1392,11 @@ status_t OMXNodeInstance::emptyBuffer(
     }
     BufferMeta *buffer_meta =
         static_cast<BufferMeta *>(header->pAppPrivate);
-    sp<ABuffer> backup = buffer_meta->getBuffer(header, true /* backup */, false /* limit */);
-    sp<ABuffer> codec = buffer_meta->getBuffer(header, false /* backup */, false /* limit */);
 
-    // convert incoming ANW meta buffers if component is configured for gralloc metadata mode
-    // ignore rangeOffset in this case
-    if (mMetadataType[kPortIndexInput] == kMetadataBufferTypeGrallocSource
-            && backup->capacity() >= sizeof(VideoNativeMetadata)
-            && codec->capacity() >= sizeof(VideoGrallocMetadata)
-            && ((VideoNativeMetadata *)backup->base())->eType
-                    == kMetadataBufferTypeANWBuffer) {
-        VideoNativeMetadata &backupMeta = *(VideoNativeMetadata *)backup->base();
-        VideoGrallocMetadata &codecMeta = *(VideoGrallocMetadata *)codec->base();
-        CLOG_BUFFER(emptyBuffer, "converting ANWB %p to handle %p",
-                backupMeta.pBuffer, backupMeta.pBuffer->handle);
-        codecMeta.pHandle = backupMeta.pBuffer != NULL ? backupMeta.pBuffer->handle : NULL;
-        codecMeta.eType = kMetadataBufferTypeGrallocSource;
-        header->nFilledLen = rangeLength ? sizeof(codecMeta) : 0;
+    // set up proper filled length if component is configured for gralloc metadata mode
+    // ignore rangeOffset in this case (as client may be assuming ANW meta buffers).
+    if (mMetadataType[kPortIndexInput] == kMetadataBufferTypeGrallocSource) {
+        header->nFilledLen = rangeLength ? sizeof(VideoGrallocMetadata) : 0;
         header->nOffset = 0;
     } else {
         // rangeLength and rangeOffset must be a subset of the allocated data in the buffer.
