@@ -530,6 +530,12 @@ status_t OMXNodeInstance::getState(OMX_STATETYPE* state) {
 
 status_t OMXNodeInstance::enableNativeBuffers(
         OMX_U32 portIndex, OMX_BOOL graphic, OMX_BOOL enable) {
+    if (portIndex >= NELEM(mSecureBufferType)) {
+        ALOGE("b/31385713, portIndex(%u)", portIndex);
+        android_errorWriteLog(0x534e4554, "31385713");
+        return BAD_VALUE;
+    }
+
     Mutex::Autolock autoLock(mLock);
     CLOG_CONFIG(enableNativeBuffers, "%s:%u%s, %d", portString(portIndex), portIndex,
                 graphic ? ", graphic" : "", enable);
@@ -1213,6 +1219,12 @@ status_t OMXNodeInstance::allocateSecureBuffer(
         void **buffer_data, sp<NativeHandle> *native_handle) {
     if (buffer == NULL || buffer_data == NULL || native_handle == NULL) {
         ALOGE("b/25884056");
+        return BAD_VALUE;
+    }
+
+    if (portIndex >= NELEM(mSecureBufferType)) {
+        ALOGE("b/31385713, portIndex(%u)", portIndex);
+        android_errorWriteLog(0x534e4554, "31385713");
         return BAD_VALUE;
     }
 
