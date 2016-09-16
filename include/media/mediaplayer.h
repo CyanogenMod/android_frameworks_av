@@ -30,7 +30,7 @@
 #include <utils/KeyedVector.h>
 #include <utils/String8.h>
 
-class ANativeWindow;
+struct ANativeWindow;
 
 namespace android {
 
