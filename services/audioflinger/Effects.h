@@ -119,6 +119,8 @@ public:
                         { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
     bool             isImplementationSoftware() const
                         { return (mDescriptor.flags & EFFECT_FLAG_HW_ACC_MASK) == 0; }
+    bool             isProcessImplemented() const
+                        { return (mDescriptor.flags & EFFECT_FLAG_NO_PROCESS) == 0; }
     status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
     bool             isOffloaded() const;
     void             addEffectToHal_l();
