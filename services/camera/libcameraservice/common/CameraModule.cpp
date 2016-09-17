@@ -39,9 +39,12 @@ void CameraModule::deriveCameraCharacteristicsKeys(
         data = ANDROID_CONTROL_AWB_LOCK_AVAILABLE_TRUE;
         chars.update(ANDROID_CONTROL_AWB_LOCK_AVAILABLE, &data, /*count*/1);
         controlModes.push(ANDROID_CONTROL_MODE_AUTO);
+
         camera_metadata_entry entry = chars.find(ANDROID_CONTROL_AVAILABLE_SCENE_MODES);
-        if (entry.count > 1 || entry.data.u8[0] != ANDROID_CONTROL_SCENE_MODE_DISABLED) {
-            controlModes.push(ANDROID_CONTROL_MODE_USE_SCENE_MODE);
+        if (entry.count > 0) {
+            if (entry.count > 1 || entry.data.u8[0] != ANDROID_CONTROL_SCENE_MODE_DISABLED) {
+                controlModes.push(ANDROID_CONTROL_MODE_USE_SCENE_MODE);
+            }
         }
 
         // Only advertise CONTROL_OFF mode if 3A manual controls are supported.
