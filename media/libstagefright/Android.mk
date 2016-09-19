@@ -154,7 +154,7 @@ LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 # FFMPEG plugin
 LOCAL_C_INCLUDES += $(TOP)/external/stagefright-plugins/include
 
-LOCAL_CFLAGS += -DLOG_NDEBUG=0
+#LOCAL_CFLAGS += -DLOG_NDEBUG=0
 LOCAL_MODULE:= libstagefright
 
 LOCAL_MODULE_TAGS := optional
