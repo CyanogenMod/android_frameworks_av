@@ -412,11 +412,11 @@ status_t BnMediaSource::onTransact(
                     reply->writeInt32(offset);
                     reply->writeInt32(length);
                     buf->meta_data()->writeToParcel(*reply);
-                    if (transferBuf == buf) {
-                        buf->addRemoteRefcount(1);
-                        if (!supportNonblockingRead()) {
-                            maxNumBuffers = 0; // stop readMultiple with one shared buffer.
-                        }
+                    transferBuf->addRemoteRefcount(1);
+                    if (transferBuf != buf) {
+                        transferBuf->release(); // release local ref
+                    } else if (!supportNonblockingRead()) {
+                        maxNumBuffers = 0; // stop readMultiple with one shared buffer.
                     }
                 } else {
                     ALOGV_IF(buf->mMemory != nullptr,
