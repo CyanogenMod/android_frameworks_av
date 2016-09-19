@@ -2481,12 +2481,16 @@ status_t MPEG4Writer::Track::threadEntry() {
             ALOGW("Recorded file size exceeds limit %" PRId64 "bytes",
                     mOwner->mMaxFileSizeLimitBytes);
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_FILESIZE_REACHED, 0);
+            copy->release();
+            mSource->stop();
             break;
         }
         if (mOwner->exceedsFileDurationLimit()) {
             ALOGW("Recorded file duration exceeds limit %" PRId64 "microseconds",
                     mOwner->mMaxFileDurationLimitUs);
             mOwner->notify(MEDIA_RECORDER_EVENT_INFO, MEDIA_RECORDER_INFO_MAX_DURATION_REACHED, 0);
+            copy->release();
+            mSource->stop();
             break;
         }
 
@@ -2507,6 +2511,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             int64_t durExcludingEarlierPausesUs = timestampUs - previousPausedDurationUs;
             if (WARN_UNLESS(durExcludingEarlierPausesUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
+                mSource->stop();
                 mIsMalformed = true;
                 break;
             }
@@ -2514,6 +2519,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             int64_t pausedDurationUs = durExcludingEarlierPausesUs - mTrackDurationUs;
             if (WARN_UNLESS(pausedDurationUs >= lastDurationUs, "for %s track", trackName)) {
                 copy->release();
+                mSource->stop();
                 mIsMalformed = true;
                 break;
             }
@@ -2525,6 +2531,7 @@ status_t MPEG4Writer::Track::threadEntry() {
         timestampUs -= previousPausedDurationUs;
         if (WARN_UNLESS(timestampUs >= 0ll, "for %s track", trackName)) {
             copy->release();
+            mSource->stop();
             mIsMalformed = true;
             break;
         }
@@ -2553,6 +2560,7 @@ status_t MPEG4Writer::Track::threadEntry() {
                     timestampUs + kMaxCttsOffsetTimeUs - decodingTimeUs;
             if (WARN_UNLESS(cttsOffsetTimeUs >= 0ll, "for %s track", trackName)) {
                 copy->release();
+                mSource->stop();
                 mIsMalformed = true;
                 break;
             }
@@ -2566,6 +2574,7 @@ status_t MPEG4Writer::Track::threadEntry() {
                     (cttsOffsetTimeUs * mTimeScale + 500000LL) / 1000000LL;
             if (WARN_UNLESS(currCttsOffsetTimeTicks <= 0x0FFFFFFFFLL, "for %s track", trackName)) {
                 copy->release();
+                mSource->stop();
                 mIsMalformed = true;
                 break;
             }
@@ -2609,6 +2618,7 @@ status_t MPEG4Writer::Track::threadEntry() {
 
         if (WARN_UNLESS(timestampUs >= 0ll, "for %s track", trackName)) {
             copy->release();
+            mSource->stop();
             mIsMalformed = true;
             break;
         }
