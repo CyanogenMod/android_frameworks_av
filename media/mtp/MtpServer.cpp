@@ -927,6 +927,10 @@ MtpResponseCode MtpServer::doSendObjectInfo() {
     if (!mData.getUInt32(temp32)) return MTP_RESPONSE_INVALID_PARAMETER;  // sequence number
     MtpStringBuffer name, created, modified;
     if (!mData.getString(name)) return MTP_RESPONSE_INVALID_PARAMETER;    // file name
+    if (name.getCharCount() == 0) {
+        ALOGE("empty name");
+        return MTP_RESPONSE_INVALID_PARAMETER;
+    }
     if (!mData.getString(created)) return MTP_RESPONSE_INVALID_PARAMETER;      // date created
     if (!mData.getString(modified)) return MTP_RESPONSE_INVALID_PARAMETER;     // date modified
     // keywords follow
