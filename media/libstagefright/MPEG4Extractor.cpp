@@ -54,6 +54,10 @@ namespace android {
 enum {
     // max track header chunk to return
     kMaxTrackHeaderSize = 32,
+
+    // maximum size of an atom. Some atoms can be bigger according to the spec,
+    // but we only allow up to this size.
+    kMaxAtomSize = 64 * 1024 * 1024,
 };
 
 class MPEG4Source : public MediaSource {
@@ -875,6 +879,13 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
     off64_t chunk_data_size = chunk_size - (data_offset - *offset);
     if (chunk_data_size < 0) {
         ALOGE("b/23540914");
+        return ERROR_MALFORMED;
+    }
+    if (chunk_type != FOURCC('m', 'd', 'a', 't') && chunk_data_size > kMaxAtomSize) {
+        char errMsg[100];
+        sprintf(errMsg, "%s atom has size %" PRId64, chunk, chunk_data_size);
+        ALOGE("%s (b/28615448)", errMsg);
+        android_errorWriteWithInfoLog(0x534e4554, "28615448", -1, errMsg, strlen(errMsg));
         return ERROR_MALFORMED;
     }
 
