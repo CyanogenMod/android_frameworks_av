@@ -1903,19 +1903,21 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
                 continue;
             }
             routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-            audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, true /*fromCache*/);
-            if ((curStreamDevice & device) == 0) {
+            audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, false /*fromCache*/);
+            if ((device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) &&
+                    ((curStreamDevice & device) == 0)) {
                 continue;
             }
-            bool applyDefault = false;
+            bool applyVolume;
             if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
                 curStreamDevice |= device;
-            } else if (!mVolumeCurves->hasVolumeIndexForDevice(
-                    stream, Volume::getDeviceForVolume(curStreamDevice))) {
-                applyDefault = true;
+                applyVolume = (curDevice & curStreamDevice) != 0;
+            } else {
+                applyVolume = !mVolumeCurves->hasVolumeIndexForDevice(
+                        stream, Volume::getDeviceForVolume(curStreamDevice));
             }
 
-            if (applyDefault || ((curDevice & curStreamDevice) != 0)) {
+            if (applyVolume) {
                 //FIXME: workaround for truncated touch sounds
                 // delayed volume change for system stream to be removed when the problem is
                 // handled by system UI
