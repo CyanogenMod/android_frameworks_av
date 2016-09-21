@@ -775,31 +775,35 @@ status_t BnOMX::onTransact(
                             // mark the last page as inaccessible, to avoid exploitation
                             // of codecs that access past the end of the allocation because
                             // they didn't check the size
-                            mprotect((char*)params + allocSize - pageSize, pageSize, PROT_NONE);
-                            switch (code) {
-                                case GET_PARAMETER:
-                                    err = getParameter(node, index, params, size);
-                                    break;
-                                case SET_PARAMETER:
-                                    err = setParameter(node, index, params, size);
-                                    break;
-                                case GET_CONFIG:
-                                    err = getConfig(node, index, params, size);
-                                    break;
-                                case SET_CONFIG:
-                                    err = setConfig(node, index, params, size);
-                                    break;
-                                case SET_INTERNAL_OPTION:
-                                {
-                                    InternalOptionType type =
-                                        (InternalOptionType)data.readInt32();
+                            if (mprotect((char*)params + allocSize - pageSize, pageSize,
+                                    PROT_NONE) != 0) {
+                                ALOGE("mprotect failed: %s", strerror(errno));
+                            } else {
+                                switch (code) {
+                                    case GET_PARAMETER:
+                                        err = getParameter(node, index, params, size);
+                                        break;
+                                    case SET_PARAMETER:
+                                        err = setParameter(node, index, params, size);
+                                        break;
+                                    case GET_CONFIG:
+                                        err = getConfig(node, index, params, size);
+                                        break;
+                                    case SET_CONFIG:
+                                        err = setConfig(node, index, params, size);
+                                        break;
+                                    case SET_INTERNAL_OPTION:
+                                    {
+                                        InternalOptionType type =
+                                            (InternalOptionType)data.readInt32();
 
-                                    err = setInternalOption(node, index, type, params, size);
-                                    break;
+                                        err = setInternalOption(node, index, type, params, size);
+                                        break;
+                                    }
+
+                                    default:
+                                        TRESPASS();
                                 }
-
-                                default:
-                                    TRESPASS();
                             }
                         }
                     }
