@@ -412,6 +412,7 @@ void FastMixer::onWork()
             }
             ftDump->mUnderruns = underruns;
             ftDump->mFramesReady = framesReady;
+            ftDump->mFramesWritten = trackFramesWritten;
         }
 
         if (anyEnabledTracks) {

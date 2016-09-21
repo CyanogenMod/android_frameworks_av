@@ -1826,6 +1826,15 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
     String8 flagsAsString = outputFlagsToString(flags);
     dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n", output, flags, flagsAsString.string());
+    dprintf(fd, "  Frames written: %lld\n", (long long)mFramesWritten);
+    dprintf(fd, "  Suspended frames: %lld\n", (long long)mSuspendedFrames);
+    if (mPipeSink.get() != nullptr) {
+        dprintf(fd, "  PipeSink frames written: %lld\n", (long long)mPipeSink->framesWritten());
+    }
+    if (output != nullptr) {
+        dprintf(fd, "  Hal stream dump:\n");
+        (void)output->stream->common.dump(&output->stream->common, fd);
+    }
 }
 
 // Thread virtuals

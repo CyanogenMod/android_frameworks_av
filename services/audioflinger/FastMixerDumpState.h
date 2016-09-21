@@ -57,6 +57,7 @@ struct FastTrackDump {
     /*virtual*/ ~FastTrackDump() { }
     FastTrackUnderruns  mUnderruns;
     size_t              mFramesReady;        // most recent value only; no long-term statistics kept
+    int64_t             mFramesWritten;      // last value from track
 };
 
 struct FastMixerDumpState : FastThreadDumpState {

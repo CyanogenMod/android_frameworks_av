@@ -168,7 +168,7 @@ void FastMixerDumpState::dump(int fd) const
     uint32_t trackMask = mTrackMask;
     dprintf(fd, "  Fast tracks: sMaxFastTracks=%u activeMask=%#x\n",
             FastMixerState::sMaxFastTracks, trackMask);
-    dprintf(fd, "  Index Active Full Partial Empty  Recent Ready\n");
+    dprintf(fd, "  Index Active Full Partial Empty  Recent Ready    Written\n");
     for (uint32_t i = 0; i < FastMixerState::sMaxFastTracks; ++i, trackMask >>= 1) {
         bool isActive = trackMask & 1;
         const FastTrackDump *ftDump = &mTracks[i];
@@ -188,11 +188,13 @@ void FastMixerDumpState::dump(int fd) const
             mostRecent = "?";
             break;
         }
-        dprintf(fd, "  %5u %6s %4u %7u %5u %7s %5zu\n", i, isActive ? "yes" : "no",
+        dprintf(fd, "  %5u %6s %4u %7u %5u %7s %5zu %10lld\n",
+                i, isActive ? "yes" : "no",
                 (underruns.mBitFields.mFull) & UNDERRUN_MASK,
                 (underruns.mBitFields.mPartial) & UNDERRUN_MASK,
                 (underruns.mBitFields.mEmpty) & UNDERRUN_MASK,
-                mostRecent, ftDump->mFramesReady);
+                mostRecent, ftDump->mFramesReady,
+                (long long)ftDump->mFramesWritten);
     }
 }
 
