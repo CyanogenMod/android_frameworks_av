@@ -46,6 +46,12 @@
 
 namespace android {
 
+#ifdef METADATA_CAMERA_SOURCE
+#define METADATA_TYPE kMetadataBufferTypeCameraSource
+#else
+#define METADATA_TYPE kMetadataBufferTypeNativeHandleSource
+#endif
+
 static const int64_t CAMERA_SOURCE_TIMEOUT_NS = 3000000000LL;
 
 struct CameraSourceListener : public CameraListener {
@@ -964,7 +970,7 @@ void CameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
         if (frame->size() == sizeof(VideoNativeHandleMetadata)) {
             VideoNativeHandleMetadata *metadata =
                 (VideoNativeHandleMetadata*)(frame->pointer());
-            if (metadata->eType == kMetadataBufferTypeNativeHandleSource) {
+            if (metadata->eType == METADATA_TYPE) {
                 handle = metadata->pHandle;
             }
         }
@@ -1171,7 +1177,7 @@ void CameraSource::recordingFrameHandleCallbackTimestamp(int64_t timestampUs,
 
     // Wrap native handle in sp<IMemory> so it can be pushed to mFramesReceived.
     VideoNativeHandleMetadata *metadata = (VideoNativeHandleMetadata*)(data->pointer());
-    metadata->eType = kMetadataBufferTypeNativeHandleSource;
+    metadata->eType = METADATA_TYPE;
     metadata->pHandle = handle;
 
     mFramesReceived.push_back(data);
@@ -1275,7 +1281,7 @@ MetadataBufferType CameraSource::metaDataStoredInVideoBuffers() const {
     // buffer queue.
     switch (mVideoBufferMode) {
         case hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA:
-            return kMetadataBufferTypeNativeHandleSource;
+            return METADATA_TYPE;
         case hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE:
             return kMetadataBufferTypeANWBuffer;
         default:
