@@ -92,6 +92,12 @@ static const OMX_U32 kPortIndexOutput = 1;
 
 namespace android {
 
+#ifdef METADATA_CAMERA_SOURCE
+#define METADATA_TYPE kMetadataBufferTypeCameraSource
+#else
+#define METADATA_TYPE kMetadataBufferTypeNativeHandleSource
+#endif
+
 struct BufferMeta {
     BufferMeta(const sp<IMemory> &mem, OMX_U32 portIndex, bool is_backup = false)
         : mMem(mem),
@@ -927,7 +933,7 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
     sp<ABuffer> data = bufferMeta->getBuffer(
             header, portIndex == kPortIndexInput /* backup */, false /* limit */);
     bufferMeta->setNativeHandle(nativeHandle);
-    if (mMetadataType[portIndex] == kMetadataBufferTypeNativeHandleSource
+    if (mMetadataType[portIndex] == METADATA_TYPE
             && data->capacity() >= sizeof(VideoNativeHandleMetadata)) {
         VideoNativeHandleMetadata &metadata = *(VideoNativeHandleMetadata *)(data->data());
         metadata.eType = mMetadataType[portIndex];
