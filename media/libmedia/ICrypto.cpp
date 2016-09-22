@@ -151,7 +151,7 @@ struct BpCrypto : public BpInterface<ICrypto> {
         if (isCryptoError(result)) {
             errorDetailMsg->setTo(reply.readCString());
         } else if (dstType == kDestinationTypeVmPointer) {
-            // For the non-secure case, copy the decrypted-in-place
+            // For the non-secure case, copy the decrypted
             // data from shared memory to its final destination
             memcpy(dstPtr, sharedBuffer->pointer(), result);
         }
@@ -320,10 +320,7 @@ status_t BnCrypto::onTransact(
                 dstPtr = secureBufferId;
             } else {
                 dstType = kDestinationTypeVmPointer;
-
-                // For the non-secure case, decrypt in-place back to the
-                // shared memory segment.
-                dstPtr = sharedBuffer->pointer();
+                dstPtr = malloc(totalSize);
             }
 
             AString errorDetailMsg;
@@ -369,7 +366,18 @@ status_t BnCrypto::onTransact(
                 reply->writeCString(errorDetailMsg.c_str());
             }
 
-            if (dstType == kDestinationTypeNativeHandle) {
+            if (dstType == kDestinationTypeVmPointer) {
+                if (result >= 0) {
+                    CHECK_LE(result, static_cast<ssize_t>(totalSize));
+                    // For the non-secure case, pass the decrypted
+                    // data back via the shared buffer rather than
+                    // copying it separately over binder to avoid
+                    // binder's 1MB limit.
+                    memcpy(sharedBuffer->pointer(), dstPtr, totalSize);
+                }
+                free(dstPtr);
+                dstPtr = NULL;
+            } else if (dstType == kDestinationTypeNativeHandle) {
                 int err;
                 if ((err = native_handle_close(nativeHandle)) < 0) {
                     ALOGW("secure buffer native_handle_close failed: %d", err);
