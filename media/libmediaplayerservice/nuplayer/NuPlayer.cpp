@@ -790,6 +790,10 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                     sp<AMessage> params = new AMessage();
                     params->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
                     mVideoDecoder->setParameters(params);
+
+                    params = new AMessage();
+                    params->setFloat("playback-speed", mPlaybackSettings.mSpeed);
+                    mVideoDecoder->setParameters(params);
                 }
             }
 
@@ -1693,6 +1697,22 @@ status_t NuPlayer::instantiateDecoder(
             mediaBufs.clear();
             ALOGE("Secure source didn't support secure mediaBufs.");
             return err;
+        }
+    }
+
+    if (!audio) {
+        sp<MetaData> fileMeta = getFileMeta();
+        if (fileMeta == NULL) {
+            ALOGW("source has video meta but not file meta");
+            return -1;
+        }
+
+        int32_t videoTemporalLayerCount = 0;
+        if (fileMeta->findInt32(kKeyTemporalLayerCount, &videoTemporalLayerCount)
+                && videoTemporalLayerCount > 0) {
+            sp<AMessage> params = new AMessage();
+            params->setInt32("temporal-layer-count", videoTemporalLayerCount);
+            (*decoder)->setParameters(params);
         }
     }
     return OK;
