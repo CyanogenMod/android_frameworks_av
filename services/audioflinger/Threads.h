@@ -506,6 +506,8 @@ public:
     static const int8_t kMaxTrackRetriesOffload = 20;
     static const int8_t kMaxTrackStartupRetriesOffload = 100;
     static const int8_t kMaxTrackStopRetriesOffload = 2;
+    // 14 tracks max per client allows for 2 misbehaving application leaving 4 available tracks.
+    static const uint32_t kMaxTracksPerUid = 14;
 
     PlaybackThread(const sp<AudioFlinger>& audioFlinger, AudioStreamOut* output,
                    audio_io_handle_t id, audio_devices_t device, type_t type, bool systemReady);
@@ -736,8 +738,8 @@ protected:
 
     // Allocate a track name for a given channel mask.
     //   Returns name >= 0 if successful, -1 on failure.
-    virtual int             getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, audio_session_t sessionId) = 0;
+    virtual int             getTrackName_l(audio_channel_mask_t channelMask, audio_format_t format,
+                                           audio_session_t sessionId, uid_t uid) = 0;
     virtual void            deleteTrackName_l(int name) = 0;
 
     // Time to sleep between cycles when:
@@ -766,6 +768,8 @@ protected:
                 bool        usesHwAvSync() const { return (mType == DIRECT) && (mOutput != NULL)
                                     && mHwSupportsPause
                                     && (mOutput->flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC); }
+
+                uint32_t    trackCountForUid_l(uid_t uid);
 
 private:
 
@@ -889,8 +893,8 @@ public:
 
 protected:
     virtual     mixer_state prepareTracks_l(Vector< sp<Track> > *tracksToRemove);
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, audio_session_t sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, audio_format_t format,
+                                           audio_session_t sessionId, uid_t uid);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    idleSleepTimeUs() const;
     virtual     uint32_t    suspendSleepTimeUs() const;
@@ -969,8 +973,8 @@ public:
     virtual     void        flushHw_l();
 
 protected:
-    virtual     int         getTrackName_l(audio_channel_mask_t channelMask,
-                                           audio_format_t format, audio_session_t sessionId);
+    virtual     int         getTrackName_l(audio_channel_mask_t channelMask, audio_format_t format,
+                                           audio_session_t sessionId, uid_t uid);
     virtual     void        deleteTrackName_l(int name);
     virtual     uint32_t    activeSleepTimeUs() const;
     virtual     uint32_t    idleSleepTimeUs() const;
