@@ -373,7 +373,7 @@ status_t BnCrypto::onTransact(
                     // data back via the shared buffer rather than
                     // copying it separately over binder to avoid
                     // binder's 1MB limit.
-                    memcpy(sharedBuffer->pointer(), dstPtr, totalSize);
+                    memcpy(sharedBuffer->pointer(), dstPtr, result);
                 }
                 free(dstPtr);
                 dstPtr = NULL;
