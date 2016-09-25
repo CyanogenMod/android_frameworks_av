@@ -56,7 +56,7 @@ audio_module_handle_t aps_load_hw_module(void *service __unused,
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
         ALOGW("%s: could not get AudioFlinger", __func__);
-        return 0;
+        return AUDIO_MODULE_HANDLE_NONE;
     }
 
     return af->loadHwModule(name);
