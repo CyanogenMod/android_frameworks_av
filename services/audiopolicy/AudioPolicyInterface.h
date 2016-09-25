@@ -345,8 +345,10 @@ public:
 
 };
 
+#ifndef USE_LEGACY_AUDIO_POLICY
 extern "C" AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface);
 extern "C" void destroyAudioPolicyManager(AudioPolicyInterface *interface);
+#endif
 
 
 }; // namespace android
