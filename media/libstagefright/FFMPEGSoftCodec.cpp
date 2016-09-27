@@ -72,7 +72,7 @@ static const MetaKeyEntry MetaKeyTable[] {
    {kKeyChannelCount         , "channel-count"          , INT32},
    {kKeyCodecId              , "codec-id"               , INT32},
    {kKeyCodedSampleBits      , "coded-sample-bits"      , INT32},
-   {kKeyFileFormat           , "file-format"            , INT32},
+   {'ffmt'                   , "file-format"            , INT32},
    {kKeyRawCodecSpecificData , "raw-codec-specific-data", CSD},
    {kKeyPcmEncoding          , "pcm-encoding"           , INT32},
    {kKeyRVVersion            , "rv-version"             , INT32},

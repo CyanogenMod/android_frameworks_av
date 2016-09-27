@@ -58,7 +58,6 @@ enum {
     kKeyCodedSampleBits   = 'cosb',  // int32_t
     kKeySampleFormat      = 'sfmt',  // int32_t
     kKeyBitsPerRawSample  = 'sbit',  // int32_t
-    kKeyFileFormat        = 'ffmt',  // cstring
     kKeyESDS              = 'esds',  // raw data
     kKeyAACProfile        = 'aacp',  // int32_t
     kKeyAVCC              = 'avcc',  // raw data
