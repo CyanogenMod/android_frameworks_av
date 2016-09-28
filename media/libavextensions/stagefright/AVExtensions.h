@@ -128,7 +128,7 @@ struct AVUtils {
 
     virtual bool canOffloadAPE(const sp<MetaData> &meta);
 
-    virtual bool useQCHWEncoder(const sp<AMessage> &,Vector<AString> *) { return false; }
+    virtual bool useQCHWEncoder(const sp<AMessage> &format,Vector<AString> *matchingCodecs);
 
     virtual int32_t getAudioMaxInputBufferSize(audio_format_t audioFormat,
             const sp<AMessage> &);
