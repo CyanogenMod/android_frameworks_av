@@ -112,7 +112,7 @@ void SurfaceMediaSource::dump(
     Mutex::Autolock lock(mMutex);
 
     result.append(buffer);
-    mConsumer->dump(result, "");
+    mConsumer->dumpState(result, "");
 }
 
 status_t SurfaceMediaSource::setFrameRate(int32_t fps)
