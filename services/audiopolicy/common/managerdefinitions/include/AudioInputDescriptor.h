@@ -93,7 +93,9 @@ public:
 
     sp<AudioInputDescriptor> getInputFromId(audio_port_handle_t id) const;
 
-    uint32_t activeInputsCount() const;
+    // count active capture sessions using one of the specified devices.
+    // ignore devices if AUDIO_DEVICE_IN_DEFAULT is passed
+    uint32_t activeInputsCountOnDevices(audio_devices_t devices = AUDIO_DEVICE_IN_DEFAULT) const;
 
     /**
      * return io handle of active input or 0 if no input is active
