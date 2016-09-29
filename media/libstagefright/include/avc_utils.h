@@ -85,6 +85,7 @@ sp<MetaData> MakeAVCCodecSpecificData(const sp<ABuffer> &accessUnit);
 
 bool IsIDR(const sp<ABuffer> &accessUnit);
 bool IsAVCReferenceFrame(const sp<ABuffer> &accessUnit);
+uint32_t FindAVCLayerId(const uint8_t *data, size_t size);
 
 const char *AVCProfileToString(uint8_t profile);
 
