@@ -504,6 +504,9 @@ bool AVUtils::useQCHWEncoder(const sp<AMessage> &format, Vector<AString> *matchi
         matchingCodecs->push(AString("OMX.qcom.audio.encoder.aac"));
         return true;
     }
+#else
+    (void)format;
+    (void)matchingCodecs;
 #endif
 
     return false;
