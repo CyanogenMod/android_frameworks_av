@@ -8380,4 +8380,55 @@ status_t ACodec::getOMXChannelMapping(size_t numChannels, OMX_AUDIO_CHANNELTYPE 
     return OK;
 }
 
+void ACodec::setBFrames(
+        OMX_VIDEO_PARAM_MPEG4TYPE *mpeg4type) {
+    //ignore non QC components
+    if (strncmp(mComponentName.c_str(), "OMX.qcom.", 9)) {
+        return;
+    }
+    if (mpeg4type->eProfile > OMX_VIDEO_MPEG4ProfileSimple) {
+        mpeg4type->nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
+        mpeg4type->nPFrames = (mpeg4type->nPFrames + kNumBFramesPerPFrame) /
+                (kNumBFramesPerPFrame + 1);
+        mpeg4type->nBFrames = mpeg4type->nPFrames * kNumBFramesPerPFrame;
+    }
+    return;
+}
+
+void ACodec::setBFrames(
+        OMX_VIDEO_PARAM_AVCTYPE *h264type, const int32_t iFramesInterval,
+        const int32_t frameRate) {
+    //ignore non QC components
+    if (strncmp(mComponentName.c_str(), "OMX.qcom.", 9)) {
+        return;
+    }
+    OMX_U32 val = 0;
+    if (iFramesInterval < 0) {
+        val =  0xFFFFFFFF;
+    } else if (iFramesInterval == 0) {
+        val = 0;
+    } else {
+        val  = frameRate * iFramesInterval - 1;
+        CHECK(val > 1);
+    }
+
+    h264type->nPFrames = val;
+
+    if (h264type->nPFrames == 0) {
+        h264type->nAllowedPictureTypes = OMX_VIDEO_PictureTypeI;
+    }
+
+    if (h264type->eProfile > OMX_VIDEO_AVCProfileBaseline) {
+        h264type->nAllowedPictureTypes |= OMX_VIDEO_PictureTypeB;
+        h264type->nPFrames = (h264type->nPFrames + kNumBFramesPerPFrame) /
+                (kNumBFramesPerPFrame + 1);
+        h264type->nBFrames = h264type->nPFrames * kNumBFramesPerPFrame;
+
+        //enable CABAC as default entropy mode for High/Main profiles
+        h264type->bEntropyCodingCABAC = OMX_TRUE;
+        h264type->nCabacInitIdc = 0;
+    }
+    return;
+}
+
 }  // namespace android
