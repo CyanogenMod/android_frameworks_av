@@ -565,9 +565,11 @@ protected:
     // Send EOS on input stream.
     void onSignalEndOfInputStream();
 
-    virtual void setBFrames(OMX_VIDEO_PARAM_MPEG4TYPE *mpeg4type) {}
+    static const int32_t kNumBFramesPerPFrame = 1;
+
+    virtual void setBFrames(OMX_VIDEO_PARAM_MPEG4TYPE *mpeg4type);
     virtual void setBFrames(OMX_VIDEO_PARAM_AVCTYPE *h264type,
-        const int32_t iFramesInterval, const int32_t frameRate) {}
+        const int32_t iFramesInterval, const int32_t frameRate);
 
     virtual status_t getVQZIPInfo(const sp<AMessage> &msg) {
         return OK;
