@@ -32,22 +32,22 @@ typedef Parcel::WritableBlob WritableBlob;
 typedef Parcel::ReadableBlob ReadableBlob;
 
 CameraMetadata::CameraMetadata() :
-        mBuffer(NULL), mLocked(false) {
+        mBuffer(NULL), mReserved(false), mLocked(false) {
 }
 
 CameraMetadata::CameraMetadata(size_t entryCapacity, size_t dataCapacity) :
-        mLocked(false)
+        mReserved(false), mLocked(false)
 {
     mBuffer = allocate_camera_metadata(entryCapacity, dataCapacity);
 }
 
 CameraMetadata::CameraMetadata(const CameraMetadata &other) :
-        mLocked(false) {
+        mReserved(false), mLocked(false) {
     mBuffer = clone_camera_metadata(other.mBuffer);
 }
 
 CameraMetadata::CameraMetadata(camera_metadata_t *buffer) :
-        mBuffer(NULL), mLocked(false) {
+        mBuffer(NULL), mReserved(false), mLocked(false) {
     acquire(buffer);
 }
 
