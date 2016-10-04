@@ -1592,6 +1592,7 @@ AudioFlinger::PlaybackThread::PlaybackThread(const sp<AudioFlinger>& audioFlinge
         mEffectBufferValid(false),
         mSuspended(0), mBytesWritten(0),
         mFramesWritten(0),
+        mSuspendedFrames(0),
         mActiveTracksGeneration(0),
         // mStreamTypes[] initialized in constructor body
         mOutput(output),
@@ -2923,7 +2924,8 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
                 // copy over kernel info
                 mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] =
-                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
+                        timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL]
+                        + mSuspendedFrames; // add frames discarded when suspended
                 mTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
                         timestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
             }
@@ -3087,10 +3089,12 @@ bool AudioFlinger::PlaybackThread::threadLoop()
 
             mBytesRemaining = mCurrentWriteLength;
             if (isSuspended()) {
-                mSleepTimeUs = suspendSleepTimeUs();
-                // simulate write to HAL when suspended
-                mBytesWritten += mSinkBufferSize;
-                mFramesWritten += mSinkBufferSize / mFrameSize;
+                // Simulate write to HAL when suspended (e.g. BT SCO phone call).
+                mSleepTimeUs = suspendSleepTimeUs(); // assumes full buffer.
+                const size_t framesRemaining = mBytesRemaining / mFrameSize;
+                mBytesWritten += mBytesRemaining;
+                mFramesWritten += framesRemaining;
+                mSuspendedFrames += framesRemaining; // to adjust kernel HAL position
                 mBytesRemaining = 0;
             }
 
@@ -5191,7 +5195,8 @@ void AudioFlinger::AsyncCallbackThread::resetDraining()
 AudioFlinger::OffloadThread::OffloadThread(const sp<AudioFlinger>& audioFlinger,
         AudioStreamOut* output, audio_io_handle_t id, uint32_t device, bool systemReady)
     :   DirectOutputThread(audioFlinger, output, id, device, OFFLOAD, systemReady),
-        mPausedWriteLength(0), mPausedBytesRemaining(0), mKeepWakeLock(true)
+        mPausedWriteLength(0), mPausedBytesRemaining(0), mKeepWakeLock(true),
+        mOffloadUnderrunPosition(~0LL)
 {
     //FIXME: mStandby should be set to true by ThreadBase constructor
     mStandby = true;
@@ -5391,12 +5396,30 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::OffloadThread::prepareTr
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
                 if (--(track->mRetryCount) <= 0) {
-                    ALOGV("OffloadThread: BUFFER TIMEOUT: remove(%d) from active list",
-                          track->name());
-                    tracksToRemove->add(track);
-                    // indicate to client process that the track was disabled because of underrun;
-                    // it will then automatically call start() when data is available
-                    track->disable();
+                    bool running = false;
+                    if (mOutput->stream->get_presentation_position != nullptr) {
+                        uint64_t position = 0;
+                        struct timespec unused;
+                        // The running check restarts the retry counter at least once.
+                        int ret = mOutput->stream->get_presentation_position(
+                                mOutput->stream, &position, &unused);
+                        if (ret == NO_ERROR && position != mOffloadUnderrunPosition) {
+                            running = true;
+                            mOffloadUnderrunPosition = position;
+                        }
+                        ALOGVV("underrun counter, running(%d): %lld vs %lld", running,
+                                (long long)position, (long long)mOffloadUnderrunPosition);
+                    }
+                    if (running) { // still running, give us more time.
+                        track->mRetryCount = kMaxTrackRetriesOffload;
+                    } else {
+                        ALOGV("OffloadThread: BUFFER TIMEOUT: remove(%d) from active list",
+                                track->name());
+                        tracksToRemove->add(track);
+                        // indicate to client process that the track was disabled because of underrun;
+                        // it will then automatically call start() when data is available
+                        track->disable();
+                    }
                 } else if (last){
                     mixerStatus = MIXER_TRACKS_ENABLED;
                 }
@@ -5453,6 +5476,7 @@ void AudioFlinger::OffloadThread::flushHw_l()
     mPausedBytesRemaining = 0;
     // reset bytes written count to reflect that DSP buffers are empty after flush.
     mBytesWritten = 0;
+    mOffloadUnderrunPosition = ~0LL;
 
     if (mUseAsyncWrite) {
         // discard any pending drain or write ack by incrementing sequence

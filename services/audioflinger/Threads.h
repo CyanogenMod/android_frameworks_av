@@ -704,6 +704,7 @@ protected:
 
     int64_t                         mBytesWritten;
     int64_t                         mFramesWritten; // not reset on standby
+    int64_t                         mSuspendedFrames; // not reset on standby
 private:
     // mMasterMute is in both PlaybackThread and in AudioFlinger.  When a
     // PlaybackThread needs to find out if master-muted, it checks it's local
@@ -1009,6 +1010,10 @@ private:
     size_t      mPausedWriteLength;     // length in bytes of write interrupted by pause
     size_t      mPausedBytesRemaining;  // bytes still waiting in mixbuffer after resume
     bool        mKeepWakeLock;          // keep wake lock while waiting for write callback
+    uint64_t    mOffloadUnderrunPosition; // Current frame position for offloaded playback
+                                          // used and valid only during underrun.  ~0 if
+                                          // no underrun has occurred during playback and
+                                          // is not reset on standby.
 };
 
 class AsyncCallbackThread : public Thread {
