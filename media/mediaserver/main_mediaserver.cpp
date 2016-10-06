@@ -25,6 +25,9 @@
 #include "RegisterExtensions.h"
 
 // from LOCAL_C_INCLUDES
+#ifdef TARGET_HAS_LEGACY_CAMERA_HAL1
+#include "CameraService.h"
+#endif
 #include "IcuUtils.h"
 #include "MediaPlayerService.h"
 #include "ResourceManagerService.h"
@@ -41,6 +44,9 @@ int main(int argc __unused, char **argv __unused)
     InitializeIcuOrDie();
     MediaPlayerService::instantiate();
     ResourceManagerService::instantiate();
+#ifdef TARGET_HAS_LEGACY_CAMERA_HAL1
+    CameraService::instantiate();
+#endif
     registerExtensions();
     ProcessState::self()->startThreadPool();
     IPCThreadState::self()->joinThreadPool();
