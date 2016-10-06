@@ -14,6 +14,7 @@
 
 LOCAL_PATH:= $(call my-dir)
 
+ifneq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
@@ -34,3 +35,4 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 LOCAL_INIT_RC := cameraserver.rc
 
 include $(BUILD_EXECUTABLE)
+endif
