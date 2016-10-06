@@ -912,7 +912,9 @@ Status CameraService::getLegacyParametersLazy(int cameraId,
 static bool isTrustedCallingUid(uid_t uid) {
     switch (uid) {
         case AID_MEDIA:         // mediaserver
+#ifndef TARGET_HAS_LEGACY_CAMERA_HAL1
         case AID_CAMERASERVER: // cameraserver
+#endif
             return true;
         default:
             return false;
