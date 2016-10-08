@@ -44,6 +44,6 @@ LOCAL_32_BIT_ONLY := true
 
 LOCAL_INIT_RC := mediaserver.rc
 
-LOCAL_CFLAGS := -Werror -Wall
+LOCAL_CFLAGS += -Werror -Wall
 
 include $(BUILD_EXECUTABLE)
