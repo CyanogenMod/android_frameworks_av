@@ -93,7 +93,6 @@ private:
 
     sp<DataSource> mDataSource;
     status_t mInitCheck;
-    bool mHasVideo;
     uint32_t mHeaderTimescale;
     bool mIsQT;
 
