@@ -1210,8 +1210,10 @@ status_t ACodec::configureCodec(
         if (err != OK) {
               ALOGE("[%s] storeMetaDataInBuffers (input) failed w/ err %d",
                     mComponentName.c_str(), err);
-
-              return err;
+              if (mOMX->livesLocally(mNode, getpid())) {
+                  return err;
+              }
+              ALOGI("ignoring failure to use internal MediaCodec key.");
           }
       }
 
