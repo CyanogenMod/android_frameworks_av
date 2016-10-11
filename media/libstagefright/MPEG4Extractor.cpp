@@ -374,7 +374,6 @@ MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
       mMdatFound(false),
       mDataSource(source),
       mInitCheck(NO_INIT),
-      mHasVideo(false),
       mHeaderTimescale(0),
       mIsQT(false),
       mFirstTrack(NULL),
@@ -545,11 +544,13 @@ status_t MPEG4Extractor::readMetaData() {
     }
 
     if (mInitCheck == OK) {
-        if (mHasVideo) {
+        if (findTrackByMimePrefix("video/") != NULL) {
             mFileMetaData->setCString(
                     kKeyMIMEType, MEDIA_MIMETYPE_CONTAINER_MPEG4);
-        } else {
+        } else if (findTrackByMimePrefix("audio/") != NULL) {
             mFileMetaData->setCString(kKeyMIMEType, "audio/mp4");
+        } else {
+            mFileMetaData->setCString(kKeyMIMEType, "application/octet-stream");
         }
     } else {
         mInitCheck = err;
@@ -1481,8 +1482,6 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('h', 'v', 'c', '1'):
         case FOURCC('h', 'e', 'v', '1'):
         {
-            mHasVideo = true;
-
             uint8_t buffer[78];
             if (chunk_data_size < (ssize_t)sizeof(buffer)) {
                 // Basic VideoSampleEntry size.
