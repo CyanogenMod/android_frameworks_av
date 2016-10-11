@@ -1339,7 +1339,16 @@ void NuPlayer::onStart(int64_t startPositionUs) {
     }
 
     sp<MetaData> audioMeta = mSource->getFormatMeta(true /* audio */);
+    sp<MetaData> videoMeta = mSource->getFormatMeta(false /* audio */);
+    if (audioMeta == NULL && videoMeta == NULL) {
+        ALOGE("no metadata for either audio or video source");
+        mSource->stop();
+        mSourceStarted = false;
+        notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, ERROR_MALFORMED);
+        return;
+    }
     ALOGV_IF(audioMeta == NULL, "no metadata for audio source");  // video only stream
+
     audio_stream_type_t streamType = AUDIO_STREAM_MUSIC;
     if (mAudioSink != NULL) {
         streamType = mAudioSink->getAudioStreamType();
