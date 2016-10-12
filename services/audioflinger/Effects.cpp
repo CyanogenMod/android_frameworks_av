@@ -2032,15 +2032,49 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
     }
 }
 
-bool AudioFlinger::EffectChain::hasSoftwareEffect() const
+void AudioFlinger::EffectChain::checkOutputFlagCompatibility(audio_output_flags_t *flags) const
+{
+    if ((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0 && !isRawCompatible()) {
+        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
+    }
+    if ((*flags & AUDIO_OUTPUT_FLAG_FAST) != 0 && !isFastCompatible()) {
+        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+    }
+}
+
+void AudioFlinger::EffectChain::checkInputFlagCompatibility(audio_input_flags_t *flags) const
+{
+    if ((*flags & AUDIO_INPUT_FLAG_RAW) != 0 && !isRawCompatible()) {
+        *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
+    }
+    if ((*flags & AUDIO_INPUT_FLAG_FAST) != 0 && !isFastCompatible()) {
+        *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
+    }
+}
+
+bool AudioFlinger::EffectChain::isRawCompatible() const
 {
     Mutex::Autolock _l(mLock);
-    for (size_t i = 0; i < mEffects.size(); i++) {
-        if (mEffects[i]->isImplementationSoftware()) {
-            return true;
+    for (const auto &effect : mEffects) {
+        if (effect->isProcessImplemented()) {
+            return false;
         }
     }
-    return false;
+    // Allow effects without processing.
+    return true;
+}
+
+bool AudioFlinger::EffectChain::isFastCompatible() const
+{
+    Mutex::Autolock _l(mLock);
+    for (const auto &effect : mEffects) {
+        if (effect->isProcessImplemented()
+                && effect->isImplementationSoftware()) {
+            return false;
+        }
+    }
+    // Allow effects without processing or hw accelerated effects.
+    return true;
 }
 
 // isCompatibleWithThread_l() must be called with thread->mLock held
