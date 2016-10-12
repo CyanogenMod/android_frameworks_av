@@ -328,7 +328,17 @@ public:
 
     void syncHalEffectsState();
 
-    bool hasSoftwareEffect() const;
+    // flags is an ORed set of audio_output_flags_t which is updated on return.
+    void checkOutputFlagCompatibility(audio_output_flags_t *flags) const;
+
+    // flags is an ORed set of audio_input_flags_t which is updated on return.
+    void checkInputFlagCompatibility(audio_input_flags_t *flags) const;
+
+    // Is this EffectChain compatible with the RAW audio flag.
+    bool isRawCompatible() const;
+
+    // Is this EffectChain compatible with the FAST audio flag.
+    bool isFastCompatible() const;
 
     // isCompatibleWithThread_l() must be called with thread->mLock held
     bool isCompatibleWithThread_l(const sp<ThreadBase>& thread) const;
