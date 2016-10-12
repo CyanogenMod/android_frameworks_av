@@ -1918,34 +1918,19 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         // check compatibility with audio effects.
         { // scope for mLock
             Mutex::Autolock _l(mLock);
-            // do not accept RAW flag if post processing are present. Note that post processing on
-            // a fast mixer are necessarily hardware
-            sp<EffectChain> chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: post processing effect present");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-            }
-            // Do not accept FAST flag if software global effects are present
-            chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: global effect present");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-                if (chain->hasSoftwareEffect()) {
-                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software global effect present");
-                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
-                }
-            }
-            // Do not accept FAST flag if the session has software effects
-            chain = getEffectChain_l(sessionId);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: effect present on session");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-                if (chain->hasSoftwareEffect()) {
-                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software effect present on session");
-                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+            for (audio_session_t session : {
+                    AUDIO_SESSION_OUTPUT_STAGE,
+                    AUDIO_SESSION_OUTPUT_MIX,
+                    sessionId,
+                }) {
+                sp<EffectChain> chain = getEffectChain_l(session);
+                if (chain.get() != nullptr) {
+                    audio_output_flags_t old = *flags;
+                    chain->checkOutputFlagCompatibility(flags);
+                    if (old != *flags) {
+                        ALOGV("AUDIO_OUTPUT_FLAGS denied by effect, session=%d old=%#x new=%#x",
+                                (int)session, (int)old, (int)*flags);
+                    }
                 }
             }
         }
@@ -6594,12 +6579,11 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
           // Do not accept FAST flag if the session has software effects
           sp<EffectChain> chain = getEffectChain_l(sessionId);
           if (chain != 0) {
-              ALOGV_IF((*flags & AUDIO_INPUT_FLAG_RAW) != 0,
-                      "AUDIO_INPUT_FLAG_RAW denied: effect present on session");
-              *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
-              if (chain->hasSoftwareEffect()) {
-                  ALOGV("AUDIO_INPUT_FLAG_FAST denied: software effect present on session");
-                  *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
+              audio_input_flags_t old = *flags;
+              chain->checkInputFlagCompatibility(flags);
+              if (old != *flags) {
+                  ALOGV("AUDIO_INPUT_FLAGS denied by effect old=%#x new=%#x",
+                          (int)old, (int)*flags);
               }
           }
           ALOGV_IF((*flags & AUDIO_INPUT_FLAG_FAST) != 0,
