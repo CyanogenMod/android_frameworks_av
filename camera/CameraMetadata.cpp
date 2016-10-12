@@ -79,6 +79,20 @@ const camera_metadata_t* CameraMetadata::getAndLock() const {
     return mBuffer;
 }
 
+status_t CameraMetadata::unlock(const camera_metadata_t *buffer) {
+    if (!mLocked) {
+        ALOGE("%s: Can't unlock a non-locked CameraMetadata!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    if (buffer != mBuffer) {
+        ALOGE("%s: Can't unlock CameraMetadata with wrong pointer!",
+                __FUNCTION__);
+        return BAD_VALUE;
+    }
+    mLocked = false;
+    return OK;
+}
+
 status_t CameraMetadata::unlock(const camera_metadata_t *buffer) const {
     if (!mLocked) {
         ALOGE("%s: Can't unlock a non-locked CameraMetadata!", __FUNCTION__);
