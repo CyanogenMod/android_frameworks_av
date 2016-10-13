@@ -160,6 +160,9 @@ status_t BnMediaExtractor::onTransact(
             if (data.readUint32(&idx) == NO_ERROR &&
                     data.readUint32(&flags) == NO_ERROR) {
                 sp<MetaData> meta = getTrackMetaData(idx, flags);
+                if (meta == NULL) {
+                    return UNKNOWN_ERROR;
+                }
                 meta->writeToParcel(*reply);
                 return NO_ERROR;
             }
