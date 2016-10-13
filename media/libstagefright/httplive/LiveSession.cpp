@@ -467,28 +467,28 @@ status_t LiveSession::dequeueAccessUnit(
     return err;
 }
 
-status_t LiveSession::getStreamFormat(StreamType stream, sp<AMessage> *format) {
+status_t LiveSession::getStreamFormatMeta(StreamType stream, sp<MetaData> *meta) {
     if (!(mStreamMask & stream)) {
         return UNKNOWN_ERROR;
     }
 
     sp<AnotherPacketSource> packetSource = mPacketSources.valueFor(stream);
 
-    sp<MetaData> meta = packetSource->getFormat();
+    *meta = packetSource->getFormat();
 
-    if (meta == NULL) {
+    if (*meta == NULL) {
         return -EWOULDBLOCK;
     }
 
     if (stream == STREAMTYPE_AUDIO) {
         // set AAC input buffer size to 32K bytes (256kbps x 1sec)
-        meta->setInt32(kKeyMaxInputSize, 32 * 1024);
+        (*meta)->setInt32(kKeyMaxInputSize, 32 * 1024);
     } else if (stream == STREAMTYPE_VIDEO) {
-        meta->setInt32(kKeyMaxWidth, mMaxWidth);
-        meta->setInt32(kKeyMaxHeight, mMaxHeight);
+        (*meta)->setInt32(kKeyMaxWidth, mMaxWidth);
+        (*meta)->setInt32(kKeyMaxHeight, mMaxHeight);
     }
 
-    return convertMetaDataToMessage(meta, format);
+    return OK;
 }
 
 sp<HTTPDownloader> LiveSession::getHTTPDownloader() {
