@@ -1778,6 +1778,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('b', 't', 'r', 't'):
         {
             *offset += chunk_size;
+            if (mLastTrack == NULL) {
+                return ERROR_MALFORMED;
+            }
 
             uint8_t buffer[12];
             if (chunk_data_size != sizeof(buffer)) {
