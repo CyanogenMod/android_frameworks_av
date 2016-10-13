@@ -476,7 +476,8 @@ sp<MetaData> MPEG4Extractor::getTrackMetaData(
             } else {
                 uint32_t sampleIndex;
                 uint32_t sampleTime;
-                if (track->sampleTable->findThumbnailSample(&sampleIndex) == OK
+                if (track->timescale != 0 &&
+                        track->sampleTable->findThumbnailSample(&sampleIndex) == OK
                         && track->sampleTable->getMetaDataForSample(
                             sampleIndex, NULL /* offset */, NULL /* size */,
                             &sampleTime) == OK) {
@@ -925,6 +926,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 'c', 'h', 'i'):
         case FOURCC('e', 'd', 't', 's'):
         {
+            if (chunk_type == FOURCC('m', 'o', 'o', 'v') && depth != 0) {
+                ALOGE("moov: depth %d", depth);
+                return ERROR_MALFORMED;
+            }
             if (chunk_type == FOURCC('m', 'o', 'o', 'f') && !mMoofFound) {
                 // store the offset of the first segment
                 mMoofFound = true;
@@ -953,6 +958,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             bool isTrack = false;
             if (chunk_type == FOURCC('t', 'r', 'a', 'k')) {
+                if (depth != 1) {
+                    ALOGE("trak: depth %d", depth);
+                    return ERROR_MALFORMED;
+                }
                 isTrack = true;
 
                 Track *track = new Track;
@@ -976,6 +985,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             while (*offset < stop_offset) {
                 status_t err = parseChunk(offset, depth + 1);
                 if (err != OK) {
+                    if (isTrack) {
+                        mLastTrack->skipTrack = true;
+                        break;
+                    }
                     return err;
                 }
             }
@@ -1321,10 +1334,6 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
         case FOURCC('s', 't', 's', 'd'):
         {
-            if (chunk_data_size < 8) {
-                return ERROR_MALFORMED;
-            }
-
             uint8_t buffer[8];
             if (chunk_data_size < (off64_t)sizeof(buffer)) {
                 return ERROR_MALFORMED;
@@ -1950,6 +1959,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         {
             *offset += chunk_size;
 
+            if (depth != 1) {
+                ALOGE("mvhd: depth %d", depth);
+                return ERROR_MALFORMED;
+            }
             if (chunk_data_size < 32) {
                 return ERROR_MALFORMED;
             }
