@@ -1142,7 +1142,8 @@ ACodec::BufferInfo *ACodec::dequeueBufferFromNativeWindow() {
         VideoDecoderOutputMetaData *metaData =
             reinterpret_cast<VideoDecoderOutputMetaData *>(
                     oldest->mData->base());
-        CHECK_EQ(metaData->eType, kMetadataBufferTypeGrallocSource);
+        // metaData is only readable if codec is in the same process
+        //CHECK_EQ(metaData->eType, kMetadataBufferTypeGrallocSource);
 
         ALOGV("replaced oldest buffer #%u with age %u (%p/%p stored in %p)",
                 oldest - &mBuffers[kPortIndexOutput][0],
