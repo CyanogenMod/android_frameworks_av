@@ -683,7 +683,7 @@ status_t CameraSource::initWithCameraAccess(
         if (err != OK) {
             ALOGE("%s: Setting video buffer mode to VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV failed: "
                     "%s (err=%d)", __FUNCTION__, strerror(-err), err);
-            return err;
+           // return err;
         }
     }
 
