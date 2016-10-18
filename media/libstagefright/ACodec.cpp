@@ -3929,7 +3929,10 @@ status_t ACodec::setupVideoEncoder(
             if (err != OK) {
                 ALOGE("Configuring temporal layers (P=%d B=%d) failed: %d",
                         numLayers, numBLayers, err);
-                // not a fatal error
+                // not a fatal error, set error code to OK
+                // This will avoid tear down of session where temporal
+                // layer encoding is not supported for some chipsets
+                err = OK;
             }
         }
     }
