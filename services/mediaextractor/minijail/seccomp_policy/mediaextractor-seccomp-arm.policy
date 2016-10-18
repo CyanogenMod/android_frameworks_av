@@ -45,3 +45,5 @@ socket: 1
 connect: 1
 fcntl64: 1
 rt_tgsigqueueinfo: 1
+
+getsockopt: 1
