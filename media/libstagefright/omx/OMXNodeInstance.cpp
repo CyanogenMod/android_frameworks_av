@@ -576,9 +576,13 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         err = OMX_GetExtensionIndex(mHandle, name, &index);
         xerr = err;
         if (err == OMX_ErrorNone) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
             negotiatedType =
                 requestedType == kMetadataBufferTypeANWBuffer
                         ? kMetadataBufferTypeGrallocSource : requestedType;
+#else
+            negotiatedType = kMetadataBufferTypeGrallocSource;
+#endif
             err = OMX_SetParameter(mHandle, index, &params);
         }
     }
