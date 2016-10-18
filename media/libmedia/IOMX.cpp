@@ -439,7 +439,11 @@ public:
         data.writeInt32((int32_t)node);
         data.writeInt32(port_index);
         data.writeInt32((int32_t)enable);
+#if 0
         data.writeInt32(type == NULL ? kMetadataBufferTypeANWBuffer : *type);
+#else
+        data.writeInt32(type == NULL ? kMetadataBufferTypeGrallocSource : *type);
+#endif
 
         remote()->transact(STORE_META_DATA_IN_BUFFERS, data, &reply);
 

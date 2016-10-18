@@ -553,7 +553,11 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
     OMX_STRING nativeBufferName = const_cast<OMX_STRING>(
             "OMX.google.android.index.storeANWBufferInMetadata");
     MetadataBufferType negotiatedType;
+#if 0
     MetadataBufferType requestedType = type != NULL ? *type : kMetadataBufferTypeANWBuffer;
+#else
+    MetadataBufferType requestedType = type != NULL ? *type : kMetadataBufferTypeGrallocSource;
+#endif
 
     StoreMetaDataInBuffersParams params;
     InitOMXParams(&params);
@@ -561,7 +565,11 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
     params.bStoreMetaData = enable;
 
     OMX_ERRORTYPE err =
+#if 0
         requestedType == kMetadataBufferTypeANWBuffer
+#else
+        requestedType == kMetadataBufferTypeGrallocSource
+#endif
                 ? OMX_GetExtensionIndex(mHandle, nativeBufferName, &index)
                 : OMX_ErrorUnsupportedIndex;
     OMX_ERRORTYPE xerr = err;
@@ -959,7 +967,11 @@ status_t OMXNodeInstance::createGraphicBufferSource(
 
     // Input buffers will hold meta-data (ANativeWindowBuffer references).
     if (type != NULL) {
+#if 0
         *type = kMetadataBufferTypeANWBuffer;
+#else
+        *type = kMetadataBufferTypeGrallocSource;
+#endif
     }
     err = storeMetaDataInBuffers_l(portIndex, OMX_TRUE, type);
     if (err != OK) {
