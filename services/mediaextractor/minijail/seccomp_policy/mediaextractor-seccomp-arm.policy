@@ -47,3 +47,5 @@ fcntl64: 1
 rt_tgsigqueueinfo: 1
 
 getsockopt: 1
+readlinkat: 1
+pread64: 1
