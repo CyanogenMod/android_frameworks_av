@@ -167,6 +167,14 @@ LOCAL_CFLAGS += -DQTI_FLAC_DECODER
 endif
 endif
 
+ifeq ($(strip $(TARGET_DISABLE_OMX_VIDEO_CROP_OUTPUT)),true)
+LOCAL_CFLAGS += -DDISABLE_OMX_VIDEO_CROP_OUTPUT
+endif
+
+ifneq ($(TARGET_CAM_REQ_LEAK_FIX),false)
+LOCAL_CFLAG += -DTARGET_CAM_REQ_LEAK_FIX
+endif
+
 LOCAL_CLANG := true
 LOCAL_SANITIZE := unsigned-integer-overflow signed-integer-overflow
 
