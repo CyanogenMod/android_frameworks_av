@@ -94,4 +94,8 @@ endif
 
 LOCAL_MODULE:= libcameraservice
 
+ifneq ($(TARGET_CAM_REQ_LEAK_FIX),false)
+LOCAL_CFLAG += -DTARGET_CAM_REQ_LEAK_FIX
+endif
+
 include $(BUILD_SHARED_LIBRARY)
