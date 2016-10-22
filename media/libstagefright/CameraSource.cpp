@@ -1146,6 +1146,12 @@ void CameraSource::releaseRecordingFrameHandle(native_handle_t* handle) {
         native_handle_close(handle);
         native_handle_delete(handle);
     }
+    #ifdef TARGET_CAM_REQ_LEAK_FIX
+    else {
+        native_handle_close(handle);
+        native_handle_delete(handle);
+    }
+    #endif
 }
 
 void CameraSource::recordingFrameHandleCallbackTimestamp(int64_t timestampUs,
