@@ -283,7 +283,9 @@ inline static const char *asString(MetadataBufferType i, const char *def = "??")
         case kMetadataBufferTypeCameraSource:   return "CameraSource";
         case kMetadataBufferTypeGrallocSource:  return "GrallocSource";
         case kMetadataBufferTypeANWBuffer:      return "ANWBuffer";
+#ifndef METADATA_CAMERA_SOURCE
         case kMetadataBufferTypeNativeHandleSource: return "NativeHandleSource";
+#endif // METADATA_CAMERA_SOURCE
         case kMetadataBufferTypeInvalid:        return "Invalid";
         default:                                return def;
     }
