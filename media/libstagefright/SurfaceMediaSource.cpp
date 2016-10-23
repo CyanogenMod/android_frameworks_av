@@ -127,10 +127,17 @@ status_t SurfaceMediaSource::setFrameRate(int32_t fps)
     return OK;
 }
 
+#ifndef METADATA_CAMERA_SOURCE
 MetadataBufferType SurfaceMediaSource::metaDataStoredInVideoBuffers() const {
     ALOGV("isMetaDataStoredInVideoBuffers");
     return kMetadataBufferTypeANWBuffer;
 }
+#else
+bool SurfaceMediaSource::isMetaDataStoredInVideoBuffers() const {
+    ALOGV("isMetaDataStoredInVideoBuffers");
+    return true;
+}
+#endif
 
 int32_t SurfaceMediaSource::getFrameRate( ) const {
     ALOGV("getFrameRate");
@@ -250,6 +257,7 @@ sp<MetaData> SurfaceMediaSource::getFormat()
     return meta;
 }
 
+#ifndef METADATA_CAMERA_SOURCE
 // Pass the data to the MediaBuffer. Pass in only the metadata
 // Note: Call only when you have the lock
 void SurfaceMediaSource::passMetadataBuffer_l(MediaBuffer **buffer,
@@ -266,6 +274,34 @@ void SurfaceMediaSource::passMetadataBuffer_l(MediaBuffer **buffer,
     ALOGV("handle = %p, offset = %zu, length = %zu",
             bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
 }
+#else
+// Pass the data to the MediaBuffer. Pass in only the metadata
+// The metadata passed consists of two parts:
+// 1. First, there is an integer indicating that it is a GRAlloc
+// source (kMetadataBufferTypeGrallocSource)
+// 2. This is followed by the buffer_handle_t that is a handle to the
+// GRalloc buffer. The encoder needs to interpret this GRalloc handle
+// and encode the frames.
+// --------------------------------------------------------------
+// |  kMetadataBufferTypeGrallocSource | sizeof(buffer_handle_t) |
+// --------------------------------------------------------------
+// Note: Call only when you have the lock
+static void passMetadataBuffer(MediaBuffer **buffer,
+        buffer_handle_t bufferHandle) {
+    *buffer = new MediaBuffer(4 + sizeof(buffer_handle_t));
+    char *data = (char *)(*buffer)->data();
+    if (data == NULL) {
+        ALOGE("Cannot allocate memory for metadata buffer!");
+        return;
+    }
+    OMX_U32 type = kMetadataBufferTypeGrallocSource;
+    memcpy(data, &type, 4);
+    memcpy(data + 4, &bufferHandle, sizeof(buffer_handle_t));
+
+    ALOGV("handle = %p, , offset = %zu, length = %zu",
+            bufferHandle, (*buffer)->range_length(), (*buffer)->range_offset());
+}
+#endif
 
 status_t SurfaceMediaSource::read(
         MediaBuffer **buffer, const ReadOptions * /* options */) {
@@ -352,7 +388,11 @@ status_t SurfaceMediaSource::read(
     mNumFramesEncoded++;
     // Pass the data to the MediaBuffer. Pass in only the metadata
 
+#ifndef METADATA_CAMERA_SOURCE
     passMetadataBuffer_l(buffer, mSlots[mCurrentSlot].mGraphicBuffer->getNativeBuffer());
+#else
+    passMetadataBuffer(buffer, mSlots[mCurrentSlot].mGraphicBuffer->handle);
+#endif
 
     (*buffer)->setObserver(this);
     (*buffer)->add_ref();

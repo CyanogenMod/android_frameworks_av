@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1), true)
+$(warning Target has integrated cameraserver into mediaserver. This is weakening security measures introduced in 7.0)
+else
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -34,3 +37,5 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 LOCAL_INIT_RC := cameraserver.rc
 
 include $(BUILD_EXECUTABLE)
+
+endif
