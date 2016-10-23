@@ -17,8 +17,12 @@ LOCAL_SRC_FILES:= \
 LOCAL_C_INCLUDES:= \
         $(TOP)/frameworks/av/media/libstagefright \
         $(TOP)/frameworks/native/include/media/openmax \
-        $(TOP)/frameworks/native/include/media/hardware \
         $(TOP)/frameworks/av/media/libstagefright/mpeg2ts \
+
+ifneq ($(TARGET_HAS_LEGACY_CAMERA_HAL1), true)
+LOCAL_C_INCLUDES+= \
+	$(TOP)/frameworks/native/include/media/hardware
+endif
 
 LOCAL_SHARED_LIBRARIES:= \
         libbinder                       \

@@ -1523,8 +1523,13 @@ status_t StagefrightRecorder::setupCameraSource(
 
     CHECK(mFrameRate != -1);
 
+#ifndef METADATA_CAMERA_SOURCE
     mMetaDataStoredInVideoBuffers =
         (*cameraSource)->metaDataStoredInVideoBuffers();
+#else
+    mIsMetaDataStoredInVideoBuffers =
+        (*cameraSource)->isMetaDataStoredInVideoBuffers();
+#endif
 
     return OK;
 }
@@ -1651,11 +1656,17 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("android._prefer-b-frames", preferBFrames);
     }
 
+    uint32_t flags = 0;
+#ifndef METADATA_CAMERA_SOURCE
     if (mMetaDataStoredInVideoBuffers != kMetadataBufferTypeInvalid) {
         format->setInt32("android._input-metadata-buffer-type", mMetaDataStoredInVideoBuffers);
     }
+#else
+    if (mIsMetaDataStoredInVideoBuffers) {
+        flags |= MediaCodecSource::FLAG_USE_METADATA_INPUT;
+    }
+#endif
 
-    uint32_t flags = 0;
     if (cameraSource == NULL) {
         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
     } else {
@@ -1974,7 +1985,11 @@ status_t StagefrightRecorder::reset() {
     mCaptureFps = 0.0f;
     mTimeBetweenCaptureUs = -1;
     mCameraSourceTimeLapse = NULL;
+#ifndef METADATA_CAMERA_SOURCE
     mMetaDataStoredInVideoBuffers = kMetadataBufferTypeInvalid;
+#else
+    mIsMetaDataStoredInVideoBuffers = false;
+#endif
     mEncoderProfiles = MediaProfiles::getInstance();
     mRotationDegrees = 0;
     mLatitudex10000 = -3600000;
