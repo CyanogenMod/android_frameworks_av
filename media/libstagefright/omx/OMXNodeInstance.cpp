@@ -540,9 +540,11 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type) {
     if (portIndex != kPortIndexInput && portIndex != kPortIndexOutput) {
         android_errorWriteLog(0x534e4554, "26324358");
+#ifndef METADATA_CAMERA_SOURCE
         if (type != NULL) {
             *type = kMetadataBufferTypeInvalid;
         }
+#endif
         return BAD_VALUE;
     }
 
@@ -553,32 +555,46 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
     OMX_STRING nativeBufferName = const_cast<OMX_STRING>(
             "OMX.google.android.index.storeANWBufferInMetadata");
     MetadataBufferType negotiatedType;
+#ifndef METADATA_CAMERA_SOURCE
     MetadataBufferType requestedType = type != NULL ? *type : kMetadataBufferTypeANWBuffer;
+#endif
 
     StoreMetaDataInBuffersParams params;
     InitOMXParams(&params);
     params.nPortIndex = portIndex;
     params.bStoreMetaData = enable;
 
+#ifndef METADATA_CAMERA_SOURCE
     OMX_ERRORTYPE err =
         requestedType == kMetadataBufferTypeANWBuffer
                 ? OMX_GetExtensionIndex(mHandle, nativeBufferName, &index)
                 : OMX_ErrorUnsupportedIndex;
+#else
+    OMX_ERRORTYPE err = OMX_GetExtensionIndex(mHandle, nativeBufferName, &index);
+#endif
     OMX_ERRORTYPE xerr = err;
     if (err == OMX_ErrorNone) {
         err = OMX_SetParameter(mHandle, index, &params);
         if (err == OMX_ErrorNone) {
             name = nativeBufferName; // set name for debugging
+#ifndef METADATA_CAMERA_SOURCE
             negotiatedType = requestedType;
+#else
+            negotiatedType = kMetadataBufferTypeANWBuffer;
+#endif
         }
     }
     if (err != OMX_ErrorNone) {
         err = OMX_GetExtensionIndex(mHandle, name, &index);
         xerr = err;
         if (err == OMX_ErrorNone) {
+#ifndef METADATA_CAMERA_SOURCE
             negotiatedType =
                 requestedType == kMetadataBufferTypeANWBuffer
                         ? kMetadataBufferTypeGrallocSource : requestedType;
+#else
+            negotiatedType = kMetadataBufferTypeGrallocSource;
+#endif
             err = OMX_SetParameter(mHandle, index, &params);
         }
     }
@@ -600,9 +616,14 @@ status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         }
         mMetadataType[portIndex] = negotiatedType;
     }
+#ifndef METADATA_CAMERA_SOURCE
     CLOG_CONFIG(storeMetaDataInBuffers, "%s:%u %srequested %s:%d negotiated %s:%d",
             portString(portIndex), portIndex, enable ? "" : "UN",
             asString(requestedType), requestedType, asString(negotiatedType), negotiatedType);
+#else
+    CLOG_CONFIG(storeMetaDataInBuffers, "%s:%u negotiated %s:%d",
+            portString(portIndex), portIndex, asString(negotiatedType), negotiatedType);
+#endif
 
     if (type != NULL) {
         *type = negotiatedType;
@@ -958,9 +979,11 @@ status_t OMXNodeInstance::createGraphicBufferSource(
     }
 
     // Input buffers will hold meta-data (ANativeWindowBuffer references).
+#ifndef METADATA_CAMERA_SOURCE
     if (type != NULL) {
         *type = kMetadataBufferTypeANWBuffer;
     }
+#endif
     err = storeMetaDataInBuffers_l(portIndex, OMX_TRUE, type);
     if (err != OK) {
         return err;
