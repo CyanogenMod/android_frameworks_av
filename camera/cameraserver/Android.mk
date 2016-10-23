@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+ifneq ($(TARGET_HAS_LEGACY_CAMERA_HAL1), true)
+
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -34,3 +36,5 @@ LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 LOCAL_INIT_RC := cameraserver.rc
 
 include $(BUILD_EXECUTABLE)
+
+endif
