@@ -10,11 +10,12 @@ LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/seccomp_policy
 # use the 32 bit policy
 ifdef TARGET_2ND_ARCH
     LOCAL_SRC_FILES := $(LOCAL_PATH)/seccomp_policy/mediaextractor-seccomp-$(TARGET_2ND_ARCH).policy
-    LOCAL_SRC_FILES += $(LOCAL_PATH)/seccomp_policy/mediaextractor-seccomp-$(TARGET_2ND_ARCH)-cm.policy
 else
     LOCAL_SRC_FILES := $(LOCAL_PATH)/seccomp_policy/mediaextractor-seccomp-$(TARGET_ARCH).policy
-    LOCAL_SRC_FILES += $(LOCAL_PATH)/seccomp_policy/mediaextractor-seccomp-$(TARGET_ARCH)-cm.policy
 endif
+
+# add cm policy for all devices
+LOCAL_SRC_FILES += $(LOCAL_PATH)/seccomp_policy/mediaextractor-seccomp-cm.policy
 
 # allow device specific additions to the syscall whitelist
 ifneq (,$(wildcard $(BOARD_SECCOMP_POLICY)/mediaextractor-seccomp.policy))
