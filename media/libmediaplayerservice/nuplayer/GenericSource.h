@@ -111,7 +111,6 @@ private:
         size_t mIndex;
         sp<IMediaSource> mSource;
         sp<AnotherPacketSource> mPackets;
-        bool mReadMultiple;
     };
 
     // Helper to monitor buffering status. The polling happens every second.
