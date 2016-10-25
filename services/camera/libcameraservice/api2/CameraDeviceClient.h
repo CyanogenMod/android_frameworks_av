@@ -131,6 +131,10 @@ public:
     // Prepare stream by preallocating up to maxCount of its buffers
     virtual binder::Status prepare2(int32_t maxCount, int32_t streamId);
 
+    // Set the deferred surface for a stream.
+    virtual binder::Status setDeferredConfiguration(int32_t streamId,
+            const hardware::camera2::params::OutputConfiguration &outputConfiguration);
+
     /**
      * Interface used by CameraService
      */
@@ -188,6 +192,15 @@ private:
     // Find the square of the euclidean distance between two points
     static int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1);
 
+    // Create an output stream with surface deferred for future.
+    binder::Status createDeferredSurfaceStreamLocked(
+            const hardware::camera2::params::OutputConfiguration &outputConfiguration,
+            int* newStreamId = NULL);
+
+    // Set the stream transform flags to automatically rotate the camera stream for preview use
+    // cases.
+    binder::Status setStreamTransformLocked(int streamId);
+
     // Find the closest dimensions for a given format in available stream configurations with
     // a width <= ROUNDING_WIDTH_CAP
     static const int32_t ROUNDING_WIDTH_CAP = 1920;
@@ -213,6 +226,10 @@ private:
 
     int32_t mRequestIdCounter;
 
+    // The list of output streams whose surfaces are deferred. We have to track them separately
+    // as there are no surfaces available and can not be put into mStreamMap. Once the deferred
+    // Surface is configured, the stream id will be moved to mStreamMap.
+    Vector<int32_t> mDeferredStreams;
 };
 
 }; // namespace android

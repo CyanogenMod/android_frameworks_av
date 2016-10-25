@@ -33,10 +33,17 @@ public:
 
     static const int INVALID_ROTATION;
     static const int INVALID_SET_ID;
+    enum SurfaceType{
+        SURFACE_TYPE_UNKNOWN = -1,
+        SURFACE_TYPE_SURFACE_VIEW = 0,
+        SURFACE_TYPE_SURFACE_TEXTURE = 1
+    };
     sp<IGraphicBufferProducer> getGraphicBufferProducer() const;
     int                        getRotation() const;
     int                        getSurfaceSetID() const;
-
+    int                        getSurfaceType() const;
+    int                        getWidth() const;
+    int                        getHeight() const;
     /**
      * Keep impl up-to-date with OutputConfiguration.java in frameworks/base
      */
@@ -60,7 +67,10 @@ public:
     bool operator == (const OutputConfiguration& other) const {
         return (mGbp == other.mGbp &&
                 mRotation == other.mRotation &&
-                mSurfaceSetID == other.mSurfaceSetID);
+                mSurfaceSetID == other.mSurfaceSetID &&
+                mSurfaceType == other.mSurfaceType &&
+                mWidth == other.mWidth &&
+                mHeight == other.mHeight);
     }
     bool operator != (const OutputConfiguration& other) const {
         return !(*this == other);
@@ -71,6 +81,16 @@ public:
         if (mSurfaceSetID != other.mSurfaceSetID) {
             return mSurfaceSetID < other.mSurfaceSetID;
         }
+        if (mSurfaceType != other.mSurfaceType) {
+            return mSurfaceType < other.mSurfaceType;
+        }
+        if (mWidth != other.mWidth) {
+            return mWidth < other.mWidth;
+        }
+        if (mHeight != other.mHeight) {
+            return mHeight < other.mHeight;
+        }
+
         return mRotation < other.mRotation;
     }
     bool operator > (const OutputConfiguration& other) const {
@@ -81,6 +101,9 @@ private:
     sp<IGraphicBufferProducer> mGbp;
     int                        mRotation;
     int                        mSurfaceSetID;
+    int                        mSurfaceType;
+    int                        mWidth;
+    int                        mHeight;
     // helper function
     static String16 readMaybeEmptyString16(const Parcel* parcel);
 };

@@ -32,7 +32,7 @@ namespace android {
 
 /*static*/ const FastCaptureState FastCapture::sInitial;
 
-FastCapture::FastCapture() : FastThread(),
+FastCapture::FastCapture() : FastThread("cycleC_ms", "loadC_us"),
     mInputSource(NULL), mInputSourceGen(0), mPipeSink(NULL), mPipeSinkGen(0),
     mReadBuffer(NULL), mReadBufferState(-1), mFormat(Format_Invalid), mSampleRate(0),
     // mDummyDumpState

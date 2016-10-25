@@ -94,6 +94,16 @@ class Camera3OutputStream :
             android_dataspace dataSpace, camera3_stream_rotation_t rotation,
             nsecs_t timestampOffset, int setId = CAMERA3_STREAM_SET_ID_INVALID);
 
+    /**
+     * Set up a stream with deferred consumer for formats that have 2 dimensions, such as
+     * RAW and YUV. The consumer must be set before using this stream for output. A valid
+     * stream set id needs to be set to support buffer sharing between multiple streams.
+     */
+    Camera3OutputStream(int id, uint32_t width, uint32_t height, int format,
+            uint32_t consumerUsage, android_dataspace dataSpace,
+            camera3_stream_rotation_t rotation, nsecs_t timestampOffset,
+            int setId = CAMERA3_STREAM_SET_ID_INVALID);
+
     virtual ~Camera3OutputStream();
 
     /**
@@ -121,6 +131,16 @@ class Camera3OutputStream :
      * Return if this output stream is consumed by hardware texture.
      */
     bool isConsumedByHWTexture() const;
+
+    /**
+     * Return if the consumer configuration of this stream is deferred.
+     */
+    virtual bool isConsumerConfigurationDeferred() const;
+
+    /**
+     * Set the consumer surface to the output stream.
+     */
+    virtual status_t setConsumer(sp<Surface> consumer);
 
     class BufferReleasedListener : public BnProducerListener {
         public:
@@ -164,6 +184,7 @@ class Camera3OutputStream :
     virtual status_t disconnectLocked();
 
     sp<Surface> mConsumer;
+
   private:
 
     static const nsecs_t       kDequeueBufferTimeout   = 1000000000; // 1 sec
@@ -201,6 +222,12 @@ class Camera3OutputStream :
      * Timestamp offset for video and hardware composer consumed streams
      */
     nsecs_t mTimestampOffset;
+
+    /**
+     * Consumer end point usage flag set by the constructor for the deferred
+     * consumer case.
+     */
+    uint32_t    mConsumerUsage;
 
     /**
      * Internal Camera3Stream interface

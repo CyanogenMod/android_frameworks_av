@@ -3,4 +3,4 @@ service media /system/bin/mediaserver
     user media
     group audio camera inet net_bt net_bt_admin net_bw_acct drmrpc mediadrm
     ioprio rt 4
-    writepid /dev/cpuset/foreground/tasks
+    writepid /dev/cpuset/foreground/tasks /dev/stune/foreground/tasks

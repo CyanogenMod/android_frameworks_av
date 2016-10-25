@@ -34,7 +34,8 @@ float VolumeCurve::volIndexToDb(int indexInUi, int volIndexMin, int volIndexMax)
     // Where would this volume index been inserted in the curve point
     size_t indexInUiPosition = mCurvePoints.orderOf(CurvePoint(volIdx, 0));
     if (indexInUiPosition >= nbCurvePoints) {
-        return 0.0f; // out of bounds
+        //use last point of table
+        return mCurvePoints[nbCurvePoints - 1].mAttenuationInMb / 100.0f;
     }
     if (indexInUiPosition == 0) {
         if (indexInUiPosition != mCurvePoints[0].mIndex) {

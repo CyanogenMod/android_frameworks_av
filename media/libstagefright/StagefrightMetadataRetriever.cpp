@@ -165,6 +165,12 @@ static VideoFrame *extractVideoFrame(
 
     videoFormat->setInt32("thumbnail-mode", 1);
 
+    // For the thumbnail extraction case, try to allocate single buffer
+    // in both input and output ports. NOTE: This request may fail if
+    // component requires more than that for decoding.
+    videoFormat->setInt32("android._num-input-buffers", 1);
+    videoFormat->setInt32("android._num-output-buffers", 1);
+
     status_t err;
     sp<ALooper> looper = new ALooper;
     looper->start();

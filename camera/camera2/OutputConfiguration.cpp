@@ -42,9 +42,24 @@ int OutputConfiguration::getSurfaceSetID() const {
     return mSurfaceSetID;
 }
 
+int OutputConfiguration::getSurfaceType() const {
+    return mSurfaceType;
+}
+
+int OutputConfiguration::getWidth() const {
+    return mWidth;
+}
+
+int OutputConfiguration::getHeight() const {
+    return mHeight;
+}
+
 OutputConfiguration::OutputConfiguration() :
         mRotation(INVALID_ROTATION),
-        mSurfaceSetID(INVALID_SET_ID) {
+        mSurfaceSetID(INVALID_SET_ID),
+        mSurfaceType(SURFACE_TYPE_UNKNOWN),
+        mWidth(0),
+        mHeight(0) {
 }
 
 OutputConfiguration::OutputConfiguration(const Parcel& parcel) :
@@ -70,18 +85,48 @@ status_t OutputConfiguration::readFromParcel(const Parcel* parcel) {
         return err;
     }
 
+    int surfaceType = SURFACE_TYPE_UNKNOWN;
+    if ((err = parcel->readInt32(&surfaceType)) != OK) {
+        ALOGE("%s: Failed to read surface type from parcel", __FUNCTION__);
+        return err;
+    }
+
+    int width = 0;
+    if ((err = parcel->readInt32(&width)) != OK) {
+        ALOGE("%s: Failed to read surface width from parcel", __FUNCTION__);
+        return err;
+    }
+
+    int height = 0;
+    if ((err = parcel->readInt32(&height)) != OK) {
+        ALOGE("%s: Failed to read surface height from parcel", __FUNCTION__);
+        return err;
+    }
+
     view::Surface surfaceShim;
     if ((err = surfaceShim.readFromParcel(parcel)) != OK) {
-        ALOGE("%s: Failed to read surface from parcel", __FUNCTION__);
-        return err;
+        // Read surface failure for deferred surface configuration is expected.
+        if (surfaceType == SURFACE_TYPE_SURFACE_VIEW ||
+                surfaceType == SURFACE_TYPE_SURFACE_TEXTURE) {
+            ALOGV("%s: Get null surface from a deferred surface configuration (%dx%d)",
+                    __FUNCTION__, width, height);
+            err = OK;
+        } else {
+            ALOGE("%s: Failed to read surface from parcel", __FUNCTION__);
+            return err;
+        }
     }
 
     mGbp = surfaceShim.graphicBufferProducer;
     mRotation = rotation;
     mSurfaceSetID = setID;
+    mSurfaceType = surfaceType;
+    mWidth = width;
+    mHeight = height;
 
-    ALOGV("%s: OutputConfiguration: bp = %p, name = %s, rotation = %d, setId = %d", __FUNCTION__,
-            mGbp.get(), String8(surfaceShim.name).string(), mRotation, mSurfaceSetID);
+    ALOGV("%s: OutputConfiguration: bp = %p, name = %s, rotation = %d, setId = %d,"
+            "surfaceType = %d", __FUNCTION__, mGbp.get(), String8(surfaceShim.name).string(),
+            mRotation, mSurfaceSetID, mSurfaceType);
 
     return err;
 }
@@ -102,6 +147,15 @@ status_t OutputConfiguration::writeToParcel(Parcel* parcel) const {
     if (err != OK) return err;
 
     err = parcel->writeInt32(mSurfaceSetID);
+    if (err != OK) return err;
+
+    err = parcel->writeInt32(mSurfaceType);
+    if (err != OK) return err;
+
+    err = parcel->writeInt32(mWidth);
+    if (err != OK) return err;
+
+    err = parcel->writeInt32(mHeight);
     if (err != OK) return err;
 
     view::Surface surfaceShim;

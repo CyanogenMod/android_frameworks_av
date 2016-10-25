@@ -212,6 +212,33 @@ const AMessage::Item *AMessage::findItem(
     return NULL;
 }
 
+bool AMessage::findAsFloat(const char *name, float *value) const {
+    size_t i = findItemIndex(name, strlen(name));
+    if (i < mNumItems) {
+        const Item *item = &mItems[i];
+        switch (item->mType) {
+            case kTypeFloat:
+                *value = item->u.floatValue;
+                return true;
+            case kTypeDouble:
+                *value = (float)item->u.doubleValue;
+                return true;
+            case kTypeInt64:
+                *value = (float)item->u.int64Value;
+                return true;
+            case kTypeInt32:
+                *value = (float)item->u.int32Value;
+                return true;
+            case kTypeSize:
+                *value = (float)item->u.sizeValue;
+                return true;
+            default:
+                return false;
+        }
+    }
+    return false;
+}
+
 bool AMessage::contains(const char *name) const {
     size_t i = findItemIndex(name, strlen(name));
     return i < mNumItems;

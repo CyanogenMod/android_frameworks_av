@@ -80,7 +80,7 @@ static uint32_t gBitRate = 4000000;     // 4Mbps
 static uint32_t gTimeLimitSec = kMaxTimeLimitSec;
 
 // Set by signal handler to stop recording.
-static volatile bool gStopRequested;
+static volatile bool gStopRequested = false;
 
 // Previous signal handler state, restored after first hit.
 static struct sigaction gOrigSigactionINT;
@@ -333,9 +333,6 @@ static status_t runEncoder(const sp<MediaCodec>& encoder,
         fprintf(stderr, "Unable to get output buffers (err=%d)\n", err);
         return err;
     }
-
-    // This is set by the signal handler.
-    gStopRequested = false;
 
     // Run until we're signaled.
     while (!gStopRequested) {
@@ -640,6 +637,11 @@ static status_t recordScreen(const char* fileName) {
         case FORMAT_MP4: {
             // Configure muxer.  We have to wait for the CSD blob from the encoder
             // before we can start it.
+            err = unlink(fileName);
+            if (err != 0 && errno != ENOENT) {
+                fprintf(stderr, "ERROR: couldn't remove existing file\n");
+                abort();
+            }
             int fd = open(fileName, O_CREAT | O_LARGEFILE | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
             if (fd < 0) {
                 fprintf(stderr, "ERROR: couldn't open file\n");
@@ -718,7 +720,7 @@ static status_t recordScreen(const char* fileName) {
     if (muxer != NULL) {
         // If we don't stop muxer explicitly, i.e. let the destructor run,
         // it may hang (b/11050628).
-        muxer->stop();
+        err = muxer->stop();
     } else if (rawFp != stdout) {
         fclose(rawFp);
     }

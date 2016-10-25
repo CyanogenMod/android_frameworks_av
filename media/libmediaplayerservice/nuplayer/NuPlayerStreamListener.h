@@ -24,7 +24,7 @@
 
 namespace android {
 
-struct MemoryDealer;
+class MemoryDealer;
 
 struct NuPlayer::NuPlayerStreamListener : public BnStreamListener {
     NuPlayerStreamListener(

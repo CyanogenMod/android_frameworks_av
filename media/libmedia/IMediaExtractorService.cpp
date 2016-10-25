@@ -71,6 +71,9 @@ status_t BnMediaExtractorService::onTransact(
                 ALOGE("Error reading source from parcel");
                 return ret;
             }
+            // If we make an extractor through Binder, enabled shared memory
+            // for MediaBuffers for this process.
+            MediaBuffer::useSharedMemory();
             sp<IDataSource> source = interface_cast<IDataSource>(b);
             const char *mime = data.readCString();
             sp<IMediaExtractor> ex = makeExtractor(source, mime);

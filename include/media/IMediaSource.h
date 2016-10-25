@@ -18,14 +18,17 @@
 
 #define IMEDIA_SOURCE_BASE_H_
 
+#include <map>
+
 #include <binder/IInterface.h>
+#include <binder/IMemory.h>
+#include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaErrors.h>
 
 namespace android {
 
 struct MediaSource;
 class MetaData;
-class MediaBuffer;
 class MediaBufferGroup;
 
 class IMediaSource : public IInterface {
@@ -56,7 +59,7 @@ public:
     // a) not request a seek
     // b) not be late, i.e. lateness_us = 0
     struct ReadOptions {
-        enum SeekMode {
+        enum SeekMode : int32_t {
             SEEK_PREVIOUS_SYNC,
             SEEK_NEXT_SYNC,
             SEEK_CLOSEST_SYNC,
@@ -72,12 +75,18 @@ public:
         void clearSeekTo();
         bool getSeekTo(int64_t *time_us, SeekMode *mode) const;
 
+        // TODO: remove this if unused.
         void setLateBy(int64_t lateness_us);
         int64_t getLateBy() const;
 
         void setNonBlocking();
         void clearNonBlocking();
         bool getNonBlocking() const;
+
+        // Used to clear all non-persistent options for multiple buffer reads.
+        void clearNonPersistent() {
+            clearSeekTo();
+        }
 
     private:
         enum Options {
@@ -98,21 +107,33 @@ public:
     // A result of INFO_FORMAT_CHANGED indicates that the format of this
     // MediaSource has changed mid-stream, the client can continue reading
     // but should be prepared for buffers of the new configuration.
+    //
+    // TODO: consider removing read() in favor of readMultiple().
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL) = 0;
 
-    // Returns a vector of new buffers of data. The vector size could be
-    // <= |maxNumBuffers|. Used for buffers with small size
-    // since all buffer data are passed back by binder, not shared memory.
+    // Returns a vector of new buffers of data, where the new buffers are added
+    // to the end of the vector.
     // Call blocks until an error is encountered, or the end of the stream is
     // reached, or format change is hit, or |kMaxNumReadMultiple| buffers have
     // been read.
-    // End of stream is signalled by a result of ERROR_END_OF_STREAM.
+    // End of stream is signaled by a result of ERROR_END_OF_STREAM.
     // A result of INFO_FORMAT_CHANGED indicates that the format of this
     // MediaSource has changed mid-stream, the client can continue reading
     // but should be prepared for buffers of the new configuration.
+    //
+    // ReadOptions may be specified. Persistent options apply to all reads;
+    // non-persistent options (e.g. seek) apply only to the first read.
     virtual status_t readMultiple(
-            Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers = 1) = 0;
+            Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers = 1,
+            const ReadOptions *options = nullptr) = 0;
+
+    // Returns true if |readMultiple| is supported, otherwise false.
+    virtual bool supportReadMultiple() = 0;
+
+    // Returns true if |read| supports nonblocking option, otherwise false.
+    // |readMultiple| if supported, always allows the nonblocking option.
+    virtual bool supportNonblockingRead() = 0;
 
     // Causes this source to suspend pulling data from its upstream source
     // until a subsequent read-with-seek. Currently only supported by
@@ -144,17 +165,102 @@ public:
         return ERROR_UNSUPPORTED;
     }
 
+    // TODO: Implement this for local media sources.
     virtual status_t readMultiple(
-            Vector<MediaBuffer *> * /* buffers */, uint32_t /* maxNumBuffers = 1 */) {
+            Vector<MediaBuffer *> * /* buffers */, uint32_t /* maxNumBuffers = 1 */,
+            const ReadOptions * /* options = nullptr */) {
         return ERROR_UNSUPPORTED;
     }
+
+    virtual bool supportReadMultiple() {
+        return false;
+    }
+
+    // Override in source if nonblocking reads are supported.
+    virtual bool supportNonblockingRead() {
+        return false;
+    }
+
+    static const size_t kBinderMediaBuffers = 4; // buffers managed by BnMediaSource
+    static const size_t kTransferSharedAsSharedThreshold = 4 * 1024;  // if >= shared, else inline
+    static const size_t kTransferInlineAsSharedThreshold = 64 * 1024; // if >= shared, else inline
+    static const size_t kInlineMaxTransfer = 256 * 1024; // Binder size limited to BINDER_VM_SIZE.
+
 protected:
     virtual ~BnMediaSource();
 
 private:
-    MediaBufferGroup *mGroup;
-};
+    uint32_t mBuffersSinceStop; // Buffer tracking variable
 
+    std::unique_ptr<MediaBufferGroup> mGroup;
+
+    // To prevent marshalling IMemory with each read transaction, we cache the IMemory pointer
+    // into a map.
+    //
+    // This is converted into an index, which is used to identify the associated memory
+    // on the receiving side.  We hold a reference to the IMemory here to ensure it doesn't
+    // change underneath us.
+
+    struct IndexCache {
+        IndexCache() : mIndex(0) { }
+
+        // Returns the index of the IMemory stored in cache or 0 if not found.
+        uint64_t lookup(const sp<IMemory> &mem) {
+            auto p = mMemoryToIndex.find(mem.get());
+            if (p == mMemoryToIndex.end()) {
+                return 0;
+            }
+            if (MediaBuffer::isDeadObject(p->second.first)) {
+                // this object's dead
+                ALOGW("Attempting to lookup a dead IMemory");
+                (void)mMemoryToIndex.erase(p);
+                return 0;
+            }
+            ALOGW_IF(p->second.first.get() != mem.get(), "Mismatched buffers without reset");
+            return p->second.second;
+        }
+
+        // Returns the index of the IMemory stored in the index cache.
+        uint64_t insert(const sp<IMemory> &mem) {
+            auto p = mMemoryToIndex.find(mem.get());
+            if (p == mMemoryToIndex.end()) {
+                if (mIndex == UINT64_MAX) {
+                    ALOGE("Index overflow");
+                    mIndex = 1; // skip overflow condition and hope for the best
+                } else {
+                    ++mIndex;
+                }
+                (void)mMemoryToIndex.emplace(// C++11 mem.get(), std::make_pair(mem, mIndex))
+                        std::piecewise_construct,
+                        std::forward_as_tuple(mem.get()), std::forward_as_tuple(mem, mIndex));
+                return mIndex;
+            }
+            ALOGW("IMemory already inserted into cache");
+            return p->second.second;
+        }
+
+        void reset() {
+            mMemoryToIndex.clear();
+            mIndex = 0;
+        }
+
+        void gc() {
+            for (auto it = mMemoryToIndex.begin(); it != mMemoryToIndex.end(); ) {
+                if (MediaBuffer::isDeadObject(it->second.first)) {
+                    it = mMemoryToIndex.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+    private:
+        uint64_t mIndex;
+        // C++14 unordered_map erase on iterator is stable; C++11 has no guarantee.
+        // Could key on uintptr_t instead of IMemory *
+        std::map<IMemory *, std::pair<sp<IMemory>, uint64_t>> mMemoryToIndex;
+    } mIndexCache;
+};
 
 }  // namespace android
 

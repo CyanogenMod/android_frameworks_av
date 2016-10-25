@@ -1,6 +1,6 @@
 service cameraserver /system/bin/cameraserver
     class main
     user cameraserver
-    group audio camera drmrpc inet media mediadrm net_bt net_bt_admin net_bw_acct
+    group audio camera input drmrpc
     ioprio rt 4
-    writepid /dev/cpuset/foreground/tasks
+    writepid /dev/cpuset/camera-daemon/tasks /dev/stune/top-app/tasks

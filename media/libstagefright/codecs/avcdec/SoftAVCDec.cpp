@@ -122,7 +122,8 @@ SoftAVC::SoftAVC(
       mSignalledError(false),
       mStride(mWidth){
     initPorts(
-            kNumBuffers, INPUT_BUF_SIZE, kNumBuffers, CODEC_MIME_TYPE);
+            1 /* numMinInputBuffers */, kNumBuffers, INPUT_BUF_SIZE,
+            1 /* numMinOutputBuffers */, kNumBuffers, CODEC_MIME_TYPE);
 
     GETTIME(&mTimeStart, NULL);
 
@@ -381,6 +382,48 @@ void SoftAVC::onReset() {
     resetPlugin();
 }
 
+bool SoftAVC::getVUIParams() {
+    IV_API_CALL_STATUS_T status;
+    ih264d_ctl_get_vui_params_ip_t s_ctl_get_vui_params_ip;
+    ih264d_ctl_get_vui_params_op_t s_ctl_get_vui_params_op;
+
+    s_ctl_get_vui_params_ip.e_cmd = IVD_CMD_VIDEO_CTL;
+    s_ctl_get_vui_params_ip.e_sub_cmd =
+        (IVD_CONTROL_API_COMMAND_TYPE_T)IH264D_CMD_CTL_GET_VUI_PARAMS;
+
+    s_ctl_get_vui_params_ip.u4_size =
+        sizeof(ih264d_ctl_get_vui_params_ip_t);
+
+    s_ctl_get_vui_params_op.u4_size = sizeof(ih264d_ctl_get_vui_params_op_t);
+
+    status = ivdec_api_function(
+            (iv_obj_t *)mCodecCtx, (void *)&s_ctl_get_vui_params_ip,
+            (void *)&s_ctl_get_vui_params_op);
+
+    if (status != IV_SUCCESS) {
+        ALOGW("Error in getting VUI params: 0x%x",
+                s_ctl_get_vui_params_op.u4_error_code);
+        return false;
+    }
+
+    int32_t primaries = s_ctl_get_vui_params_op.u1_colour_primaries;
+    int32_t transfer = s_ctl_get_vui_params_op.u1_tfr_chars;
+    int32_t coeffs = s_ctl_get_vui_params_op.u1_matrix_coeffs;
+    bool fullRange = s_ctl_get_vui_params_op.u1_video_full_range_flag;
+
+    ColorAspects colorAspects;
+    ColorUtils::convertIsoColorAspectsToCodecAspects(
+            primaries, transfer, coeffs, fullRange, colorAspects);
+
+    // Update color aspects if necessary.
+    if (colorAspectsDiffer(colorAspects, mBitstreamColorAspects)) {
+        mBitstreamColorAspects = colorAspects;
+        status_t err = handleColorAspectsChange();
+        CHECK(err == OK);
+    }
+    return true;
+}
+
 bool SoftAVC::setDecodeArgs(
         ivd_video_decode_ip_t *ps_dec_ip,
         ivd_video_decode_op_t *ps_dec_op,
@@ -606,6 +649,8 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
 
             bool resChanged = (IVD_RES_CHANGED == (s_dec_op.u4_error_code & 0xFF));
 
+            getVUIParams();
+
             GETTIME(&mTimeEnd, NULL);
             /* Compute time taken for decode() */
             TIME_DIFF(mTimeStart, mTimeEnd, timeTaken);
@@ -641,16 +686,22 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
                 continue;
             }
 
+            // Combine the resolution change and coloraspects change in one PortSettingChange event
+            // if necessary.
             if ((0 < s_dec_op.u4_pic_wd) && (0 < s_dec_op.u4_pic_ht)) {
                 uint32_t width = s_dec_op.u4_pic_wd;
                 uint32_t height = s_dec_op.u4_pic_ht;
                 bool portWillReset = false;
                 handlePortSettingsChange(&portWillReset, width, height);
-
                 if (portWillReset) {
                     resetDecoder();
                     return;
                 }
+            } else if (mUpdateColorAspects) {
+                notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
+                    kDescribeColorAspectsIndex, NULL);
+                mUpdateColorAspects = false;
+                return;
             }
 
             if (s_dec_op.u4_output_present) {
@@ -703,6 +754,10 @@ void SoftAVC::onQueueFilled(OMX_U32 portIndex) {
             inHeader = NULL;
         }
     }
+}
+
+int SoftAVC::getColorAspectPreference() {
+    return kPreferBitstream;
 }
 
 }  // namespace android

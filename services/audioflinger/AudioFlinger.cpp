@@ -132,6 +132,9 @@ const char *formatToString(audio_format_t format) {
     case AUDIO_FORMAT_AC3: return "ac-3";
     case AUDIO_FORMAT_E_AC3: return "e-ac-3";
     case AUDIO_FORMAT_IEC61937: return "iec61937";
+    case AUDIO_FORMAT_DTS: return "dts";
+    case AUDIO_FORMAT_DTS_HD: return "dts-hd";
+    case AUDIO_FORMAT_DOLBY_TRUEHD: return "dolby-truehd";
     default:
         break;
     }
@@ -576,7 +579,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
         audio_format_t format,
         audio_channel_mask_t channelMask,
         size_t *frameCount,
-        IAudioFlinger::track_flags_t *flags,
+        audio_output_flags_t *flags,
         const sp<IMemory>& sharedBuffer,
         audio_io_handle_t output,
         pid_t pid,
@@ -660,7 +663,7 @@ sp<IAudioTrack> AudioFlinger::createTrack(
                 sp<PlaybackThread> t = mPlaybackThreads.valueAt(i);
                 if (mPlaybackThreads.keyAt(i) != output) {
                     uint32_t sessions = t->hasAudioSession(lSessionId);
-                    if (sessions & PlaybackThread::EFFECT_SESSION) {
+                    if (sessions & ThreadBase::EFFECT_SESSION) {
                         effectThread = t.get();
                         break;
                     }
@@ -1478,7 +1481,7 @@ sp<IAudioRecord> AudioFlinger::openRecord(
         audio_channel_mask_t channelMask,
         const String16& opPackageName,
         size_t *frameCount,
-        IAudioFlinger::track_flags_t *flags,
+        audio_input_flags_t *flags,
         pid_t pid,
         pid_t tid,
         int clientUid,
@@ -1709,14 +1712,14 @@ audio_module_handle_t AudioFlinger::loadHwModule_l(const char *name)
 uint32_t AudioFlinger::getPrimaryOutputSamplingRate()
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = primaryPlaybackThread_l();
+    PlaybackThread *thread = fastPlaybackThread_l();
     return thread != NULL ? thread->sampleRate() : 0;
 }
 
 size_t AudioFlinger::getPrimaryOutputFrameCount()
 {
     Mutex::Autolock _l(mLock);
-    PlaybackThread *thread = primaryPlaybackThread_l();
+    PlaybackThread *thread = fastPlaybackThread_l();
     return thread != NULL ? thread->frameCountHAL() : 0;
 }
 
@@ -1777,7 +1780,7 @@ audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         sp<PlaybackThread> thread = mPlaybackThreads.valueAt(i);
         uint32_t sessions = thread->hasAudioSession(sessionId);
-        if (sessions & PlaybackThread::TRACK_SESSION) {
+        if (sessions & ThreadBase::TRACK_SESSION) {
             AudioParameter param = AudioParameter();
             param.addInt(String8(AUDIO_PARAMETER_STREAM_HW_AV_SYNC), value);
             thread->setParameters(param.toString());
@@ -2214,7 +2217,7 @@ sp<AudioFlinger::RecordThread> AudioFlinger::openInput_l(audio_module_handle_t m
         }
 #endif
 
-        AudioStreamIn *inputStream = new AudioStreamIn(inHwDev, inStream);
+        AudioStreamIn *inputStream = new AudioStreamIn(inHwDev, inStream, flags);
 
         // Start record thread
         // RecordThread requires both input and output device indication to forward to audio
@@ -2547,6 +2550,25 @@ audio_devices_t AudioFlinger::primaryOutputDevice_l() const
     return thread->outDevice();
 }
 
+AudioFlinger::PlaybackThread *AudioFlinger::fastPlaybackThread_l() const
+{
+    size_t minFrameCount = 0;
+    PlaybackThread *minThread = NULL;
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        PlaybackThread *thread = mPlaybackThreads.valueAt(i).get();
+        if (!thread->isDuplicating()) {
+            size_t frameCount = thread->frameCountHAL();
+            if (frameCount != 0 && (minFrameCount == 0 || frameCount < minFrameCount ||
+                    (frameCount == minFrameCount && thread->hasFastMixer() &&
+                    /*minThread != NULL &&*/ !minThread->hasFastMixer()))) {
+                minFrameCount = frameCount;
+                minThread = thread;
+            }
+        }
+    }
+    return minThread;
+}
+
 sp<AudioFlinger::SyncEvent> AudioFlinger::createSyncEvent(AudioSystem::sync_event_t type,
                                     audio_session_t triggerSession,
                                     audio_session_t listenerSession,
@@ -2839,14 +2861,11 @@ status_t AudioFlinger::moveEffectChain_l(audio_session_t sessionId,
         return INVALID_OPERATION;
     }
 
-    // Check whether the destination thread has a channel count of FCC_2, which is
-    // currently required for (most) effects. Prevent moving the effect chain here rather
-    // than disabling the addEffect_l() call in dstThread below.
-    if ((dstThread->type() == ThreadBase::MIXER || dstThread->isDuplicating()) &&
-            dstThread->mChannelCount != FCC_2) {
+    // Check whether the destination thread and all effects in the chain are compatible
+    if (!chain->isCompatibleWithThread_l(dstThread)) {
         ALOGW("moveEffectChain_l() effect chain failed because"
-                " destination thread %p channel count(%u) != %u",
-                dstThread, dstThread->mChannelCount, FCC_2);
+                " destination thread %p is not compatible with effects in the chain",
+                dstThread);
         return INVALID_OPERATION;
     }
 
@@ -3054,7 +3073,7 @@ void AudioFlinger::dumpTee(int fd, const sp<NBAIO_Source>& source, audio_io_hand
             }
         } else {
             if (fd >= 0) {
-                dprintf(fd, "unable to rotate tees in %.*s: %s\n", teePathLen, teePath,
+                dprintf(fd, "unable to rotate tees in %.*s: %s\n", (int) teePathLen, teePath,
                         strerror(errno));
             }
         }

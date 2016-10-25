@@ -80,7 +80,7 @@ CCHelper::~CCHelper() {
     }
 }
 
-void CCHelper::CommonClockListener::onTimelineChanged(uint64_t timelineID) {
+void CCHelper::CommonClockListener::onTimelineChanged(uint64_t timelineID __unused) {
     // do nothing; listener is only really used as a token so the server can
     // find out when clients die.
 }

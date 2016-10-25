@@ -61,6 +61,16 @@ class Camera3DummyStream :
      */
     bool isVideoStream() const;
 
+    /**
+     * Return if the consumer configuration of this stream is deferred.
+     */
+    virtual bool isConsumerConfigurationDeferred() const;
+
+    /**
+     * Set the consumer surface to the output stream.
+     */
+    virtual status_t setConsumer(sp<Surface> consumer);
+
   protected:
 
     /**

@@ -335,10 +335,21 @@ sp<MediaCodecSource> MediaCodecSource::Create(
     return NULL;
 }
 
-void MediaCodecSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
+status_t MediaCodecSource::setInputBufferTimeOffset(int64_t timeOffsetUs) {
     sp<AMessage> msg = new AMessage(kWhatSetInputBufferTimeOffset, mReflector);
     msg->setInt64("time-offset-us", timeOffsetUs);
-    postSynchronouslyAndReturnError(msg);
+    return postSynchronouslyAndReturnError(msg);
+}
+
+int64_t MediaCodecSource::getFirstSampleSystemTimeUs() {
+    sp<AMessage> msg = new AMessage(kWhatGetFirstSampleSystemTimeUs, mReflector);
+    sp<AMessage> response;
+    msg->postAndAwaitResponse(&response);
+    int64_t timeUs;
+    if (!response->findInt64("time-us", &timeUs)) {
+        timeUs = -1ll;
+    }
+    return timeUs;
 }
 
 status_t MediaCodecSource::start(MetaData* params) {
@@ -407,6 +418,8 @@ MediaCodecSource::MediaCodecSource(
       mEncoderDataSpace(0),
       mGraphicBufferConsumer(consumer),
       mInputBufferTimeOffsetUs(0),
+      mFirstSampleSystemTimeUs(-1ll),
+      mPausePending(false),
       mFirstSampleTimeUs(-1ll),
       mGeneration(0) {
     CHECK(mLooper != NULL);
@@ -661,6 +674,17 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
         if (mbuf != NULL) {
             CHECK(mbuf->meta_data()->findInt64(kKeyTime, &timeUs));
+            if (mFirstSampleSystemTimeUs < 0ll) {
+                mFirstSampleSystemTimeUs = systemTime() / 1000;
+                if (mPausePending) {
+                    mPausePending = false;
+                    onPause();
+                    mbuf->release();
+                    mAvailEncoderInputIndices.push_back(bufferIndex);
+                    return OK;
+                }
+            }
+
             timeUs += mInputBufferTimeOffsetUs;
 
             // push decoding time for video, or drift time for audio
@@ -674,7 +698,6 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
                 if (mFirstSampleTimeUs < 0ll) {
                     mFirstSampleTimeUs = timeUs;
                 }
-
                 int64_t driftTimeUs = 0;
                 if (mbuf->meta_data()->findInt64(kKeyDriftTime, &driftTimeUs)
                         && driftTimeUs) {
@@ -726,6 +749,10 @@ status_t MediaCodecSource::onStart(MetaData *params) {
 
     if (mStarted) {
         ALOGI("MediaCodecSource (%s) resuming", mIsVideo ? "video" : "audio");
+        if (mPausePending) {
+            mPausePending = false;
+            return OK;
+        }
         if (mIsVideo) {
             mEncoder->requestIDRFrame();
         }
@@ -770,6 +797,15 @@ status_t MediaCodecSource::onStart(MetaData *params) {
 
     mStarted = true;
     return OK;
+}
+
+void MediaCodecSource::onPause() {
+    if (mFlags & FLAG_USE_SURFACE_INPUT) {
+        suspend();
+    } else {
+        CHECK(mPuller != NULL);
+        mPuller->pause();
+    }
 }
 
 void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
@@ -841,7 +877,8 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
-            memcpy(mbuf->data(), outbuf->data(), outbuf->size());
+            mbuf->add_ref();
+            
             sp<MetaData> meta = mbuf->meta_data();
             AVUtils::get()->setDeferRelease(meta);
 
@@ -849,9 +886,16 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 if (mIsVideo) {
                     int64_t decodingTimeUs;
                     if (mFlags & FLAG_USE_SURFACE_INPUT) {
-                        // Time offset is not applied at
-                        // feedEncoderInputBuffer() in surface input case.
-                        timeUs += mInputBufferTimeOffsetUs;
+                        if (mFirstSampleSystemTimeUs < 0ll) {
+                            mFirstSampleSystemTimeUs = systemTime() / 1000;
+                            if (mPausePending) {
+                                mPausePending = false;
+                                onPause();
+                                mbuf->release();
+                                break;
+                            }
+                        }
+                        // Timestamp offset is already adjusted in GraphicBufferSource.
                         // GraphicBufferSource is supposed to discard samples
                         // queued before start, and offset timeUs by start time
                         CHECK_GE(timeUs, 0ll);
@@ -887,8 +931,8 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
                 mbuf->meta_data()->setInt32(kKeyIsSyncFrame, true);
             }
+            memcpy(mbuf->data(), outbuf->data(), outbuf->size());
             mbuf->setObserver(this);
-            mbuf->add_ref();
 
             {
                 Mutexed<Output>::Locked output(mOutput);
@@ -981,11 +1025,10 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
 
     case kWhatPause:
     {
-        if (mFlags & FLAG_USE_SURFACE_INPUT) {
-            suspend();
+        if (mFirstSampleSystemTimeUs < 0) {
+            mPausePending = true;
         } else {
-            CHECK(mPuller != NULL);
-            mPuller->pause();
+            onPause();
         }
         break;
     }
@@ -993,10 +1036,28 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     {
         sp<AReplyToken> replyID;
         CHECK(msg->senderAwaitsResponse(&replyID));
-
+        status_t err = OK;
         CHECK(msg->findInt64("time-offset-us", &mInputBufferTimeOffsetUs));
 
+        // Propagate the timestamp offset to GraphicBufferSource.
+        if (mIsVideo) {
+            sp<AMessage> params = new AMessage;
+            params->setInt64("time-offset-us", mInputBufferTimeOffsetUs);
+            err = mEncoder->setParameters(params);
+        }
+
         sp<AMessage> response = new AMessage;
+        response->setInt32("err", err);
+        response->postReply(replyID);
+        break;
+    }
+    case kWhatGetFirstSampleSystemTimeUs:
+    {
+        sp<AReplyToken> replyID;
+        CHECK(msg->senderAwaitsResponse(&replyID));
+
+        sp<AMessage> response = new AMessage;
+        response->setInt64("time-us", mFirstSampleSystemTimeUs);
         response->postReply(replyID);
         break;
     }

@@ -63,7 +63,6 @@ public:
                                 void *buffer,
                                 audio_session_t sessionId,
                                 int uid,
-                                IAudioFlinger::track_flags_t flags,
                                 bool isOut,
                                 alloc_type alloc = ALLOC_CBLK,
                                 track_type type = TYPE_DEFAULT);
@@ -81,7 +80,7 @@ public:
 
             sp<IMemory> getBuffers() const { return mBufferMemory; }
             void*       buffer() const { return mBuffer; }
-            bool        isFastTrack() const { return (mFlags & IAudioFlinger::TRACK_FAST) != 0; }
+    virtual bool        isFastTrack() const = 0;
             bool        isOutputTrack() const { return (mType == TYPE_OUTPUT); }
             bool        isPatchTrack() const { return (mType == TYPE_PATCH); }
             bool        isExternalTrack() const { return !isOutputTrack() && !isPatchTrack(); }
@@ -156,7 +155,6 @@ protected:
     const audio_session_t mSessionId;
     int                 mUid;
     Vector < sp<SyncEvent> >mSyncEvents;
-    const IAudioFlinger::track_flags_t mFlags;
     const bool          mIsOut;
     ServerProxy*        mServerProxy;
     const int           mId;

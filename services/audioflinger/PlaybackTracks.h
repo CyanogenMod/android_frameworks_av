@@ -33,7 +33,7 @@ public:
                                 const sp<IMemory>& sharedBuffer,
                                 audio_session_t sessionId,
                                 int uid,
-                                IAudioFlinger::track_flags_t flags,
+                                audio_output_flags_t flags,
                                 track_type type);
     virtual             ~Track();
     virtual status_t    initCheck() const;
@@ -55,8 +55,9 @@ public:
             audio_stream_type_t streamType() const {
                 return mStreamType;
             }
-            bool        isOffloaded() const { return (mFlags & IAudioFlinger::TRACK_OFFLOAD) != 0; }
-            bool        isDirect() const { return (mFlags & IAudioFlinger::TRACK_DIRECT) != 0; }
+            bool        isOffloaded() const
+                                { return (mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0; }
+            bool        isDirect() const { return (mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0; }
             status_t    setParameters(const String8& keyValuePairs);
             status_t    attachAuxEffect(int EffectId);
             void        setAuxBuffer(int EffectId, int32_t *buffer);
@@ -71,6 +72,8 @@ public:
     virtual gain_minifloat_packed_t getVolumeLR();
 
     virtual status_t    setSyncEvent(const sp<SyncEvent>& event);
+
+    virtual bool        isFastTrack() const { return (mFlags & AUDIO_OUTPUT_FLAG_FAST) != 0; }
 
 protected:
     // for numerous
@@ -166,7 +169,7 @@ private:
     AudioTrackServerProxy*  mAudioTrackServerProxy;
     bool                mResumeToStopping; // track was paused in stopping state.
     bool                mFlushHwPending; // track requests for thread flush
-
+    audio_output_flags_t mFlags;
 };  // end of Track
 
 
@@ -226,7 +229,7 @@ public:
                                    audio_format_t format,
                                    size_t frameCount,
                                    void *buffer,
-                                   IAudioFlinger::track_flags_t flags);
+                                   audio_output_flags_t flags);
     virtual             ~PatchTrack();
 
     virtual status_t    start(AudioSystem::sync_event_t event =

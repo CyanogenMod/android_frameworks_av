@@ -30,6 +30,7 @@
 #include "common/CameraDeviceBase.h"
 #include "device3/StatusTracker.h"
 #include "device3/Camera3BufferManager.h"
+#include "utils/TagMonitor.h"
 
 /**
  * Function pointer types with C calling convention to
@@ -95,11 +96,14 @@ class Camera3Device :
 
     // Actual stream creation/deletion is delayed until first request is submitted
     // If adding streams while actively capturing, will pause device before adding
-    // stream, reconfiguring device, and unpausing.
+    // stream, reconfiguring device, and unpausing. If the client create a stream
+    // with nullptr consumer surface, the client must then call setConsumer()
+    // and finish the stream configuration before starting output streaming.
     virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id,
-            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID);
+            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
+            uint32_t consumerUsage = 0);
     virtual status_t createInputStream(
             uint32_t width, uint32_t height, int format,
             int *id);
@@ -128,7 +132,7 @@ class Camera3Device :
     // Transitions to the idle state on success
     virtual status_t waitUntilDrained();
 
-    virtual status_t setNotifyCallback(NotificationListener *listener);
+    virtual status_t setNotifyCallback(wp<NotificationListener> listener);
     virtual bool     willNotify3A();
     virtual status_t waitForNextFrame(nsecs_t timeout);
     virtual status_t getNextResult(CaptureResult *frame);
@@ -160,6 +164,12 @@ class Camera3Device :
     // Methods called by subclasses
     void             notifyStatus(bool idle); // updates from StatusTracker
 
+    /**
+     * Set the deferred consumer surface to the output stream and finish the deferred
+     * consumer configuration.
+     */
+    virtual status_t setConsumerSurface(int streamId, sp<Surface> consumer);
+
   private:
     static const size_t        kDumpLockAttempts  = 10;
     static const size_t        kDumpSleepDuration = 100000; // 0.10 sec
@@ -168,7 +178,7 @@ class Camera3Device :
     static const size_t        kInFlightWarnLimit = 20;
     static const size_t        kInFlightWarnLimitHighSpeed = 256; // batch size 32 * pipe depth 8
     // SCHED_FIFO priority for request submission thread in HFR mode
-    static const int           kConstrainedHighSpeedThreadPriority = 1;
+    static const int           kRequestThreadPriority = 1;
 
     struct                     RequestTrigger;
     // minimal jpeg buffer size: 256KB + blob header
@@ -450,7 +460,7 @@ class Camera3Device :
                 camera3_device_t *hal3Device,
                 bool aeLockAvailable);
 
-        void     setNotificationListener(NotificationListener *listener);
+        void     setNotificationListener(wp<NotificationListener> listener);
 
         /**
          * Call after stream (re)-configuration is completed.
@@ -475,9 +485,7 @@ class Camera3Device :
         /**
          * Remove all queued and repeating requests, and pending triggers
          */
-        status_t clear(NotificationListener *listener,
-                       /*out*/
-                       int64_t *lastFrameNumber = NULL);
+        status_t clear(/*out*/int64_t *lastFrameNumber = NULL);
 
         /**
          * Flush all pending requests in HAL.
@@ -593,7 +601,7 @@ class Camera3Device :
         wp<camera3::StatusTracker>  mStatusTracker;
         camera3_device_t  *mHal3Device;
 
-        NotificationListener *mListener;
+        wp<NotificationListener> mListener;
 
         const int          mId;       // The camera ID
         int                mStatusId; // The RequestThread's component ID for
@@ -749,7 +757,7 @@ class Camera3Device :
         PreparerThread();
         ~PreparerThread();
 
-        void setNotificationListener(NotificationListener *listener);
+        void setNotificationListener(wp<NotificationListener> listener);
 
         /**
          * Queue up a stream to be prepared. Streams are processed by a background thread in FIFO
@@ -770,7 +778,7 @@ class Camera3Device :
 
         // Guarded by mLock
 
-        NotificationListener *mListener;
+        wp<NotificationListener> mListener;
         List<sp<camera3::Camera3StreamInterface> > mPendingStreams;
         bool mActive;
         bool mCancelNow;
@@ -799,7 +807,7 @@ class Camera3Device :
     uint32_t               mNextReprocessShutterFrameNumber;
     List<CaptureResult>   mResultQueue;
     Condition              mResultSignal;
-    NotificationListener  *mListener;
+    wp<NotificationListener>  mListener;
 
     /**** End scope for mOutputLock ****/
 
@@ -812,9 +820,9 @@ class Camera3Device :
 
     // Specific notify handlers
     void notifyError(const camera3_error_msg_t &msg,
-            NotificationListener *listener);
+            sp<NotificationListener> listener);
     void notifyShutter(const camera3_shutter_msg_t &msg,
-            NotificationListener *listener);
+            sp<NotificationListener> listener);
 
     // helper function to return the output buffers to the streams.
     void returnOutputBuffers(const camera3_stream_buffer_t *outputBuffers,
@@ -845,6 +853,16 @@ class Camera3Device :
     void removeInFlightRequestIfReadyLocked(int idx);
 
     /**** End scope for mInFlightLock ****/
+
+    // Debug tracker for metadata tag value changes
+    // - Enabled with the -m <taglist> option to dumpsys, such as
+    //   dumpsys -m android.control.aeState,android.control.aeMode
+    // - Disabled with -m off
+    // - dumpsys -m 3a is a shortcut for ae/af/awbMode, State, and Triggers
+    TagMonitor mTagMonitor;
+
+    void monitorMetadata(TagMonitor::eventSource source, int64_t frameNumber,
+            nsecs_t timestamp, const CameraMetadata& metadata);
 
     /**
      * Static callback forwarding methods from HAL to instance

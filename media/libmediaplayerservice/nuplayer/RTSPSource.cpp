@@ -324,10 +324,16 @@ void NuPlayer::RTSPSource::checkBuffering(
     size_t numTracks = mTracks.size();
     size_t preparedCount, underflowCount, overflowCount, startCount;
     preparedCount = underflowCount = overflowCount = startCount = 0;
-    for (size_t i = 0; i < numTracks; ++i) {
+
+    size_t count = numTracks;
+    for (size_t i = 0; i < count; ++i) {
         status_t finalResult;
         TrackInfo *info = &mTracks.editItemAt(i);
         sp<AnotherPacketSource> src = info->mSource;
+        if (src == NULL) {
+            --numTracks;
+            continue;
+        }
         int64_t bufferedDurationUs = src->getBufferedDurationUs(&finalResult);
 
         // isFinished when duration is 0 checks for EOS result only
