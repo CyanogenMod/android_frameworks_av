@@ -489,9 +489,6 @@ protected:
     status_t setOperatingRate(float rateFloat, bool isVideo);
     status_t getIntraRefreshPeriod(uint32_t *intraRefreshPeriod);
     status_t setIntraRefreshPeriod(uint32_t intraRefreshPeriod, bool inConfigure);
-    status_t configureTemporalLayers(
-            uint32_t numLayers, uint32_t numBLayers, bool inConfigure,
-            sp<AMessage> &outputFormat);
 
     status_t setMinBufferSize(OMX_U32 portIndex, size_t size);
 

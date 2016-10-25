@@ -90,8 +90,6 @@ protected:
     bool mIsSecure;
     bool mFormatChangePending;
     bool mTimeChangePending;
-    float mPlaybackSpeed;
-    int32_t mVideoTemporalLayerCount;
 
     bool mResumePending;
     AString mComponentName;

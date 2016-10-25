@@ -1304,13 +1304,6 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
     }
 #endif
 
-    if (trackType == MEDIA_TRACK_TYPE_VIDEO) {
-        int32_t layerId;
-        if (mb->meta_data()->findInt32(kKeyTemporalLayerId, &layerId)) {
-            meta->setInt32("temporal-layer-id", layerId);
-        }
-    }
-
     if (trackType == MEDIA_TRACK_TYPE_TIMEDTEXT) {
         const char *mime;
         CHECK(mTimedTextTrack.mSource != NULL

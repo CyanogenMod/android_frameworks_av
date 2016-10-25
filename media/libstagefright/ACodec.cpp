@@ -2542,82 +2542,6 @@ status_t ACodec::setIntraRefreshPeriod(uint32_t intraRefreshPeriod, bool inConfi
     return OK;
 }
 
-status_t ACodec::configureTemporalLayers(
-        uint32_t numLayers, uint32_t numBLayers, bool inConfigure,
-        sp<AMessage> &outputFormat) {
-    if (!mIsVideo || !mIsEncoder) {
-        return INVALID_OPERATION;
-    }
-
-    OMX_VIDEO_PARAM_ANDROID_TEMPORALLAYERINGTYPE layerParams;
-    InitOMXParams(&layerParams);
-    layerParams.nPortIndex = kPortIndexOutput;
-    status_t err = mOMX->getParameter(
-            mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
-            &layerParams, sizeof(layerParams));
-
-    if (err != OK) {
-        return err;
-    }
-
-    if (numLayers > layerParams.nLayerCountMax ||
-            numBLayers > layerParams.nBLayerCountMax) {
-        ALOGE("Requested temporal layer count (total=%u B=%u) exceeds max (total=%d B=%d)",
-            numLayers, numBLayers, layerParams.nLayerCountMax,
-            layerParams.nBLayerCountMax);
-        return ERROR_UNSUPPORTED;
-    }
-
-    if (!inConfigure) {
-        OMX_VIDEO_CONFIG_ANDROID_TEMPORALLAYERINGTYPE layerConfig;
-        InitOMXParams(&layerConfig);
-        layerConfig.nPLayerCountActual = numLayers - numBLayers;
-        layerConfig.nBLayerCountActual = numBLayers;
-        layerConfig.bBitrateRatiosSpecified = OMX_FALSE;
-        layerConfig.nPortIndex = kPortIndexOutput;
-        layerConfig.ePattern = OMX_VIDEO_AndroidTemporalLayeringPatternAndroid;
-        err = mOMX->setConfig(
-                mNode, (OMX_INDEXTYPE)OMX_IndexConfigAndroidVideoTemporalLayering,
-                &layerConfig, sizeof(layerConfig));
-        return err;
-    }
-
-    layerParams.nPLayerCountActual = numLayers - numBLayers;
-    layerParams.nBLayerCountActual = numBLayers;
-    layerParams.bBitrateRatiosSpecified = OMX_FALSE;
-    layerParams.ePattern = OMX_VIDEO_AndroidTemporalLayeringPatternAndroid;
-    err = mOMX->setParameter(
-            mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
-            &layerParams, sizeof(layerParams));
-
-    if (err != OK) {
-        return err;
-    }
-
-    err = mOMX->getParameter(
-            mNode, (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
-            &layerParams, sizeof(layerParams));
-
-    if (err != OK) {
-        return err;
-    }
-
-    ALOGI("Temporal layers requested (total=%u B=%u) v/s configured (total=%u B=%u)",
-            numLayers, numBLayers, layerParams.nPLayerCountActual,
-            layerParams.nBLayerCountActual);
-
-#if 0
-    mOutputFormat = mOutputFormat->dup();
-    mOutputFormat->setInt32("num-temporal-layers",
-            layerParams.nPLayerCountActual + layerParams.nBLayerCountActual);
-    mOutputFormat->setInt32("num-temporal-b-layers", layerParams.nBLayerCountActual);
-#endif
-    outputFormat->setInt32("num-temporal-layers",
-            layerParams.nPLayerCountActual + layerParams.nBLayerCountActual);
-
-    return err;
-}
-
 status_t ACodec::setMinBufferSize(OMX_U32 portIndex, size_t size) {
     OMX_PARAM_PORTDEFINITIONTYPE def;
     InitOMXParams(&def);
@@ -3917,24 +3841,6 @@ status_t ACodec::setupVideoEncoder(
     if (err == ERROR_UNSUPPORTED) { // support is optional
         ALOGI("[%s] cannot encode HDR static metadata. Ignoring.", mComponentName.c_str());
         err = OK;
-    }
-
-    if (compressionFormat == OMX_VIDEO_CodingAVC ||
-            compressionFormat == OMX_VIDEO_CodingHEVC) {
-        int32_t numLayers = 0;
-        int32_t numBLayers = 0;
-        if (msg->findInt32("num-temporal-layers", &numLayers)) {
-            msg->findInt32("num-temporal-b-layers", &numBLayers);
-            err = configureTemporalLayers(numLayers, numBLayers, true, outputFormat);
-            if (err != OK) {
-                ALOGE("Configuring temporal layers (P=%d B=%d) failed: %d",
-                        numLayers, numBLayers, err);
-                // not a fatal error, set error code to OK
-                // This will avoid tear down of session where temporal
-                // layer encoding is not supported for some chipsets
-                err = OK;
-            }
-        }
     }
 
     if (err == OK) {
@@ -7604,18 +7510,6 @@ status_t ACodec::setParameters(const sp<AMessage> &params) {
         if (err != OK) {
             ALOGI("[%s] failed setIntraRefreshPeriod. Failure is fine since this key is optional",
                     mComponentName.c_str());
-            err = OK;
-        }
-    }
-
-    int32_t numLayers = 0,
-            numBLayers = 0;
-    if (params->findInt32("num-temporal-layers", &numLayers)) {
-        params->findInt32("num-temporal-b-layers", &numBLayers);
-        status_t err = configureTemporalLayers(numLayers, numBLayers, false, mOutputFormat);
-        if (err != OK) {
-            ALOGE("Dynamic configuration of temporal layers (P=%d B=%d) failed: %d",
-                    numLayers, numBLayers, err);
             err = OK;
         }
     }

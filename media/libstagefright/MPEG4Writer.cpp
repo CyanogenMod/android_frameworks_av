@@ -44,7 +44,6 @@
 #include "include/ESDS.h"
 #include "include/HevcUtils.h"
 #include <stagefright/AVExtensions.h>
-#include "include/avc_utils.h"
 
 #ifndef __predict_false
 #define __predict_false(exp) __builtin_expect((exp) != 0, 0)
@@ -72,7 +71,6 @@ static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
 #endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
-static const char kMetaKey_TemporalLayerCount[] = "com.android.video.temporal_layers_count";
 
 static const uint8_t kMandatoryHevcNalUnitTypes[3] = {
     kHevcNalUnitTypeVps,
@@ -1176,37 +1174,6 @@ void MPEG4Writer::StripStartcode(MediaBuffer *buffer) {
     }
 }
 
-off64_t MPEG4Writer::addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer) {
-    off64_t old_offset = mOffset;
-
-    const size_t kExtensionNALSearchRange = 64; // bytes to look for non-VCL NALUs
-
-    const uint8_t *dataStart = (const uint8_t *)buffer->data() + buffer->range_offset();
-    const uint8_t *currentNalStart = dataStart;
-    const uint8_t *nextNalStart;
-    const uint8_t *data = dataStart;
-    size_t nextNalSize;
-    size_t searchSize = buffer->range_length() > kExtensionNALSearchRange ?
-                   kExtensionNALSearchRange : buffer->range_length();
-
-    while (getNextNALUnit(&data, &searchSize, &nextNalStart,
-            &nextNalSize, true) == OK) {
-        size_t currentNalSize = nextNalStart - currentNalStart - 4 /* strip start-code */;
-        MediaBuffer *nalBuf = new MediaBuffer((void *)currentNalStart, currentNalSize);
-        addLengthPrefixedSample_l(nalBuf);
-        nalBuf->release();
-
-        currentNalStart = nextNalStart;
-    }
-
-    size_t currentNalOffset = currentNalStart - dataStart;
-    buffer->set_range(buffer->range_offset() + currentNalOffset,
-            buffer->range_length() - currentNalOffset);
-    addLengthPrefixedSample_l(buffer);
-
-    return old_offset;
-}
-
 off64_t MPEG4Writer::addLengthPrefixedSample_l(MediaBuffer *buffer) {
     off64_t old_offset = mOffset;
 
@@ -1426,19 +1393,6 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
     return OK;
 }
 
-status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
-    if (layerCount > 9) {
-        return BAD_VALUE;
-    }
-
-    if (layerCount > 0) {
-        mMetaKeys->setInt32(kMetaKey_TemporalLayerCount, layerCount);
-        mMoovExtraSize += sizeof(kMetaKey_TemporalLayerCount) + 4 + 32;
-    }
-
-    return OK;
-}
-
 void MPEG4Writer::write(const void *data, size_t size) {
     write(data, 1, size);
 }
@@ -1554,13 +1508,6 @@ MPEG4Writer::Track::Track(
     mIsAudio = !strncasecmp(mime, "audio/", 6);
     mIsMPEG4 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC);
-
-    if (!mIsAudio) {
-        int32_t numLayers = 0;
-        if (mMeta->findInt32(kKeyTemporalLayerCount, &numLayers) && numLayers > 1) {
-            mOwner->setTemporalLayerCount(numLayers);
-        }
-    }
 
     setTimeScale();
 }
@@ -1750,7 +1697,7 @@ void MPEG4Writer::writeChunkToFile(Chunk* chunk) {
         List<MediaBuffer *>::iterator it = chunk->mSamples.begin();
 
         off64_t offset = (chunk->mTrack->isAvc() || chunk->mTrack->isHevc())
-                                ? addMultipleLengthPrefixedSamples_l(*it)
+                                ? addLengthPrefixedSample_l(*it)
                                 : addSample_l(*it);
 
         if (isFirstSample) {
@@ -2674,7 +2621,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             trackProgressStatus(timestampUs);
         }
         if (!hasMultipleTracks) {
-            off64_t offset = (mIsAvc || mIsHevc) ? mOwner->addMultipleLengthPrefixedSamples_l(copy)
+            off64_t offset = (mIsAvc || mIsHevc) ? mOwner->addLengthPrefixedSample_l(copy)
                                  : mOwner->addSample_l(copy);
 
             uint32_t count = (mOwner->use32BitFileOffset()

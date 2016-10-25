@@ -65,7 +65,6 @@ public:
 
     status_t setGeoData(int latitudex10000, int longitudex10000);
     status_t setCaptureRate(float captureFps);
-    status_t setTemporalLayerCount(uint32_t layerCount);
     virtual void setStartTimeOffsetMs(int ms) { mStartTimeOffsetMs = ms; }
     virtual int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
 
@@ -197,7 +196,6 @@ private:
 protected:
     static void StripStartcode(MediaBuffer *buffer);
     virtual off64_t addLengthPrefixedSample_l(MediaBuffer *buffer);
-    off64_t addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer);
 
 private:
     bool exceedsFileSizeLimit();

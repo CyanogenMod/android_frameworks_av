@@ -44,7 +44,6 @@
 
 #include <byteswap.h>
 #include "include/ID3.h"
-#include "include/avc_utils.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX       (4294967295U)
@@ -2482,15 +2481,6 @@ status_t MPEG4Extractor::parseQTMetaVal(
         if (!strcasecmp(mMetaKeyMap[index].c_str(), "com.android.capture.fps")) {
             mFileMetaData->setFloat(kKeyCaptureFramerate, *(float *)&val);
         }
-    } else if (dataType == 67 && dataSize >= 4) {
-        // BE signed int32
-        uint32_t val;
-        if (!mDataSource->getUInt32(offset, &val)) {
-            return ERROR_MALFORMED;
-        }
-        if (!strcasecmp(mMetaKeyMap[index].c_str(), "com.android.video.temporal_layers_count")) {
-            mFileMetaData->setInt32(kKeyTemporalLayerCount, val);
-        }
     } else {
         // add more keys if needed
         ALOGV("ignoring key: type %d, size %d", dataType, dataSize);
@@ -4484,12 +4474,6 @@ status_t MPEG4Source::read(
                     kKeyTargetTime, targetSampleTimeUs);
         }
 
-        if (mIsAVC) {
-            uint32_t layerId = FindAVCLayerId(
-                    (const uint8_t *)mBuffer->data(), mBuffer->range_length());
-            mBuffer->meta_data()->setInt32(kKeyTemporalLayerId, layerId);
-        }
-
         if (isSyncSample) {
             mBuffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
         }
@@ -4651,12 +4635,6 @@ status_t MPEG4Source::fragmentedRead(
             if (targetSampleTimeUs >= 0) {
                 mBuffer->meta_data()->setInt64(
                         kKeyTargetTime, targetSampleTimeUs);
-            }
-
-            if (mIsAVC) {
-                uint32_t layerId = FindAVCLayerId(
-                        (const uint8_t *)mBuffer->data(), mBuffer->range_length());
-                mBuffer->meta_data()->setInt32(kKeyTemporalLayerId, layerId);
             }
 
             if (isSyncSample) {

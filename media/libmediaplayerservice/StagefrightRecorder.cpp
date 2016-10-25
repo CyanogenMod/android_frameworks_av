@@ -53,7 +53,6 @@
 #include <sys/types.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <math.h>
 
 #include <system/audio.h>
 
@@ -1606,16 +1605,6 @@ status_t StagefrightRecorder::setupVideoEncoder(
     format->setInt32("priority", 0 /* realtime */);
     if (mCaptureFpsEnable) {
         format->setFloat("operating-rate", mCaptureFps);
-
-        // Enable layers if capture-rate > 60
-        // Number of layers will be based on the ratio wrt 30fps
-        float speed = mCaptureFps / mFrameRate;
-        if (mCaptureFps > 60.0 && speed > 2.0) {
-            int32_t numLayers = (int32_t)log2f(speed) + 1;
-            ALOGI("Enabling %d layers for capture-rate(%f) / fps(%u)",
-                    numLayers, mCaptureFps, mFrameRate);
-            format->setInt32("num-temporal-layers", numLayers);
-        }
     }
 
     if (mMetaDataStoredInVideoBuffers != kMetadataBufferTypeInvalid) {
@@ -1694,7 +1683,7 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
     if (mOutputFormat == OUTPUT_FORMAT_WEBM) {
         writer = new WebmWriter(mOutputFd);
     } else {
-        writer = mp4writer = new MPEG4Writer(mOutputFd);
+        writer = mp4writer = AVFactory::get()->CreateMPEG4Writer(mOutputFd);
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
@@ -1817,9 +1806,7 @@ status_t StagefrightRecorder::resume() {
     }
 
     // 30 ms buffer to avoid timestamp overlap
-    mTotalPausedDurationUs +=
-        (systemTime() / 1000) - mPauseStartTimeUs -
-        (30000 * (mCaptureFpsEnable ? (mCaptureFps / mFrameRate):1));
+    mTotalPausedDurationUs += (systemTime() / 1000) - mPauseStartTimeUs - 30000;
     double timeOffset = -mTotalPausedDurationUs;
     if (mCaptureFpsEnable) {
         timeOffset *= mCaptureFps / mFrameRate;

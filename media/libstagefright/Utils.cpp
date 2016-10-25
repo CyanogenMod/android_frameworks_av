@@ -1329,11 +1329,6 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         }
 
         convertMessageToMetaDataColorAspects(msg, meta);
-
-        int32_t numLayers = 0;
-        if (msg->findInt32("num-temporal-layers", &numLayers) && numLayers > 0) {
-            meta->setInt32(kKeyTemporalLayerCount, numLayers);
-        }
     } else if (mime.startsWith("audio/")) {
         int32_t numChannels;
         if (msg->findInt32("channel-count", &numChannels)) {

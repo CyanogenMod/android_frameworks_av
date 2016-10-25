@@ -491,28 +491,6 @@ bool IsAVCReferenceFrame(const sp<ABuffer> &accessUnit) {
     return true;
 }
 
-uint32_t FindAVCLayerId(const uint8_t *data, size_t size) {
-    CHECK(data != NULL);
-
-    const unsigned kSvcNalType = 0xE;
-    const unsigned kSvcNalSearchRange = 32;
-    // SVC NAL
-    // |---0 1110|1--- ----|---- ----|iii- ---|
-    //       ^                        ^
-    //   NAL-type = 0xE               layer-Id
-    //
-    // layer_id 0 is for base layer, while 1, 2, ... are enhancement layers.
-    // Layer n uses reference frames from layer 0, 1, ..., n-1.
-
-    uint32_t layerId = 0;
-    sp<ABuffer> svcNAL = FindNAL(
-            data, size > kSvcNalSearchRange ? kSvcNalSearchRange : size, kSvcNalType);
-    if (svcNAL != NULL && svcNAL->size() >= 4) {
-        layerId = (*(svcNAL->data() + 3) >> 5) & 0x7;
-    }
-    return layerId;
-}
-
 sp<MetaData> MakeAACCodecSpecificData(
         unsigned profile, unsigned sampling_freq_index,
         unsigned channel_configuration) {
