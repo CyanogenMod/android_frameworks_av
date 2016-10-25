@@ -44,6 +44,7 @@
 
 #include <byteswap.h>
 #include "include/ID3.h"
+#include "include/avc_utils.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX       (4294967295U)
@@ -74,6 +75,7 @@ public:
     virtual sp<MetaData> getFormat();
 
     virtual status_t read(MediaBuffer **buffer, const ReadOptions *options = NULL);
+    virtual bool supportNonblockingRead() { return true; }
     virtual status_t fragmentedRead(MediaBuffer **buffer, const ReadOptions *options = NULL);
 
 protected:
@@ -373,6 +375,7 @@ MPEG4Extractor::MPEG4Extractor(const sp<DataSource> &source)
       mInitCheck(NO_INIT),
       mHasVideo(false),
       mHeaderTimescale(0),
+      mIsQT(false),
       mFirstTrack(NULL),
       mLastTrack(NULL),
       mFileMetaData(new MetaData),
@@ -916,6 +919,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 'i', 'n', 'f'):
         case FOURCC('s', 'c', 'h', 'i'):
         case FOURCC('e', 'd', 't', 's'):
+        case FOURCC('w', 'a', 'v', 'e'):
         {
             if (chunk_type == FOURCC('m', 'o', 'o', 'f') && !mMoofFound) {
                 // store the offset of the first segment
@@ -1373,6 +1377,13 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC('s', 'a', 'm', 'r'):
         case FOURCC('s', 'a', 'w', 'b'):
         {
+            if (mIsQT && chunk_type == FOURCC('m', 'p', '4', 'a')
+                    && depth >= 1 && mPath[depth - 1] == FOURCC('w', 'a', 'v', 'e')) {
+                // Ignore mp4a embedded in QT wave atom
+                *offset += chunk_size;
+                break;
+            }
+
             uint8_t buffer[8 + 20];
             if (chunk_data_size < (ssize_t)sizeof(buffer)) {
                 // Basic AudioSampleEntry size.
@@ -1385,6 +1396,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             }
 
             uint16_t data_ref_index __unused = U16_AT(&buffer[6]);
+            uint16_t version = U16_AT(&buffer[8]);
             uint32_t num_channels = U16_AT(&buffer[16]);
 
             uint16_t sample_size = U16_AT(&buffer[18]);
@@ -1392,6 +1404,42 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             if (mLastTrack == NULL)
                 return ERROR_MALFORMED;
+
+            off64_t stop_offset = *offset + chunk_size;
+            *offset = data_offset + sizeof(buffer);
+
+            if (mIsQT && chunk_type == FOURCC('m', 'p', '4', 'a')) {
+                if (version == 1) {
+                    if (mDataSource->readAt(*offset, buffer, 16) < 16) {
+                        return ERROR_IO;
+                    }
+
+#if 0
+                    U32_AT(buffer);  // samples per packet
+                    U32_AT(&buffer[4]);  // bytes per packet
+                    U32_AT(&buffer[8]);  // bytes per frame
+                    U32_AT(&buffer[12]);  // bytes per sample
+#endif
+                    *offset += 16;
+                } else if (version == 2) {
+                    uint8_t v2buffer[36];
+                    if (mDataSource->readAt(*offset, v2buffer, 36) < 36) {
+                        return ERROR_IO;
+                    }
+
+#if 0
+                    U32_AT(v2buffer);  // size of struct only
+                    sample_rate = (uint32_t)U64_AT(&v2buffer[4]);  // audio sample rate
+                    num_channels = U32_AT(&v2buffer[12]);  // num audio channels
+                    U32_AT(&v2buffer[16]);  // always 0x7f000000
+                    sample_size = (uint16_t)U32_AT(&v2buffer[20]);  // const bits per channel
+                    U32_AT(&v2buffer[24]);  // format specifc flags
+                    U32_AT(&v2buffer[28]);  // const bytes per audio packet
+                    U32_AT(&v2buffer[32]);  // const LPCM frames per audio packet
+#endif
+                    *offset += 36;
+                }
+            }
 
             if (chunk_type != FOURCC('e', 'n', 'c', 'a')) {
                 // if the chunk type is enca, we'll get the type from the sinf/frma box later
@@ -1403,7 +1451,6 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             mLastTrack->meta->setInt32(kKeyChannelCount, num_channels);
             mLastTrack->meta->setInt32(kKeySampleRate, sample_rate);
 
-            off64_t stop_offset = *offset + chunk_size;
             if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MPEG, FourCC2MIME(chunk_type)) ||
                 !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, FourCC2MIME(chunk_type))) {
                 // ESD is not required in mp3
@@ -1696,8 +1743,9 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             // Worst case the location string length would be 18,
             // for instance +90.0000-180.0000, without the trailing "/" and
-            // the string length + language code.
-            char buffer[18];
+            // the string length + language code, and some devices include
+            // an additional 8 bytes of altitude, e.g. +007.186
+            char buffer[18 + 8];
 
             // Substracting 5 from the data size is because the text string length +
             // language code takes 4 bytes, and the trailing slash "/" takes 1 byte.
@@ -2248,6 +2296,38 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             return UNKNOWN_ERROR; // stop parsing after sidx
         }
 
+        case FOURCC('f', 't', 'y', 'p'):
+        {
+            if (chunk_data_size < 8 || depth != 0) {
+                return ERROR_MALFORMED;
+            }
+
+            off64_t stop_offset = *offset + chunk_size;
+            uint32_t numCompatibleBrands = (chunk_data_size - 8) / 4;
+            for (size_t i = 0; i < numCompatibleBrands + 2; ++i) {
+                if (i == 1) {
+                    // Skip this index, it refers to the minorVersion,
+                    // not a brand.
+                    continue;
+                }
+
+                uint32_t brand;
+                if (mDataSource->readAt(data_offset + 4 * i, &brand, 4) < 4) {
+                    return ERROR_MALFORMED;
+                }
+
+                brand = ntohl(brand);
+                if (brand == FOURCC('q', 't', ' ', ' ')) {
+                    mIsQT = true;
+                    break;
+                }
+            }
+
+            *offset = stop_offset;
+
+            break;
+        }
+
         default:
         {
             // check if we're parsing 'ilst' for meta keys
@@ -2480,6 +2560,15 @@ status_t MPEG4Extractor::parseQTMetaVal(
         }
         if (!strcasecmp(mMetaKeyMap[index].c_str(), "com.android.capture.fps")) {
             mFileMetaData->setFloat(kKeyCaptureFramerate, *(float *)&val);
+        }
+    } else if (dataType == 67 && dataSize >= 4) {
+        // BE signed int32
+        uint32_t val;
+        if (!mDataSource->getUInt32(offset, &val)) {
+            return ERROR_MALFORMED;
+        }
+        if (!strcasecmp(mMetaKeyMap[index].c_str(), "com.android.video.temporal_layers_count")) {
+            mFileMetaData->setInt32(kKeyTemporalLayerCount, val);
         }
     } else {
         // add more keys if needed
@@ -3563,13 +3652,20 @@ status_t MPEG4Source::start(MetaData *params) {
 
     // A somewhat arbitrary limit that should be sufficient for 8k video frames
     // If you see the message below for a valid input stream: increase the limit
-    if (max_size > 64 * 1024 * 1024) {
-        ALOGE("bogus max input size: %zu", max_size);
+    const size_t kMaxBufferSize = 64 * 1024 * 1024;
+    if (max_size > kMaxBufferSize) {
+        ALOGE("bogus max input size: %zu > %zu", max_size, kMaxBufferSize);
         return ERROR_MALFORMED;
     }
-    mGroup = new MediaBufferGroup;
-    mGroup->add_buffer(new MediaBuffer(max_size));
+    if (max_size == 0) {
+        ALOGE("zero max input size");
+        return ERROR_MALFORMED;
+    }
 
+    // Allow up to kMaxBuffers, but not if the total exceeds kMaxBufferSize.
+    const size_t kMaxBuffers = 8;
+    const size_t buffers = min(kMaxBufferSize / max_size, kMaxBuffers);
+    mGroup = new MediaBufferGroup(buffers, max_size);
     mSrcBuffer = new (std::nothrow) uint8_t[max_size];
     if (mSrcBuffer == NULL) {
         // file probably specified a bad max size
@@ -4196,6 +4292,11 @@ status_t MPEG4Source::read(
 
     CHECK(mStarted);
 
+    if (options != nullptr && options->getNonBlocking() && !mGroup->has_buffers()) {
+        *out = nullptr;
+        return WOULD_BLOCK;
+    }
+
     if (mFirstMoofOffset > 0) {
         return fragmentedRead(out, options);
     }
@@ -4474,6 +4575,12 @@ status_t MPEG4Source::read(
                     kKeyTargetTime, targetSampleTimeUs);
         }
 
+        if (mIsAVC) {
+            uint32_t layerId = FindAVCLayerId(
+                    (const uint8_t *)mBuffer->data(), mBuffer->range_length());
+            mBuffer->meta_data()->setInt32(kKeyTemporalLayerId, layerId);
+        }
+
         if (isSyncSample) {
             mBuffer->meta_data()->setInt32(kKeyIsSyncFrame, 1);
         }
@@ -4635,6 +4742,12 @@ status_t MPEG4Source::fragmentedRead(
             if (targetSampleTimeUs >= 0) {
                 mBuffer->meta_data()->setInt64(
                         kKeyTargetTime, targetSampleTimeUs);
+            }
+
+            if (mIsAVC) {
+                uint32_t layerId = FindAVCLayerId(
+                        (const uint8_t *)mBuffer->data(), mBuffer->range_length());
+                mBuffer->meta_data()->setInt32(kKeyTemporalLayerId, layerId);
             }
 
             if (isSyncSample) {

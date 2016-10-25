@@ -908,12 +908,12 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     property_get("camera.disable_zsl_mode", value, "0");
     if (!strcmp(value,"1") || slowJpegMode) {
         ALOGI("Camera %d: Disabling ZSL mode", cameraId);
-        zslMode = false;
+        allowZslMode = false;
     } else {
-        zslMode = true;
+        allowZslMode = true;
     }
 
-    ALOGI("%s: zslMode: %d slowJpegMode %d", __FUNCTION__, zslMode, slowJpegMode);
+    ALOGI("%s: allowZslMode: %d slowJpegMode %d", __FUNCTION__, allowZslMode, slowJpegMode);
 
     state = STOPPED;
 
@@ -1126,6 +1126,8 @@ status_t Parameters::buildFastInfo() {
     }
     ALOGV("Camera %d: Flexible YUV %s supported",
             cameraId, fastInfo.useFlexibleYuv ? "is" : "is not");
+
+    fastInfo.maxJpegSize = getMaxSize(getAvailableJpegSizes());
 
     return OK;
 }
@@ -2229,6 +2231,25 @@ status_t Parameters::recoverOverriddenJpegSize() {
 
 bool Parameters::isJpegSizeOverridden() {
     return pictureSizeOverriden;
+}
+
+bool Parameters::useZeroShutterLag() const {
+    // If ZSL mode is disabled, don't use it
+    if (!allowZslMode) return false;
+    // If recording hint is enabled, don't do ZSL
+    if (recordingHint) return false;
+    // If still capture size is no bigger than preview or video size,
+    // don't do ZSL
+    if (pictureWidth <= previewWidth || pictureHeight <= previewHeight ||
+            pictureWidth <= videoWidth || pictureHeight <= videoHeight) {
+        return false;
+    }
+    // If still capture size is less than quarter of max, don't do ZSL
+    if ((pictureWidth * pictureHeight) <
+            (fastInfo.maxJpegSize.width * fastInfo.maxJpegSize.height / 4) ) {
+        return false;
+    }
+    return true;
 }
 
 const char* Parameters::getStateName(State state) {

@@ -68,11 +68,28 @@ SoftVideoDecoderOMXComponent::SoftVideoDecoderOMXComponent(
         mCodingType(codingType),
         mProfileLevels(profileLevels),
         mNumProfileLevels(numProfileLevels) {
+
+    // init all the color aspects to be Unspecified.
+    memset(&mDefaultColorAspects, 0, sizeof(ColorAspects));
+    memset(&mBitstreamColorAspects, 0, sizeof(ColorAspects));
+    memset(&mFinalColorAspects, 0, sizeof(ColorAspects));
 }
 
 void SoftVideoDecoderOMXComponent::initPorts(
         OMX_U32 numInputBuffers,
         OMX_U32 inputBufferSize,
+        OMX_U32 numOutputBuffers,
+        const char *mimeType,
+        OMX_U32 minCompressionRatio) {
+    initPorts(numInputBuffers, numInputBuffers, inputBufferSize,
+            numOutputBuffers, numOutputBuffers, mimeType, minCompressionRatio);
+}
+
+void SoftVideoDecoderOMXComponent::initPorts(
+        OMX_U32 numMinInputBuffers,
+        OMX_U32 numInputBuffers,
+        OMX_U32 inputBufferSize,
+        OMX_U32 numMinOutputBuffers,
         OMX_U32 numOutputBuffers,
         const char *mimeType,
         OMX_U32 minCompressionRatio) {
@@ -84,8 +101,8 @@ void SoftVideoDecoderOMXComponent::initPorts(
 
     def.nPortIndex = kInputPortIndex;
     def.eDir = OMX_DirInput;
-    def.nBufferCountMin = numInputBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
+    def.nBufferCountMin = numMinInputBuffers;
+    def.nBufferCountActual = numInputBuffers;
     def.nBufferSize = inputBufferSize;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
@@ -107,8 +124,8 @@ void SoftVideoDecoderOMXComponent::initPorts(
 
     def.nPortIndex = kOutputPortIndex;
     def.eDir = OMX_DirOutput;
-    def.nBufferCountMin = numOutputBuffers;
-    def.nBufferCountActual = def.nBufferCountMin;
+    def.nBufferCountMin = numMinOutputBuffers;
+    def.nBufferCountActual = numOutputBuffers;
     def.bEnabled = OMX_TRUE;
     def.bPopulated = OMX_FALSE;
     def.eDomain = OMX_PortDomainVideo;
@@ -224,7 +241,64 @@ void SoftVideoDecoderOMXComponent::handlePortSettingsChange(
             notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
                    OMX_IndexConfigCommonOutputCrop, NULL);
         }
+    } else if (mUpdateColorAspects) {
+        notify(OMX_EventPortSettingsChanged, kOutputPortIndex,
+                kDescribeColorAspectsIndex, NULL);
+        mUpdateColorAspects = false;
     }
+}
+
+void SoftVideoDecoderOMXComponent::dumpColorAspects(const ColorAspects &colorAspects) {
+    ALOGD("dumpColorAspects: (R:%d(%s), P:%d(%s), M:%d(%s), T:%d(%s)) ",
+            colorAspects.mRange, asString(colorAspects.mRange),
+            colorAspects.mPrimaries, asString(colorAspects.mPrimaries),
+            colorAspects.mMatrixCoeffs, asString(colorAspects.mMatrixCoeffs),
+            colorAspects.mTransfer, asString(colorAspects.mTransfer));
+}
+
+bool SoftVideoDecoderOMXComponent::colorAspectsDiffer(
+        const ColorAspects &a, const ColorAspects &b) {
+    if (a.mRange != b.mRange
+        || a.mPrimaries != b.mPrimaries
+        || a.mTransfer != b.mTransfer
+        || a.mMatrixCoeffs != b.mMatrixCoeffs) {
+        return true;
+    }
+    return false;
+}
+
+void SoftVideoDecoderOMXComponent::updateFinalColorAspects(
+        const ColorAspects &otherAspects, const ColorAspects &preferredAspects) {
+    Mutex::Autolock autoLock(mColorAspectsLock);
+    ColorAspects newAspects;
+    newAspects.mRange = preferredAspects.mRange != ColorAspects::RangeUnspecified ?
+        preferredAspects.mRange : otherAspects.mRange;
+    newAspects.mPrimaries = preferredAspects.mPrimaries != ColorAspects::PrimariesUnspecified ?
+        preferredAspects.mPrimaries : otherAspects.mPrimaries;
+    newAspects.mTransfer = preferredAspects.mTransfer != ColorAspects::TransferUnspecified ?
+        preferredAspects.mTransfer : otherAspects.mTransfer;
+    newAspects.mMatrixCoeffs = preferredAspects.mMatrixCoeffs != ColorAspects::MatrixUnspecified ?
+        preferredAspects.mMatrixCoeffs : otherAspects.mMatrixCoeffs;
+
+    // Check to see if need update mFinalColorAspects.
+    if (colorAspectsDiffer(mFinalColorAspects, newAspects)) {
+        mFinalColorAspects = newAspects;
+        mUpdateColorAspects = true;
+    }
+}
+
+status_t SoftVideoDecoderOMXComponent::handleColorAspectsChange() {
+    int perference = getColorAspectPreference();
+    ALOGD("Color Aspects preference: %d ", perference);
+
+    if (perference == kPreferBitstream) {
+        updateFinalColorAspects(mDefaultColorAspects, mBitstreamColorAspects);
+    } else if (perference == kPreferContainer) {
+        updateFinalColorAspects(mBitstreamColorAspects, mDefaultColorAspects);
+    } else {
+        return OMX_ErrorUnsupportedSetting;
+    }
+    return OK;
 }
 
 void SoftVideoDecoderOMXComponent::copyYV12FrameToOutputBuffer(
@@ -450,7 +524,7 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::internalSetParameter(
 
 OMX_ERRORTYPE SoftVideoDecoderOMXComponent::getConfig(
         OMX_INDEXTYPE index, OMX_PTR params) {
-    switch (index) {
+    switch ((int)index) {
         case OMX_IndexConfigCommonOutputCrop:
         {
             OMX_CONFIG_RECTTYPE *rectParams = (OMX_CONFIG_RECTTYPE *)params;
@@ -470,20 +544,86 @@ OMX_ERRORTYPE SoftVideoDecoderOMXComponent::getConfig(
 
             return OMX_ErrorNone;
         }
+        case kDescribeColorAspectsIndex:
+        {
+            if (!supportsDescribeColorAspects()) {
+                return OMX_ErrorUnsupportedIndex;
+            }
+
+            DescribeColorAspectsParams* colorAspectsParams =
+                    (DescribeColorAspectsParams *)params;
+
+            if (colorAspectsParams->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadParameter;
+            }
+
+            colorAspectsParams->sAspects = mFinalColorAspects;
+            if (colorAspectsParams->bRequestingDataSpace || colorAspectsParams->bDataSpaceChanged) {
+                return OMX_ErrorUnsupportedSetting;
+            }
+
+            return OMX_ErrorNone;
+        }
 
         default:
             return OMX_ErrorUnsupportedIndex;
     }
 }
 
+OMX_ERRORTYPE SoftVideoDecoderOMXComponent::setConfig(
+        OMX_INDEXTYPE index, const OMX_PTR params){
+    switch ((int)index) {
+        case kDescribeColorAspectsIndex:
+        {
+            if (!supportsDescribeColorAspects()) {
+                return OMX_ErrorUnsupportedIndex;
+            }
+            const DescribeColorAspectsParams* colorAspectsParams =
+                    (const DescribeColorAspectsParams *)params;
+
+            if (!isValidOMXParam(colorAspectsParams)) {
+                return OMX_ErrorBadParameter;
+            }
+
+            if (colorAspectsParams->nPortIndex != kOutputPortIndex) {
+                return OMX_ErrorBadParameter;
+            }
+
+            // Update color aspects if necessary.
+            if (colorAspectsDiffer(colorAspectsParams->sAspects, mDefaultColorAspects)) {
+                mDefaultColorAspects = colorAspectsParams->sAspects;
+                status_t err = handleColorAspectsChange();
+                CHECK(err == OK);
+            }
+            return OMX_ErrorNone;
+        }
+
+        default:
+            return OMX_ErrorUnsupportedIndex;
+    }
+}
+
+
 OMX_ERRORTYPE SoftVideoDecoderOMXComponent::getExtensionIndex(
         const char *name, OMX_INDEXTYPE *index) {
     if (!strcmp(name, "OMX.google.android.index.prepareForAdaptivePlayback")) {
         *(int32_t*)index = kPrepareForAdaptivePlaybackIndex;
         return OMX_ErrorNone;
+    } else if (!strcmp(name, "OMX.google.android.index.describeColorAspects")
+                && supportsDescribeColorAspects()) {
+        *(int32_t*)index = kDescribeColorAspectsIndex;
+        return OMX_ErrorNone;
     }
 
     return SimpleSoftOMXComponent::getExtensionIndex(name, index);
+}
+
+bool SoftVideoDecoderOMXComponent::supportsDescribeColorAspects() {
+    return getColorAspectPreference() != kNotSupported;
+}
+
+int SoftVideoDecoderOMXComponent::getColorAspectPreference() {
+    return kNotSupported;
 }
 
 void SoftVideoDecoderOMXComponent::onReset() {

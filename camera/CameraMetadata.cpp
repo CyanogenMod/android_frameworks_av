@@ -20,8 +20,9 @@
 #include <utils/Log.h>
 #include <utils/Errors.h>
 
-#include <camera/CameraMetadata.h>
 #include <binder/Parcel.h>
+#include <camera/CameraMetadata.h>
+#include <camera/VendorTagDescriptor.h>
 
 namespace android {
 
@@ -275,6 +276,18 @@ status_t CameraMetadata::update(uint32_t tag,
     }
     // string.size() doesn't count the null termination character.
     return updateImpl(tag, (const void*)string.string(), string.size() + 1);
+}
+
+status_t CameraMetadata::update(const camera_metadata_ro_entry &entry) {
+    status_t res;
+    if (mLocked) {
+        ALOGE("%s: CameraMetadata is locked", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+    if ( (res = checkType(entry.tag, entry.type)) != OK) {
+        return res;
+    }
+    return updateImpl(entry.tag, (const void*)entry.data.u8, entry.count);
 }
 
 status_t CameraMetadata::updateImpl(uint32_t tag, const void *data,
@@ -680,5 +693,100 @@ void CameraMetadata::swap(CameraMetadata& other) {
     other.mBuffer = thisBuf;
     mBuffer = otherBuf;
 }
+
+status_t CameraMetadata::getTagFromName(const char *name,
+        const VendorTagDescriptor* vTags, uint32_t *tag) {
+
+    if (name == nullptr || tag == nullptr) return BAD_VALUE;
+
+    size_t nameLength = strlen(name);
+
+    const SortedVector<String8> *vendorSections;
+    size_t vendorSectionCount = 0;
+
+    if (vTags != NULL) {
+        vendorSections = vTags->getAllSectionNames();
+        vendorSectionCount = vendorSections->size();
+    }
+
+    // First, find the section by the longest string match
+    const char *section = NULL;
+    size_t sectionIndex = 0;
+    size_t sectionLength = 0;
+    size_t totalSectionCount = ANDROID_SECTION_COUNT + vendorSectionCount;
+    for (size_t i = 0; i < totalSectionCount; ++i) {
+
+        const char *str = (i < ANDROID_SECTION_COUNT) ? camera_metadata_section_names[i] :
+                (*vendorSections)[i - ANDROID_SECTION_COUNT].string();
+
+        ALOGV("%s: Trying to match against section '%s'", __FUNCTION__, str);
+
+        if (strstr(name, str) == name) { // name begins with the section name
+            size_t strLength = strlen(str);
+
+            ALOGV("%s: Name begins with section name", __FUNCTION__);
+
+            // section name is the longest we've found so far
+            if (section == NULL || sectionLength < strLength) {
+                section = str;
+                sectionIndex = i;
+                sectionLength = strLength;
+
+                ALOGV("%s: Found new best section (%s)", __FUNCTION__, section);
+            }
+        }
+    }
+
+    // TODO: Make above get_camera_metadata_section_from_name ?
+
+    if (section == NULL) {
+        return NAME_NOT_FOUND;
+    } else {
+        ALOGV("%s: Found matched section '%s' (%zu)",
+              __FUNCTION__, section, sectionIndex);
+    }
+
+    // Get the tag name component of the name
+    const char *nameTagName = name + sectionLength + 1; // x.y.z -> z
+    if (sectionLength + 1 >= nameLength) {
+        return BAD_VALUE;
+    }
+
+    // Match rest of name against the tag names in that section only
+    uint32_t candidateTag = 0;
+    if (sectionIndex < ANDROID_SECTION_COUNT) {
+        // Match built-in tags (typically android.*)
+        uint32_t tagBegin, tagEnd; // [tagBegin, tagEnd)
+        tagBegin = camera_metadata_section_bounds[sectionIndex][0];
+        tagEnd = camera_metadata_section_bounds[sectionIndex][1];
+
+        for (candidateTag = tagBegin; candidateTag < tagEnd; ++candidateTag) {
+            const char *tagName = get_camera_metadata_tag_name(candidateTag);
+
+            if (strcmp(nameTagName, tagName) == 0) {
+                ALOGV("%s: Found matched tag '%s' (%d)",
+                      __FUNCTION__, tagName, candidateTag);
+                break;
+            }
+        }
+
+        if (candidateTag == tagEnd) {
+            return NAME_NOT_FOUND;
+        }
+    } else if (vTags != NULL) {
+        // Match vendor tags (typically com.*)
+        const String8 sectionName(section);
+        const String8 tagName(nameTagName);
+
+        status_t res = OK;
+        if ((res = vTags->lookupTag(tagName, sectionName, &candidateTag)) != OK) {
+            return NAME_NOT_FOUND;
+        }
+    }
+
+    *tag = candidateTag;
+    return OK;
+}
+
 
 }; // namespace android

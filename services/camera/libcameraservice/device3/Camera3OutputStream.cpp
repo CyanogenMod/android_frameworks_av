@@ -42,7 +42,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         mTransform(0),
         mTraceFirstBuffer(true),
         mUseBufferManager(false),
-        mTimestampOffset(timestampOffset) {
+        mTimestampOffset(timestampOffset),
+        mConsumerUsage(0) {
 
     if (mConsumer == NULL) {
         ALOGE("%s: Consumer is NULL!", __FUNCTION__);
@@ -66,7 +67,8 @@ Camera3OutputStream::Camera3OutputStream(int id,
         mTraceFirstBuffer(true),
         mUseMonoTimestamp(false),
         mUseBufferManager(false),
-        mTimestampOffset(timestampOffset) {
+        mTimestampOffset(timestampOffset),
+        mConsumerUsage(0) {
 
     if (format != HAL_PIXEL_FORMAT_BLOB && format != HAL_PIXEL_FORMAT_RAW_OPAQUE) {
         ALOGE("%s: Bad format for size-only stream: %d", __FUNCTION__,
@@ -84,6 +86,39 @@ Camera3OutputStream::Camera3OutputStream(int id,
     }
 }
 
+Camera3OutputStream::Camera3OutputStream(int id,
+        uint32_t width, uint32_t height, int format,
+        uint32_t consumerUsage, android_dataspace dataSpace,
+        camera3_stream_rotation_t rotation, nsecs_t timestampOffset, int setId) :
+        Camera3IOStreamBase(id, CAMERA3_STREAM_OUTPUT, width, height,
+                            /*maxSize*/0, format, dataSpace, rotation, setId),
+        mConsumer(nullptr),
+        mTransform(0),
+        mTraceFirstBuffer(true),
+        mUseBufferManager(false),
+        mTimestampOffset(timestampOffset),
+        mConsumerUsage(consumerUsage) {
+    // Deferred consumer only support preview surface format now.
+    if (format != HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+        ALOGE("%s: Deferred consumer only supports IMPLEMENTATION_DEFINED format now!",
+                __FUNCTION__);
+        mState = STATE_ERROR;
+    }
+
+    // Sanity check for the consumer usage flag.
+    if ((consumerUsage & GraphicBuffer::USAGE_HW_TEXTURE) == 0 &&
+            (consumerUsage & GraphicBuffer::USAGE_HW_COMPOSER) == 0) {
+        ALOGE("%s: Deferred consumer usage flag is illegal (0x%x)!", __FUNCTION__, consumerUsage);
+        mState = STATE_ERROR;
+    }
+
+    mConsumerName = String8("Deferred");
+    if (setId > CAMERA3_STREAM_SET_ID_INVALID) {
+        mBufferReleasedListener = new BufferReleasedListener(this);
+    }
+
+}
+
 Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
                                          uint32_t width, uint32_t height,
                                          int format,
@@ -96,7 +131,8 @@ Camera3OutputStream::Camera3OutputStream(int id, camera3_stream_type_t type,
         mTransform(0),
         mTraceFirstBuffer(true),
         mUseMonoTimestamp(false),
-        mUseBufferManager(false) {
+        mUseBufferManager(false),
+        mConsumerUsage(0) {
 
     if (setId > CAMERA3_STREAM_SET_ID_INVALID) {
         mBufferReleasedListener = new BufferReleasedListener(this);
@@ -235,6 +271,7 @@ status_t Camera3OutputStream::returnBufferCheckedLocked(
      */
     if (buffer.status == CAMERA3_BUFFER_STATUS_ERROR) {
         // Cancel buffer
+        ALOGW("A frame is dropped for stream %d", mId);
         res = currentConsumer->cancelBuffer(currentConsumer.get(),
                 container_of(buffer.buffer, ANativeWindowBuffer, handle),
                 anwReleaseFence);
@@ -481,11 +518,16 @@ status_t Camera3OutputStream::disconnectLocked() {
         return res;
     }
 
+    // Stream configuration was not finished (can only be in STATE_IN_CONFIG or STATE_CONSTRUCTED
+    // state), don't need change the stream state, return OK.
+    if (mConsumer == nullptr) {
+        return OK;
+    }
+
     ALOGV("%s: disconnecting stream %d from native window", __FUNCTION__, getId());
 
     res = native_window_api_disconnect(mConsumer.get(),
                                        NATIVE_WINDOW_API_CAMERA);
-
     /**
      * This is not an error. if client calling process dies, the window will
      * also die and all calls to it will return DEAD_OBJECT, thus it's already
@@ -527,6 +569,12 @@ status_t Camera3OutputStream::getEndpointUsage(uint32_t *usage) const {
 
     status_t res;
     int32_t u = 0;
+    if (mConsumer == nullptr) {
+        // mConsumerUsage was sanitized before the Camera3OutputStream was constructed.
+        *usage = mConsumerUsage;
+        return OK;
+    }
+
     res = static_cast<ANativeWindow*>(mConsumer.get())->query(mConsumer.get(),
             NATIVE_WINDOW_CONSUMER_USAGE_BITS, &u);
 
@@ -562,7 +610,7 @@ bool Camera3OutputStream::isVideoStream() const {
 status_t Camera3OutputStream::setBufferManager(sp<Camera3BufferManager> bufferManager) {
     Mutex::Autolock l(mLock);
     if (mState != STATE_CONSTRUCTED) {
-        ALOGE("%s: this method can only be called when stream in in CONSTRUCTED state.",
+        ALOGE("%s: this method can only be called when stream in CONSTRUCTED state.",
                 __FUNCTION__);
         return INVALID_OPERATION;
     }
@@ -625,6 +673,26 @@ status_t Camera3OutputStream::detachBuffer(sp<GraphicBuffer>* buffer, int* fence
         }
     }
 
+    return OK;
+}
+
+bool Camera3OutputStream::isConsumerConfigurationDeferred() const {
+    Mutex::Autolock l(mLock);
+    return mConsumer == nullptr;
+}
+
+status_t Camera3OutputStream::setConsumer(sp<Surface> consumer) {
+    if (consumer == nullptr) {
+        ALOGE("%s: it's illegal to set a null consumer surface!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    if (mConsumer != nullptr) {
+        ALOGE("%s: consumer surface was already set!", __FUNCTION__);
+        return INVALID_OPERATION;
+    }
+
+    mConsumer = consumer;
     return OK;
 }
 

@@ -491,6 +491,9 @@ public:
      */
             uint32_t    getInputFramesLost() const;
 
+    /* Get the flags */
+            audio_input_flags_t getFlags() const { AutoMutex _l(mLock); return mFlags; }
+
 private:
     /* copying audio record objects is not allowed */
                         AudioRecord(const AudioRecord& other);

@@ -31,7 +31,7 @@ public:
                                 void *buffer,
                                 audio_session_t sessionId,
                                 int uid,
-                                IAudioFlinger::track_flags_t flags,
+                                audio_input_flags_t flags,
                                 track_type type);
     virtual             ~RecordTrack();
     virtual status_t    initCheck() const;
@@ -58,6 +58,9 @@ public:
                                              int64_t sourceFramesRead,
                                              uint32_t halSampleRate,
                                              const ExtendedTimestamp &timestamp);
+
+    virtual bool        isFastTrack() const { return (mFlags & AUDIO_INPUT_FLAG_FAST) != 0; }
+
 private:
     friend class AudioFlinger;  // for mState
 
@@ -86,6 +89,7 @@ private:
 
             // used by the record thread to convert frames to proper destination format
             RecordBufferConverter              *mRecordBufferConverter;
+            audio_input_flags_t                mFlags;
 };
 
 // playback track, used by PatchPanel
@@ -98,7 +102,7 @@ public:
                 audio_format_t format,
                 size_t frameCount,
                 void *buffer,
-                IAudioFlinger::track_flags_t flags);
+                audio_input_flags_t flags);
     virtual             ~PatchRecord();
 
     // AudioBufferProvider interface

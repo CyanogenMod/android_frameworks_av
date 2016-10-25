@@ -168,11 +168,45 @@ status_t AudioFlinger::PatchPanel::createAudioPatch(const struct audio_patch *pa
                 ALOGV("createAudioPatch() removing patch handle %d", *handle);
                 halHandle = mPatches[index]->mHalHandle;
                 Patch *removedPatch = mPatches[index];
+                // free resources owned by the removed patch if applicable
+                // 1) if a software patch is present, release the playback and capture threads and
+                // tracks created. This will also release the corresponding audio HAL patches
                 if ((removedPatch->mRecordPatchHandle
                         != AUDIO_PATCH_HANDLE_NONE) ||
                         (removedPatch->mPlaybackPatchHandle !=
                                 AUDIO_PATCH_HANDLE_NONE)) {
                     clearPatchConnections(removedPatch);
+                }
+                // 2) if the new patch and old patch source or sink are devices from different
+                // hw modules,  clear the audio HAL patches now because they will not be updated
+                // by call to create_audio_patch() below which will happen on a different HW module
+                if (halHandle != AUDIO_PATCH_HANDLE_NONE) {
+                    audio_module_handle_t hwModule = AUDIO_MODULE_HANDLE_NONE;
+                    if ((removedPatch->mAudioPatch.sources[0].type == AUDIO_PORT_TYPE_DEVICE) &&
+                        ((patch->sources[0].type != AUDIO_PORT_TYPE_DEVICE) ||
+                          (removedPatch->mAudioPatch.sources[0].ext.device.hw_module !=
+                           patch->sources[0].ext.device.hw_module))) {
+                        hwModule = removedPatch->mAudioPatch.sources[0].ext.device.hw_module;
+                    } else if ((patch->num_sinks == 0) ||
+                            ((removedPatch->mAudioPatch.sinks[0].type == AUDIO_PORT_TYPE_DEVICE) &&
+                             ((patch->sinks[0].type != AUDIO_PORT_TYPE_DEVICE) ||
+                              (removedPatch->mAudioPatch.sinks[0].ext.device.hw_module !=
+                               patch->sinks[0].ext.device.hw_module)))) {
+                        // Note on (patch->num_sinks == 0): this situation should not happen as
+                        // these special patches are only created by the policy manager but just
+                        // in case, systematically clear the HAL patch.
+                        // Note that removedPatch->mAudioPatch.num_sinks cannot be 0 here because
+                        // halHandle would be AUDIO_PATCH_HANDLE_NONE in this case.
+                        hwModule = removedPatch->mAudioPatch.sinks[0].ext.device.hw_module;
+                    }
+                    if (hwModule != AUDIO_MODULE_HANDLE_NONE) {
+                        ssize_t index = audioflinger->mAudioHwDevs.indexOfKey(hwModule);
+                        if (index >= 0) {
+                            audio_hw_device_t *hwDevice =
+                                    audioflinger->mAudioHwDevs.valueAt(index)->hwDevice();
+                            hwDevice->release_audio_patch(hwDevice, halHandle);
+                        }
+                    }
                 }
                 mPatches.removeAt(index);
                 delete removedPatch;
@@ -437,7 +471,7 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
                                              format,
                                              frameCount,
                                              NULL,
-                                             IAudioFlinger::TRACK_DEFAULT);
+                                             AUDIO_INPUT_FLAG_NONE);
     if (patch->mPatchRecord == 0) {
         return NO_MEMORY;
     }
@@ -457,7 +491,7 @@ status_t AudioFlinger::PatchPanel::createPatchConnections(Patch *patch,
                                            format,
                                            frameCount,
                                            patch->mPatchRecord->buffer(),
-                                           IAudioFlinger::TRACK_DEFAULT);
+                                           AUDIO_OUTPUT_FLAG_NONE);
     if (patch->mPatchTrack == 0) {
         return NO_MEMORY;
     }

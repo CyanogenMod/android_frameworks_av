@@ -43,7 +43,9 @@ sp<SimpleDecodingSource> SimpleDecodingSource::Create(
     CHECK(meta->findCString(kKeyMIMEType, &mime));
 
     sp<AMessage> format = new AMessage;
-    convertMetaDataToMessage(source->getFormat(), &format);
+    if (convertMetaDataToMessage(source->getFormat(), &format) != OK) {
+        return NULL;
+    }
 
     Vector<AString> matchingCodecs;
     MediaCodecList::findMatchingCodecs(

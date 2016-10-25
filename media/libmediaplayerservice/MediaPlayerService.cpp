@@ -1884,7 +1884,7 @@ status_t MediaPlayerService::AudioOutput::open(
                 mCallbackData->setOutput(this);
             }
             delete newcbd;
-            return OK;
+            return updateTrack();
         }
     }
 
@@ -1906,17 +1906,26 @@ status_t MediaPlayerService::AudioOutput::open(
     mFrameSize = t->frameSize();
     mTrack = t;
 
+    return updateTrack();
+}
+
+status_t MediaPlayerService::AudioOutput::updateTrack() {
+    if (mTrack == NULL) {
+        return NO_ERROR;
+    }
+
     status_t res = NO_ERROR;
     // Note some output devices may give us a direct track even though we don't specify it.
     // Example: Line application b/17459982.
-    if ((t->getFlags() & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) {
-        res = t->setPlaybackRate(mPlaybackRate);
+    if ((mTrack->getFlags()
+            & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) {
+        res = mTrack->setPlaybackRate(mPlaybackRate);
         if (res == NO_ERROR) {
-            t->setAuxEffectSendLevel(mSendLevel);
-            res = t->attachAuxEffect(mAuxEffectId);
+            mTrack->setAuxEffectSendLevel(mSendLevel);
+            res = mTrack->attachAuxEffect(mAuxEffectId);
         }
     }
-    ALOGV("open() DONE status %d", res);
+    ALOGV("updateTrack() DONE status %d", res);
     return res;
 }
 
@@ -1968,6 +1977,7 @@ void MediaPlayerService::AudioOutput::switchToNextOutput() {
                     continue;
                 }
                 callbackData->mSwitching = true; // begin track switch
+                callbackData->setOutput(NULL);
 #else
                 // tryBeginTrackSwitch() returns false if the callback has the lock.
                 if (!mCallbackData->tryBeginTrackSwitch()) {

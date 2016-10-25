@@ -18,6 +18,8 @@
 
 #define MEDIA_BUFFER_H_
 
+#include <atomic>
+#include <list>
 #include <media/stagefright/foundation/MediaBufferBase.h>
 
 #include <pthread.h>
@@ -60,6 +62,12 @@ public:
 
     MediaBuffer(const sp<ABuffer> &buffer);
 
+    MediaBuffer(const sp<IMemory> &mem) :
+        MediaBuffer((uint8_t *)mem->pointer() + sizeof(SharedControl), mem->size()) {
+        // delegate and override mMemory
+        mMemory = mem;
+    }
+
     // Decrements the reference count and returns the buffer to its
     // associated MediaBufferGroup if the reference count drops to 0.
     virtual void release();
@@ -91,8 +99,51 @@ public:
 
     int refcount() const;
 
+    bool isDeadObject() const {
+        return isDeadObject(mMemory);
+    }
+
+    static bool isDeadObject(const sp<IMemory> &memory) {
+        if (memory.get() == nullptr || memory->pointer() == nullptr) return false;
+        return reinterpret_cast<SharedControl *>(memory->pointer())->isDeadObject();
+    }
+
+    // Sticky on enabling of shared memory MediaBuffers. By default we don't use
+    // shared memory for MediaBuffers, but we enable this for those processes
+    // that export MediaBuffers.
+    static void useSharedMemory() {
+        std::atomic_store_explicit(
+                &mUseSharedMemory, (int_least32_t)1, std::memory_order_seq_cst);
+    }
+
 protected:
+    // MediaBuffer remote releases are handled through a
+    // pending release count variable stored in a SharedControl block
+    // at the start of the IMemory.
+
+    // Returns old value of pending release count.
+    inline int32_t addPendingRelease(int32_t value) {
+        return getSharedControl()->addPendingRelease(value);
+    }
+
+    // Issues all pending releases (works in parallel).
+    // Assumes there is a MediaBufferObserver.
+    inline void resolvePendingRelease() {
+        if (mMemory.get() == nullptr) return;
+        while (addPendingRelease(-1) > 0) {
+            release();
+        }
+        addPendingRelease(1);
+    }
+
+    // true if MediaBuffer is observed (part of a MediaBufferGroup).
+    inline bool isObserved() const {
+        return mObserver != nullptr;
+    }
+
     virtual ~MediaBuffer();
+
+    sp<IMemory> mMemory;
 
 private:
     friend class MediaBufferGroup;
@@ -105,7 +156,6 @@ private:
     void claim();
 
     MediaBufferObserver *mObserver;
-    MediaBuffer *mNextBuffer;
     int mRefCount;
 
     void *mData;
@@ -119,12 +169,59 @@ private:
 
     MediaBuffer *mOriginal;
 
-    void setNextBuffer(MediaBuffer *buffer);
-    MediaBuffer *nextBuffer();
+    static std::atomic_int_least32_t mUseSharedMemory;
 
     MediaBuffer(const MediaBuffer &);
     MediaBuffer &operator=(const MediaBuffer &);
-    sp<IMemory> mMemory;
+
+    // SharedControl block at the start of IMemory.
+    struct SharedControl {
+        enum {
+            FLAG_DEAD_OBJECT = (1 << 0),
+        };
+
+        // returns old value
+        inline int32_t addPendingRelease(int32_t value) {
+            return std::atomic_fetch_add_explicit(
+                    &mPendingRelease, (int_least32_t)value, std::memory_order_seq_cst);
+        }
+
+        inline int32_t getPendingRelease() const {
+            return std::atomic_load_explicit(&mPendingRelease, std::memory_order_seq_cst);
+        }
+
+        inline void setPendingRelease(int32_t value) {
+            std::atomic_store_explicit(
+                    &mPendingRelease, (int_least32_t)value, std::memory_order_seq_cst);
+        }
+
+        inline bool isDeadObject() const {
+            return (std::atomic_load_explicit(
+                    &mFlags, std::memory_order_seq_cst) & FLAG_DEAD_OBJECT) != 0;
+        }
+
+        inline void setDeadObject() {
+            (void)std::atomic_fetch_or_explicit(
+                    &mFlags, (int_least32_t)FLAG_DEAD_OBJECT, std::memory_order_seq_cst);
+        }
+
+        inline void clear() {
+            std::atomic_store_explicit(
+                    &mFlags, (int_least32_t)0, std::memory_order_seq_cst);
+            std::atomic_store_explicit(
+                    &mPendingRelease, (int_least32_t)0, std::memory_order_seq_cst);
+        }
+
+    private:
+        // Caution: atomic_int_fast32_t is 64 bits on LP64.
+        std::atomic_int_least32_t mFlags;
+        std::atomic_int_least32_t mPendingRelease;
+        int32_t unused[6]; // additional buffer space
+    };
+
+    inline SharedControl *getSharedControl() const {
+         return reinterpret_cast<SharedControl *>(mMemory->pointer());
+     }
 };
 
 }  // namespace android

@@ -60,7 +60,7 @@ public:
 
     int         id() const { return mId; }
     void process();
-    void updateState();
+    bool updateState();
     status_t command(uint32_t cmdCode,
                      uint32_t cmdSize,
                      void *pCmdData,
@@ -117,6 +117,8 @@ public:
     void             unlock() { mLock.unlock(); }
     bool             isOffloadable() const
                         { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
+    bool             isImplementationSoftware() const
+                        { return (mDescriptor.flags & EFFECT_FLAG_HW_ACC_MASK) == 0; }
     status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
     bool             isOffloaded() const;
     void             addEffectToHal_l();
@@ -275,7 +277,8 @@ public:
     sp<EffectModule> getEffectFromId_l(int id);
     sp<EffectModule> getEffectFromType_l(const effect_uuid_t *type);
     // FIXME use float to improve the dynamic range
-    bool setVolume_l(uint32_t *left, uint32_t *right);
+    bool setVolume_l(uint32_t *left, uint32_t *right, bool force = false);
+    void resetVolume_l();
     void setDevice_l(audio_devices_t device);
     void setMode_l(audio_mode_t mode);
     void setAudioSource_l(audio_source_t source);
@@ -321,14 +324,12 @@ public:
     // At least one non offloadable effect in the chain is enabled
     bool isNonOffloadableEnabled();
 
-    // use release_cas because we don't care about the observed value, just want to make sure the
-    // new value is observable.
-    void forceVolume() { android_atomic_release_cas(false, true, &mForceVolume); }
-    // use acquire_cas because we are interested in the observed value and
-    // we are the only observers.
-    bool isVolumeForced() { return (android_atomic_acquire_cas(true, false, &mForceVolume) == 0); }
-
     void syncHalEffectsState();
+
+    bool hasSoftwareEffect() const;
+
+    // isCompatibleWithThread_l() must be called with thread->mLock held
+    bool isCompatibleWithThread_l(const sp<ThreadBase>& thread) const;
 
     void dump(int fd, const Vector<String16>& args);
 
@@ -361,30 +362,29 @@ protected:
 
     void setThread(const sp<ThreadBase>& thread);
 
-    wp<ThreadBase> mThread;     // parent mixer thread
-    Mutex mLock;                // mutex protecting effect list
-    Vector< sp<EffectModule> > mEffects; // list of effect modules
-    audio_session_t mSessionId; // audio session ID
-    int16_t *mInBuffer;         // chain input buffer
-    int16_t *mOutBuffer;        // chain output buffer
+             wp<ThreadBase> mThread;     // parent mixer thread
+    mutable  Mutex mLock;        // mutex protecting effect list
+             Vector< sp<EffectModule> > mEffects; // list of effect modules
+             audio_session_t mSessionId; // audio session ID
+             int16_t *mInBuffer;         // chain input buffer
+             int16_t *mOutBuffer;        // chain output buffer
 
     // 'volatile' here means these are accessed with atomic operations instead of mutex
     volatile int32_t mActiveTrackCnt;    // number of active tracks connected
     volatile int32_t mTrackCnt;          // number of tracks connected
 
-    int32_t mTailBufferCount;   // current effect tail buffer count
-    int32_t mMaxTailBuffers;    // maximum effect tail buffers
-    bool mOwnInBuffer;          // true if the chain owns its input buffer
-    int mVolumeCtrlIdx;         // index of insert effect having control over volume
-    uint32_t mLeftVolume;       // previous volume on left channel
-    uint32_t mRightVolume;      // previous volume on right channel
-    uint32_t mNewLeftVolume;       // new volume on left channel
-    uint32_t mNewRightVolume;      // new volume on right channel
-    uint32_t mStrategy; // strategy for this effect chain
-    // mSuspendedEffects lists all effects currently suspended in the chain.
-    // Use effect type UUID timelow field as key. There is no real risk of identical
-    // timeLow fields among effect type UUIDs.
-    // Updated by updateSuspendedSessions_l() only.
-    KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
-    volatile int32_t mForceVolume; // force next volume command because a new effect was enabled
+             int32_t mTailBufferCount;   // current effect tail buffer count
+             int32_t mMaxTailBuffers;    // maximum effect tail buffers
+             bool mOwnInBuffer;          // true if the chain owns its input buffer
+             int mVolumeCtrlIdx;         // index of insert effect having control over volume
+             uint32_t mLeftVolume;       // previous volume on left channel
+             uint32_t mRightVolume;      // previous volume on right channel
+             uint32_t mNewLeftVolume;       // new volume on left channel
+             uint32_t mNewRightVolume;      // new volume on right channel
+             uint32_t mStrategy; // strategy for this effect chain
+             // mSuspendedEffects lists all effects currently suspended in the chain.
+             // Use effect type UUID timelow field as key. There is no real risk of identical
+             // timeLow fields among effect type UUIDs.
+             // Updated by updateSuspendedSessions_l() only.
+             KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
 };

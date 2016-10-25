@@ -44,16 +44,6 @@ class IAudioFlinger : public IInterface
 public:
     DECLARE_META_INTERFACE(AudioFlinger);
 
-    // or-able bits shared by createTrack and openRecord, but not all combinations make sense
-    enum {
-        TRACK_DEFAULT = 0,  // client requests a default AudioTrack
-        // FIXME: obsolete
-        // TRACK_TIMED= 1,  // client requests a TimedAudioTrack
-        TRACK_FAST    = 2,  // client requests a fast AudioTrack or AudioRecord
-        TRACK_OFFLOAD = 4,  // client requests offload to hw codec
-        TRACK_DIRECT = 8,   // client requests a direct output
-    };
-    typedef uint32_t track_flags_t;
 
     // invariant on exit for all APIs that return an sp<>:
     //   (return value != 0) == (*status == NO_ERROR)
@@ -67,7 +57,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t *pFrameCount,
-                                track_flags_t *flags,
+                                audio_output_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 // On successful return, AudioFlinger takes over the handle
                                 // reference and will release it when the track is destroyed.
@@ -89,7 +79,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 const String16& callingPackage,
                                 size_t *pFrameCount,
-                                track_flags_t *flags,
+                                audio_input_flags_t *flags,
                                 pid_t pid,
                                 pid_t tid,  // -1 means unused, otherwise must be valid non-0
                                 int clientUid,

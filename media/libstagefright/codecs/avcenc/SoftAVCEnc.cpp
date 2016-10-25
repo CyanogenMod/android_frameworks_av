@@ -1016,10 +1016,10 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
 
             if ((avcType->nAllowedPictureTypes & OMX_VIDEO_PictureTypeB) &&
                     avcType->nPFrames) {
-                mBframes = avcType->nBFrames / avcType->nPFrames;
+                mBframes = avcType->nBFrames;
             }
 
-            mIInterval = avcType->nPFrames + avcType->nBFrames;
+            mIInterval = (avcType->nPFrames + 1) * (avcType->nBFrames + 1);
             mConstrainedIntraFlag = avcType->bconstIpred;
 
             if (OMX_VIDEO_AVCLoopFilterDisable == avcType->eLoopFilterMode)
@@ -1033,7 +1033,9 @@ OMX_ERRORTYPE SoftAVC::internalSetParameter(OMX_INDEXTYPE index, const OMX_PTR p
                     || avcType->bDirect8x8Inference != OMX_FALSE
                     || avcType->bDirectSpatialTemporal != OMX_FALSE
                     || avcType->nCabacInitIdc != 0) {
-                return OMX_ErrorUndefined;
+                // OMX does not allow a way to signal what values are wrong, so it's
+                // best for components to just do best effort in supporting these values
+                ALOGV("ignoring unsupported settings");
             }
 
             if (OK != ConvertOmxAvcLevelToAvcSpecLevel(avcType->eLevel, &mAVCEncLevel)) {

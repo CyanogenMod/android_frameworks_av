@@ -751,9 +751,30 @@ const ToneGenerator::ToneDescriptor ToneGenerator::sToneDescriptors[] = {
                         { .duration = 0, .waveFreq = { 0 }, 0, 0}},
           .repeatCnt = ToneGenerator::TONEGEN_INF,
           .repeatSegment = 0 },                              // TONE_UK_RINGTONE
-
-
-
+        { .segments = { { .duration = 400, .waveFreq = { 400, 450, 0 }, 0, 0 },
+                        { .duration = 200, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 400, .waveFreq = { 400, 450, 0 }, 0, 0 },
+                        { .duration = 2000, .waveFreq = { 0 }, 0, 0},
+                        { .duration = 0, .waveFreq = { 0 }, 0, 0}},
+          .repeatCnt = ToneGenerator::TONEGEN_INF,
+          .repeatSegment = 0 },                              // TONE_AUSTRALIA_RINGTONE
+        { .segments = { { .duration = 375, .waveFreq = { 425, 0 }, 0, 0 },
+                        { .duration = 375, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 0 , .waveFreq = { 0 }, 0, 0}},
+          .repeatCnt = ToneGenerator::TONEGEN_INF,
+          .repeatSegment = 0 },                              // TONE_AUSTRALIA_BUSY
+        { .segments = { { .duration = 200, .waveFreq = { 425, 0 }, 0, 0 },
+                        { .duration = 200, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 200, .waveFreq = { 425, 0 }, 0, 0 },
+                        { .duration = 4400, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 0 , .waveFreq = { 0 }, 0, 0}},
+          .repeatCnt = ToneGenerator::TONEGEN_INF,
+          .repeatSegment = 0 },                              // TONE_AUSTRALIA_CALL_WAITING
+        { .segments = { { .duration = 375, .waveFreq = { 425, 0 }, 0, 0 },
+                        { .duration = 375, .waveFreq = { 0 }, 0, 0 },
+                        { .duration = 0 , .waveFreq = { 0 }, 0, 0}},
+          .repeatCnt = ToneGenerator::TONEGEN_INF,
+          .repeatSegment = 0 },                              // TONE_AUSTRALIA_CONGESTION
 };
 
 // Used by ToneGenerator::getToneForRegion() to convert user specified supervisory tone type
@@ -788,8 +809,17 @@ const unsigned char /*tone_type*/ ToneGenerator::sToneMappingTable[NUM_REGIONS-1
             TONE_SUP_ERROR,              // TONE_SUP_ERROR
             TONE_SUP_CALL_WAITING,       // TONE_SUP_CALL_WAITING
             TONE_UK_RINGTONE             // TONE_SUP_RINGTONE
+        },
+        {   // AUSTRALIA
+            TONE_ANSI_DIAL,             // TONE_SUP_DIAL
+            TONE_AUSTRALIA_BUSY,        // TONE_SUP_BUSY
+            TONE_AUSTRALIA_CONGESTION,  // TONE_SUP_CONGESTION
+            TONE_SUP_RADIO_ACK,         // TONE_SUP_RADIO_ACK
+            TONE_SUP_RADIO_NOTAVAIL,    // TONE_SUP_RADIO_NOTAVAIL
+            TONE_SUP_ERROR,             // TONE_SUP_ERROR
+            TONE_AUSTRALIA_CALL_WAITING,// TONE_SUP_CALL_WAITING
+            TONE_AUSTRALIA_RINGTONE     // TONE_SUP_RINGTONE
         }
-
 };
 
 
@@ -835,15 +865,18 @@ ToneGenerator::ToneGenerator(audio_stream_type_t streamType, float volume, bool 
     mProcessSize = (mSamplingRate * 20) / 1000;
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("gsm.operator.iso-country", value, "");
-    if (strcmp(value,"us") == 0 ||
-        strcmp(value,"ca") == 0) {
+    if (property_get("gsm.operator.iso-country", value, "") == 0) {
+        property_get("gsm.sim.operator.iso-country", value, "");
+    }
+    if (strstr(value, "us") != NULL ||
+        strstr(value, "ca") != NULL) {
         mRegion = ANSI;
-    } else if (strcmp(value,"jp") == 0) {
+    } else if (strstr(value, "jp") != NULL) {
         mRegion = JAPAN;
-    } else if (strcmp(value,"uk") == 0 ||
-               strcmp(value,"uk,uk") == 0) {
+    } else if (strstr(value, "uk") != NULL) {
         mRegion = UK;
+    } else if (strstr(value, "au") != NULL) {
+        mRegion = AUSTRALIA;
     } else {
         mRegion = CEPT;
     }
@@ -880,6 +913,7 @@ ToneGenerator::~ToneGenerator() {
         ALOGV("Delete Track: %p", mpAudioTrack.get());
         mpAudioTrack.clear();
     }
+    clearWaveGens();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1065,46 +1099,36 @@ void ToneGenerator::stopTone() {
 //
 ////////////////////////////////////////////////////////////////////////////////
 bool ToneGenerator::initAudioTrack() {
-
-    // Open audio track in mono, PCM 16bit, default sampling rate, default buffer size
+    // Open audio track in mono, PCM 16bit, default sampling rate.
     mpAudioTrack = new AudioTrack();
-    ALOGV("Create Track: %p", mpAudioTrack.get());
+    ALOGV("AudioTrack(%p) created", mpAudioTrack.get());
 
-    mpAudioTrack->set(mStreamType,
-                      0,    // sampleRate
-                      AUDIO_FORMAT_PCM_16_BIT,
-                      AUDIO_CHANNEL_OUT_MONO,
-                      0,    // frameCount
-                      AUDIO_OUTPUT_FLAG_FAST,
-                      audioCallback,
-                      this, // user
-                      0,    // notificationFrames
-                      0,    // sharedBuffer
-                      mThreadCanCallJava,
-                      AUDIO_SESSION_ALLOCATE,
-                      AudioTrack::TRANSFER_CALLBACK);
+    const size_t frameCount = mProcessSize;
+    status_t status = mpAudioTrack->set(
+            mStreamType,
+            0,    // sampleRate
+            AUDIO_FORMAT_PCM_16_BIT,
+            AUDIO_CHANNEL_OUT_MONO,
+            frameCount,
+            AUDIO_OUTPUT_FLAG_FAST,
+            audioCallback,
+            this, // user
+            0,    // notificationFrames
+            0,    // sharedBuffer
+            mThreadCanCallJava,
+            AUDIO_SESSION_ALLOCATE,
+            AudioTrack::TRANSFER_CALLBACK);
 
-    if (mpAudioTrack->initCheck() != NO_ERROR) {
-        ALOGE("AudioTrack->initCheck failed");
-        goto initAudioTrack_exit;
+    if (status != NO_ERROR) {
+        ALOGE("AudioTrack(%p) set failed with error %d", mpAudioTrack.get(), status);
+        mpAudioTrack.clear();
+        return false;
     }
 
     mpAudioTrack->setVolume(mVolume);
-
     mState = TONE_INIT;
-
     return true;
-
-initAudioTrack_exit:
-
-    ALOGV("Init failed: %p", mpAudioTrack.get());
-
-    // Cleanup
-    mpAudioTrack.clear();
-
-    return false;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //

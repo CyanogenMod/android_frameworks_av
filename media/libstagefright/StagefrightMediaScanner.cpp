@@ -129,6 +129,7 @@ MediaScanResult StagefrightMediaScanner::processFileInternal(
         { "writer", METADATA_KEY_WRITER },
         { "compilation", METADATA_KEY_COMPILATION },
         { "isdrm", METADATA_KEY_IS_DRM },
+        { "date", METADATA_KEY_DATE },
         { "width", METADATA_KEY_VIDEO_WIDTH },
         { "height", METADATA_KEY_VIDEO_HEIGHT },
     };

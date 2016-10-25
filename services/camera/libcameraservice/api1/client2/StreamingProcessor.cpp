@@ -115,7 +115,7 @@ status_t StreamingProcessor::updatePreviewRequest(const Parameters &params) {
 
         // Use CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG for ZSL streaming case.
         if (client->getCameraDeviceVersion() >= CAMERA_DEVICE_API_VERSION_3_0) {
-            if (params.zslMode && !params.recordingHint) {
+            if (params.useZeroShutterLag() && !params.recordingHint) {
                 res = device->createDefaultRequest(CAMERA3_TEMPLATE_ZERO_SHUTTER_LAG,
                         &mPreviewRequest);
             } else {

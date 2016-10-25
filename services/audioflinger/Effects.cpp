@@ -216,9 +216,10 @@ size_t AudioFlinger::EffectModule::disconnect(EffectHandle *handle, bool unpinIf
     return mHandles.size();
 }
 
-void AudioFlinger::EffectModule::updateState() {
+bool AudioFlinger::EffectModule::updateState() {
     Mutex::Autolock _l(mLock);
 
+    bool started = false;
     switch (mState) {
     case RESTART:
         reset_l();
@@ -233,6 +234,7 @@ void AudioFlinger::EffectModule::updateState() {
         }
         if (start_l() == NO_ERROR) {
             mState = ACTIVE;
+            started = true;
         } else {
             mState = IDLE;
         }
@@ -256,6 +258,8 @@ void AudioFlinger::EffectModule::updateState() {
     default: //IDLE , ACTIVE, DESTROYED
         break;
     }
+
+    return started;
 }
 
 void AudioFlinger::EffectModule::process()
@@ -462,10 +466,22 @@ void AudioFlinger::EffectModule::addEffectToHal_l()
     }
 }
 
+// start() must be called with PlaybackThread::mLock or EffectChain::mLock held
 status_t AudioFlinger::EffectModule::start()
 {
-    Mutex::Autolock _l(mLock);
-    return start_l();
+    sp<EffectChain> chain;
+    status_t status;
+    {
+        Mutex::Autolock _l(mLock);
+        status = start_l();
+        if (status == NO_ERROR) {
+            chain = mChain.promote();
+        }
+    }
+    if (chain != 0) {
+        chain->resetVolume_l();
+    }
+    return status;
 }
 
 status_t AudioFlinger::EffectModule::start_l()
@@ -489,10 +505,6 @@ status_t AudioFlinger::EffectModule::start_l()
     }
     if (status == 0) {
         addEffectToHal_l();
-        sp<EffectChain> chain = mChain.promote();
-        if (chain != 0) {
-            chain->forceVolume();
-        }
     }
     return status;
 }
@@ -1375,7 +1387,7 @@ AudioFlinger::EffectChain::EffectChain(ThreadBase *thread,
                                         audio_session_t sessionId)
     : mThread(thread), mSessionId(sessionId), mActiveTrackCnt(0), mTrackCnt(0), mTailBufferCount(0),
       mOwnInBuffer(false), mVolumeCtrlIdx(-1), mLeftVolume(UINT_MAX), mRightVolume(UINT_MAX),
-      mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX), mForceVolume(false)
+      mNewLeftVolume(UINT_MAX), mNewRightVolume(UINT_MAX)
 {
     mStrategy = AudioSystem::getStrategyForStream(AUDIO_STREAM_MUSIC);
     if (thread == NULL) {
@@ -1499,8 +1511,12 @@ void AudioFlinger::EffectChain::process_l()
             mEffects[i]->process();
         }
     }
+    bool doResetVolume = false;
     for (size_t i = 0; i < size; i++) {
-        mEffects[i]->updateState();
+        doResetVolume = mEffects[i]->updateState() || doResetVolume;
+    }
+    if (doResetVolume) {
+        resetVolume_l();
     }
 }
 
@@ -1681,8 +1697,8 @@ void AudioFlinger::EffectChain::setAudioSource_l(audio_source_t source)
     }
 }
 
-// setVolume_l() must be called with PlaybackThread::mLock held
-bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
+// setVolume_l() must be called with PlaybackThread::mLock or EffectChain::mLock held
+bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right, bool force)
 {
     uint32_t newLeft = *left;
     uint32_t newRight = *right;
@@ -1700,7 +1716,7 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
         }
     }
 
-    if (!isVolumeForced() && ctrlIdx == mVolumeCtrlIdx &&
+    if (!force && ctrlIdx == mVolumeCtrlIdx &&
             *left == mLeftVolume && *right == mRightVolume) {
         if (hasControl) {
             *left = mNewLeftVolume;
@@ -1740,6 +1756,16 @@ bool AudioFlinger::EffectChain::setVolume_l(uint32_t *left, uint32_t *right)
     *right = newRight;
 
     return hasControl;
+}
+
+// resetVolume_l() must be called with PlaybackThread::mLock or EffectChain::mLock held
+void AudioFlinger::EffectChain::resetVolume_l()
+{
+    if ((mLeftVolume != UINT_MAX) && (mRightVolume != UINT_MAX)) {
+        uint32_t left = mLeftVolume;
+        uint32_t right = mRightVolume;
+        (void)setVolume_l(&left, &right, true);
+    }
 }
 
 void AudioFlinger::EffectChain::syncHalEffectsState()
@@ -1992,6 +2018,29 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
     for (size_t i = 0; i < mEffects.size(); i++) {
         mEffects[i]->setThread(thread);
     }
+}
+
+bool AudioFlinger::EffectChain::hasSoftwareEffect() const
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        if (mEffects[i]->isImplementationSoftware()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// isCompatibleWithThread_l() must be called with thread->mLock held
+bool AudioFlinger::EffectChain::isCompatibleWithThread_l(const sp<ThreadBase>& thread) const
+{
+    Mutex::Autolock _l(mLock);
+    for (size_t i = 0; i < mEffects.size(); i++) {
+        if (thread->checkEffectCompatibility_l(&(mEffects[i]->desc()), mSessionId) != NO_ERROR) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace android

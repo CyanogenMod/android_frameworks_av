@@ -477,7 +477,7 @@ protected:
             return mAvailableInputDevices.getDevicesFromHwModule(mPrimaryOutput->getModuleHandle());
         }
 
-        void updateCallRouting(audio_devices_t rxDevice, int delayMs = 0);
+        uint32_t updateCallRouting(audio_devices_t rxDevice, uint32_t delayMs = 0);
 
         // if argument "device" is different from AUDIO_DEVICE_NONE,  startSource() will force
         // the re-evaluation of the output device.

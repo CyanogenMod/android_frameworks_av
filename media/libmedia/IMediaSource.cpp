@@ -36,79 +36,39 @@ enum {
     STOP,
     PAUSE,
     GETFORMAT,
-    READ,
+    // READ, deprecated
     READMULTIPLE,
-    RELEASE_BUFFER
+    RELEASE_BUFFER,
+    SUPPORT_NONBLOCKING_READ,
 };
 
 enum {
     NULL_BUFFER,
     SHARED_BUFFER,
-    INLINE_BUFFER
+    INLINE_BUFFER,
+    SHARED_BUFFER_INDEX,
 };
-
-class RemoteMediaBufferReleaser : public BBinder {
-public:
-    RemoteMediaBufferReleaser(MediaBuffer *buf, sp<BnMediaSource> owner) {
-        mBuf = buf;
-        mOwner = owner;
-    }
-    ~RemoteMediaBufferReleaser() {
-        if (mBuf) {
-            ALOGW("RemoteMediaBufferReleaser dtor called while still holding buffer");
-            mBuf->release();
-        }
-    }
-    virtual status_t    onTransact( uint32_t code,
-                                    const Parcel& data,
-                                    Parcel* reply,
-                                    uint32_t flags = 0) {
-        if (code == RELEASE_BUFFER) {
-            mBuf->release();
-            mBuf = NULL;
-            return OK;
-        } else {
-            return BBinder::onTransact(code, data, reply, flags);
-        }
-    }
-private:
-    MediaBuffer *mBuf;
-    // Keep a ref to ensure MediaBuffer is released before the owner, i.e., BnMediaSource,
-    // because BnMediaSource needs to delete MediaBufferGroup in its dtor and
-    // MediaBufferGroup dtor requires all MediaBuffer's have 0 ref count.
-    sp<BnMediaSource> mOwner;
-};
-
 
 class RemoteMediaBufferWrapper : public MediaBuffer {
 public:
-    RemoteMediaBufferWrapper(sp<IMemory> mem, sp<IBinder> source);
+    RemoteMediaBufferWrapper(const sp<IMemory> &mem)
+        : MediaBuffer(mem) {
+        ALOGV("RemoteMediaBufferWrapper: creating %p", this);
+    }
+
 protected:
-    virtual ~RemoteMediaBufferWrapper();
-private:
-    sp<IMemory> mMemory;
-    sp<IBinder> mRemoteSource;
+    virtual ~RemoteMediaBufferWrapper() {
+        // Indicate to MediaBufferGroup to release.
+        int32_t old = addPendingRelease(1);
+        ALOGV("RemoteMediaBufferWrapper: releasing %p, old %d", this, old);
+        mMemory.clear(); // don't set the dead object flag.
+    }
 };
-
-RemoteMediaBufferWrapper::RemoteMediaBufferWrapper(sp<IMemory> mem, sp<IBinder> source)
-: MediaBuffer(mem->pointer(), mem->size()) {
-    mMemory = mem;
-    mRemoteSource = source;
-}
-
-RemoteMediaBufferWrapper::~RemoteMediaBufferWrapper() {
-    mMemory.clear();
-    // Explicitly ask the remote side to release the buffer. We could also just clear
-    // mRemoteSource, but that doesn't immediately release the reference on the remote side.
-    Parcel data, reply;
-    mRemoteSource->transact(RELEASE_BUFFER, data, &reply);
-    mRemoteSource.clear();
-}
 
 class BpMediaSource : public BpInterface<IMediaSource> {
 public:
     BpMediaSource(const sp<IBinder>& impl)
-        : BpInterface<IMediaSource>(impl)
+        : BpInterface<IMediaSource>(impl), mBuffersSinceStop(0)
     {
     }
 
@@ -135,7 +95,10 @@ public:
         ALOGV("stop");
         Parcel data, reply;
         data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
-        return remote()->transact(STOP, data, &reply);
+        status_t status = remote()->transact(STOP, data, &reply);
+        mMemoryCache.reset();
+        mBuffersSinceStop = 0;
+        return status;
     }
 
     virtual sp<MetaData> getFormat() {
@@ -151,46 +114,16 @@ public:
     }
 
     virtual status_t read(MediaBuffer **buffer, const ReadOptions *options) {
-        ALOGV("read");
-        Parcel data, reply;
-        data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
-        if (options) {
-            data.writeByteArray(sizeof(*options), (uint8_t*) options);
-        }
-        status_t ret = remote()->transact(READ, data, &reply);
-        if (ret != NO_ERROR) {
-            return ret;
-        }
-        // wrap the returned data in a MediaBuffer
-        ret = reply.readInt32();
-        int32_t buftype = reply.readInt32();
-        if (buftype == SHARED_BUFFER) {
-            sp<IBinder> remote = reply.readStrongBinder();
-            sp<IBinder> binder = reply.readStrongBinder();
-            sp<IMemory> mem = interface_cast<IMemory>(binder);
-            if (mem == NULL) {
-                ALOGE("received NULL IMemory for shared buffer");
-            }
-            size_t offset = reply.readInt32();
-            size_t length = reply.readInt32();
-            MediaBuffer *buf = new RemoteMediaBufferWrapper(mem, remote);
-            buf->set_range(offset, length);
-            buf->meta_data()->updateFromParcel(reply);
-            *buffer = buf;
-        } else if (buftype == NULL_BUFFER) {
-            ALOGV("got status %d and NULL buffer", ret);
-            *buffer = NULL;
-        } else {
-            int32_t len = reply.readInt32();
-            ALOGV("got status %d and len %d", ret, len);
-            *buffer = new MediaBuffer(len);
-            reply.read((*buffer)->data(), len);
-            (*buffer)->meta_data()->updateFromParcel(reply);
-        }
+        Vector<MediaBuffer *> buffers;
+        status_t ret = readMultiple(&buffers, 1 /* maxNumBuffers */, options);
+        *buffer = buffers.size() == 0 ? nullptr : buffers[0];
+        ALOGV("read status %d, bufferCount %u, sinceStop %u",
+                ret, *buffer != nullptr, mBuffersSinceStop);
         return ret;
     }
 
-    virtual status_t readMultiple(Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers) {
+    virtual status_t readMultiple(
+            Vector<MediaBuffer *> *buffers, uint32_t maxNumBuffers, const ReadOptions *options) {
         ALOGV("readMultiple");
         if (buffers == NULL || !buffers->isEmpty()) {
             return BAD_VALUE;
@@ -198,27 +131,76 @@ public:
         Parcel data, reply;
         data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
         data.writeUint32(maxNumBuffers);
+        if (options != nullptr) {
+            data.writeByteArray(sizeof(*options), (uint8_t*) options);
+        }
         status_t ret = remote()->transact(READMULTIPLE, data, &reply);
+        mMemoryCache.gc();
         if (ret != NO_ERROR) {
             return ret;
         }
         // wrap the returned data in a vector of MediaBuffers
-        int32_t bufCount = 0;
-        while (1) {
-            if (reply.readInt32() == 0) {
-                break;
+        int32_t buftype;
+        uint32_t bufferCount = 0;
+        while ((buftype = reply.readInt32()) != NULL_BUFFER) {
+            LOG_ALWAYS_FATAL_IF(bufferCount >= maxNumBuffers,
+                    "Received %u+ buffers and requested %u buffers",
+                    bufferCount + 1, maxNumBuffers);
+            MediaBuffer *buf;
+            if (buftype == SHARED_BUFFER || buftype == SHARED_BUFFER_INDEX) {
+                uint64_t index = reply.readUint64();
+                ALOGV("Received %s index %llu",
+                        buftype == SHARED_BUFFER ? "SHARED_BUFFER" : "SHARED_BUFFER_INDEX",
+                        (unsigned long long) index);
+                sp<IMemory> mem;
+                if (buftype == SHARED_BUFFER) {
+                    sp<IBinder> binder = reply.readStrongBinder();
+                    mem = interface_cast<IMemory>(binder);
+                    LOG_ALWAYS_FATAL_IF(mem.get() == nullptr,
+                            "Received NULL IMemory for shared buffer");
+                    mMemoryCache.insert(index, mem);
+                } else {
+                    mem = mMemoryCache.lookup(index);
+                    LOG_ALWAYS_FATAL_IF(mem.get() == nullptr,
+                            "Received invalid IMemory index for shared buffer: %llu",
+                            (unsigned long long)index);
+                }
+                size_t offset = reply.readInt32();
+                size_t length = reply.readInt32();
+                buf = new RemoteMediaBufferWrapper(mem);
+                buf->set_range(offset, length);
+                buf->meta_data()->updateFromParcel(reply);
+            } else { // INLINE_BUFFER
+                int32_t len = reply.readInt32();
+                ALOGV("INLINE_BUFFER status %d and len %d", ret, len);
+                buf = new MediaBuffer(len);
+                reply.read(buf->data(), len);
+                buf->meta_data()->updateFromParcel(reply);
             }
-            int32_t len = reply.readInt32();
-            ALOGV("got len %d", len);
-            MediaBuffer *buf = new MediaBuffer(len);
-            reply.read(buf->data(), len);
-            buf->meta_data()->updateFromParcel(reply);
             buffers->push_back(buf);
-            ++bufCount;
+            ++bufferCount;
+            ++mBuffersSinceStop;
         }
         ret = reply.readInt32();
-        ALOGV("got status %d, bufCount %d", ret, bufCount);
+        ALOGV("readMultiple status %d, bufferCount %u, sinceStop %u",
+                ret, bufferCount, mBuffersSinceStop);
         return ret;
+    }
+
+    // Binder proxy adds readMultiple support.
+    virtual bool supportReadMultiple() {
+        return true;
+    }
+
+    virtual bool supportNonblockingRead() {
+        ALOGV("supportNonblockingRead");
+        Parcel data, reply;
+        data.writeInterfaceToken(BpMediaSource::getInterfaceDescriptor());
+        status_t ret = remote()->transact(SUPPORT_NONBLOCKING_READ, data, &reply);
+        if (ret == NO_ERROR) {
+            return reply.readInt32() != 0;
+        }
+        return false;
     }
 
     virtual status_t pause() {
@@ -234,10 +216,51 @@ public:
     }
 
 private:
+
+    uint32_t mBuffersSinceStop; // Buffer tracking variable
+
     // NuPlayer passes pointers-to-metadata around, so we use this to keep the metadata alive
     // XXX: could we use this for caching, or does metadata change on the fly?
     sp<MetaData> mMetaData;
 
+    // Cache all IMemory objects received from MediaExtractor.
+    // We gc IMemory objects that are no longer active (referenced by a MediaBuffer).
+
+    struct MemoryCache {
+        sp<IMemory> lookup(uint64_t index) {
+            auto p = mIndexToMemory.find(index);
+            if (p == mIndexToMemory.end()) {
+                ALOGE("cannot find index!");
+                return nullptr;
+            }
+            return p->second;
+        }
+
+        void insert(uint64_t index, const sp<IMemory> &mem) {
+            if (mIndexToMemory.find(index) != mIndexToMemory.end()) {
+                ALOGE("index %llu already present", (unsigned long long)index);
+                return;
+            }
+            (void)mIndexToMemory.emplace(index, mem);
+        }
+
+        void reset() {
+            mIndexToMemory.clear();
+        }
+
+        void gc() {
+            for (auto it = mIndexToMemory.begin(); it != mIndexToMemory.end(); ) {
+                if (MediaBuffer::isDeadObject(it->second)) {
+                    it = mIndexToMemory.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+    private:
+        // C++14 unordered_map erase on iterator is stable; C++11 has no guarantee.
+        std::map<uint64_t, sp<IMemory>> mIndexToMemory;
+    } mMemoryCache;
 };
 
 IMPLEMENT_META_INTERFACE(MediaSource, "android.media.IMediaSource");
@@ -246,12 +269,11 @@ IMPLEMENT_META_INTERFACE(MediaSource, "android.media.IMediaSource");
 #define LOG_TAG "BnMediaSource"
 
 BnMediaSource::BnMediaSource()
-    : mGroup(NULL) {
+    : mBuffersSinceStop(0)
+    , mGroup(new MediaBufferGroup(kBinderMediaBuffers /* growthLimit */)) {
 }
 
 BnMediaSource::~BnMediaSource() {
-    delete mGroup;
-    mGroup = NULL;
 }
 
 status_t BnMediaSource::onTransact(
@@ -274,7 +296,11 @@ status_t BnMediaSource::onTransact(
         case STOP: {
             ALOGV("stop");
             CHECK_INTERFACE(IMediaSource, data, reply);
-            return stop();
+            status_t status = stop();
+            mGroup->gc();
+            mIndexCache.reset();
+            mBuffersSinceStop = 0;
+            return status;
         }
         case PAUSE: {
             ALOGV("pause");
@@ -291,116 +317,129 @@ status_t BnMediaSource::onTransact(
             }
             return UNKNOWN_ERROR;
         }
-        case READ: {
-            ALOGV("read");
-            CHECK_INTERFACE(IMediaSource, data, reply);
-            status_t ret;
-            MediaBuffer *buf = NULL;
-            ReadOptions opts;
-            uint32_t len;
-            if (data.readUint32(&len) == NO_ERROR &&
-                    len == sizeof(opts) && data.read((void*)&opts, len) == NO_ERROR) {
-                ret = read(&buf, &opts);
-            } else {
-                ret = read(&buf, NULL);
-            }
-
-            reply->writeInt32(ret);
-            if (buf != NULL) {
-                size_t usedSize = buf->range_length();
-                // even if we're using shared memory, we might not want to use it, since for small
-                // sizes it's faster to copy data through the Binder transaction
-                // On the other hand, if the data size is large enough, it's better to use shared
-                // memory. When data is too large, binder can't handle it.
-                if (usedSize >= MediaBuffer::kSharedMemThreshold) {
-                    ALOGV("use shared memory: %zu", usedSize);
-
-                    MediaBuffer *transferBuf = buf;
-                    size_t offset = buf->range_offset();
-                    if (transferBuf->mMemory == NULL) {
-                        if (mGroup == NULL) {
-                            mGroup = new MediaBufferGroup;
-                            size_t allocateSize = usedSize;
-                            if (usedSize < SIZE_MAX / 3) {
-                                allocateSize = usedSize * 3 / 2;
-                            }
-                            mGroup->add_buffer(new MediaBuffer(allocateSize));
-                        }
-
-                        MediaBuffer *newBuf = NULL;
-                        ret = mGroup->acquire_buffer(
-                                &newBuf, false /* nonBlocking */, usedSize);
-                        if (ret != OK || newBuf == NULL || newBuf->mMemory == NULL) {
-                            ALOGW("failed to acquire shared memory, ret %d", ret);
-                            buf->release();
-                            if (newBuf != NULL) {
-                                newBuf->release();
-                            }
-                            reply->writeInt32(NULL_BUFFER);
-                            return NO_ERROR;
-                        }
-                        transferBuf = newBuf;
-                        memcpy(transferBuf->data(), (uint8_t*)buf->data() + buf->range_offset(),
-                                buf->range_length());
-                        offset = 0;
-                    }
-
-                    reply->writeInt32(SHARED_BUFFER);
-                    RemoteMediaBufferReleaser *wrapper =
-                        new RemoteMediaBufferReleaser(transferBuf, this);
-                    reply->writeStrongBinder(wrapper);
-                    reply->writeStrongBinder(IInterface::asBinder(transferBuf->mMemory));
-                    reply->writeInt32(offset);
-                    reply->writeInt32(usedSize);
-                    buf->meta_data()->writeToParcel(*reply);
-                    if (buf->mMemory == NULL) {
-                        buf->release();
-                    }
-                } else {
-                    // buffer is small: copy it
-                    if (buf->mMemory != NULL) {
-                        ALOGV("%zu shared mem available, but only %zu used", buf->mMemory->size(), buf->range_length());
-                    }
-                    reply->writeInt32(INLINE_BUFFER);
-                    reply->writeByteArray(buf->range_length(), (uint8_t*)buf->data() + buf->range_offset());
-                    buf->meta_data()->writeToParcel(*reply);
-                    buf->release();
-                }
-            } else {
-                ALOGV("ret %d, buf %p", ret, buf);
-                reply->writeInt32(NULL_BUFFER);
-            }
-            return NO_ERROR;
-        }
         case READMULTIPLE: {
-            ALOGV("readmultiple");
+            ALOGV("readMultiple");
             CHECK_INTERFACE(IMediaSource, data, reply);
+
+            // Get max number of buffers to read.
             uint32_t maxNumBuffers;
             data.readUint32(&maxNumBuffers);
-            status_t ret = NO_ERROR;
-            uint32_t bufferCount = 0;
             if (maxNumBuffers > kMaxNumReadMultiple) {
                 maxNumBuffers = kMaxNumReadMultiple;
             }
-            while (bufferCount < maxNumBuffers) {
-                if (reply->dataSize() >= MediaBuffer::kSharedMemThreshold) {
+
+            // Get read options, if any.
+            ReadOptions opts;
+            uint32_t len;
+            const bool useOptions =
+                    data.readUint32(&len) == NO_ERROR
+                    && len == sizeof(opts)
+                    && data.read((void *)&opts, len) == NO_ERROR;
+
+            mGroup->gc(kBinderMediaBuffers /* freeBuffers */);
+            mIndexCache.gc();
+            size_t inlineTransferSize = 0;
+            status_t ret = NO_ERROR;
+            uint32_t bufferCount = 0;
+            for (; bufferCount < maxNumBuffers; ++bufferCount, ++mBuffersSinceStop) {
+                MediaBuffer *buf = nullptr;
+                ret = read(&buf, useOptions ? &opts : nullptr);
+                opts.clearNonPersistent(); // Remove options that only apply to first buffer.
+                if (ret != NO_ERROR || buf == nullptr) {
                     break;
                 }
 
-                MediaBuffer *buf = NULL;
-                ret = read(&buf, NULL);
-                if (ret != NO_ERROR || buf == NULL) {
-                    break;
+                // Even if we're using shared memory, we might not want to use it, since for small
+                // sizes it's faster to copy data through the Binder transaction
+                // On the other hand, if the data size is large enough, it's better to use shared
+                // memory. When data is too large, binder can't handle it.
+                //
+                // TODO: reduce MediaBuffer::kSharedMemThreshold
+                MediaBuffer *transferBuf = nullptr;
+                const size_t length = buf->range_length();
+                size_t offset = buf->range_offset();
+                if (length >= (supportNonblockingRead() && buf->mMemory != nullptr ?
+                        kTransferSharedAsSharedThreshold : kTransferInlineAsSharedThreshold)) {
+                    if (buf->mMemory != nullptr) {
+                        ALOGV("Use shared memory: %zu", length);
+                        transferBuf = buf;
+                    } else {
+                        ALOGD("Large buffer %zu without IMemory!", length);
+                        ret = mGroup->acquire_buffer(
+                                &transferBuf, false /* nonBlocking */, length);
+                        if (ret != OK
+                                || transferBuf == nullptr
+                                || transferBuf->mMemory == nullptr) {
+                            ALOGW("Failed to acquire shared memory, size %zu, ret %d",
+                                    length, ret);
+                            if (transferBuf != nullptr) {
+                                transferBuf->release();
+                                transferBuf = nullptr;
+                            }
+                            // Current buffer transmit inline; no more additional buffers.
+                            maxNumBuffers = 0;
+                        } else {
+                            memcpy(transferBuf->data(), (uint8_t*)buf->data() + offset, length);
+                            offset = 0;
+                            if (!mGroup->has_buffers()) {
+                                maxNumBuffers = 0; // No more MediaBuffers, stop readMultiple.
+                            }
+                        }
+                    }
                 }
-                ++bufferCount;
-                reply->writeInt32(1);  // indicate one more MediaBuffer.
-                reply->writeByteArray(
-                        buf->range_length(), (uint8_t*)buf->data() + buf->range_offset());
-                buf->meta_data()->writeToParcel(*reply);
-                buf->release();
+                if (transferBuf != nullptr) { // Using shared buffers.
+                    if (!transferBuf->isObserved()) {
+                        // Transfer buffer must be part of a MediaBufferGroup.
+                        ALOGV("adding shared memory buffer %p to local group", transferBuf);
+                        mGroup->add_buffer(transferBuf);
+                        transferBuf->add_ref(); // We have already acquired buffer.
+                    }
+                    uint64_t index = mIndexCache.lookup(transferBuf->mMemory);
+                    if (index == 0) {
+                        index = mIndexCache.insert(transferBuf->mMemory);
+                        reply->writeInt32(SHARED_BUFFER);
+                        reply->writeUint64(index);
+                        reply->writeStrongBinder(IInterface::asBinder(transferBuf->mMemory));
+                        ALOGV("SHARED_BUFFER(%p) %llu",
+                                transferBuf, (unsigned long long)index);
+                    } else {
+                        reply->writeInt32(SHARED_BUFFER_INDEX);
+                        reply->writeUint64(index);
+                        ALOGV("SHARED_BUFFER_INDEX(%p) %llu",
+                                transferBuf, (unsigned long long)index);
+                    }
+                    reply->writeInt32(offset);
+                    reply->writeInt32(length);
+                    buf->meta_data()->writeToParcel(*reply);
+                    if (transferBuf != buf) {
+                        buf->release();
+                    } else if (!supportNonblockingRead()) {
+                        maxNumBuffers = 0; // stop readMultiple with one shared buffer.
+                    }
+                } else {
+                    ALOGV_IF(buf->mMemory != nullptr,
+                            "INLINE(%p) %zu shared mem available, but only %zu used",
+                            buf, buf->mMemory->size(), length);
+                    reply->writeInt32(INLINE_BUFFER);
+                    reply->writeByteArray(length, (uint8_t*)buf->data() + offset);
+                    buf->meta_data()->writeToParcel(*reply);
+                    buf->release();
+                    inlineTransferSize += length;
+                    if (inlineTransferSize > kInlineMaxTransfer) {
+                        maxNumBuffers = 0; // stop readMultiple if inline transfer is too large.
+                    }
+                }
             }
-            reply->writeInt32(0);  // indicate no more MediaBuffer.
+            reply->writeInt32(NULL_BUFFER); // Indicate no more MediaBuffers.
             reply->writeInt32(ret);
+            ALOGV("readMultiple status %d, bufferCount %u, sinceStop %u",
+                    ret, bufferCount, mBuffersSinceStop);
+            return NO_ERROR;
+        }
+        case SUPPORT_NONBLOCKING_READ: {
+            ALOGV("supportNonblockingRead");
+            CHECK_INTERFACE(IMediaSource, data, reply);
+            reply->writeInt32((int32_t)supportNonblockingRead());
             return NO_ERROR;
         }
         default:

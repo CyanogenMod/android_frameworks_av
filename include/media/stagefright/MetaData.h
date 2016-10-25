@@ -231,6 +231,8 @@ enum {
     // release it immediately
     kKeyCanDeferRelease   = 'drel', // bool (int32_t)
 
+    kKeyTemporalLayerId  = 'iLyr', // int32_t, temporal layer-id. 0-based (0 => base layer)
+    kKeyTemporalLayerCount = 'cLyr', // int32_t, number of temporal layers encoded
 };
 
 enum {

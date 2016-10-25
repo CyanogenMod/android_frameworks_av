@@ -131,6 +131,10 @@ public:
     // of suspension on input.
     status_t setMaxTimestampGapUs(int64_t maxGapUs);
 
+    // Sets the input buffer timestamp offset.
+    // When set, the sample's timestamp will be adjusted with the timeOffsetUs.
+    status_t setInputBufferTimeOffset(int64_t timeOffsetUs);
+
     // When set, the max frame rate fed to the encoder will be capped at maxFps.
     status_t setMaxFps(float maxFps);
 
@@ -335,6 +339,8 @@ private:
     int64_t mTimePerFrameUs;
     int64_t mPrevCaptureUs;
     int64_t mPrevFrameUs;
+
+    int64_t mInputBufferTimeOffsetUs;
 
     MetadataBufferType mMetadataBufferType;
     ColorAspects mColorAspects;

@@ -104,7 +104,6 @@ ssize_t DeviceVector::add(const sp<DeviceDescriptor>& item)
 
 ssize_t DeviceVector::remove(const sp<DeviceDescriptor>& item)
 {
-    size_t i;
     ssize_t ret = indexOf(item);
 
     if (ret < 0) {

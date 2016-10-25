@@ -81,8 +81,10 @@ class VendorTagDescriptor : public Parcelable {
         /**
          * Convenience method to get a vector containing all vendor tag
          * sections, or an empty vector if none are defined.
+         * The pointer is valid for the lifetime of the VendorTagDescriptor,
+         * or until readParcel or copyFrom is invoked.
          */
-        SortedVector<String8> getAllSectionNames() const;
+        const SortedVector<String8>* getAllSectionNames() const;
 
         /**
          * Lookup the tag id for a given tag name and section.

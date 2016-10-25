@@ -192,6 +192,7 @@ public:
         INTERNAL_OPTION_START_TIME, // data is an int64_t
         INTERNAL_OPTION_TIME_LAPSE, // data is an int64_t[2]
         INTERNAL_OPTION_COLOR_ASPECTS, // data is ColorAspects
+        INTERNAL_OPTION_TIME_OFFSET, // data is an int64_t
     };
     virtual status_t setInternalOption(
             node_id node,

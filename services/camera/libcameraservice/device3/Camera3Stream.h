@@ -175,7 +175,8 @@ class Camera3Stream :
      *   OK on a successful configuration
      *   NO_INIT in case of a serious error from the HAL device
      *   NO_MEMORY in case of an error registering buffers
-     *   INVALID_OPERATION in case connecting to the consumer failed
+     *   INVALID_OPERATION in case connecting to the consumer failed or consumer
+     *       doesn't exist yet.
      */
     status_t         finishConfiguration(camera3_device *hal3Device);
 

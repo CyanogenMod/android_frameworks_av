@@ -175,7 +175,9 @@ AACExtractor::AACExtractor(
     if (mDataSource->getSize(&streamSize) == OK) {
          while (offset < streamSize) {
             if ((frameSize = getAdtsFrameLength(source, offset, NULL)) == 0) {
-                return;
+                ALOGW("prematured AAC stream (%lld vs %lld)",
+                        (long long)offset, (long long)streamSize);
+                break;
             }
 
             mOffsetVector.push(offset);

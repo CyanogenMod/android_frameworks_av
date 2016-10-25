@@ -104,7 +104,7 @@ public:
                                 audio_format_t format,
                                 audio_channel_mask_t channelMask,
                                 size_t *pFrameCount,
-                                IAudioFlinger::track_flags_t *flags,
+                                audio_output_flags_t *flags,
                                 const sp<IMemory>& sharedBuffer,
                                 audio_io_handle_t output,
                                 pid_t pid,
@@ -120,7 +120,7 @@ public:
                                 audio_channel_mask_t channelMask,
                                 const String16& opPackageName,
                                 size_t *pFrameCount,
-                                IAudioFlinger::track_flags_t *flags,
+                                audio_input_flags_t *flags,
                                 pid_t pid,
                                 pid_t tid,
                                 int clientUid,
@@ -575,6 +575,9 @@ private:
               PlaybackThread *primaryPlaybackThread_l() const;
               audio_devices_t primaryOutputDevice_l() const;
 
+              // return the playback thread with smallest HAL buffer size, and prefer fast
+              PlaybackThread *fastPlaybackThread_l() const;
+
               sp<PlaybackThread> getEffectThread_l(audio_session_t sessionId, int EffectId);
 
 
@@ -609,11 +612,12 @@ private:
     struct AudioStreamIn {
         AudioHwDevice* const audioHwDev;
         audio_stream_in_t* const stream;
+        audio_input_flags_t flags;
 
         audio_hw_device_t* hwDev() const { return audioHwDev->hwDevice(); }
 
-        AudioStreamIn(AudioHwDevice *dev, audio_stream_in_t *in) :
-            audioHwDev(dev), stream(in) {}
+        AudioStreamIn(AudioHwDevice *dev, audio_stream_in_t *in, audio_input_flags_t flags) :
+            audioHwDev(dev), stream(in), flags(flags) {}
     };
 
     // for mAudioSessionRefs only

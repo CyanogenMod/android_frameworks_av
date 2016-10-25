@@ -197,6 +197,11 @@ private:
         TONE_JAPAN_RADIO_ACK,       // Radio path acknowlegment: 400Hz, 1s ON, 2s OFF...
         // UK Supervisory tones
         TONE_UK_RINGTONE,           // Ring Tone: A 400Hz + 450Hz tone repeated in a 0.4s on, 0.2s off, 0.4s on, 2.0s off pattern.
+        // AUSTRALIA Supervisory tones
+        TONE_AUSTRALIA_RINGTONE,    // Ring tone: A 400Hz + 450Hz tone repeated in a 0.4s on, 0.2s off, 0.4s on, 2.0s off pattern.
+        TONE_AUSTRALIA_BUSY,        // Busy tone: 425 Hz repeated in a 0.375s on, 0.375s off pattern.
+        TONE_AUSTRALIA_CALL_WAITING,// Call waiting tone: 425Hz tone repeated in a 0.2s on, 0.2s off, 0.2s on, 4.4s off pattern.
+        TONE_AUSTRALIA_CONGESTION,  // Congestion tone: 425Hz tone repeated in a 0.375s on, 0.375s off pattern
         NUM_ALTERNATE_TONES
     };
 
@@ -204,6 +209,7 @@ private:
         ANSI,
         JAPAN,
         UK,
+        AUSTRALIA,
         CEPT,
         NUM_REGIONS
     };

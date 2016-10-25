@@ -40,6 +40,8 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_MULTILIB := $(AUDIOSERVER_MULTILIB)
 
+LOCAL_CFLAGS := -Wall -Werror
+
 LOCAL_MODULE:= libsoundtriggerservice
 
 include $(BUILD_SHARED_LIBRARY)

@@ -123,6 +123,9 @@ struct AMessage : public RefBase {
     bool findBuffer(const char *name, sp<ABuffer> *buffer) const;
     bool findMessage(const char *name, sp<AMessage> *obj) const;
 
+    // finds any numeric type cast to a float
+    bool findAsFloat(const char *name, float *value) const;
+
     bool findRect(
             const char *name,
             int32_t *left, int32_t *top, int32_t *right, int32_t *bottom) const;

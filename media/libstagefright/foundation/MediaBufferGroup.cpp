@@ -23,20 +23,65 @@
 
 namespace android {
 
-MediaBufferGroup::MediaBufferGroup()
-    : mFirstBuffer(NULL),
-      mLastBuffer(NULL) {
+// std::min is not constexpr in C++11
+template<typename T>
+constexpr T MIN(const T &a, const T &b) { return a <= b ? a : b; }
+
+// MediaBufferGroup may create shared memory buffers at a
+// smaller threshold than an isolated new MediaBuffer.
+static const size_t kSharedMemoryThreshold = MIN(
+        (size_t)MediaBuffer::kSharedMemThreshold, (size_t)(4 * 1024));
+
+MediaBufferGroup::MediaBufferGroup(size_t growthLimit) :
+    mGrowthLimit(growthLimit) {
+}
+
+MediaBufferGroup::MediaBufferGroup(size_t buffers, size_t buffer_size, size_t growthLimit)
+    : mGrowthLimit(growthLimit) {
+
+    if (buffer_size >= kSharedMemoryThreshold) {
+        ALOGD("creating MemoryDealer");
+        // Using a single MemoryDealer is efficient for a group of shared memory objects.
+        // This loop guarantees that we use shared memory (no fallback to malloc).
+
+        size_t alignment = MemoryDealer::getAllocationAlignment();
+        size_t augmented_size = buffer_size + sizeof(MediaBuffer::SharedControl);
+        size_t total = (augmented_size + alignment - 1) / alignment * alignment * buffers;
+        sp<MemoryDealer> memoryDealer = new MemoryDealer(total, "MediaBufferGroup");
+
+        for (size_t i = 0; i < buffers; ++i) {
+            sp<IMemory> mem = memoryDealer->allocate(augmented_size);
+            if (mem.get() == nullptr) {
+                ALOGW("Only allocated %zu shared buffers of size %zu", i, buffer_size);
+                break;
+            }
+            MediaBuffer *buffer = new MediaBuffer(mem);
+            buffer->getSharedControl()->clear();
+            add_buffer(buffer);
+        }
+        return;
+    }
+
+    // Non-shared memory allocation.
+    for (size_t i = 0; i < buffers; ++i) {
+        MediaBuffer *buffer = new MediaBuffer(buffer_size);
+        if (buffer->data() == nullptr) {
+            delete buffer; // don't call release, it's not properly formed
+            ALOGW("Only allocated %zu malloc buffers of size %zu", i, buffer_size);
+            break;
+        }
+        add_buffer(buffer);
+    }
 }
 
 MediaBufferGroup::~MediaBufferGroup() {
-    MediaBuffer *next;
-    for (MediaBuffer *buffer = mFirstBuffer; buffer != NULL;
-         buffer = next) {
-        next = buffer->nextBuffer();
-
-        CHECK_EQ(buffer->refcount(), 0);
-
-        buffer->setObserver(NULL);
+    for (MediaBuffer *buffer : mBuffers) {
+        buffer->resolvePendingRelease();
+        // If we don't release it, perhaps noone will release it.
+        LOG_ALWAYS_FATAL_IF(buffer->refcount() != 0,
+                "buffer refcount %p = %d != 0", buffer, buffer->refcount());
+        // actually delete it.
+        buffer->setObserver(nullptr);
         buffer->release();
     }
 }
@@ -45,87 +90,105 @@ void MediaBufferGroup::add_buffer(MediaBuffer *buffer) {
     Mutex::Autolock autoLock(mLock);
 
     buffer->setObserver(this);
+    mBuffers.emplace_back(buffer);
+    // optionally: mGrowthLimit = max(mGrowthLimit, mBuffers.size());
+}
 
-    if (mLastBuffer) {
-        mLastBuffer->setNextBuffer(buffer);
-    } else {
-        mFirstBuffer = buffer;
+void MediaBufferGroup::gc(size_t freeBuffers) {
+    Mutex::Autolock autoLock(mLock);
+
+    size_t freeCount = 0;
+    for (auto it = mBuffers.begin(); it != mBuffers.end(); ) {
+        (*it)->resolvePendingRelease();
+        if ((*it)->isDeadObject()) {
+            // The MediaBuffer has been deleted, why is it in the MediaBufferGroup?
+            LOG_ALWAYS_FATAL("buffer(%p) has dead object with refcount %d",
+                    (*it), (*it)->refcount());
+        } else if ((*it)->refcount() == 0 && ++freeCount > freeBuffers) {
+            (*it)->setObserver(nullptr);
+            (*it)->release();
+            it = mBuffers.erase(it);
+        } else {
+            ++it;
+        }
     }
+}
 
-    mLastBuffer = buffer;
+bool MediaBufferGroup::has_buffers() {
+    if (mBuffers.size() < mGrowthLimit) {
+        return true; // We can add more buffers internally.
+    }
+    for (MediaBuffer *buffer : mBuffers) {
+        buffer->resolvePendingRelease();
+        if (buffer->refcount() == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 status_t MediaBufferGroup::acquire_buffer(
         MediaBuffer **out, bool nonBlocking, size_t requestedSize) {
     Mutex::Autolock autoLock(mLock);
-
     for (;;) {
-        MediaBuffer *freeBuffer = NULL;
-        MediaBuffer *freeBufferPrevious = NULL;
-        MediaBuffer *buffer = NULL;
-        MediaBuffer *bufferPrevious = NULL;
         size_t smallest = requestedSize;
-        for (buffer = mFirstBuffer;
-             buffer != NULL; buffer = buffer->nextBuffer()) {
-            if (buffer->refcount() == 0) {
-               if (buffer->size() >= requestedSize) {
-                   break;
-               } else if (buffer->size() < smallest) {
-                   freeBuffer = buffer;
-                   freeBufferPrevious = bufferPrevious;
-               }
+        MediaBuffer *buffer = nullptr;
+        auto free = mBuffers.end();
+        for (auto it = mBuffers.begin(); it != mBuffers.end(); ++it) {
+            (*it)->resolvePendingRelease();
+            if ((*it)->refcount() == 0) {
+                const size_t size = (*it)->size();
+                if (size >= requestedSize) {
+                    buffer = *it;
+                    break;
+                }
+                if (size < smallest) {
+                    smallest = size; // always free the smallest buf
+                    free = it;
+                }
             }
-            bufferPrevious = buffer;
         }
-
-        if (buffer == NULL && freeBuffer != NULL) {
-            ALOGV("allocate new buffer, requested size %zu vs available %zu",
-                    requestedSize, freeBuffer->size());
-            size_t allocateSize = requestedSize;
-            if (requestedSize < SIZE_MAX / 3) {
-                allocateSize = requestedSize * 3 / 2;
+        if (buffer == nullptr
+                && (free != mBuffers.end() || mBuffers.size() < mGrowthLimit)) {
+            // We alloc before we free so failure leaves group unchanged.
+            const size_t allocateSize = requestedSize < SIZE_MAX / 3 * 2 /* NB: ordering */ ?
+                    requestedSize * 3 / 2 : requestedSize;
+            buffer = new MediaBuffer(allocateSize);
+            if (buffer->data() == nullptr) {
+                ALOGE("Allocation failure for size %zu", allocateSize);
+                delete buffer; // Invalid alloc, prefer not to call release.
+                buffer = nullptr;
+            } else {
+                buffer->setObserver(this);
+                if (free != mBuffers.end()) {
+                    ALOGV("reallocate buffer, requested size %zu vs available %zu",
+                            requestedSize, (*free)->size());
+                    (*free)->setObserver(nullptr);
+                    (*free)->release();
+                    *free = buffer; // in-place replace
+                } else {
+                    ALOGV("allocate buffer, requested size %zu", requestedSize);
+                    mBuffers.emplace_back(buffer);
+                }
             }
-            MediaBuffer *newBuffer = new MediaBuffer(allocateSize);
-            newBuffer->setObserver(this);
-            if (freeBuffer == mFirstBuffer) {
-                mFirstBuffer = newBuffer;
-            }
-            if (freeBuffer == mLastBuffer) {
-                mLastBuffer = newBuffer;
-            }
-            newBuffer->setNextBuffer(freeBuffer->nextBuffer());
-            if (freeBufferPrevious != NULL) {
-                freeBufferPrevious->setNextBuffer(newBuffer);
-            }
-            freeBuffer->setObserver(NULL);
-            freeBuffer->release();
-
-            buffer = newBuffer;
         }
-
-        if (buffer != NULL) {
+        if (buffer != nullptr) {
             buffer->add_ref();
             buffer->reset();
-
             *out = buffer;
-            goto exit;
+            return OK;
         }
-
         if (nonBlocking) {
-            *out = NULL;
+            *out = nullptr;
             return WOULD_BLOCK;
         }
-
-        // All buffers are in use. Block until one of them is returned to us.
+        // All buffers are in use, block until one of them is returned.
         mCondition.wait(mLock);
     }
-
-exit:
-    return OK;
+    // Never gets here.
 }
 
 void MediaBufferGroup::signalBufferReturned(MediaBuffer *) {
-    Mutex::Autolock autoLock(mLock);
     mCondition.signal();
 }
 

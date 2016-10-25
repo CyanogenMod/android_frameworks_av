@@ -110,7 +110,8 @@ class CameraDeviceBase : public virtual RefBase {
     virtual status_t createStream(sp<Surface> consumer,
             uint32_t width, uint32_t height, int format,
             android_dataspace dataSpace, camera3_stream_rotation_t rotation, int *id,
-            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID) = 0;
+            int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
+            uint32_t consumerUsage = 0) = 0;
 
     /**
      * Create an input stream of width, height, and format.
@@ -189,7 +190,7 @@ class CameraDeviceBase : public virtual RefBase {
     /**
      * Abstract class for HAL notification listeners
      */
-    class NotificationListener {
+    class NotificationListener : public virtual RefBase {
       public:
         // The set of notifications is a merge of the notifications required for
         // API1 and API2.
@@ -218,7 +219,7 @@ class CameraDeviceBase : public virtual RefBase {
      * Connect HAL notifications to a listener. Overwrites previous
      * listener. Set to NULL to stop receiving notifications.
      */
-    virtual status_t setNotifyCallback(NotificationListener *listener) = 0;
+    virtual status_t setNotifyCallback(wp<NotificationListener> listener) = 0;
 
     /**
      * Whether the device supports calling notifyAutofocus, notifyAutoExposure,
@@ -312,6 +313,12 @@ class CameraDeviceBase : public virtual RefBase {
      * Get the HAL device version.
      */
     virtual uint32_t getDeviceVersion() = 0;
+
+    /**
+     * Set the deferred consumer surface and finish the rest of the stream configuration.
+     */
+    virtual status_t setConsumerSurface(int streamId, sp<Surface> consumer) = 0;
+
 };
 
 }; // namespace android

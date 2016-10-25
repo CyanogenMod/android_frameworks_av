@@ -19,4 +19,6 @@ LOCAL_SHARED_LIBRARIES := libbinder \
                           libutils \
                           liblog
 
+LOCAL_CFLAGS := -Wall -Werror
+
 include $(BUILD_SHARED_LIBRARY)
