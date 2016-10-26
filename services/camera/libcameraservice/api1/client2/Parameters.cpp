@@ -238,6 +238,10 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
     {
         String8 supportedPreviewFpsRange;
         for (size_t i=0; i < availableFpsRanges.count; i += 2) {
+            if (!isFpsSupported(availablePreviewSizes,
+                HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, availableFpsRanges.data.i32[i+1])) {
+                continue;
+            }
             if (i != 0) supportedPreviewFpsRange += ",";
             supportedPreviewFpsRange += String8::format("(%d,%d)",
                     availableFpsRanges.data.i32[i] * kFpsToApiScale,
@@ -255,7 +259,10 @@ status_t Parameters::initialize(const CameraMetadata *info, int deviceVersion) {
             // from the [min, max] fps range use the max value
             int fps = fpsFromRange(availableFpsRanges.data.i32[i],
                                    availableFpsRanges.data.i32[i+1]);
-
+            if (!isFpsSupported(availablePreviewSizes,
+                    HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, fps)) {
+                continue;
+            }
             // de-dupe frame rates
             if (sortedPreviewFrameRates.indexOf(fps) == NAME_NOT_FOUND) {
                 sortedPreviewFrameRates.add(fps);
@@ -2836,22 +2843,7 @@ Vector<Parameters::StreamConfiguration> Parameters::getStreamConfigurations() {
 
 int64_t Parameters::getJpegStreamMinFrameDurationNs(Parameters::Size size) {
     if (mDeviceVersion >= CAMERA_DEVICE_API_VERSION_3_2) {
-        const int STREAM_DURATION_SIZE = 4;
-        const int STREAM_FORMAT_OFFSET = 0;
-        const int STREAM_WIDTH_OFFSET = 1;
-        const int STREAM_HEIGHT_OFFSET = 2;
-        const int STREAM_DURATION_OFFSET = 3;
-        camera_metadata_ro_entry_t availableStreamMinDurations =
-                    staticInfo(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS);
-        for (size_t i = 0; i < availableStreamMinDurations.count; i+= STREAM_DURATION_SIZE) {
-            int64_t format = availableStreamMinDurations.data.i64[i + STREAM_FORMAT_OFFSET];
-            int64_t width = availableStreamMinDurations.data.i64[i + STREAM_WIDTH_OFFSET];
-            int64_t height = availableStreamMinDurations.data.i64[i + STREAM_HEIGHT_OFFSET];
-            int64_t duration = availableStreamMinDurations.data.i64[i + STREAM_DURATION_OFFSET];
-            if (format == HAL_PIXEL_FORMAT_BLOB && width == size.width && height == size.height) {
-                return duration;
-            }
-        }
+        return getMinFrameDurationNs(size, HAL_PIXEL_FORMAT_BLOB);
     } else {
         Vector<Size> availableJpegSizes = getAvailableJpegSizes();
         size_t streamIdx = availableJpegSizes.size();
@@ -2873,6 +2865,54 @@ int64_t Parameters::getJpegStreamMinFrameDurationNs(Parameters::Size size) {
     ALOGE("%s: cannot find min frame duration for jpeg size %dx%d",
             __FUNCTION__, size.width, size.height);
     return -1;
+}
+
+int64_t Parameters::getMinFrameDurationNs(Parameters::Size size, int fmt) {
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        ALOGE("Min frame duration for HAL 3.1 or lower is not supported");
+        return -1;
+    }
+
+    const int STREAM_DURATION_SIZE = 4;
+    const int STREAM_FORMAT_OFFSET = 0;
+    const int STREAM_WIDTH_OFFSET = 1;
+    const int STREAM_HEIGHT_OFFSET = 2;
+    const int STREAM_DURATION_OFFSET = 3;
+    camera_metadata_ro_entry_t availableStreamMinDurations =
+                staticInfo(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS);
+    for (size_t i = 0; i < availableStreamMinDurations.count; i+= STREAM_DURATION_SIZE) {
+        int64_t format = availableStreamMinDurations.data.i64[i + STREAM_FORMAT_OFFSET];
+        int64_t width = availableStreamMinDurations.data.i64[i + STREAM_WIDTH_OFFSET];
+        int64_t height = availableStreamMinDurations.data.i64[i + STREAM_HEIGHT_OFFSET];
+        int64_t duration = availableStreamMinDurations.data.i64[i + STREAM_DURATION_OFFSET];
+        if (format == fmt && width == size.width && height == size.height) {
+            return duration;
+        }
+    }
+
+    return -1;
+}
+
+bool Parameters::isFpsSupported(const Vector<Size> &sizes, int format, int32_t fps) {
+    // Skip the check for older HAL version, as the min duration is not supported.
+    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+        return true;
+    }
+
+    // Get min frame duration for each size and check if the given fps range can be supported.
+    for (size_t i = 0 ; i < sizes.size(); i++) {
+        int64_t minFrameDuration = getMinFrameDurationNs(sizes[i], format);
+        if (minFrameDuration <= 0) {
+            ALOGE("Min frame duration (%" PRId64") for size (%dx%d) and format 0x%x is wrong!",
+                minFrameDuration, sizes[i].width, sizes[i].height, format);
+            return false;
+        }
+        int32_t maxSupportedFps = 1e9 / minFrameDuration;
+        if (fps > maxSupportedFps) {
+            return false;
+        }
+    }
+    return true;
 }
 
 SortedVector<int32_t> Parameters::getAvailableOutputFormats() {

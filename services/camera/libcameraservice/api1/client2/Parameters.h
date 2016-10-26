@@ -390,6 +390,15 @@ private:
     // return -1 if input jpeg size cannot be found in supported size list
     int64_t getJpegStreamMinFrameDurationNs(Parameters::Size size);
 
+    // Helper function to get minimum frame duration for a size/format combination
+    // return -1 if input size/format combination cannot be found.
+    int64_t getMinFrameDurationNs(Parameters::Size size, int format);
+
+    // Helper function to check if a given fps is supported by all the sizes with
+    // the same format.
+    // return true if the device doesn't support min frame duration metadata tag.
+    bool isFpsSupported(const Vector<Size> &size, int format, int32_t fps);
+
     // Helper function to get non-duplicated available output formats
     SortedVector<int32_t> getAvailableOutputFormats();
     // Helper function to get available output jpeg sizes
