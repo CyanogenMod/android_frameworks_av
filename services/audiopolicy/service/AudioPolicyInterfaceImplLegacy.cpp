@@ -292,7 +292,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         // create audio pre processors according to input source
         status_t status = audioPolicyEffects->addInputEffects(*input, inputSource, session);
         if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGW("Failed to add effects on input %d", input);
+            ALOGW("Failed to add effects on input %d", *input);
         }
     }
     return NO_ERROR;
@@ -622,30 +622,30 @@ status_t AudioPolicyService::registerPolicyMixes(Vector<AudioMix> mixes __unused
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::startAudioSource(const struct audio_port_config *source,
-                                  const audio_attributes_t *attributes,
-                                  audio_io_handle_t *handle)
+status_t AudioPolicyService::startAudioSource(const struct audio_port_config *source __unused,
+                                  const audio_attributes_t *attributes __unused,
+                                  audio_io_handle_t *handle __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle)
+status_t AudioPolicyService::stopAudioSource(audio_io_handle_t handle __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::setMasterMono(bool mono)
+status_t AudioPolicyService::setMasterMono(bool mono __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::getMasterMono(bool *mono)
+status_t AudioPolicyService::getMasterMono(bool *mono __unused)
 {
     return INVALID_OPERATION;
 }
 
-status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams,
-                                  Vector< sp<AudioSessionInfo>> &sessions)
+status_t AudioPolicyService::listAudioSessions(audio_stream_type_t streams __unused,
+                                  Vector< sp<AudioSessionInfo>> &sessions __unused)
 {
     return INVALID_OPERATION;
 }
