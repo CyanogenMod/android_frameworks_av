@@ -2900,6 +2900,7 @@ bool Parameters::isFpsSupported(const Vector<Size> &sizes, int format, int32_t f
     }
 
     // Get min frame duration for each size and check if the given fps range can be supported.
+    const int32_t FPS_MARGIN = 1;
     for (size_t i = 0 ; i < sizes.size(); i++) {
         int64_t minFrameDuration = getMinFrameDurationNs(sizes[i], format);
         if (minFrameDuration <= 0) {
@@ -2908,6 +2909,8 @@ bool Parameters::isFpsSupported(const Vector<Size> &sizes, int format, int32_t f
             return false;
         }
         int32_t maxSupportedFps = 1e9 / minFrameDuration;
+        // Add some margin here for the case where the hal supports 29.xxxfps.
+        maxSupportedFps += FPS_MARGIN;
         if (fps > maxSupportedFps) {
             return false;
         }
