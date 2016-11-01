@@ -115,6 +115,11 @@ struct Parameters {
         int32_t height;
     };
 
+    struct FpsRange {
+        int32_t low;
+        int32_t high;
+    };
+
     int32_t exposureCompensation;
     bool autoExposureLock;
     bool autoWhiteBalanceLock;

@@ -958,21 +958,40 @@ status_t Parameters::buildFastInfo() {
         return NO_INIT;
     }
 
+    // Get supported preview fps ranges.
+    Vector<Size> supportedPreviewSizes;
+    Vector<FpsRange> supportedPreviewFpsRanges;
+    const Size PREVIEW_SIZE_BOUND = { MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT };
+    status_t res = getFilteredSizes(PREVIEW_SIZE_BOUND, &supportedPreviewSizes);
+    if (res != OK) return res;
+    for (size_t i=0; i < availableFpsRanges.count; i += 2) {
+        if (!isFpsSupported(supportedPreviewSizes,
+                HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED, availableFpsRanges.data.i32[i+1])) {
+            continue;
+        }
+        FpsRange fpsRange = {availableFpsRanges.data.i32[i], availableFpsRanges.data.i32[i+1]};
+        supportedPreviewFpsRanges.add(fpsRange);
+    }
+    if (supportedPreviewFpsRanges.size() == 0) {
+        ALOGE("Supported preview fps range is empty");
+        return NO_INIT;
+    }
+
     int32_t bestStillCaptureFpsRange[2] = {
-        availableFpsRanges.data.i32[0], availableFpsRanges.data.i32[1]
+        supportedPreviewFpsRanges[0].low, supportedPreviewFpsRanges[0].high
     };
     int32_t curRange =
             bestStillCaptureFpsRange[1] - bestStillCaptureFpsRange[0];
-    for (size_t i = 2; i < availableFpsRanges.count; i += 2) {
+    for (size_t i = 1; i < supportedPreviewFpsRanges.size(); i ++) {
         int32_t nextRange =
-                availableFpsRanges.data.i32[i + 1] -
-                availableFpsRanges.data.i32[i];
+                supportedPreviewFpsRanges[i].high -
+                supportedPreviewFpsRanges[i].low;
         if ( (nextRange > curRange) ||       // Maximize size of FPS range first
                 (nextRange == curRange &&    // Then minimize low-end FPS
-                 bestStillCaptureFpsRange[0] > availableFpsRanges.data.i32[i])) {
+                 bestStillCaptureFpsRange[0] > supportedPreviewFpsRanges[i].low)) {
 
-            bestStillCaptureFpsRange[0] = availableFpsRanges.data.i32[i];
-            bestStillCaptureFpsRange[1] = availableFpsRanges.data.i32[i + 1];
+            bestStillCaptureFpsRange[0] = supportedPreviewFpsRanges[i].low;
+            bestStillCaptureFpsRange[1] = supportedPreviewFpsRanges[i].high;
             curRange = nextRange;
         }
     }
