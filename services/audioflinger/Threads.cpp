@@ -5042,13 +5042,11 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::DirectOutputThread::prep
     // If a flush is pending and a track is active but the HW is not paused, force a HW pause
     // before flush and then resume HW. This can happen in case of pause/flush/resume
     // if resume is received before pause is executed.
-    bool paused = false;
     if (mHwSupportsPause && !mStandby &&
             (doHwPause || (mFlushPending && !mHwPaused && (count != 0)))) {
         mOutput->stream->pause(mOutput->stream);
-        paused = true;
     }
-    if (mFlushPending && paused) {
+    if (mFlushPending) {
         flushHw_l();
     }
     if (mHwSupportsPause && !mStandby && doHwResume) {
