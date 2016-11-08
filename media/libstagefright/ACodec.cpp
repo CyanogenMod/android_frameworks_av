@@ -4384,7 +4384,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
         h264type.eProfile = static_cast<OMX_VIDEO_AVCPROFILETYPE>(profile);
         h264type.eLevel = static_cast<OMX_VIDEO_AVCLEVELTYPE>(level);
     } 
-#if 0
+#ifdef USE_AVC_BASELINE_PROFILE
       else {
         h264type.eProfile = OMX_VIDEO_AVCProfileBaseline;
 #if 0   /* DON'T YET DEFAULT TO HIGHEST PROFILE */
