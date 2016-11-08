@@ -233,6 +233,11 @@ endif
 
 ifeq ($(BOARD_USE_SAMSUNG_COLORFORMAT), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_COLORFORMAT
+endif
+
+ifeq ($(TARGET_USE_AVC_BASELINE_PROFILE), true)
+LOCAL_CFLAGS += -DUSE_AVC_BASELINE_PROFILE
+endif
 
 # Include native color format header path
 LOCAL_C_INCLUDES += \

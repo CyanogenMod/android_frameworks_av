@@ -3216,7 +3216,7 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
 
     // XXX
     // Allow higher profiles to be set since the encoder seems to support
-#if 0
+#ifdef USE_AVC_BASELINE_PROFILE
     if (h264type.eProfile != OMX_VIDEO_AVCProfileBaseline) {
         ALOGW("Use baseline profile instead of %d for AVC recording",
             h264type.eProfile);
