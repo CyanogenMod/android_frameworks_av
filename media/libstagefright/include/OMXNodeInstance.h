@@ -21,6 +21,7 @@
 #include "OMX.h"
 
 #include <utils/RefBase.h>
+#include <utils/SortedVector.h>
 #include <utils/threads.h>
 
 namespace android {
@@ -151,6 +152,9 @@ private:
     OMX_HANDLETYPE mHandle;
     sp<IOMXObserver> mObserver;
     atomic_bool mDying;
+    bool mSailed;  // configuration is set (no more meta-mode changes)
+    bool mQueriedProhibitedExtensions;
+    SortedVector<OMX_INDEXTYPE> mProhibitedExtensions;
     bool mIsSecure;
 
     // Lock only covers mGraphicBufferSource.  We can't always use mLock
@@ -203,6 +207,8 @@ private:
     OMX_BUFFERHEADERTYPE *findBufferHeader(OMX::buffer_id buffer, OMX_U32 portIndex);
     OMX::buffer_id findBufferID(OMX_BUFFERHEADERTYPE *bufferHeader);
     void invalidateBufferID(OMX::buffer_id buffer);
+
+    bool isProhibitedIndex_l(OMX_INDEXTYPE index);
 
     status_t useGraphicBuffer2_l(
             OMX_U32 portIndex, const sp<GraphicBuffer> &graphicBuffer,

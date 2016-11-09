@@ -55,7 +55,7 @@ namespace {
     sp<DeathNotifier>         gDeathNotifier;
 }; // namespace anonymous
 
-const sp<ISoundTriggerHwService>& SoundTrigger::getSoundTriggerHwService()
+const sp<ISoundTriggerHwService> SoundTrigger::getSoundTriggerHwService()
 {
     Mutex::Autolock _l(gLock);
     if (gSoundTriggerHwService.get() == 0) {
@@ -84,7 +84,7 @@ status_t SoundTrigger::listModules(struct sound_trigger_module_descriptor *modul
                                  uint32_t *numModules)
 {
     ALOGV("listModules()");
-    const sp<ISoundTriggerHwService>& service = getSoundTriggerHwService();
+    const sp<ISoundTriggerHwService> service = getSoundTriggerHwService();
     if (service == 0) {
         return NO_INIT;
     }
@@ -96,7 +96,7 @@ sp<SoundTrigger> SoundTrigger::attach(const sound_trigger_module_handle_t module
 {
     ALOGV("attach()");
     sp<SoundTrigger> soundTrigger;
-    const sp<ISoundTriggerHwService>& service = getSoundTriggerHwService();
+    const sp<ISoundTriggerHwService> service = getSoundTriggerHwService();
     if (service == 0) {
         return soundTrigger;
     }
@@ -116,7 +116,7 @@ sp<SoundTrigger> SoundTrigger::attach(const sound_trigger_module_handle_t module
 status_t SoundTrigger::setCaptureState(bool active)
 {
     ALOGV("setCaptureState(%d)", active);
-    const sp<ISoundTriggerHwService>& service = getSoundTriggerHwService();
+    const sp<ISoundTriggerHwService> service = getSoundTriggerHwService();
     if (service == 0) {
         return NO_INIT;
     }
