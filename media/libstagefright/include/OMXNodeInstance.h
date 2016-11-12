@@ -21,7 +21,9 @@
 #include "OMX.h"
 
 #include <utils/RefBase.h>
+#ifndef CAMCORDER_GRALLOC_SOURCE
 #include <utils/SortedVector.h>
+#endif
 #include <utils/threads.h>
 
 namespace android {

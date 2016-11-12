@@ -93,34 +93,57 @@ static const OMX_U32 kPortIndexOutput = 1;
 namespace android {
 
 struct BufferMeta {
+#ifndef CAMCORDER_GRALLOC_SOURCE
     BufferMeta(
             const sp<IMemory> &mem, OMX_U32 portIndex, bool copyToOmx,
             bool copyFromOmx, OMX_U8 *backup)
+#else
+    BufferMeta(const sp<IMemory> &mem, OMX_U32 portIndex, bool is_backup = false)
+#endif
         : mMem(mem),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(copyFromOmx),
           mCopyToOmx(copyToOmx),
           mPortIndex(portIndex),
           mBackup(backup) {
+#else
+          mIsBackup(is_backup),
+          mPortIndex(portIndex) {
+#endif
     }
 
     BufferMeta(size_t size, OMX_U32 portIndex)
         : mSize(size),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(false),
           mCopyToOmx(false),
           mPortIndex(portIndex),
           mBackup(NULL) {
+#else
+          mIsBackup(false),
+          mPortIndex(portIndex) {
+#endif
     }
 
     BufferMeta(const sp<GraphicBuffer> &graphicBuffer, OMX_U32 portIndex)
         : mGraphicBuffer(graphicBuffer),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(false),
           mCopyToOmx(false),
           mPortIndex(portIndex),
           mBackup(NULL) {
+#else
+          mIsBackup(false),
+          mPortIndex(portIndex) {
+#endif
     }
 
     void CopyFromOMX(const OMX_BUFFERHEADERTYPE *header) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
         if (!mCopyFromOmx) {
+#else
+        if (!mIsBackup) {
+#endif
             return;
         }
 
@@ -132,7 +155,11 @@ struct BufferMeta {
     }
 
     void CopyToOMX(const OMX_BUFFERHEADERTYPE *header) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
         if (!mCopyToOmx) {
+#else
+        if (!mIsBackup) {
+#endif
             return;
         }
 
@@ -174,19 +201,27 @@ struct BufferMeta {
         return mPortIndex;
     }
 
+#ifndef CAMCORDER_GRALLOC_SOURCE
     ~BufferMeta() {
         delete[] mBackup;
     }
+#endif
 
 private:
     sp<GraphicBuffer> mGraphicBuffer;
     sp<NativeHandle> mNativeHandle;
     sp<IMemory> mMem;
     size_t mSize;
+#ifndef CAMCORDER_GRALLOC_SOURCE
     bool mCopyFromOmx;
     bool mCopyToOmx;
+#else
+    bool mIsBackup;
+#endif
     OMX_U32 mPortIndex;
+#ifndef CAMCORDER_GRALLOC_SOURCE
     OMX_U8 *mBackup;
+#endif
 
     BufferMeta(const BufferMeta &);
     BufferMeta &operator=(const BufferMeta &);
@@ -375,11 +410,15 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (cmd == OMX_CommandStateSet) {
         // There are no configurations past first StateSet command.
         mSailed = true;
     }
     const sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+#else
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+#endif
     if (bufferSource != NULL && cmd == OMX_CommandStateSet) {
         if (param == OMX_StateIdle) {
             // Initiating transition from Executing -> Idle
@@ -792,10 +831,15 @@ status_t OMXNodeInstance::useBuffer(
     }
 
     Mutex::Autolock autoLock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
+#else
+    if (allottedSize > params->size()) {
+#endif
         return BAD_VALUE;
     }
 
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // metadata buffers are not connected cross process
     // use a backup buffer instead of the actual buffer
     BufferMeta *buffer_meta;
@@ -823,16 +867,25 @@ status_t OMXNodeInstance::useBuffer(
                 params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, NULL);
     }
 
+#else
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex);
+#endif
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
+#ifndef CAMCORDER_GRALLOC_SOURCE
             allottedSize, data);
-
+#else
+            allottedSize, static_cast<OMX_U8 *>(params->pointer()));
+#endif
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
+#ifndef CAMCORDER_GRALLOC_SOURCE
                 portIndex, (size_t)allottedSize, data));
-
+#else
+                portIndex, (size_t)allottedSize, params->pointer()));
+#endif
         delete buffer_meta;
         buffer_meta = NULL;
 
@@ -1030,7 +1083,11 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
     // update backup buffer for input, codec buffer for output
     return updateGraphicBufferInMeta_l(
             portIndex, graphicBuffer, buffer, header,
+#ifndef CAMCORDER_GRALLOC_SOURCE
             true /* updateCodecBuffer */);
+#else
+            portIndex == kPortIndexOutput /* updateCodecBuffer */);
+#endif
 }
 
 status_t OMXNodeInstance::updateNativeHandleInMeta(
@@ -1050,7 +1107,11 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
     // update backup buffer
     sp<ABuffer> data = bufferMeta->getBuffer(
+#ifndef CAMCORDER_GRALLOC_SOURCE
             header, false /* backup */, false /* limit */);
+#else
+            header, portIndex == kPortIndexInput /* backup */, false /* limit */);
+#endif
     bufferMeta->setNativeHandle(nativeHandle);
     if (mMetadataType[portIndex] == kMetadataBufferTypeNativeHandleSource
             && data->capacity() >= sizeof(VideoNativeHandleMetadata)) {
@@ -1285,16 +1346,16 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     }
 
     Mutex::Autolock autoLock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
+#else
+    if (allottedSize > params->size()) {
+#endif
         return BAD_VALUE;
     }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // metadata buffers are not connected cross process; only copy if not meta
-#ifdef CAMCORDER_GRALLOC_SOURCE
-    bool copy = true;
-#else
     bool copy = mMetadataType[portIndex] == kMetadataBufferTypeInvalid;
-#endif
 
     BufferMeta *buffer_meta = new BufferMeta(
             params, portIndex,
@@ -1302,6 +1363,9 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
             (portIndex == kPortIndexOutput) && copy /* copyFromOmx */,
             NULL /* data */);
 
+#else
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex, true);
+#endif
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_AllocateBuffer(
@@ -1874,12 +1938,14 @@ void OMXNodeInstance::onEvent(
         bufferSource->omxExecuting();
     }
 
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // allow configuration if we return to the loaded state
     if (event == OMX_EventCmdComplete
             && arg1 == OMX_CommandStateSet
             && arg2 == OMX_StateLoaded) {
         mSailed = false;
     }
+#endif
 }
 
 // static
