@@ -93,34 +93,57 @@ static const OMX_U32 kPortIndexOutput = 1;
 namespace android {
 
 struct BufferMeta {
+#ifndef CAMCORDER_GRALLOC_SOURCE
     BufferMeta(
             const sp<IMemory> &mem, OMX_U32 portIndex, bool copyToOmx,
             bool copyFromOmx, OMX_U8 *backup)
+#else
+    BufferMeta(const sp<IMemory> &mem, OMX_U32 portIndex, bool is_backup = false)
+#endif
         : mMem(mem),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(copyFromOmx),
           mCopyToOmx(copyToOmx),
           mPortIndex(portIndex),
           mBackup(backup) {
+#else
+          mIsBackup(is_backup),
+          mPortIndex(portIndex) {
+#endif
     }
 
     BufferMeta(size_t size, OMX_U32 portIndex)
         : mSize(size),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(false),
           mCopyToOmx(false),
           mPortIndex(portIndex),
           mBackup(NULL) {
+#else
+          mIsBackup(false),
+          mPortIndex(portIndex) {
+#endif
     }
 
     BufferMeta(const sp<GraphicBuffer> &graphicBuffer, OMX_U32 portIndex)
         : mGraphicBuffer(graphicBuffer),
+#ifndef CAMCORDER_GRALLOC_SOURCE
           mCopyFromOmx(false),
           mCopyToOmx(false),
           mPortIndex(portIndex),
           mBackup(NULL) {
+#else
+          mIsBackup(false),
+          mPortIndex(portIndex) {
+#endif
     }
 
     void CopyFromOMX(const OMX_BUFFERHEADERTYPE *header) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
         if (!mCopyFromOmx) {
+#else
+        if (!mIsBackup) {
+#endif
             return;
         }
 
@@ -132,7 +155,11 @@ struct BufferMeta {
     }
 
     void CopyToOMX(const OMX_BUFFERHEADERTYPE *header) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
         if (!mCopyToOmx) {
+#else
+        if (!mIsBackup) {
+#endif
             return;
         }
 
@@ -173,20 +200,26 @@ struct BufferMeta {
     OMX_U32 getPortIndex() {
         return mPortIndex;
     }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     ~BufferMeta() {
         delete[] mBackup;
     }
-
+#endif
 private:
     sp<GraphicBuffer> mGraphicBuffer;
     sp<NativeHandle> mNativeHandle;
     sp<IMemory> mMem;
     size_t mSize;
+#ifndef CAMCORDER_GRALLOC_SOURCE
     bool mCopyFromOmx;
     bool mCopyToOmx;
+#else
+    bool mIsBackup;
+#endif
     OMX_U32 mPortIndex;
+#ifndef CAMCORDER_GRALLOC_SOURCE
     OMX_U8 *mBackup;
+#endif
 
     BufferMeta(const BufferMeta &);
     BufferMeta &operator=(const BufferMeta &);
@@ -212,8 +245,10 @@ OMXNodeInstance::OMXNodeInstance(
       mNodeID(0),
       mHandle(NULL),
       mObserver(observer),
+#ifndef CAMCORDER_GRALLOC_SOURCE
       mSailed(false),
       mQueriedProhibitedExtensions(false),
+#endif
       mBufferIDCount(0)
 {
     mName = ADebug::GetDebugName(name);
@@ -375,11 +410,15 @@ status_t OMXNodeInstance::freeNode(OMXMaster *master) {
 
 status_t OMXNodeInstance::sendCommand(
         OMX_COMMANDTYPE cmd, OMX_S32 param) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (cmd == OMX_CommandStateSet) {
         // There are no configurations past first StateSet command.
         mSailed = true;
     }
     const sp<GraphicBufferSource> bufferSource(getGraphicBufferSource());
+#else
+    const sp<GraphicBufferSource>& bufferSource(getGraphicBufferSource());
+#endif
     if (bufferSource != NULL && cmd == OMX_CommandStateSet) {
         if (param == OMX_StateIdle) {
             // Initiating transition from Executing -> Idle
@@ -411,7 +450,7 @@ status_t OMXNodeInstance::sendCommand(
     CLOG_IF_ERROR(sendCommand, err, "%s(%d), %s(%d)", asString(cmd), cmd, paramString, param);
     return StatusFromOMXError(err);
 }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
 bool OMXNodeInstance::isProhibitedIndex_l(OMX_INDEXTYPE index) {
     // these extensions can only be used from OMXNodeInstance, not by clients directly.
     static const char *restricted_extensions[] = {
@@ -453,16 +492,16 @@ bool OMXNodeInstance::isProhibitedIndex_l(OMX_INDEXTYPE index) {
 
     return mProhibitedExtensions.indexOf(index) >= 0;
 }
-
+#endif
 status_t OMXNodeInstance::getParameter(
         OMX_INDEXTYPE index, void *params, size_t /* size */) {
     Mutex::Autolock autoLock(mLock);
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (isProhibitedIndex_l(index)) {
         android_errorWriteLog(0x534e4554, "29422020");
         return BAD_INDEX;
     }
-
+#endif
     OMX_ERRORTYPE err = OMX_GetParameter(mHandle, index, params);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     // some errors are expected for getParameter
@@ -477,12 +516,12 @@ status_t OMXNodeInstance::setParameter(
     Mutex::Autolock autoLock(mLock);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     CLOG_CONFIG(setParameter, "%s(%#x), %zu@%p)", asString(extIndex), index, size, params);
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (isProhibitedIndex_l(index)) {
         android_errorWriteLog(0x534e4554, "29422020");
         return BAD_INDEX;
     }
-
+#endif
     OMX_ERRORTYPE err = OMX_SetParameter(
             mHandle, index, const_cast<void *>(params));
     CLOG_IF_ERROR(setParameter, err, "%s(%#x)", asString(extIndex), index);
@@ -492,12 +531,12 @@ status_t OMXNodeInstance::setParameter(
 status_t OMXNodeInstance::getConfig(
         OMX_INDEXTYPE index, void *params, size_t /* size */) {
     Mutex::Autolock autoLock(mLock);
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (isProhibitedIndex_l(index)) {
         android_errorWriteLog(0x534e4554, "29422020");
         return BAD_INDEX;
     }
-
+#endif
     OMX_ERRORTYPE err = OMX_GetConfig(mHandle, index, params);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     // some errors are expected for getConfig
@@ -512,12 +551,12 @@ status_t OMXNodeInstance::setConfig(
     Mutex::Autolock autoLock(mLock);
     OMX_INDEXEXTTYPE extIndex = (OMX_INDEXEXTTYPE)index;
     CLOG_CONFIG(setConfig, "%s(%#x), %zu@%p)", asString(extIndex), index, size, params);
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (isProhibitedIndex_l(index)) {
         android_errorWriteLog(0x534e4554, "29422020");
         return BAD_INDEX;
     }
-
+#endif
     OMX_ERRORTYPE err = OMX_SetConfig(
             mHandle, index, const_cast<void *>(params));
     CLOG_IF_ERROR(setConfig, err, "%s(%#x)", asString(extIndex), index);
@@ -626,10 +665,12 @@ status_t OMXNodeInstance::storeMetaDataInBuffers(
 
 status_t OMXNodeInstance::storeMetaDataInBuffers_l(
         OMX_U32 portIndex, OMX_BOOL enable, MetadataBufferType *type) {
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (mSailed) {
         android_errorWriteLog(0x534e4554, "29422020");
         return INVALID_OPERATION;
     }
+#endif
     if (portIndex != kPortIndexInput && portIndex != kPortIndexOutput) {
         android_errorWriteLog(0x534e4554, "26324358");
         if (type != NULL) {
@@ -707,10 +748,12 @@ status_t OMXNodeInstance::prepareForAdaptivePlayback(
         OMX_U32 portIndex, OMX_BOOL enable, OMX_U32 maxFrameWidth,
         OMX_U32 maxFrameHeight) {
     Mutex::Autolock autolock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (mSailed) {
         android_errorWriteLog(0x534e4554, "29422020");
         return INVALID_OPERATION;
     }
+#endif
     CLOG_CONFIG(prepareForAdaptivePlayback, "%s:%u en=%d max=%ux%u",
             portString(portIndex), portIndex, enable, maxFrameWidth, maxFrameHeight);
 
@@ -741,10 +784,12 @@ status_t OMXNodeInstance::configureVideoTunnelMode(
         OMX_U32 portIndex, OMX_BOOL tunneled, OMX_U32 audioHwSync,
         native_handle_t **sidebandHandle) {
     Mutex::Autolock autolock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (mSailed) {
         android_errorWriteLog(0x534e4554, "29422020");
         return INVALID_OPERATION;
     }
+#endif
     CLOG_CONFIG(configureVideoTunnelMode, "%s:%u tun=%d sync=%u",
             portString(portIndex), portIndex, tunneled, audioHwSync);
 
@@ -792,10 +837,14 @@ status_t OMXNodeInstance::useBuffer(
     }
 
     Mutex::Autolock autoLock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
+#else
+    if (allottedSize > params->size()) {
+#endif
         return BAD_VALUE;
     }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // metadata buffers are not connected cross process
     // use a backup buffer instead of the actual buffer
     BufferMeta *buffer_meta;
@@ -822,17 +871,25 @@ status_t OMXNodeInstance::useBuffer(
         buffer_meta = new BufferMeta(
                 params, portIndex, false /* copyToOmx */, false /* copyFromOmx */, NULL);
     }
-
+#else
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex);
+#endif
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
+#ifndef CAMCORDER_GRALLOC_SOURCE
             allottedSize, data);
-
+#else
+            allottedSize, static_cast<OMX_U8 *>(params->pointer()));
+#endif
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
+#ifndef CAMCORDER_GRALLOC_SOURCE
                 portIndex, (size_t)allottedSize, data));
-
+#else
+                portIndex, (size_t)allottedSize, params->pointer()));
+#endif
         delete buffer_meta;
         buffer_meta = NULL;
 
@@ -1030,7 +1087,11 @@ status_t OMXNodeInstance::updateGraphicBufferInMeta(
     // update backup buffer for input, codec buffer for output
     return updateGraphicBufferInMeta_l(
             portIndex, graphicBuffer, buffer, header,
+#ifndef CAMCORDER_GRALLOC_SOURCE
             true /* updateCodecBuffer */);
+#else
+            portIndex == kPortIndexOutput /* updateCodecBuffer */);
+#endif
 }
 
 status_t OMXNodeInstance::updateNativeHandleInMeta(
@@ -1050,7 +1111,11 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
     BufferMeta *bufferMeta = (BufferMeta *)(header->pAppPrivate);
     // update backup buffer
     sp<ABuffer> data = bufferMeta->getBuffer(
+#ifndef CAMCORDER_GRALLOC_SOURCE
             header, false /* backup */, false /* limit */);
+#else
+            header, portIndex == kPortIndexInput /* backup */, false /* limit */);
+#endif
     bufferMeta->setNativeHandle(nativeHandle);
     if (mMetadataType[portIndex] == kMetadataBufferTypeNativeHandleSource
             && data->capacity() >= sizeof(VideoNativeHandleMetadata)) {
@@ -1073,7 +1138,7 @@ status_t OMXNodeInstance::updateNativeHandleInMeta(
 status_t OMXNodeInstance::createGraphicBufferSource(
         OMX_U32 portIndex, sp<IGraphicBufferConsumer> bufferConsumer, MetadataBufferType *type) {
     status_t err;
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // only allow graphic source on input port, when there are no allocated buffers yet
     if (portIndex != kPortIndexInput) {
         android_errorWriteLog(0x534e4554, "29422020");
@@ -1084,6 +1149,9 @@ status_t OMXNodeInstance::createGraphicBufferSource(
     }
 
     const sp<GraphicBufferSource> surfaceCheck = getGraphicBufferSource();
+#else
+    const sp<GraphicBufferSource>& surfaceCheck = getGraphicBufferSource();
+#endif
     if (surfaceCheck != NULL) {
         if (portIndex < NELEM(mMetadataType) && type != NULL) {
             *type = mMetadataType[portIndex];
@@ -1285,23 +1353,25 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     }
 
     Mutex::Autolock autoLock(mLock);
+#ifndef CAMCORDER_GRALLOC_SOURCE
     if (allottedSize > params->size() || portIndex >= NELEM(mNumPortBuffers)) {
+#else
+    if (allottedSize > params->size()) {
+#endif
         return BAD_VALUE;
     }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // metadata buffers are not connected cross process; only copy if not meta
-#ifdef CAMCORDER_GRALLOC_SOURCE
-    bool copy = true;
-#else
     bool copy = mMetadataType[portIndex] == kMetadataBufferTypeInvalid;
-#endif
 
     BufferMeta *buffer_meta = new BufferMeta(
             params, portIndex,
             (portIndex == kPortIndexInput) && copy /* copyToOmx */,
             (portIndex == kPortIndexOutput) && copy /* copyFromOmx */,
             NULL /* data */);
-
+#else
+    BufferMeta *buffer_meta = new BufferMeta(params, portIndex, true);
+#endif
     OMX_BUFFERHEADERTYPE *header;
 
     OMX_ERRORTYPE err = OMX_AllocateBuffer(
@@ -1397,13 +1467,13 @@ status_t OMXNodeInstance::emptyBuffer(
         OMX_U32 rangeOffset, OMX_U32 rangeLength,
         OMX_U32 flags, OMX_TICKS timestamp, int fenceFd) {
     Mutex::Autolock autoLock(mLock);
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // no emptybuffer if using input surface
     if (getGraphicBufferSource() != NULL) {
         android_errorWriteLog(0x534e4554, "29422020");
         return INVALID_OPERATION;
     }
-
+#endif
     OMX_BUFFERHEADERTYPE *header = findBufferHeader(buffer, kPortIndexInput);
     if (header == NULL) {
         ALOGE("b/25884056 %d", __LINE__);
@@ -1873,13 +1943,14 @@ void OMXNodeInstance::onEvent(
             && arg2 == OMX_StateExecuting) {
         bufferSource->omxExecuting();
     }
-
+#ifndef CAMCORDER_GRALLOC_SOURCE
     // allow configuration if we return to the loaded state
     if (event == OMX_EventCmdComplete
             && arg1 == OMX_CommandStateSet
             && arg2 == OMX_StateLoaded) {
         mSailed = false;
     }
+#endif
 }
 
 // static
