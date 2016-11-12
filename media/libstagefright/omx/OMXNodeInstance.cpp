@@ -799,7 +799,11 @@ status_t OMXNodeInstance::useBuffer(
     // metadata buffers are not connected cross process
     // use a backup buffer instead of the actual buffer
     BufferMeta *buffer_meta;
+#ifdef CAMCORDER_GRALLOC_SOURCE
+    bool useBackup = false;
+#else
     bool useBackup = mMetadataType[portIndex] != kMetadataBufferTypeInvalid;
+#endif
     OMX_U8 *data = static_cast<OMX_U8 *>(params->pointer());
     // allocate backup buffer
     if (useBackup) {
@@ -828,11 +832,9 @@ status_t OMXNodeInstance::useBuffer(
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
             allottedSize, data);
-
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
                 portIndex, (size_t)allottedSize, data));
-
         delete buffer_meta;
         buffer_meta = NULL;
 
