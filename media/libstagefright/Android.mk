@@ -146,12 +146,6 @@ ifeq ($(BOARD_USE_SAMSUNG_CAMERAFORMAT_NV21), true)
 LOCAL_CFLAGS += -DUSE_SAMSUNG_CAMERAFORMAT_NV21
 endif
 
-ifneq ($(TARGET_USES_MEDIA_EXTENSIONS),true)
-ifeq ($(TARGET_HAS_LEGACY_CAMERA_HAL1),true)
-LOCAL_CFLAGS += -DCAMCORDER_GRALLOC_SOURCE
-endif
-endif
-
 LOCAL_CFLAGS += -Wno-multichar -Werror -Wno-error=deprecated-declarations -Wall
 
 LOCAL_C_INCLUDES += $(call project-path-for,qcom-media)/mm-core/inc
