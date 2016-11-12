@@ -827,11 +827,19 @@ status_t OMXNodeInstance::useBuffer(
 
     OMX_ERRORTYPE err = OMX_UseBuffer(
             mHandle, &header, portIndex, buffer_meta,
+#ifndef CAMCORDER_GRALLOC_SOURCE
             allottedSize, data);
+#else
+            allottedSize, static_cast<OMX_U8 *>(params->pointer()));
+#endif
 
     if (err != OMX_ErrorNone) {
         CLOG_ERROR(useBuffer, err, SIMPLE_BUFFER(
+#ifndef CAMCORDER_GRALLOC_SOURCE
                 portIndex, (size_t)allottedSize, data));
+#else
+                portIndex, (size_t)allottedSize, params->pointer()));
+#endif
 
         delete buffer_meta;
         buffer_meta = NULL;
