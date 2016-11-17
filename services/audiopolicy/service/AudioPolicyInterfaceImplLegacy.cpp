@@ -292,7 +292,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
         // create audio pre processors according to input source
         status_t status = audioPolicyEffects->addInputEffects(*input, inputSource, session);
         if (status != NO_ERROR && status != ALREADY_EXISTS) {
-            ALOGW("Failed to add effects on input %d", input);
+            ALOGW("Failed to add effects on input %p", input);
         }
     }
     return NO_ERROR;
