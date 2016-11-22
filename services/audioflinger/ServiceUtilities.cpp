@@ -52,6 +52,8 @@ bool recordingAllowed(const String16& opPackageName, pid_t pid, uid_t uid) {
     // we're always OK.
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
 
+    if (isTrustedCallingUid(uid)) return true;
+
     static const String16 sRecordAudio("android.permission.RECORD_AUDIO");
 
     // We specify a pid and uid here as mediaserver (aka MediaRecorder or StageFrightRecorder)
@@ -107,6 +109,7 @@ bool recordingAllowed(const String16& opPackageName, pid_t pid, uid_t uid) {
 
 bool captureAudioOutputAllowed(pid_t pid, uid_t uid) {
     if (getpid_cached == IPCThreadState::self()->getCallingPid()) return true;
+    if (isTrustedCallingUid(uid)) return true;
     static const String16 sCaptureAudioOutput("android.permission.CAPTURE_AUDIO_OUTPUT");
     bool ok = checkPermission(sCaptureAudioOutput, pid, uid);
     if (!ok) ALOGE("Request requires android.permission.CAPTURE_AUDIO_OUTPUT");
