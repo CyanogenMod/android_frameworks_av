@@ -353,7 +353,7 @@ status_t AudioPolicyService::getInputForAttr(const audio_attributes_t *attr,
             case AudioPolicyInterface::API_INPUT_TELEPHONY_RX:
                 // FIXME: use the same permission as for remote submix for now.
             case AudioPolicyInterface::API_INPUT_MIX_CAPTURE:
-                if (!captureAudioOutputAllowed(pid, uid)) {
+                if (!isTrustedCallingUid(callingUid) && !captureAudioOutputAllowed(pid, uid)) {
                     ALOGE("getInputForAttr() permission denied: capture not allowed");
                     status = PERMISSION_DENIED;
                 }
