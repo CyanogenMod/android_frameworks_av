@@ -718,8 +718,6 @@ void convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 reassembleESDS(csd0, esds.editArray());
                 meta->setData(kKeyESDS, kKeyESDS, esds.array(), esds.size());
             }
-        } else {
-            AVUtils::get()->HEVCMuxerUtils().reassembleHEVCCSD(mime, csd0, meta);
         }
     }
 
