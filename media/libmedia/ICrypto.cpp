@@ -150,10 +150,10 @@ struct BpCrypto : public BpInterface<ICrypto> {
 
         if (isCryptoError(result)) {
             errorDetailMsg->setTo(reply.readCString());
-        }
-
-        if (dstType == kDestinationTypeVmPointer && result >= 0) {
-            reply.read(dstPtr, result);
+        } else if (dstType == kDestinationTypeVmPointer) {
+            // For the non-secure case, copy the decrypted
+            // data from shared memory to its final destination
+            memcpy(dstPtr, sharedBuffer->pointer(), result);
         }
 
         return result;
@@ -369,7 +369,11 @@ status_t BnCrypto::onTransact(
             if (dstType == kDestinationTypeVmPointer) {
                 if (result >= 0) {
                     CHECK_LE(result, static_cast<ssize_t>(totalSize));
-                    reply->write(dstPtr, result);
+                    // For the non-secure case, pass the decrypted
+                    // data back via the shared buffer rather than
+                    // copying it separately over binder to avoid
+                    // binder's 1MB limit.
+                    memcpy(sharedBuffer->pointer(), dstPtr, result);
                 }
                 free(dstPtr);
                 dstPtr = NULL;

@@ -186,10 +186,6 @@ status_t pushBlankBuffersToNativeWindow(ANativeWindow *nativeWindow /* nonnull *
             break;
         }
 
-        if (img == NULL) {
-            ALOGE("error pushing blank frames: lock returned NULL buffer");
-            break;
-        }
         *img = 0;
 
         err = buf->unlock();

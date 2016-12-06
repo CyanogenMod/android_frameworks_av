@@ -58,9 +58,9 @@ public:
 
 protected:
     virtual ~RemoteMediaBufferWrapper() {
-        // Indicate to MediaBufferGroup to release.
-        int32_t old = addPendingRelease(1);
-        ALOGV("RemoteMediaBufferWrapper: releasing %p, old %d", this, old);
+        // Release our interest in the MediaBuffer's shared memory.
+        int32_t old = addRemoteRefcount(-1);
+        ALOGV("RemoteMediaBufferWrapper: releasing %p, refcount %d", this, old - 1);
         mMemory.clear(); // don't set the dead object flag.
     }
 };
@@ -296,8 +296,8 @@ status_t BnMediaSource::onTransact(
         case STOP: {
             ALOGV("stop");
             CHECK_INTERFACE(IMediaSource, data, reply);
+            mGroup->signalBufferReturned(nullptr);
             status_t status = stop();
-            mGroup->gc();
             mIndexCache.reset();
             mBuffersSinceStop = 0;
             return status;
@@ -305,6 +305,7 @@ status_t BnMediaSource::onTransact(
         case PAUSE: {
             ALOGV("pause");
             CHECK_INTERFACE(IMediaSource, data, reply);
+            mGroup->signalBufferReturned(nullptr);
             return pause();
         }
         case GETFORMAT: {
@@ -336,7 +337,7 @@ status_t BnMediaSource::onTransact(
                     && len == sizeof(opts)
                     && data.read((void *)&opts, len) == NO_ERROR;
 
-            mGroup->gc(kBinderMediaBuffers /* freeBuffers */);
+            mGroup->signalBufferReturned(nullptr);
             mIndexCache.gc();
             size_t inlineTransferSize = 0;
             status_t ret = NO_ERROR;
@@ -411,8 +412,9 @@ status_t BnMediaSource::onTransact(
                     reply->writeInt32(offset);
                     reply->writeInt32(length);
                     buf->meta_data()->writeToParcel(*reply);
+                    transferBuf->addRemoteRefcount(1);
                     if (transferBuf != buf) {
-                        buf->release();
+                        transferBuf->release(); // release local ref
                     } else if (!supportNonblockingRead()) {
                         maxNumBuffers = 0; // stop readMultiple with one shared buffer.
                     }
@@ -423,12 +425,12 @@ status_t BnMediaSource::onTransact(
                     reply->writeInt32(INLINE_BUFFER);
                     reply->writeByteArray(length, (uint8_t*)buf->data() + offset);
                     buf->meta_data()->writeToParcel(*reply);
-                    buf->release();
                     inlineTransferSize += length;
                     if (inlineTransferSize > kInlineMaxTransfer) {
                         maxNumBuffers = 0; // stop readMultiple if inline transfer is too large.
                     }
                 }
+                buf->release();
             }
             reply->writeInt32(NULL_BUFFER); // Indicate no more MediaBuffers.
             reply->writeInt32(ret);

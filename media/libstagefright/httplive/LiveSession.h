@@ -75,7 +75,7 @@ struct LiveSession : public AHandler {
     int64_t calculateMediaTimeUs(int64_t firstTimeUs, int64_t timeUs, int32_t discontinuitySeq);
     virtual status_t dequeueAccessUnit(StreamType stream, sp<ABuffer> *accessUnit);
 
-    status_t getStreamFormat(StreamType stream, sp<AMessage> *format);
+    status_t getStreamFormatMeta(StreamType stream, sp<MetaData> *meta);
 
     sp<HTTPDownloader> getHTTPDownloader();
 

@@ -781,7 +781,7 @@ bool NuPlayer::Decoder::isStaleReply(const sp<AMessage> &msg) {
 
 status_t NuPlayer::Decoder::fetchInputData(sp<AMessage> &reply) {
     sp<ABuffer> accessUnit;
-    bool dropAccessUnit;
+    bool dropAccessUnit = true;
     do {
         status_t err = mSource->dequeueAccessUnit(mIsAudio, &accessUnit);
 

@@ -214,6 +214,7 @@ protected:
     status_t getCurrentPositionFromAnchor(
             int64_t *mediaUs, int64_t nowUs, bool allowPastQueuedVideo = false);
 
+    void notifyEOSCallback();
     size_t fillAudioBuffer(void *buffer, size_t size);
 
     bool onDrainAudioQueue();

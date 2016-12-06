@@ -148,7 +148,14 @@ media_status_t AMediaExtractor_unselectTrack(AMediaExtractor *mData, size_t idx)
 EXPORT
 bool AMediaExtractor_advance(AMediaExtractor *mData) {
     //ALOGV("advance");
-    return mData->mImpl->advance();
+    status_t err = mData->mImpl->advance();
+    if (err == ERROR_END_OF_STREAM) {
+        return false;
+    } else if (err != OK) {
+        ALOGE("sf error code: %d", err);
+        return false;
+    }
+    return true;
 }
 
 EXPORT
@@ -343,9 +350,9 @@ AMediaCodecCryptoInfo *AMediaExtractor_getSampleCryptoInfo(AMediaExtractor *ex) 
 
     const void *key;
     size_t keysize;
-    if (meta->findData(kKeyCryptoIV, &type, &key, &keysize)) {
+    if (meta->findData(kKeyCryptoKey, &type, &key, &keysize)) {
         if (keysize != 16) {
-            // IVs must be 16 bytes in length.
+            // Keys must be 16 bytes in length.
             return NULL;
         }
     }

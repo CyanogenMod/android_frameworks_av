@@ -388,7 +388,7 @@ AudioFlinger::PlaybackThread::Track::Track(
     }
     mServerProxy = mAudioTrackServerProxy;
 
-    mName = thread->getTrackName_l(channelMask, format, sessionId);
+    mName = thread->getTrackName_l(channelMask, format, sessionId, uid);
     if (mName < 0) {
         ALOGE("no more track names available");
         return;
@@ -777,6 +777,13 @@ void AudioFlinger::PlaybackThread::Track::flush()
         Mutex::Autolock _l(thread->mLock);
         PlaybackThread *playbackThread = (PlaybackThread *)thread.get();
 
+        // Flush the ring buffer now if the track is not active in the PlaybackThread.
+        // Otherwise the flush would not be done until the track is resumed.
+        // Requires FastTrack removal be BLOCK_UNTIL_ACKED
+        if (playbackThread->mActiveTracks.indexOf(this) < 0) {
+            (void)mServerProxy->flushBufferIfNeeded();
+        }
+
         if (isOffloaded()) {
             // If offloaded we allow flush during any state except terminated
             // and keep the track active to avoid problems if user is seeking
@@ -827,6 +834,10 @@ void AudioFlinger::PlaybackThread::Track::flushAck()
 {
     if (!isOffloaded() && !isDirect())
         return;
+
+    // Clear the client ring buffer so that the app can prime the buffer while paused.
+    // Otherwise it might not get cleared until playback is resumed and obtainBuffer() is called.
+    mServerProxy->flushBufferIfNeeded();
 
     mFlushHwPending = false;
 }

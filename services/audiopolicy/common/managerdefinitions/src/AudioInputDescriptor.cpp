@@ -222,12 +222,14 @@ sp<AudioInputDescriptor> AudioInputCollection::getInputFromId(audio_port_handle_
     return inputDesc;
 }
 
-uint32_t AudioInputCollection::activeInputsCount() const
+uint32_t AudioInputCollection::activeInputsCountOnDevices(audio_devices_t devices) const
 {
     uint32_t count = 0;
     for (size_t i = 0; i < size(); i++) {
         const sp<AudioInputDescriptor>  inputDescriptor = valueAt(i);
-        if (inputDescriptor->isActive()) {
+        if (inputDescriptor->isActive() &&
+                ((devices == AUDIO_DEVICE_IN_DEFAULT) ||
+                 ((inputDescriptor->mDevice & devices & ~AUDIO_DEVICE_BIT_IN) != 0))) {
             count++;
         }
     }

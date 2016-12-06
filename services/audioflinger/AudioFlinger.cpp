@@ -1104,14 +1104,20 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
     // AUDIO_IO_HANDLE_NONE means the parameters are global to the audio hardware interface
     if (ioHandle == AUDIO_IO_HANDLE_NONE) {
         Mutex::Autolock _l(mLock);
-        status_t final_result = NO_ERROR;
+        // result will remain NO_INIT if no audio device is present
+        status_t final_result = NO_INIT;
         {
             AutoMutex lock(mHardwareLock);
             mHardwareStatus = AUDIO_HW_SET_PARAMETER;
             for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
                 audio_hw_device_t *dev = mAudioHwDevs.valueAt(i)->hwDevice();
                 status_t result = dev->set_parameters(dev, keyValuePairs.string());
-                final_result = result ?: final_result;
+                // return success if at least one audio device accepts the parameters as not all
+                // HALs are requested to support all parameters. If no audio device supports the
+                // requested parameters, the last error is reported.
+                if (final_result != NO_ERROR) {
+                    final_result = result;
+                }
             }
             mHardwareStatus = AUDIO_HW_IDLE;
         }

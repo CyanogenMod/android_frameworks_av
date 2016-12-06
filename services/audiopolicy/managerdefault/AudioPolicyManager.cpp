@@ -1316,6 +1316,7 @@ status_t AudioPolicyManager::stopSource(sp<AudioOutputDescriptor> outputDesc,
 
             // force restoring the device selection on other active outputs if it differs from the
             // one being selected for this output
+            uint32_t delayMs = outputDesc->latency()*2;
             for (size_t i = 0; i < mOutputs.size(); i++) {
                 sp<AudioOutputDescriptor> desc = mOutputs.valueAt(i);
                 if (desc != outputDesc &&
@@ -1327,7 +1328,11 @@ status_t AudioPolicyManager::stopSource(sp<AudioOutputDescriptor> outputDesc,
                     setOutputDevice(desc,
                                     newDevice2,
                                     force,
-                                    outputDesc->latency()*2);
+                                    delayMs);
+                    // re-apply device specific volume if not done by setOutputDevice()
+                    if (!force) {
+                        applyStreamVolumes(desc, newDevice2, delayMs);
+                    }
                 }
             }
             // update the outputs if stopping one with a stream that can affect notification routing
@@ -1684,10 +1689,15 @@ status_t AudioPolicyManager::startInput(audio_io_handle_t input,
                     MIX_STATE_MIXING);
         }
 
-        if (mInputs.activeInputsCount() == 0) {
+        // indicate active capture to sound trigger service if starting capture from a mic on
+        // primary HW module
+        audio_devices_t device = getNewInputDevice(input);
+        audio_devices_t primaryInputDevices = availablePrimaryInputDevices();
+        if (((device & primaryInputDevices & ~AUDIO_DEVICE_BIT_IN) != 0) &&
+                mInputs.activeInputsCountOnDevices(primaryInputDevices) == 0) {
             SoundTrigger::setCaptureState(true);
         }
-        setInputDevice(input, getNewInputDevice(input), true /* force */);
+        setInputDevice(input, device, true /* force */);
 
         // automatically enable the remote submix output when input is started if not
         // used by a policy mix of type MIX_TYPE_RECORDERS
@@ -1764,9 +1774,14 @@ status_t AudioPolicyManager::stopInput(audio_io_handle_t input,
             }
         }
 
+        audio_devices_t device = inputDesc->mDevice;
         resetInputDevice(input);
 
-        if (mInputs.activeInputsCount() == 0) {
+        // indicate inactive capture to sound trigger service if stopping capture from a mic on
+        // primary HW module
+        audio_devices_t primaryInputDevices = availablePrimaryInputDevices();
+        if (((device & primaryInputDevices & ~AUDIO_DEVICE_BIT_IN) != 0) &&
+                mInputs.activeInputsCountOnDevices(primaryInputDevices) == 0) {
             SoundTrigger::setCaptureState(false);
         }
         inputDesc->clearPreemptedSessions();
@@ -1904,19 +1919,21 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
                 continue;
             }
             routing_strategy curStrategy = getStrategy((audio_stream_type_t)curStream);
-            audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, true /*fromCache*/);
-            if ((curStreamDevice & device) == 0) {
+            audio_devices_t curStreamDevice = getDeviceForStrategy(curStrategy, false /*fromCache*/);
+            if ((device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) &&
+                    ((curStreamDevice & device) == 0)) {
                 continue;
             }
-            bool applyDefault = false;
+            bool applyVolume;
             if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
                 curStreamDevice |= device;
-            } else if (!mVolumeCurves->hasVolumeIndexForDevice(
-                    stream, Volume::getDeviceForVolume(curStreamDevice))) {
-                applyDefault = true;
+                applyVolume = (curDevice & curStreamDevice) != 0;
+            } else {
+                applyVolume = !mVolumeCurves->hasVolumeIndexForDevice(
+                        stream, Volume::getDeviceForVolume(curStreamDevice));
             }
 
-            if (applyDefault || ((curDevice & curStreamDevice) != 0)) {
+            if (applyVolume) {
                 //FIXME: workaround for truncated touch sounds
                 // delayed volume change for system stream to be removed when the problem is
                 // handled by system UI
@@ -4965,6 +4982,18 @@ float AudioPolicyManager::computeVolume(audio_stream_type_t stream,
                                         audio_devices_t device)
 {
     float volumeDB = mVolumeCurves->volIndexToDb(stream, Volume::getDeviceCategory(device), index);
+
+    // handle the case of accessibility active while a ringtone is playing: if the ringtone is much
+    // louder than the accessibility prompt, the prompt cannot be heard, thus masking the touch
+    // exploration of the dialer UI. In this situation, bring the accessibility volume closer to
+    // the ringtone volume
+    if ((stream == AUDIO_STREAM_ACCESSIBILITY)
+            && (AUDIO_MODE_RINGTONE == mEngine->getPhoneState())
+            && isStreamActive(AUDIO_STREAM_RING, 0)) {
+        const float ringVolumeDB = computeVolume(AUDIO_STREAM_RING, index, device);
+        return ringVolumeDB - 4 > volumeDB ? ringVolumeDB - 4 : volumeDB;
+    }
+
     // if a headset is connected, apply the following rules to ring tones and notifications
     // to avoid sound level bursts in user's ears:
     // - always attenuate notifications volume by 6dB

@@ -165,11 +165,14 @@ static VideoFrame *extractVideoFrame(
 
     videoFormat->setInt32("thumbnail-mode", 1);
 
-    // For the thumbnail extraction case, try to allocate single buffer
-    // in both input and output ports. NOTE: This request may fail if
-    // component requires more than that for decoding.
-    videoFormat->setInt32("android._num-input-buffers", 1);
-    videoFormat->setInt32("android._num-output-buffers", 1);
+    // For the thumbnail extraction case, try to allocate single buffer in both
+    // input and output ports, if seeking to a sync frame. NOTE: This request may
+    // fail if component requires more than that for decoding.
+    bool isSeekingClosest = (seekMode == MediaSource::ReadOptions::SEEK_CLOSEST);
+    if (!isSeekingClosest) {
+        videoFormat->setInt32("android._num-input-buffers", 1);
+        videoFormat->setInt32("android._num-output-buffers", 1);
+    }
 
     status_t err;
     sp<ALooper> looper = new ALooper;
@@ -261,6 +264,9 @@ static VideoFrame *extractVideoFrame(
     bool isAvcOrHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)
             || !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
 
+    bool firstSample = true;
+    int64_t targetTimeUs = -1ll;
+
     do {
         size_t inputIndex = -1;
         int64_t ptsUs = 0ll;
@@ -287,6 +293,11 @@ static VideoFrame *extractVideoFrame(
                 haveMoreInputs = false;
                 break;
             }
+            if (firstSample && isSeekingClosest) {
+                mediaBuffer->meta_data()->findInt64(kKeyTargetTime, &targetTimeUs);
+                ALOGV("Seeking closest: targetTimeUs=%lld", (long long)targetTimeUs);
+            }
+            firstSample = false;
 
             if (mediaBuffer->range_length() > codecBuffer->capacity()) {
                 ALOGE("buffer size (%zu) too large for codec input size (%zu)",
@@ -299,8 +310,9 @@ static VideoFrame *extractVideoFrame(
                 memcpy(codecBuffer->data(),
                         (const uint8_t*)mediaBuffer->data() + mediaBuffer->range_offset(),
                         mediaBuffer->range_length());
-                if (isAvcOrHevc && IsIDR(codecBuffer)) {
-                    // Only need to decode one IDR frame.
+                if (isAvcOrHevc && IsIDR(codecBuffer) && !isSeekingClosest) {
+                    // Only need to decode one IDR frame, unless we're seeking with CLOSEST
+                    // option, in which case we need to actually decode to targetTimeUs.
                     haveMoreInputs = false;
                     flags |= MediaCodec::BUFFER_FLAG_EOS;
                 }
@@ -347,8 +359,13 @@ static VideoFrame *extractVideoFrame(
                     ALOGV("Timed-out waiting for output.. retries left = %zu", retriesLeft);
                     err = OK;
                 } else if (err == OK) {
-                    ALOGV("Received an output buffer");
-                    done = true;
+                    // If we're seeking with CLOSEST option and obtained a valid targetTimeUs
+                    // from the extractor, decode to the specified frame. Otherwise we're done.
+                    done = (targetTimeUs < 0ll) || (timeUs >= targetTimeUs);
+                    ALOGV("Received an output buffer, timeUs=%lld", (long long)timeUs);
+                    if (!done) {
+                        err = decoder->releaseOutputBuffer(index);
+                    }
                 } else {
                     ALOGW("Received error %d (%s) instead of output", err, asString(err));
                     done = true;

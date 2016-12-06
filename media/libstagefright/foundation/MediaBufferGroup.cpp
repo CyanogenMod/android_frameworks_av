@@ -51,7 +51,7 @@ MediaBufferGroup::MediaBufferGroup(size_t buffers, size_t buffer_size, size_t gr
 
         for (size_t i = 0; i < buffers; ++i) {
             sp<IMemory> mem = memoryDealer->allocate(augmented_size);
-            if (mem.get() == nullptr) {
+            if (mem.get() == nullptr || mem->pointer() == nullptr) {
                 ALOGW("Only allocated %zu shared buffers of size %zu", i, buffer_size);
                 break;
             }
@@ -76,11 +76,24 @@ MediaBufferGroup::MediaBufferGroup(size_t buffers, size_t buffer_size, size_t gr
 
 MediaBufferGroup::~MediaBufferGroup() {
     for (MediaBuffer *buffer : mBuffers) {
-        buffer->resolvePendingRelease();
-        // If we don't release it, perhaps noone will release it.
-        LOG_ALWAYS_FATAL_IF(buffer->refcount() != 0,
-                "buffer refcount %p = %d != 0", buffer, buffer->refcount());
-        // actually delete it.
+        if (buffer->refcount() != 0) {
+            const int localRefcount = buffer->localRefcount();
+            const int remoteRefcount = buffer->remoteRefcount();
+
+            // Fatal if we have a local refcount.
+            LOG_ALWAYS_FATAL_IF(localRefcount != 0,
+                    "buffer(%p) localRefcount %d != 0, remoteRefcount %d",
+                    buffer, localRefcount, remoteRefcount);
+
+            // Log an error if we have a remaining remote refcount,
+            // as the remote process may have died or may have inappropriate behavior.
+            // The shared memory associated with the MediaBuffer will
+            // automatically be reclaimed when there are no remaining fds
+            // associated with it.
+            ALOGE("buffer(%p) has residual remoteRefcount %d",
+                    buffer, remoteRefcount);
+        }
+        // gracefully delete.
         buffer->setObserver(nullptr);
         buffer->release();
     }
@@ -94,32 +107,11 @@ void MediaBufferGroup::add_buffer(MediaBuffer *buffer) {
     // optionally: mGrowthLimit = max(mGrowthLimit, mBuffers.size());
 }
 
-void MediaBufferGroup::gc(size_t freeBuffers) {
-    Mutex::Autolock autoLock(mLock);
-
-    size_t freeCount = 0;
-    for (auto it = mBuffers.begin(); it != mBuffers.end(); ) {
-        (*it)->resolvePendingRelease();
-        if ((*it)->isDeadObject()) {
-            // The MediaBuffer has been deleted, why is it in the MediaBufferGroup?
-            LOG_ALWAYS_FATAL("buffer(%p) has dead object with refcount %d",
-                    (*it), (*it)->refcount());
-        } else if ((*it)->refcount() == 0 && ++freeCount > freeBuffers) {
-            (*it)->setObserver(nullptr);
-            (*it)->release();
-            it = mBuffers.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
 bool MediaBufferGroup::has_buffers() {
     if (mBuffers.size() < mGrowthLimit) {
         return true; // We can add more buffers internally.
     }
     for (MediaBuffer *buffer : mBuffers) {
-        buffer->resolvePendingRelease();
         if (buffer->refcount() == 0) {
             return true;
         }
@@ -135,7 +127,6 @@ status_t MediaBufferGroup::acquire_buffer(
         MediaBuffer *buffer = nullptr;
         auto free = mBuffers.end();
         for (auto it = mBuffers.begin(); it != mBuffers.end(); ++it) {
-            (*it)->resolvePendingRelease();
             if ((*it)->refcount() == 0) {
                 const size_t size = (*it)->size();
                 if (size >= requestedSize) {

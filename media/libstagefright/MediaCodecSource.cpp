@@ -877,6 +877,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
+            mbuf->setObserver(this);
             mbuf->add_ref();
             
             sp<MetaData> meta = mbuf->meta_data();
@@ -932,7 +933,6 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 mbuf->meta_data()->setInt32(kKeyIsSyncFrame, true);
             }
             memcpy(mbuf->data(), outbuf->data(), outbuf->size());
-            mbuf->setObserver(this);
 
             {
                 Mutexed<Output>::Locked output(mOutput);

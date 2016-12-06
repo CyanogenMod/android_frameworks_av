@@ -32,7 +32,7 @@ public:
 
     virtual bool isCryptoSchemeSupported(const uint8_t uuid[16]);
 
-    virtual bool isContentTypeSupported(const android::String8 &initDataType);
+    virtual bool isContentTypeSupported(const android::String8 &mimeType);
 
     virtual android::status_t createDrmPlugin(
             const uint8_t uuid[16], android::DrmPlugin** plugin);

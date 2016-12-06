@@ -1273,6 +1273,12 @@ status_t AudioFlinger::RecordThread::checkEffectCompatibility_l(
                 desc->name, mThreadName);
         return BAD_VALUE;
     }
+
+    // always allow effects without processing load or latency
+    if ((desc->flags & EFFECT_FLAG_NO_PROCESS_MASK) == EFFECT_FLAG_NO_PROCESS) {
+        return NO_ERROR;
+    }
+
     audio_input_flags_t flags = mInput->flags;
     if (hasFastCapture() || (flags & AUDIO_INPUT_FLAG_FAST)) {
         if (flags & AUDIO_INPUT_FLAG_RAW) {
@@ -1328,6 +1334,11 @@ status_t AudioFlinger::PlaybackThread::checkEffectCompatibility_l(
                 if ((hasAudioSession_l(sessionId) & ThreadBase::FAST_SESSION) == 0) {
                     break;
                 }
+            }
+
+            // always allow effects without processing load or latency
+            if ((desc->flags & EFFECT_FLAG_NO_PROCESS_MASK) == EFFECT_FLAG_NO_PROCESS) {
+                break;
             }
             if (flags & AUDIO_OUTPUT_FLAG_RAW) {
                 ALOGW("checkEffectCompatibility_l(): effect %s on playback thread in raw mode",
@@ -1828,6 +1839,15 @@ void AudioFlinger::PlaybackThread::dumpInternals(int fd, const Vector<String16>&
     audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
     String8 flagsAsString = outputFlagsToString(flags);
     dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n", output, flags, flagsAsString.string());
+    dprintf(fd, "  Frames written: %lld\n", (long long)mFramesWritten);
+    dprintf(fd, "  Suspended frames: %lld\n", (long long)mSuspendedFrames);
+    if (mPipeSink.get() != nullptr) {
+        dprintf(fd, "  PipeSink frames written: %lld\n", (long long)mPipeSink->framesWritten());
+    }
+    if (output != nullptr) {
+        dprintf(fd, "  Hal stream dump:\n");
+        (void)output->stream->common.dump(&output->stream->common, fd);
+    }
 }
 
 // Thread virtuals
@@ -1911,34 +1931,19 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         // check compatibility with audio effects.
         { // scope for mLock
             Mutex::Autolock _l(mLock);
-            // do not accept RAW flag if post processing are present. Note that post processing on
-            // a fast mixer are necessarily hardware
-            sp<EffectChain> chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: post processing effect present");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-            }
-            // Do not accept FAST flag if software global effects are present
-            chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: global effect present");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-                if (chain->hasSoftwareEffect()) {
-                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software global effect present");
-                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
-                }
-            }
-            // Do not accept FAST flag if the session has software effects
-            chain = getEffectChain_l(sessionId);
-            if (chain != 0) {
-                ALOGV_IF((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0,
-                        "AUDIO_OUTPUT_FLAG_RAW denied: effect present on session");
-                *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
-                if (chain->hasSoftwareEffect()) {
-                    ALOGV("AUDIO_OUTPUT_FLAG_FAST denied: software effect present on session");
-                    *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+            for (audio_session_t session : {
+                    AUDIO_SESSION_OUTPUT_STAGE,
+                    AUDIO_SESSION_OUTPUT_MIX,
+                    sessionId,
+                }) {
+                sp<EffectChain> chain = getEffectChain_l(session);
+                if (chain.get() != nullptr) {
+                    audio_output_flags_t old = *flags;
+                    chain->checkOutputFlagCompatibility(flags);
+                    if (old != *flags) {
+                        ALOGV("AUDIO_OUTPUT_FLAGS denied by effect, session=%d old=%#x new=%#x",
+                                (int)session, (int)old, (int)*flags);
+                    }
                 }
             }
         }
@@ -3119,9 +3124,9 @@ bool AudioFlinger::PlaybackThread::threadLoop()
                 if (!keepWakeLock()) {
                     releaseWakeLock_l();
                     released = true;
+                    mWakeLockUids.clear();
+                    mActiveTracksGeneration++;
                 }
-                mWakeLockUids.clear();
-                mActiveTracksGeneration++;
                 ALOGV("wait async completion");
                 mWaitWorkCV.wait(mLock);
                 ALOGV("async completion/wake");
@@ -4591,10 +4596,25 @@ AudioFlinger::PlaybackThread::mixer_state AudioFlinger::MixerThread::prepareTrac
     return mixerStatus;
 }
 
+// trackCountForUid_l() must be called with ThreadBase::mLock held
+uint32_t AudioFlinger::PlaybackThread::trackCountForUid_l(uid_t uid)
+{
+    uint32_t trackCount = 0;
+    for (size_t i = 0; i < mTracks.size() ; i++) {
+        if (mTracks[i]->uid() == (int)uid) {
+            trackCount++;
+        }
+    }
+    return trackCount;
+}
+
 // getTrackName_l() must be called with ThreadBase::mLock held
 int AudioFlinger::MixerThread::getTrackName_l(audio_channel_mask_t channelMask,
-        audio_format_t format, audio_session_t sessionId)
+        audio_format_t format, audio_session_t sessionId, uid_t uid)
 {
+    if (trackCountForUid_l(uid) > (PlaybackThread::kMaxTracksPerUid - 1)) {
+        return -1;
+    }
     return mAudioMixer->getTrackName(channelMask, format, sessionId);
 }
 
@@ -4699,7 +4719,7 @@ bool AudioFlinger::MixerThread::checkForNewParameter_l(const String8& keyValuePa
             mAudioMixer = new AudioMixer(mNormalFrameCount, mSampleRate);
             for (size_t i = 0; i < mTracks.size() ; i++) {
                 int name = getTrackName_l(mTracks[i]->mChannelMask,
-                        mTracks[i]->mFormat, mTracks[i]->mSessionId);
+                        mTracks[i]->mFormat, mTracks[i]->mSessionId, mTracks[i]->uid());
                 if (name < 0) {
                     break;
                 }
@@ -5144,8 +5164,11 @@ bool AudioFlinger::DirectOutputThread::shouldStandby_l()
 
 // getTrackName_l() must be called with ThreadBase::mLock held
 int AudioFlinger::DirectOutputThread::getTrackName_l(audio_channel_mask_t channelMask __unused,
-        audio_format_t format __unused, audio_session_t sessionId __unused)
+        audio_format_t format __unused, audio_session_t sessionId __unused, uid_t uid)
 {
+    if (trackCountForUid_l(uid) > (PlaybackThread::kMaxTracksPerUid - 1)) {
+        return -1;
+    }
     return 0;
 }
 
@@ -6566,12 +6589,11 @@ sp<AudioFlinger::RecordThread::RecordTrack> AudioFlinger::RecordThread::createRe
           // Do not accept FAST flag if the session has software effects
           sp<EffectChain> chain = getEffectChain_l(sessionId);
           if (chain != 0) {
-              ALOGV_IF((*flags & AUDIO_INPUT_FLAG_RAW) != 0,
-                      "AUDIO_INPUT_FLAG_RAW denied: effect present on session");
-              *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
-              if (chain->hasSoftwareEffect()) {
-                  ALOGV("AUDIO_INPUT_FLAG_FAST denied: software effect present on session");
-                  *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
+              audio_input_flags_t old = *flags;
+              chain->checkInputFlagCompatibility(flags);
+              if (old != *flags) {
+                  ALOGV("AUDIO_INPUT_FLAGS denied by effect old=%#x new=%#x",
+                          (int)old, (int)*flags);
               }
           }
           ALOGV_IF((*flags & AUDIO_INPUT_FLAG_FAST) != 0,

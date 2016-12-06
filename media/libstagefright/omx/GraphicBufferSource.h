@@ -295,6 +295,7 @@ private:
     // is done processing a GraphicBuffer, we can use this to map back
     // to a slot number.
     sp<GraphicBuffer> mBufferSlot[BufferQueue::NUM_BUFFER_SLOTS];
+    int32_t mBufferUseCount[BufferQueue::NUM_BUFFER_SLOTS];
 
     // Tracks codec buffers.
     Vector<CodecBuffer> mCodecBuffers;
@@ -327,7 +328,6 @@ private:
 
     int mLatestBufferId;
     uint64_t mLatestBufferFrameNum;
-    int32_t mLatestBufferUseCount;
     sp<Fence> mLatestBufferFence;
 
     // The previous buffer should've been repeated but

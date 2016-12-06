@@ -392,8 +392,12 @@ void MetaData::dumpToLog() const {
 }
 
 status_t MetaData::writeToParcel(Parcel &parcel) {
+    status_t ret;
     size_t numItems = mItems.size();
-    parcel.writeUint32(uint32_t(numItems));
+    ret = parcel.writeUint32(uint32_t(numItems));
+    if (ret) {
+        return ret;
+    }
     for (size_t i = 0; i < numItems; i++) {
         int32_t key = mItems.keyAt(i);
         const typed_data &item = mItems.valueAt(i);
@@ -401,9 +405,32 @@ status_t MetaData::writeToParcel(Parcel &parcel) {
         const void *data;
         size_t size;
         item.getData(&type, &data, &size);
-        parcel.writeInt32(key);
-        parcel.writeUint32(type);
-        parcel.writeByteArray(size, (uint8_t*)data);
+        ret = parcel.writeInt32(key);
+        if (ret) {
+            return ret;
+        }
+        ret = parcel.writeUint32(type);
+        if (ret) {
+            return ret;
+        }
+        if (type == TYPE_NONE) {
+            android::Parcel::WritableBlob blob;
+            ret = parcel.writeUint32(static_cast<uint32_t>(size));
+            if (ret) {
+                return ret;
+            }
+            ret = parcel.writeBlob(size, false, &blob);
+            if (ret) {
+                return ret;
+            }
+            memcpy(blob.data(), data, size);
+            blob.release();
+        } else {
+            ret = parcel.writeByteArray(size, (uint8_t*)data);
+            if (ret) {
+                return ret;
+            }
+        }
     }
     return OK;
 }
@@ -422,8 +449,20 @@ status_t MetaData::updateFromParcel(const Parcel &parcel) {
             if (ret != OK) {
                 break;
             }
-            // copy data directly from Parcel storage, then advance position
-            setData(key, type, parcel.readInplace(size), size);
+            // copy data from Blob, which may be inline in Parcel storage,
+            // then advance position
+            if (type == TYPE_NONE) {
+                android::Parcel::ReadableBlob blob;
+                ret = parcel.readBlob(size, &blob);
+                if (ret != OK) {
+                    break;
+                }
+                setData(key, type, blob.data(), size);
+                blob.release();
+            } else {
+                // copy data directly from Parcel storage, then advance position
+                setData(key, type, parcel.readInplace(size), size);
+            }
          }
 
         return OK;

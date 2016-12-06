@@ -708,6 +708,10 @@ status_t ATSParser::Stream::parse(
         }
 
         mPayloadStarted = true;
+        // There should be at most 2 elements in |mPesStartOffsets|.
+        while (mPesStartOffsets.size() >= 2) {
+            mPesStartOffsets.erase(mPesStartOffsets.begin());
+        }
         mPesStartOffsets.push_back(offset);
     }
 
@@ -1114,15 +1118,20 @@ void ATSParser::Stream::onPayloadData(
             mSource->queueAccessUnit(accessUnit);
         }
 
-        if ((event != NULL) && !found && mQueue->getFormat() != NULL) {
+        // Every access unit has a pesStartOffset queued in |mPesStartOffsets|.
+        off64_t pesStartOffset = -1;
+        if (!mPesStartOffsets.empty()) {
+            pesStartOffset = *mPesStartOffsets.begin();
+            mPesStartOffsets.erase(mPesStartOffsets.begin());
+        }
+
+        if (pesStartOffset >= 0 && (event != NULL) && !found && mQueue->getFormat() != NULL) {
             int32_t sync = 0;
             if (accessUnit->meta()->findInt32("isSync", &sync) && sync) {
                 int64_t timeUs;
                 if (accessUnit->meta()->findInt64("timeUs", &timeUs)) {
                     found = true;
-                    off64_t pesStartOffset = *mPesStartOffsets.begin();
                     event->init(pesStartOffset, mSource, timeUs);
-                    mPesStartOffsets.erase(mPesStartOffsets.begin());
                 }
             }
         }

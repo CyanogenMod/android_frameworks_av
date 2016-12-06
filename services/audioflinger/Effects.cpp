@@ -279,12 +279,29 @@ void AudioFlinger::EffectModule::process()
                                         mConfig.inputCfg.buffer.s32,
                                         mConfig.inputCfg.buffer.frameCount/2);
         }
+        int ret;
+        if (isProcessImplemented()) {
+            // do the actual processing in the effect engine
+            ret = (*mEffectInterface)->process(mEffectInterface,
+                                                   &mConfig.inputCfg.buffer,
+                                                   &mConfig.outputCfg.buffer);
+        } else {
+            if (mConfig.inputCfg.buffer.raw != mConfig.outputCfg.buffer.raw) {
+                size_t frameCnt = mConfig.inputCfg.buffer.frameCount * FCC_2;  //always stereo here
+                int16_t *in = mConfig.inputCfg.buffer.s16;
+                int16_t *out = mConfig.outputCfg.buffer.s16;
 
-        // do the actual processing in the effect engine
-        int ret = (*mEffectInterface)->process(mEffectInterface,
-                                               &mConfig.inputCfg.buffer,
-                                               &mConfig.outputCfg.buffer);
-
+                if (mConfig.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE) {
+                    for (size_t i = 0; i < frameCnt; i++) {
+                        out[i] = clamp16((int32_t)out[i] + (int32_t)in[i]);
+                    }
+                } else {
+                    memcpy(mConfig.outputCfg.buffer.raw, mConfig.inputCfg.buffer.raw,
+                           frameCnt * sizeof(int16_t));
+                }
+            }
+            ret = -ENODATA;
+        }
         // force transition to IDLE state when engine is ready
         if (mState == STOPPED && ret == -ENODATA) {
             mDisableWaitCnt = 1;
@@ -301,7 +318,7 @@ void AudioFlinger::EffectModule::process()
         // accumulate input onto output
         sp<EffectChain> chain = mChain.promote();
         if (chain != 0 && chain->activeTrackCnt() != 0) {
-            size_t frameCnt = mConfig.inputCfg.buffer.frameCount * 2;  //always stereo here
+            size_t frameCnt = mConfig.inputCfg.buffer.frameCount * FCC_2;  //always stereo here
             int16_t *in = mConfig.inputCfg.buffer.s16;
             int16_t *out = mConfig.outputCfg.buffer.s16;
             for (size_t i = 0; i < frameCnt; i++) {
@@ -2020,15 +2037,49 @@ void AudioFlinger::EffectChain::setThread(const sp<ThreadBase>& thread)
     }
 }
 
-bool AudioFlinger::EffectChain::hasSoftwareEffect() const
+void AudioFlinger::EffectChain::checkOutputFlagCompatibility(audio_output_flags_t *flags) const
+{
+    if ((*flags & AUDIO_OUTPUT_FLAG_RAW) != 0 && !isRawCompatible()) {
+        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_RAW);
+    }
+    if ((*flags & AUDIO_OUTPUT_FLAG_FAST) != 0 && !isFastCompatible()) {
+        *flags = (audio_output_flags_t)(*flags & ~AUDIO_OUTPUT_FLAG_FAST);
+    }
+}
+
+void AudioFlinger::EffectChain::checkInputFlagCompatibility(audio_input_flags_t *flags) const
+{
+    if ((*flags & AUDIO_INPUT_FLAG_RAW) != 0 && !isRawCompatible()) {
+        *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_RAW);
+    }
+    if ((*flags & AUDIO_INPUT_FLAG_FAST) != 0 && !isFastCompatible()) {
+        *flags = (audio_input_flags_t)(*flags & ~AUDIO_INPUT_FLAG_FAST);
+    }
+}
+
+bool AudioFlinger::EffectChain::isRawCompatible() const
 {
     Mutex::Autolock _l(mLock);
-    for (size_t i = 0; i < mEffects.size(); i++) {
-        if (mEffects[i]->isImplementationSoftware()) {
-            return true;
+    for (const auto &effect : mEffects) {
+        if (effect->isProcessImplemented()) {
+            return false;
         }
     }
-    return false;
+    // Allow effects without processing.
+    return true;
+}
+
+bool AudioFlinger::EffectChain::isFastCompatible() const
+{
+    Mutex::Autolock _l(mLock);
+    for (const auto &effect : mEffects) {
+        if (effect->isProcessImplemented()
+                && effect->isImplementationSoftware()) {
+            return false;
+        }
+    }
+    // Allow effects without processing or hw accelerated effects.
+    return true;
 }
 
 // isCompatibleWithThread_l() must be called with thread->mLock held

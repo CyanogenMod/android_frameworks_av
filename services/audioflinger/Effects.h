@@ -119,6 +119,8 @@ public:
                         { return (mDescriptor.flags & EFFECT_FLAG_OFFLOAD_SUPPORTED) != 0; }
     bool             isImplementationSoftware() const
                         { return (mDescriptor.flags & EFFECT_FLAG_HW_ACC_MASK) == 0; }
+    bool             isProcessImplemented() const
+                        { return (mDescriptor.flags & EFFECT_FLAG_NO_PROCESS) == 0; }
     status_t         setOffloaded(bool offloaded, audio_io_handle_t io);
     bool             isOffloaded() const;
     void             addEffectToHal_l();
@@ -326,7 +328,17 @@ public:
 
     void syncHalEffectsState();
 
-    bool hasSoftwareEffect() const;
+    // flags is an ORed set of audio_output_flags_t which is updated on return.
+    void checkOutputFlagCompatibility(audio_output_flags_t *flags) const;
+
+    // flags is an ORed set of audio_input_flags_t which is updated on return.
+    void checkInputFlagCompatibility(audio_input_flags_t *flags) const;
+
+    // Is this EffectChain compatible with the RAW audio flag.
+    bool isRawCompatible() const;
+
+    // Is this EffectChain compatible with the FAST audio flag.
+    bool isFastCompatible() const;
 
     // isCompatibleWithThread_l() must be called with thread->mLock held
     bool isCompatibleWithThread_l(const sp<ThreadBase>& thread) const;
