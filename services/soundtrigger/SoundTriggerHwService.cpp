@@ -270,12 +270,12 @@ void SoundTriggerHwService::sendRecognitionEvent(struct sound_trigger_recognitio
      if (module == NULL) {
          return;
      }
+    struct sound_trigger_phrase_recognition_event newEvent;
     if (event-> type == SOUND_MODEL_TYPE_KEYPHRASE && event->data_size != 0
         && event->data_offset != sizeof(struct sound_trigger_phrase_recognition_event)) {
         // set some defaults for the phrase if the recognition event won't be parsed properly
         // TODO: read defaults from the config
 
-        struct sound_trigger_phrase_recognition_event newEvent;
         memset(&newEvent, 0, sizeof(struct sound_trigger_phrase_recognition_event));
 
         sp<Model> model = module->getModel(event->model);
