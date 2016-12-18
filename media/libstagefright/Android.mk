@@ -95,7 +95,7 @@ else
 LOCAL_C_INCLUDES += $(TOP)/frameworks/native/include/media/openmax
 endif
 
-ifneq ($(filter caf bfam,$(TARGET_QCOM_AUDIO_VARIANT)),)
+ifneq ($(filter caf bfam legacy,$(TARGET_QCOM_AUDIO_VARIANT)),)
     ifeq ($(BOARD_USES_LEGACY_ALSA_AUDIO),true)
         ifeq ($(call is-chipset-in-board-platform,msm8960),true)
             LOCAL_SRC_FILES += LPAPlayerALSA.cpp TunnelPlayer.cpp
@@ -186,6 +186,14 @@ else #TARGET_ENABLE_AV_ENHANCEMENTS
 ifeq ($(TARGET_ENABLE_OFFLOAD_ENHANCEMENTS),true)
     LOCAL_CFLAGS += -DENABLE_OFFLOAD_ENHANCEMENTS
 endif
+endif
+
+ifeq ($(TARGET_QCOM_LEGACY_OMX),true)
+    LOCAL_CFLAGS += -DQCOM_LEGACY_OMX
+endif
+
+ifeq ($(TARGET_USES_ION),true)
+    LOCAL_CFLAGS += -DUSE_ION
 endif
 
 ifeq ($(BOARD_HAS_MTK_HARDWARE),true)

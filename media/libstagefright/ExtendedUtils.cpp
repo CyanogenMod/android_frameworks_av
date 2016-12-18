@@ -59,7 +59,9 @@ static const unsigned kDefaultRtpPortRangeEnd = 65535;
 #include "include/ExtendedExtractor.h"
 #include "include/avc_utils.h"
 #include <fcntl.h>
+#ifdef USE_ION
 #include <linux/msm_ion.h>
+#endif
 #define MEM_DEVICE "/dev/ion"
 #define MEM_HEAP_ID ION_CP_MM_HEAP_ID
 
