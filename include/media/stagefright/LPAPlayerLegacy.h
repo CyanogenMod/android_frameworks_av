@@ -83,6 +83,8 @@ public:
 
     static int mObjectsAlive;
     static bool mLpaInProgress;
+    static bool mLPAObjectEarlyDeletable;
+    static bool mLPAObjectEarlyDeleted;
 private:
     int64_t mPositionTimeMediaUs;
     int64_t mPositionTimeRealUs;
@@ -91,8 +93,8 @@ private:
     bool mStarted;
     bool mPaused;
     bool mA2DPEnabled;
+    bool mUSBEnabled;
     int32_t mChannelMask;
-    int32_t numChannels;
     int32_t mNumOutputChannels;
     int32_t mNumInputChannels;
     int32_t mSampleRate;
@@ -167,10 +169,6 @@ private:
     // make sure Decoder thread has exited
     void requestAndWaitForDecoderThreadExit();
 
-
-    // make sure the Effects thread also exited
-    void requestAndWaitForA2DPNotificationThreadExit();
-
     static void *decoderThreadWrapper(void *me);
     void decoderThreadEntry();
     static void *A2DPNotificationThreadWrapper(void *me);
@@ -179,6 +177,7 @@ private:
     void createThreads();
 
     volatile bool mIsA2DPEnabled;
+    volatile bool mIsUSBEnabled;
 
     //Structure to recieve the BT notification from the flinger.
     class AudioFlingerLPAdecodeClient: public IBinder::DeathRecipient, public BnAudioFlingerClient {
@@ -204,6 +203,7 @@ private:
     void getAudioFlinger();
 
     void handleA2DPSwitch();
+    void handleUSBSwitch();
     void onPauseTimeOut();
 
     int64_t getMediaTimeUs_l();
@@ -260,10 +260,8 @@ private:
     void reset();
 
     status_t setupAudioSink();
-    static size_t AudioCallback(
-        MediaPlayerBase::AudioSink *audioSink,
-        void *buffer, size_t size, void *cookie);
-    size_t AudioCallback(void *cookie, void *data, size_t size);
+    static void AudioCallback(int event, void *user, void *info);
+    void AudioCallback(int event, void *info);
 
     void convertMonoToStereo(int16_t *data, size_t size);
 

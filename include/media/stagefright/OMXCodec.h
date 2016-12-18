@@ -110,6 +110,9 @@ struct OMXCodec : public MediaSource,
 #ifdef MTK_HARDWARE
         kAvoidMemcopyInputRecordingFrames     = 8192,
 #endif
+#ifdef SEMC_ICS_CAMERA_BLOB
+        kXperiaAvoidMemcopyInputRecordingFrames = 32768,
+#endif
 #if defined(OMAP_ENHANCEMENT)
         kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif

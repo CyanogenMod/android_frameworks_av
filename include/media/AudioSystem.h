@@ -154,7 +154,9 @@ public:
         INPUT_CONFIG_CHANGED,
         STREAM_CONFIG_CHANGED,
 #ifdef QCOM_DIRECTTRACK
+        A2DP_OUTPUT_STATE,
         EFFECT_CONFIG_CHANGED,
+        USB_OUTPUT_STATE,
 #endif
         NUM_CONFIG_EVENTS
     };

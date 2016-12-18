@@ -224,6 +224,10 @@ private:
 
     bool mIsFirstFrameAfterResume;
 
+#ifdef QCOM_DIRECTTRACK
+    bool mDelayedInitialization;
+#endif
+
     sp<TimedEventQueue::Event> mVideoEvent;
     bool mVideoEventPending;
     sp<TimedEventQueue::Event> mStreamDoneEvent;

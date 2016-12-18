@@ -84,6 +84,13 @@
 #include <bufferallocator/OMXCodecBufferAllocator.h>
 #endif
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+#include <binder/IMemory.h>
+#include <binder/MemoryBase.h>
+#include <binder/MemoryHeapBase.h>
+#define OMX_COMPONENT_CAPABILITY_TYPE_INDEX 0xFF7A347
+#endif
+
 namespace android {
 
 #ifdef USE_SAMSUNG_COLORFORMAT
@@ -2227,6 +2234,15 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
     size_t totalSize = def.nBufferCountActual * def.nBufferSize;
     mDealer[portIndex] = new MemoryDealer(totalSize, "OMXCodec");
 
+#ifdef SEMC_ICS_CAMERA_BLOB
+    OMX_QCOM_PLATFORM_PRIVATE_PMEM_INFO pmeminfo;
+
+    if (portIndex == kPortIndexInput && !strncmp(mComponentName,"OMX.qcom.video.encoder.",23 )) {
+        mQuirks |= kXperiaAvoidMemcopyInputRecordingFrames;
+        mQuirks &= ~kRequiresAllocateBufferOnInputPorts;
+    }
+#endif
+
     for (OMX_U32 i = 0; i < def.nBufferCountActual; ++i) {
         sp<IMemory> mem = mDealer[portIndex]->allocate(def.nBufferSize);
         if (mem == NULL || mem->pointer() == NULL) {
@@ -2263,6 +2279,18 @@ status_t OMXCodec::allocateBuffersOnPort(OMX_U32 portIndex) {
                 err = mOMX->allocateBufferWithBackup(
                         mNode, portIndex, mem, &buffer);
             }
+#ifdef SEMC_ICS_CAMERA_BLOB
+        } else if (portIndex == kPortIndexInput
+                && (mQuirks & kXperiaAvoidMemcopyInputRecordingFrames)) {
+            sp<MemoryBase>* ptrbuffer;
+            mSource->getRecordingBuffer(i, &ptrbuffer);
+            ssize_t offset;
+            size_t size;
+            sp<IMemoryHeap> heap = (*ptrbuffer)->getMemory(&offset, &size);
+            pmeminfo.pmem_fd = heap->getHeapID();
+            pmeminfo.offset = offset;
+            err = mOMX->useBufferPmem(mNode, portIndex, &pmeminfo,def.nBufferSize, (*ptrbuffer)->pointer(), &buffer);
+#endif
         } else {
             err = mOMX->useBuffer(mNode, portIndex, mem, &buffer);
         }
@@ -3730,11 +3758,12 @@ void OMXCodec::drainInputBuffers() {
                 continue;
             }
 
-#if defined OMAP_ENHANCEMENT && defined TARGET_OMAP3
+#if defined(OMAP_ENHANCEMENT) && defined(TARGET_OMAP3) || defined(SEMC_ICS_CAMERA_BLOB)
             if (mIsEncoder && mIsVideo && (i == 4)) {
                 break;
             }
 #endif
+
             if (!drainInputBuffer(info)) {
                 break;
             }
@@ -3946,6 +3975,19 @@ bool OMXCodec::drainInputBuffer(BufferInfo *info) {
 
                 header->pBuffer =
                     (OMX_U8 *)srcBuffer->data() + srcBuffer->range_offset();
+
+                releaseBuffer = false;
+                info->mMediaBuffer = srcBuffer;
+#endif
+#ifdef SEMC_ICS_CAMERA_BLOB
+        } else if (mIsEncoder && (mQuirks & kXperiaAvoidMemcopyInputRecordingFrames)) {
+                CHECK(mOMXLivesLocally && offset == 0);
+
+                OMX_BUFFERHEADERTYPE *header =
+                    (OMX_BUFFERHEADERTYPE *) info->mBuffer;
+
+                header->pBuffer =
+                    (OMX_U8 *) srcBuffer->data() + srcBuffer->range_offset();
 
                 releaseBuffer = false;
                 info->mMediaBuffer = srcBuffer;
@@ -6166,6 +6208,24 @@ void OMXCodec::initOutputFormat(const sp<MetaData> &inputFormat) {
 #ifdef QCOM_HARDWARE
             } else {
                 ExtendedUtils::HFR::copyHFRParams(inputFormat, mOutputFormat);
+#ifdef SEMC_ICS_CAMERA_BLOB
+                typedef struct OMXComponentCapabilityFlagsType
+                {
+                  OMX_BOOL iIsOMXComponentMultiThreaded;
+                  OMX_BOOL iOMXComponentSupportsExternalOutputBufferAlloc;
+                  OMX_BOOL iOMXComponentSupportsExternalInputBufferAlloc;
+                  OMX_BOOL iOMXComponentSupportsMovableInputBuffers;
+                  OMX_BOOL iOMXComponentSupportsPartialFrames;
+                  OMX_BOOL iOMXComponentUsesNALStartCodes;
+                  OMX_BOOL iOMXComponentCanHandleIncompleteFrames;
+                  OMX_BOOL iOMXComponentUsesFullAVCFrames;
+
+                } OMXComponentCapabilityFlagsType;
+
+                OMXComponentCapabilityFlagsType junk;
+                mOMX->getParameter( mNode, (OMX_INDEXTYPE) OMX_COMPONENT_CAPABILITY_TYPE_INDEX,
+                                    &junk, sizeof(junk) );
+#endif
 #endif
             }
             break;
