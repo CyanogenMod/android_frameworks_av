@@ -112,8 +112,8 @@ struct OMXCodec : public MediaSource,
         kSupportsMultipleFramesPerInputBuffer = 1024,
         kRequiresLargerEncoderOutputBuffer    = 2048,
         kOutputBuffersAreUnreadable           = 4096,
-#if defined(OMAP_ENHANCEMENT)
-        kAvoidMemcopyInputRecordingFrames     = 0x20000000,
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
+	kAvoidMemcopyInputRecordingFrames     = 0x20000000,
 #endif
 #ifdef QCOM_HARDWARE
         kRequiresGlobalFlush                  = 0x20000000, // 2^29
@@ -194,6 +194,8 @@ private:
         size_t mSize;
         void *mData;
         MediaBuffer *mMediaBuffer;
+        OMX_U8 *mAllocatedBuffer;
+        OMX_U32 mAllocatedSize;
     };
 
     struct CodecSpecificData {
@@ -385,7 +387,7 @@ private:
     void dumpPortStatus(OMX_U32 portIndex);
 
     status_t configureCodec(const sp<MetaData> &meta);
-#if defined(OMAP_ENHANCEMENT)
+#if defined(OMAP_ENHANCEMENT) || defined(OMAP_COMPAT)
     void restorePatchedDataPointer(BufferInfo *info);
 #endif
 

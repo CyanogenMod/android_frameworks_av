@@ -1300,7 +1300,12 @@ sp<AudioFlinger::PlaybackThread::Track> AudioFlinger::PlaybackThread::createTrac
         // to be at least 2 x the normal mixer frame count and cover audio hardware latency.
         // This is probably too conservative, but legacy application code may depend on it.
         // If you change this calculation, also review the start threshold which is related.
+#ifdef HARDCODED_FAST_TRACK_LATENCY_WHEN_DENIED
+        ALOGW("Using HARDCODED_FAST_TRACK_LATENCY setting = %d", HARDCODED_FAST_TRACK_LATENCY_WHEN_DENIED);
+        uint32_t latencyMs = HARDCODED_FAST_TRACK_LATENCY_WHEN_DENIED;
+#else
         uint32_t latencyMs = mOutput->stream->get_latency(mOutput->stream);
+#endif
         uint32_t minBufCount = 0;
         if(mSampleRate)
             minBufCount = latencyMs / ((1000 * mNormalFrameCount) / mSampleRate);
