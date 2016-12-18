@@ -752,8 +752,8 @@ status_t CameraService::connect(
 
     sp<Client> client;
     {
-        sp<BasicClient> clientTmp;
         Mutex::Autolock lock(mServiceLock);
+        sp<BasicClient> clientTmp;
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
                               /*out*/clientTmp)) {
@@ -815,8 +815,8 @@ status_t CameraService::connectLegacy(
 
     sp<Client> client;
     {
-        sp<BasicClient> clientTmp;
         Mutex::Autolock lock(mServiceLock);
+        sp<BasicClient> clientTmp;
         if (!canConnectUnsafe(cameraId, clientPackageName,
                               cameraClient->asBinder(),
                               /*out*/clientTmp)) {
@@ -1373,7 +1373,6 @@ CameraService::Client::Client(const sp<CameraService>& cameraService,
     LOG1("Client::Client E (pid %d, id %d)", callingPid, cameraId);
 
     mRemoteCallback = cameraClient;
-    mLongshotEnabled = false;
 
     cameraService->setCameraBusy(cameraId);
     cameraService->loadSound();
@@ -1408,7 +1407,6 @@ CameraService::BasicClient::BasicClient(const sp<CameraService>& cameraService,
     mServicePid = servicePid;
     mOpsActive = false;
     mDestructionStarted = false;
-    mBurstCnt = 0;
 }
 
 CameraService::BasicClient::~BasicClient() {
