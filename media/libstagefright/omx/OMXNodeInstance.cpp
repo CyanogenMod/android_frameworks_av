@@ -1184,6 +1184,7 @@ status_t OMXNodeInstance::allocateBufferWithBackup(
     }
 
     CHECK_EQ(header->pAppPrivate, buffer_meta);
+    memset(header->pBuffer, 0, header->nAllocLen);
 
     *buffer = makeBufferID(header);
 
